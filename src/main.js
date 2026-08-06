@@ -1789,6 +1789,16 @@ export const app = (function(){
         window.location.reload(true);
       });
     }
+    // Always-visible log out button (header, every tab) — the one buried at
+    // the top of Settings was easy to miss, this is the same signOut call
+    // just reachable without navigating there first.
+    const headerLogOutBtn = document.getElementById('headerLogOutBtn');
+    if (headerLogOutBtn){
+      headerLogOutBtn.addEventListener('click', async () => {
+        if (!confirm('Log out of Calculated Chaos?')) return;
+        await window.authFns.signOut(window.auth);
+      });
+    }
   }
 
   function renderAll(){
