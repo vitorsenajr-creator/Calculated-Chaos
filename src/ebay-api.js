@@ -531,10 +531,13 @@ ${app.escapeHtml(JSON.stringify(result.debugPolicyIdsSent, null, 2))}</div>`;
     const editBtn = (item) => `<button class="bulk-ebay-edit-btn" data-edit-id="${item.id}" style="background:transparent; border:1px solid var(--line); border-radius:7px; padding:6px 12px; font-size:13px; cursor:pointer; margin-left:8px;">Edit</button>`;
     const itemRow = (text) => `<div style="margin-top:6px; font-size:14px; line-height:1.4; display:flex; align-items:center; flex-wrap:wrap;">${text}</div>`;
 
+    const notPublishingNow = g.blockedNoPrice.length + g.blockedNoPhotos.length + g.blockedNoDescription.length + g.needsReview.length;
+
     statusEl.innerHTML = `
       <div class="ebay-connect-box">
         <div class="ec-title">Publish ${g.ready.length} item${g.ready.length===1?'':'s'} on eBay?</div>
         <div class="ec-sub">
+          ${notPublishingNow ? `<div style="margin-bottom:4px;">✅ <b>${g.ready.length}</b> ready — will publish now. ${notPublishingNow ? `⏸️ <b>${notPublishingNow}</b> will NOT publish this round — see why below.` : ''}</div>` : ''}
           ${g.alreadyListed.length ? `<div>${updateAlready ? '🔄' : '⏭️'} ${g.alreadyListed.length} already listed on eBay ${updateAlready ? '(will be updated)' : '(skipped)'}</div>` : ''}
           ${g.alreadyListed.length ? `<label style="display:flex; align-items:center; gap:6px; margin-top:8px; margin-bottom:8px; font-size:12px; cursor:pointer;">
             <input type="checkbox" id="bulkUpdateAlreadyListedChk" ${updateAlready ? 'checked' : ''}>
@@ -547,7 +550,8 @@ ${app.escapeHtml(JSON.stringify(result.debugPolicyIdsSent, null, 2))}</div>`;
               ${g.blockedNoDescription.map(i => itemRow(`${itemLabel(i)} — no listing description generated${editBtn(i)}`)).join('')}
             </div>` : ''}
           ${g.needsReview.length ? `
-            <div style="margin-top:8px; font-size:13px;"><b style="color:var(--amber-deep);">⚠️ ${g.needsReview.length} need${g.needsReview.length===1?'s':''} review — no eBay category chosen</b>
+            <div style="margin-top:8px; font-size:13px;"><b style="color:var(--amber-deep);">⚠️ ${g.needsReview.length} won't publish this round — no eBay category chosen yet</b>
+              <div style="font-weight:400; margin-top:2px; opacity:0.85;">Pick a category on each (Edit → eBay Category), then run this again — the ${g.ready.length} ready item${g.ready.length===1?'':'s'} above will publish without waiting on these.</div>
               ${g.needsReview.map(i => itemRow(`${itemLabel(i)}${editBtn(i)}`)).join('')}
             </div>` : ''}
         </div>
