@@ -19,6 +19,7 @@ export const app = (function(){
   let openedFromBulkReview = false; // set when the item modal was opened via "Edit" from the bulk eBay preflight's blocked/needs-review lists — a successful save then offers to list it immediately instead of making her redo the whole bulk flow
   let draftItems = []; // Photo Session groups awaiting cataloging — own Firestore collection, never mixed into `items`
   let draftsPanelOpen = false;
+  let filterPanelOpen = false; // survives re-renders (e.g. picking a filter chip), unlike the old plain classList.toggle which reset on every re-render
   let currentPhotos = []; // dataUrls (compressed)
   let currentMeasurements = null; // {type, values:{label:inches}, photo:dataUrl} | null
   let currentStatus = 'catalogado';
@@ -1039,7 +1040,7 @@ export const app = (function(){
         <button class="${filterBtnClass}" id="filterToggleBtn">Filters${filtersActiveCount() ? ' (' + filtersActiveCount() + ')' : ''}</button>
         <button class="${bulkSelectMode ? 'filter-toggle-btn has-active' : 'filter-toggle-btn'}" id="bulkSelectToggleBtn">${bulkSelectMode ? '✕ Cancel' : '☑ Select'}</button>
       </div>
-      <div class="filter-panel" id="filterPanel"></div>
+      <div class="filter-panel ${filterPanelOpen ? 'open' : ''}" id="filterPanel"></div>
     `;
 
     if (items.length === 0){
@@ -1167,7 +1168,8 @@ export const app = (function(){
     if (filterToggleBtn && filterPanel){
       renderFilterPanel();
       filterToggleBtn.addEventListener('click', () => {
-        filterPanel.classList.toggle('open');
+        filterPanelOpen = !filterPanelOpen;
+        filterPanel.classList.toggle('open', filterPanelOpen);
       });
     }
     const bulkSelectToggleBtn = document.getElementById('bulkSelectToggleBtn');
