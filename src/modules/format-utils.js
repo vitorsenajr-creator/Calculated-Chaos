@@ -23,6 +23,10 @@ export function daysToSell(item){
 
 export function uid(){ return 'it_' + Date.now() + '_' + Math.random().toString(36).slice(2,8); }
 
+export function statusLabel(s){
+  return {catalogado:'Cataloged', anunciado:'Listed', vendido:'Sold'}[s] || s;
+}
+
 export function csvEscape(val){
   const s = String(val ?? '');
   if (s.includes(',') || s.includes('"') || s.includes('\n')){
