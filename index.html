@@ -73,10 +73,15 @@
 
 <!-- MODAL: ADD/EDIT ITEM -->
 <div class="modal-overlay hidden" id="itemModalOverlay">
+  <!-- Deliberately siblings of .modal, not children — .modal has its own
+       overflow-y:auto scroll, and position:fixed descendants of a scrolling
+       (non-body) element don't actually stay put on iOS Safari, they scroll
+       along with it. .modal-overlay itself never scrolls, so fixed children
+       of IT stay pinned to the viewport correctly everywhere. -->
+  <button type="button" id="modalCloseX" aria-label="Close" style="position:fixed; top:16px; right:16px; width:36px; height:36px; border:none; background:var(--cream, #FBF3E9); color:var(--plum, #3D2C32); border-radius:50%; font-size:16px; cursor:pointer; z-index:200; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 8px rgba(0,0,0,0.15);">✕</button>
+  <button type="button" id="modalBackToTop" aria-label="Back to top" style="display:none; position:fixed; top:16px; right:60px; width:36px; height:36px; border:none; background:var(--cream, #FBF3E9); color:var(--plum, #3D2C32); border-radius:50%; font-size:16px; cursor:pointer; z-index:200; align-items:center; justify-content:center; box-shadow:0 2px 8px rgba(0,0,0,0.15);">↑</button>
   <div class="modal">
     <div class="modal-handle"></div>
-    <button type="button" id="modalCloseX" aria-label="Close" style="position:fixed; top:16px; right:16px; width:36px; height:36px; border:none; background:var(--cream, #FBF3E9); color:var(--plum, #3D2C32); border-radius:50%; font-size:16px; cursor:pointer; z-index:200; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 8px rgba(0,0,0,0.15);">✕</button>
-    <button type="button" id="modalBackToTop" aria-label="Back to top" style="display:none; position:fixed; top:16px; right:60px; width:36px; height:36px; border:none; background:var(--cream, #FBF3E9); color:var(--plum, #3D2C32); border-radius:50%; font-size:16px; cursor:pointer; z-index:200; align-items:center; justify-content:center; box-shadow:0 2px 8px rgba(0,0,0,0.15);">↑</button>
     <h2 id="modalTitle">New item</h2>
 
     <div class="photo-upload-zone" id="photoZone">
