@@ -34,3 +34,19 @@ export function csvEscape(val){
   }
   return s;
 }
+
+// Forces full-cents display (e.g. "18" -> "18.00") on blur for USD number
+// inputs. Pure DOM wiring, no app-state dependency — takes the input ids
+// as a param already.
+export function attachCurrencyFormatting(ids){
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el || el.dataset.currencyFormatBound) return;
+    el.dataset.currencyFormatBound = '1';
+    el.addEventListener('blur', () => {
+      if (el.value === '') return;
+      const n = parseFloat(el.value);
+      if (!isNaN(n)) el.value = n.toFixed(2);
+    });
+  });
+}

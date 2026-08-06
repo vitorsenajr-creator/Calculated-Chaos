@@ -22,7 +22,7 @@ import {
   getAllClothingTypes as _getAllClothingTypes,
 } from './modules/catalog-lookups.js';
 import { compressImage } from './modules/image-compression.js';
-import { escapeHtml, toTitleCase, daysSince, daysToSell, uid, csvEscape, statusLabel } from './modules/format-utils.js';
+import { escapeHtml, toTitleCase, daysSince, daysToSell, uid, csvEscape, statusLabel, attachCurrencyFormatting } from './modules/format-utils.js';
 import {
   getCategoryPriceHistory as _getCategoryPriceHistory,
   getPriceReference as _getPriceReference,
@@ -313,19 +313,8 @@ export const app = (function(){
   }
 
   // ---------- CURRENCY INPUT FORMATTING ----------
-  // Forces full-cents display (e.g. "18" -> "18.00") on blur for USD number inputs.
-  function attachCurrencyFormatting(ids){
-    ids.forEach(id => {
-      const el = document.getElementById(id);
-      if (!el || el.dataset.currencyFormatBound) return;
-      el.dataset.currencyFormatBound = '1';
-      el.addEventListener('blur', () => {
-        if (el.value === '') return;
-        const n = parseFloat(el.value);
-        if (!isNaN(n)) el.value = n.toFixed(2);
-      });
-    });
-  }
+  // attachCurrencyFormatting now lives in modules/format-utils.js (imported
+  // above) — pure DOM wiring, no app-state dependency, moved verbatim.
 
   // ---------- PRODUCT CODE & STORAGE BOX HELPERS ----------
   // nextProductCode/getAllStorageBoxes/getAllSizes/getSizeSuggestionsForType/
