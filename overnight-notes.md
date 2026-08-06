@@ -210,17 +210,39 @@ open per item, so there's no pill UI to sync there.
 
 ## Backlog — mudanças de UX pedidas (publicação eBay + modal do item)
 
-Levantadas em 2026-08-06, ainda não discutidas/implementadas. Ordem como
-foram passadas; vamos decidir prioridade e detalhes um por um antes de
-mexer em código.
+Levantadas em 2026-08-06, todas observadas no fluxo de **multi-seleção →
+publicar no eBay em massa** (bulk preflight). Detalhes completos abaixo,
+como o usuário descreveu. Discutindo uma por uma antes de mexer em código.
 
-1. Melhoria do tamanho da fonte e botão de editar (no fluxo/preview de
-   publicação no eBay?)
-2. Edição em massa
-3. Salvar automático quando gerar a descrição
-4. Manter a descrição salva no item
-5. Manter a tela sem voltar ao topo quando recarrega
-6. Botão de fechar a janela do item fixo no topo
+1. **Inverter ordem "bloqueado bloqueia tudo"** — hoje, ao selecionar N
+   itens pra publicar (ex: 30, sendo 20 prontos e 10 precisando de
+   revisão — sem categoria eBay escolhida), o fluxo não publica os 20
+   prontos enquanto os 10 não forem corrigidos. Quer inverter: publicar os
+   prontos primeiro, os que precisam de revisão ficam pendentes à parte.
+2. **Botão de editar + texto muito pequenos** na lista de itens
+   bloqueados/precisando de revisão dentro do preflight de publicação em
+   massa — tanto o texto da lista quanto o botão "Edit" ao lado de cada
+   item.
+3. **Edição em massa da descrição via IA** — criar uma ferramenta que
+   roda a geração de descrição (API já conectada) em lote pros itens
+   selecionados que estão com essa pendência, sem precisar abrir item por
+   item.
+4. **Salvar automático ao gerar a descrição** — hoje, depois de clicar em
+   "gerar descrição", é preciso clicar em Salvar manualmente pra habilitar
+   "Publicar no eBay". Quer que o salvamento aconteça automaticamente
+   assim que a API entrega a descrição (o gatilho do save é a resposta da
+   API chegando, não um clique separado).
+5. **Manter a descrição visível no painel do item depois de salva** — ao
+   gerar a descrição, o texto aparece, ela salva, o "Publicar no eBay"
+   habilita — mas o texto some da tela do item (mesmo estando salvo e
+   sendo usado corretamente na publicação/cópia). Quer que o texto
+   continue visível no painel depois de salvo, sem precisar gerar de novo
+   pra ver.
+6. **Não voltar pro topo da tela ao recarregar/salvar** — junto com o
+   autosave do item 4, o recarregamento da view não deve jogar o scroll de
+   volta pro topo do modal.
+7. **Botão de fechar o modal do item fixo no topo** — hoje aparentemente
+   rola junto com o conteúdo; quer fixo (sticky) no topo do modal.
 
 ## Bugs found (not fixed) — none
 
