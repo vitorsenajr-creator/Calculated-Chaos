@@ -53,11 +53,11 @@ export function computeReportsData(items, appSettings){
 }
 
 export function buildFullInventoryRows(items, appSettings){
-  const header = ['Name','Category','Brand','Condition','Status','Cost','Weight(lb)','Length(in)','Width(in)','Height(in)','List Price','Sold Price','Platform','Projected Profit','Net Profit','Days in Catalog','Notes','Photo Count'];
+  const header = ['Name','Category','Brand','Condition','Status','Cost','Weight(lb)','Length(in)','Width(in)','Height(in)','List Price','Sold Price','Listed On','Projected Profit','Net Profit','Days in Catalog','Notes','Photo Count'];
   return [header, ...items.map(i => [
     i.name, i.category, i.brand, CONDITION_LABEL[i.condition]||i.condition, statusLabel(i.status),
     i.cost, i.weight, i.length, i.width, i.height,
-    i.listPrice, i.soldPrice||'', i.platform,
+    i.listPrice, i.soldPrice||'', (i.listedPlatforms||[]).join(', '),
     i.status !== 'vendido' ? projectedProfit(items, appSettings, i).toFixed(2) : '',
     i.netProfit!==undefined ? i.netProfit.toFixed(2) : '',
     daysSince(i.createdAt), i.notes, (i.photos||[]).length
@@ -66,10 +66,10 @@ export function buildFullInventoryRows(items, appSettings){
 
 export function buildSoldItemsRows(items){
   const sold = items.filter(i => i.status === 'vendido');
-  const header = ['Name','Category','Brand','Sold Price','Cost','Platform Fees','Shipping Paid','Net Profit','Platform','Date Sold','Days to Sell'];
+  const header = ['Name','Category','Brand','Sold Price','Cost','Platform Fees','Shipping Paid','Net Profit','Listed On','Date Sold','Days to Sell'];
   return [header, ...sold.map(i => [
     i.name, i.category, i.brand, i.soldPrice, i.cost, i.feesTotal, i.shippingCost,
-    i.netProfit!==undefined ? i.netProfit.toFixed(2) : '', i.platform,
+    i.netProfit!==undefined ? i.netProfit.toFixed(2) : '', (i.listedPlatforms||[]).join(', '),
     i.soldAt ? new Date(i.soldAt).toLocaleDateString('en-US') : '', daysToSell(i) ?? ''
   ])];
 }
@@ -153,7 +153,7 @@ export function buildExcelSheetsData(items, appSettings){
     ''
   ]);
 
-  const allHeader = ['Product Code','Storage Box','Source','Name','Category','Brand','Gender','Size','Color','Condition','Status','Prep Status','Cost ($)','List Price ($)','Sold Price ($)','Net Profit ($)','Projected Profit ($)','Platform','Listed On','Weight (lb)','Length (in)','Width (in)','Height (in)','Days in Catalog','Notes','Photo Count'];
+  const allHeader = ['Product Code','Storage Box','Source','Name','Category','Brand','Gender','Size','Color','Condition','Status','Prep Status','Cost ($)','List Price ($)','Sold Price ($)','Net Profit ($)','Projected Profit ($)','Listed On','Weight (lb)','Length (in)','Width (in)','Height (in)','Days in Catalog','Notes','Photo Count'];
   const allRows = items.map(i => [
     i.productCode || '',
     i.storageBox || '',
@@ -172,7 +172,6 @@ export function buildExcelSheetsData(items, appSettings){
     i.soldPrice || '',
     i.netProfit !== undefined ? parseFloat(i.netProfit).toFixed(2) : '',
     i.status !== 'vendido' ? projectedProfit(items, appSettings, i).toFixed(2) : '',
-    i.platform || '',
     (i.listedPlatforms || []).join(', '),
     i.weight || '',
     i.length || '',
