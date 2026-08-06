@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Calculated Chaos</title>
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body class="auth-locked">
+<div id="authOverlay" style="display:flex;">
+  <div class="auth-card">
+    <div id="authFormState">
+      <h2 id="authTitle">Welcome back</h2>
+      <p class="auth-sub" id="authSubtitle">Sign in to Calculated Chaos.</p>
+      <form id="authForm">
+        <label for="authEmail">Email</label>
+        <input type="email" id="authEmail" autocomplete="username" required>
+        <label for="authPassword">Password</label>
+        <input type="password" id="authPassword" autocomplete="current-password" required minlength="6">
+        <button type="submit" class="auth-submit" id="authSubmitBtn">Sign in</button>
+      </form>
+      <div class="auth-toggle">
+        <span id="authToggleText">Don't have an account? <a id="authToggleLink">Create one</a></span>
+      </div>
+      <div class="auth-error" id="authError" style="display:none;"></div>
+    </div>
+    <div id="authPendingState" class="auth-pending" style="display:none;">
+      <h2>Awaiting approval</h2>
+      <p class="auth-sub">Your account was created, but it still needs to be approved by the app owner before you can use Calculated Chaos. Ask them to open Settings → Authorize access.</p>
+      <button id="authSignOutBtn">Sign out</button>
+    </div>
+  </div>
+</div>
+
+<header>
+  <div class="eyebrow">Resale Studio · eBay / Mercari / Poshmark</div>
+  <div class="version-badge" id="versionBadge"></div>
+  <button id="appRefreshBtn" title="Refresh app" aria-label="Refresh app" style="position:absolute; top:12px; left:12px; background:rgba(255,255,255,0.5); border:none; border-radius:50%; width:36px; height:36px; font-size:18px; cursor:pointer; color:var(--plum); z-index:5;">⟳</button>
+  <h1>Calculated Chaos</h1>
+  <p class="subtitle">Every thrift find, cataloged, priced, and accounted for.</p>
+
+  <div class="daily-quote" id="dailyQuote"></div>
+
+  <div class="stats-strip" id="statsStrip"></div>
+</header>
+
+<div class="tabs">
+  <button class="tab-btn active" data-tab="catalog">Catalog</button>
+  <button class="tab-btn" data-tab="finance">Finances</button>
+  <button class="tab-btn" data-tab="reports">Reports</button>
+  <button class="tab-btn" data-tab="settings">⚙ Settings</button>
+</div>
+
+<main>
+  <div id="catalogView"><div class="loading">Loading your pieces…</div></div>
+  <div id="financeView" style="display:none;"></div>
+  <div id="reportsView" style="display:none;"></div>
+  <div id="settingsView" style="display:none;"></div>
+</main>
+
+<button class="fab" id="fabPhotoSession" title="Photo session — batch photos first, catalog later" style="bottom:160px; width:48px; height:48px; font-size:20px; background:var(--gold);">📷</button>
+<button class="fab" id="fabQuickCatalog" title="Quick catalog mode" style="bottom:92px; width:48px; height:48px; font-size:20px; background:var(--sage);">⚡</button>
+<button class="fab" id="fabAdd" title="New item">+</button>
+
+<!-- MODAL: ADD/EDIT ITEM -->
+<div class="modal-overlay hidden" id="itemModalOverlay">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <button type="button" id="modalCloseX" aria-label="Close" style="position:fixed; top:16px; right:16px; width:36px; height:36px; border:none; background:var(--cream, #FBF3E9); color:var(--plum, #3D2C32); border-radius:50%; font-size:16px; cursor:pointer; z-index:200; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 8px rgba(0,0,0,0.15);">✕</button>
+    <button type="button" id="modalBackToTop" aria-label="Back to top" style="display:none; position:fixed; top:16px; right:60px; width:36px; height:36px; border:none; background:var(--cream, #FBF3E9); color:var(--plum, #3D2C32); border-radius:50%; font-size:16px; cursor:pointer; z-index:200; align-items:center; justify-content:center; box-shadow:0 2px 8px rgba(0,0,0,0.15);">↑</button>
+    <h2 id="modalTitle">New item</h2>
+
+    <div class="photo-upload-zone" id="photoZone">
+      📷 Tap to add photos
+      <input type="file" id="photoInput" accept="image/*" multiple>
+    </div>
+    <div class="photo-count-hint" id="photoCountHint">0 / 8 photos · front, back, tag, and any flaws work well</div>
+    <div class="photo-gallery-hint" id="photoGalleryHint">💡 Tap <b>Save</b> under each photo to download it to your camera roll — photos taken inside the app aren't saved automatically.</div>
+    <button class="save-all-photos-btn" id="saveAllPhotosBtn">⬇ Save all photos to camera roll</button>
+    <div class="photo-preview-grid" id="photoPreviewGrid"></div>
+
+    <button class="btn btn-ai" style="width:100%; margin-bottom:14px;" id="analyzePhotoBtn">🔮 Analyze with AI</button>
+    <div id="aiAnalysisArea"></div>
+
+    <div class="field-row">
+      <div class="field">
+        <label>Product code</label>
+        <input type="text" class="mono" id="fProductCode" placeholder="#0001">
+      </div>
+      <div class="field">
+        <label>Storage box</label>
+        <input type="text" id="fStorageBox" list="storageBoxList" placeholder="e.g. Box 1">
+        <datalist id="storageBoxList"></datalist>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Item name</label>
+      <input type="text" id="fName" placeholder="e.g. Vintage Levi's denim jacket">
+    </div>
+
+    <div class="field" id="fQuantityField">
+      <label>Quantity</label>
+      <input type="number" id="fQuantity" value="1" min="1" max="50" step="1">
+      <div style="font-size:12.5px; color:var(--plum-soft); line-height:1.5; margin-top:4px;">Got several identical pieces? Set this and Save creates that many entries at once — each still gets its own product code, so you can sell, print a label for, or mark each one sold individually.</div>
+    </div>
+
+    <div class="field-row">
+      <div class="field" style="position:relative;">
+        <label>Source</label>
+        <input type="text" id="fSource" placeholder="e.g. Goodwill" autocomplete="off">
+        <div id="sourceSuggestions" style="display:none; position:absolute; top:100%; left:0; right:0; z-index:20; background:var(--white); border:1px solid var(--line); border-radius:8px; margin-top:2px; max-height:160px; overflow-y:auto; box-shadow:0 4px 10px rgba(0,0,0,0.08);"></div>
+      </div>
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label>Category</label>
+        <select id="fCategory">
+          <option value="__other__" id="fCategoryOtherOption">Add new…</option>
+        </select>
+        <input type="text" id="fCategoryOther" list="categoryList" placeholder="Type a new category…" style="display:none; margin-top:6px;">
+        <datalist id="categoryList"></datalist>
+      </div>
+      <div class="field">
+        <label>Brand</label>
+        <input type="text" id="fBrand" placeholder="Levi's, Nike...">
+      </div>
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label>Gender</label>
+        <select id="fGender">
+          <option value="">—</option>
+          <option value="Women's">Women's</option>
+          <option value="Men's">Men's</option>
+          <option value="Girls'">Girls'</option>
+          <option value="Boys'">Boys'</option>
+          <option value="Unisex">Unisex</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Clothing Type</label>
+        <select id="fClothingType">
+          <option value="">—</option>
+          <option value="__other__" id="fClothingTypeOtherOption">Other…</option>
+        </select>
+        <input type="text" id="fClothingTypeOther" list="clothingTypeList" placeholder="Type a clothing type…" style="display:none; margin-top:6px;">
+        <datalist id="clothingTypeList"></datalist>
+      </div>
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label>Color</label>
+        <select id="fColor">
+          <option value="">—</option>
+          <option value="__other__" id="fColorOtherOption">Other…</option>
+        </select>
+        <input type="text" id="fColorOther" list="colorList" placeholder="Type a color…" style="display:none; margin-top:6px;">
+        <datalist id="colorList"></datalist>
+      </div>
+      <div class="field" style="position:relative;">
+        <label>Size</label>
+        <input type="text" id="fSize" placeholder="e.g. M, 32x30, 8.5" autocomplete="off">
+        <div id="sizeSuggestions" style="display:none; position:absolute; top:100%; left:0; right:0; z-index:20; background:var(--white); border:1px solid var(--line); border-radius:8px; margin-top:2px; max-height:160px; overflow-y:auto; box-shadow:0 4px 10px rgba(0,0,0,0.08);"></div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>eBay Category <span style="font-weight:400; opacity:0.6;">(required — search and pick the real one)</span></label>
+      <div style="position:relative;">
+        <input type="text" id="fEbayCategoryQuery" placeholder="e.g. Skirts, Hardcover Books, Antique Lamps, Microwave Ovens…" autocomplete="off">
+        <button type="button" id="ebayCategoryClearBtn" style="display:none; position:absolute; top:50%; right:8px; transform:translateY(-50%); background:transparent; border:none; color:var(--plum-soft); font-size:16px; cursor:pointer; padding:4px;">✕</button>
+      </div>
+      <div id="ebayCategoryResults" style="margin-top:6px;"></div>
+      <div id="ebayAspectsContainer" style="margin-top:10px;"></div>
+    </div>
+
+    <div class="field">
+      <label>Condition</label>
+      <select id="fCondition">
+        <option value="novo_etiqueta">New with tags</option>
+        <option value="novo_sem_etiqueta">New without tags</option>
+        <option value="excelente" selected>Used — excellent</option>
+        <option value="bom">Used — good</option>
+        <option value="aceitavel">Used — fair</option>
+        <option value="defeito">Flawed (for parts/repair)</option>
+      </select>
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label>Acquisition cost ($)</label>
+        <input type="number" class="mono" id="fCost" placeholder="0.00" step="0.01">
+      </div>
+      <div class="field">
+        <label>Weight (lb)</label>
+        <input type="number" class="mono" id="fWeight" placeholder="0.0" step="0.1">
+      </div>
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label>Length (in)</label>
+        <input type="number" class="mono" id="fLen" placeholder="0" step="0.5">
+      </div>
+      <div class="field">
+        <label>Width (in)</label>
+        <input type="number" class="mono" id="fWid" placeholder="0" step="0.5">
+      </div>
+      <div class="field">
+        <label>Height (in)</label>
+        <input type="number" class="mono" id="fHei" placeholder="0" step="0.5">
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Notes &amp; details</label>
+      <textarea id="fNotes" placeholder="Wear marks, sizing, material..."></textarea>
+    </div>
+
+    <div class="field">
+      <label>Garment measurements</label>
+      <div class="measure-chip-row" id="measureChipRow"></div>
+      <button type="button" class="btn btn-secondary" style="width:100%;" id="openMeasureToolBtn">📏 Measure with photo</button>
+    </div>
+
+    <label style="display:block; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; color:var(--plum-soft); margin-bottom:7px;">Prep status</label>
+    <div class="prep-row" id="prepRow">
+      <div class="prep-pill" data-prep="needs_wash">Needs wash</div>
+      <div class="prep-pill" data-prep="needs_repair">Needs repair</div>
+      <div class="prep-pill" data-prep="needs_photo">Needs photos</div>
+      <div class="prep-pill" data-prep="ready">Ready to list</div>
+    </div>
+
+    <button class="btn btn-secondary" style="width:100%; margin-bottom:6px;" id="calcSuggestionBtn">✨ Calculate suggested price &amp; shipping</button>
+    <div id="suggestionArea"></div>
+
+    <div class="field" style="margin-top:14px;">
+      <label>Listing price ($) — adjust if you like</label>
+      <input type="number" class="mono" id="fListPrice" placeholder="0.00" step="0.01">
+    </div>
+
+    <div class="field">
+      <label>Shipping</label>
+      <select id="fFreeShipping">
+        <option value="buyer">Buyer pays shipping</option>
+        <option value="seller">I offer free shipping (I absorb the cost)</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>Platform</label>
+      <select id="fPlatform">
+        <option value="ebay">eBay</option>
+        <option value="mercari">Mercari</option>
+        <option value="poshmark">Poshmark</option>
+        <option value="vinted">Vinted</option>
+        <option value="depop">Depop</option>
+        <option value="outra">Other</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>Listed on</label>
+      <div class="prep-row" id="listedPlatformsRow"></div>
+    </div>
+
+    <label style="display:block; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; color:var(--plum-soft); margin-bottom:7px;">Status</label>
+    <div class="status-select-row" id="statusRow">
+      <div class="status-pill selected" data-status="catalogado">Cataloged</div>
+      <div class="status-pill" data-status="anunciado">Listed</div>
+      <div class="status-pill" data-status="vendido">Sold</div>
+    </div>
+
+    <div id="soldFieldsArea"></div>
+
+    <button class="btn btn-sage" style="width:100%; margin-top:6px;" id="genListingBtn">📝 Generate listing copy</button>
+    <button class="btn btn-secondary" style="width:100%; margin-top:6px; display:none;" id="genPoshAiBtn">🪄 Generate Poshmark listing with AI</button>
+    <div id="genPoshAiHint" style="display:none; font-size:11px; color:var(--plum-soft); margin-top:5px; text-align:center;">Reads up to 5 photos — include a close-up of the tag/label for fabric &amp; care details</div>
+    <div id="listingOutputArea"></div>
+
+    <button class="btn btn-ebay" style="width:100%; margin-top:8px;" id="ebayListBtn">🛒 List on eBay</button>
+    <div id="ebayStatusArea"></div>
+
+    <div id="saveProgressArea" style="display:none; margin-bottom:8px;">
+      <div style="font-size:12px; color:var(--plum-soft); margin-bottom:4px;" id="saveProgressLabel">Saving…</div>
+      <div style="height:6px; background:rgba(0,0,0,0.08); border-radius:999px; overflow:hidden;">
+        <div id="saveProgressBar" style="height:100%; width:0%; background:var(--terracotta); transition:width 0.25s ease;"></div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="cancelItemBtn">Cancel</button>
+      <button class="btn btn-primary" id="saveItemBtn">Save item</button>
+    </div>
+    <div class="modal-actions" style="margin-top:10px;">
+      <button class="btn btn-ghost" id="duplicateItemBtn" style="display:none;">⧉ Duplicate</button>
+      <button class="btn btn-danger" id="deleteItemBtn" style="display:none;">Delete item</button>
+    </div>
+  </div>
+</div>
+
+<!-- PHOTO SESSION — batch-photograph several pieces first, catalog them later.
+     Each "item" here is just a group of photos; nothing about name/brand/
+     price is captured yet. Every group is saved to the `drafts` collection
+     the moment she taps "Next item" or "Finish session", so nothing is lost
+     if she closes the tab mid-session. -->
+<div class="modal-overlay hidden" id="photoSessionOverlay" style="z-index:115;">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-handle"></div>
+    <h2>📷 Photo session</h2>
+    <div class="ss-desc">Photograph one piece, then tap "Next item" to start the next — no need to fill in any details now. Each group is saved automatically as a draft.</div>
+    <div id="photoSessionCounter" style="font-size:13px; font-weight:700; color:var(--terracotta-deep); margin:10px 0 8px;">Item 1 — 0 photos</div>
+    <input type="file" id="photoSessionInput" accept="image/*" multiple style="margin-bottom:10px;">
+    <div class="photo-preview-grid" id="photoSessionGrid"></div>
+    <div class="modal-actions" style="margin-top:14px;">
+      <button class="btn btn-secondary" id="photoSessionCancelBtn">Cancel session</button>
+      <button class="btn btn-primary" id="photoSessionNextBtn">Next item →</button>
+    </div>
+    <button class="btn btn-sage" id="photoSessionFinishBtn" style="width:100%; margin-top:10px;">✓ Finish session</button>
+  </div>
+</div>
+
+<!-- MEASUREMENT TOOL -->
+<div class="modal-overlay hidden" id="measureModalOverlay" style="z-index:110;">
+  <div class="modal measure-modal">
+    <div class="modal-handle"></div>
+    <h2>📏 Measure with photo</h2>
+
+    <div id="measureStepPicker">
+      <div class="measure-step-label">Step 1 · Choose a photo</div>
+      <div class="measure-instructions">Pick a photo that shows the item next to a tape measure or ruler laid flat.</div>
+      <div class="measure-photo-picker" id="measurePhotoPicker"></div>
+    </div>
+
+    <div id="measureStepWork" style="display:none;">
+      <div class="measure-canvas-wrap">
+        <canvas id="measureCanvas"></canvas>
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; margin:6px 0 10px;">
+        <span style="font-size:11px; color:var(--plum-soft);">Pinch or drag with 2 fingers to zoom, drag with 1 finger to move around</span>
+        <div style="display:flex; gap:6px; flex-shrink:0;">
+          <button type="button" class="icon-btn" id="measureZoomOutBtn">🔍－</button>
+          <button type="button" class="icon-btn" id="measureZoomResetBtn">Reset</button>
+          <button type="button" class="icon-btn" id="measureZoomInBtn">🔍＋</button>
+        </div>
+      </div>
+      <div class="measure-step-label" id="measureStepLabel"></div>
+      <div class="measure-instructions" id="measureInstructions"></div>
+      <div id="measureCalibWarning" style="display:none; background:rgba(181,86,74,0.12); color:var(--danger); border:1px solid var(--danger); border-radius:8px; padding:8px 12px; font-size:12px; margin-bottom:10px;"></div>
+
+      <button type="button" class="icon-btn" id="measureUndoMarkerBtn" style="display:none; margin-bottom:12px;">↺ Undo last marker</button>
+
+      <div id="measureTypeStep" style="display:none;" class="field">
+        <label>Garment type</label>
+        <select id="measureGarmentType">
+          <option value="Top">Top / Shirt</option>
+          <option value="Pants">Pants / Jeans</option>
+          <option value="Dress">Dress</option>
+          <option value="Outerwear">Jacket / Outerwear</option>
+          <option value="Shoes">Shoes</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+
+      <div class="measure-field-list" id="measureFieldList"></div>
+
+      <div class="modal-actions">
+        <button class="btn btn-secondary" id="measureBackBtn">Back</button>
+        <button class="btn btn-secondary" id="measureSavePhotoBtn" style="display:none;">💾 Save photo</button>
+        <button class="btn btn-primary" id="measureApplyBtn" style="display:none;">Apply to item</button>
+      </div>
+    </div>
+
+    <div class="modal-actions" style="margin-top:10px;">
+      <button class="btn btn-ghost" id="measureCancelBtn">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- LIGHTBOX GALLERY -->
+<div class="lightbox-overlay hidden" id="lightboxOverlay">
+  <button class="lightbox-close" id="lightboxClose">✕</button>
+  <div class="lightbox-img-wrap">
+    <button class="lightbox-nav prev" id="lightboxPrev">‹</button>
+    <img id="lightboxImg" src="" alt="">
+    <button class="lightbox-nav next" id="lightboxNext">›</button>
+  </div>
+  <div class="lightbox-counter" id="lightboxCounter"></div>
+  <div class="lightbox-thumbnails" id="lightboxThumbs"></div>
+</div>
+
+<div class="modal-overlay hidden" id="printLabelOverlay" style="z-index:120;">
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-handle"></div>
+    <h3 class="serif" style="margin:0 0 4px; font-size:19px;">Print label</h3>
+    <div class="ss-desc" style="margin-bottom:16px;">Opens your browser's print dialog — pick the Y43BT (or your paired thermal printer) there.</div>
+    <div id="labelPreviewWrap" style="display:flex; justify-content:center; margin-bottom:18px;"></div>
+    <div class="modal-actions">
+      <button class="settings-save-btn" id="labelPrintBtn" style="margin:0; width:auto; flex:1;">🖨️ Print</button>
+      <button class="settings-save-btn" id="labelSaveImgBtn" style="margin:0; width:auto; flex:1; background:var(--sage);">💾 Save image</button>
+    </div>
+    <div class="ss-desc" style="margin-top:10px; margin-bottom:0;">On phone, "Print" may not show your thermal printer — use "Save image" instead and open it from your printer's app (e.g. FlashLabel Pro).</div>
+    <div class="modal-actions" style="margin-top:10px;">
+      <button class="icon-btn" id="labelPrintCancelBtn" style="width:100%;">Cancel</button>
+    </div>
+  </div>
+</div>
+<div id="labelPrintArea">
+  <div id="labelPrintExitBar">
+    <button id="labelPrintExitBtn">✕ Done — back to app</button>
+  </div>
+  <div id="labelPrintContent"></div>
+</div>
+
+<div class="modal-overlay hidden" id="calibInstructionsOverlay" style="z-index:130;">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-handle"></div>
+    <h3 class="serif" style="margin:0 0 4px; font-size:19px;">Wall marker setup &amp; calibration</h3>
+    <div class="ss-desc" style="margin-bottom:14px;">Mount the 4 markers in a cross around where you'll photograph items — not a rectangle. Only 2 distances have to be right (left↔right and top↔bottom), which is much easier to get accurate than a 4-corner rectangle.</div>
+
+    <svg viewBox="0 0 300 220" style="width:100%; height:auto; background:var(--cream-soft); border-radius:12px; margin-bottom:14px;">
+      <line x1="60" y1="110" x2="240" y2="110" stroke="var(--line)" stroke-width="2" stroke-dasharray="4 4"/>
+      <line x1="150" y1="20" x2="150" y2="200" stroke="var(--line)" stroke-width="2" stroke-dasharray="4 4"/>
+      <rect x="118" y="88" width="64" height="44" rx="4" fill="none" stroke="var(--sage-deep)" stroke-width="2" stroke-dasharray="3 3"/>
+      <text x="150" y="114" text-anchor="middle" font-size="9" fill="var(--sage-deep)" font-family="Inter, sans-serif">item goes here</text>
+
+      <!-- left marker -->
+      <g transform="translate(40,110)" stroke="var(--terracotta-deep)" stroke-width="3">
+        <line x1="-14" y1="0" x2="14" y2="0"/><line x1="0" y1="-14" x2="0" y2="14"/>
+        <circle r="5" fill="var(--cream-soft)" stroke="var(--terracotta-deep)" stroke-width="2"/>
+      </g>
+      <!-- right marker -->
+      <g transform="translate(260,110)" stroke="var(--terracotta-deep)" stroke-width="3">
+        <line x1="-14" y1="0" x2="14" y2="0"/><line x1="0" y1="-14" x2="0" y2="14"/>
+        <circle r="5" fill="var(--cream-soft)" stroke="var(--terracotta-deep)" stroke-width="2"/>
+      </g>
+      <!-- top marker -->
+      <g transform="translate(150,20)" stroke="var(--terracotta-deep)" stroke-width="3">
+        <line x1="-14" y1="0" x2="14" y2="0"/><line x1="0" y1="-14" x2="0" y2="14"/>
+        <circle r="5" fill="var(--cream-soft)" stroke="var(--terracotta-deep)" stroke-width="2"/>
+      </g>
+      <!-- bottom marker -->
+      <g transform="translate(150,200)" stroke="var(--terracotta-deep)" stroke-width="3">
+        <line x1="-14" y1="0" x2="14" y2="0"/><line x1="0" y1="-14" x2="0" y2="14"/>
+        <circle r="5" fill="var(--cream-soft)" stroke="var(--terracotta-deep)" stroke-width="2"/>
+      </g>
+
+      <text x="40" y="140" text-anchor="middle" font-size="10" font-weight="700" fill="var(--plum)" font-family="Inter, sans-serif">LEFT</text>
+      <text x="260" y="140" text-anchor="middle" font-size="10" font-weight="700" fill="var(--plum)" font-family="Inter, sans-serif">RIGHT</text>
+      <text x="150" y="12" text-anchor="middle" font-size="10" font-weight="700" fill="var(--plum)" font-family="Inter, sans-serif">TOP</text>
+      <text x="150" y="216" text-anchor="middle" font-size="10" font-weight="700" fill="var(--plum)" font-family="Inter, sans-serif">BOTTOM</text>
+      <text x="150" y="102" text-anchor="middle" font-size="9" fill="var(--plum-soft)" font-family="Inter, sans-serif">↔ horizontal spacing</text>
+      <text x="150" y="60" text-anchor="middle" font-size="9" fill="var(--plum-soft)" font-family="Inter, sans-serif" transform="rotate(-90 195 60)">↕ vertical spacing</text>
+    </svg>
+
+    <ol style="font-size:13px; color:var(--plum); line-height:1.7; padding-left:20px; margin:0 0 16px;">
+      <li>Print 4 copies of the marker (button above).</li>
+      <li>With a real tape measure, decide your horizontal and vertical spacing (wider for bulky items like dresses) — mark the wall in pencil at those 4 points, in a cross shape like above.</li>
+      <li>Stick each marker so its crosshair's center <b>gap</b> sits exactly on your pencil mark. Use the small tick above each marker to keep it level.</li>
+      <li>Enter those same spacing numbers in the fields above and save.</li>
+      <li>When measuring an item photo, choose <b>🎯 Wall markers</b> as the calibration method, then tap the center gap of each marker in order.</li>
+    </ol>
+
+    <div class="modal-actions">
+      <button class="icon-btn" id="calibInstructionsCloseBtn" style="width:100%;">Close</button>
+    </div>
+  </div>
+</div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
