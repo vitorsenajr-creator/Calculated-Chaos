@@ -10,6 +10,7 @@ import {
   CONDITION_FACTOR, CONDITION_LABEL, LISTING_CONDITION_LABEL, POSHMARK_STYLE_TAGS,
   PREP_LABEL, BASE_CATEGORY_VALUE, DAILY_QUOTES,
 } from './modules/constants.js';
+import { escapeHtml, toTitleCase, daysSince, daysToSell, uid, csvEscape } from './modules/format-utils.js';
 
 export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
@@ -197,8 +198,6 @@ export const app = (function(){
       throw e;
     }
   }
-
-  function uid(){ return 'it_' + Date.now() + '_' + Math.random().toString(36).slice(2,8); }
 
   // ---------- PHOTO SESSION DRAFTS (own Firestore collection) ----------
   async function loadDrafts(){
@@ -691,10 +690,6 @@ export const app = (function(){
     if (!item.weight) missing.push('weight');
     if (!item.length || !item.width) missing.push('dimensions');
     return missing;
-  }
-
-  function daysSince(ts){
-    return Math.floor((Date.now() - ts) / 86400000);
   }
 
   // ---------- RENDER: STATS ----------
@@ -1253,17 +1248,6 @@ export const app = (function(){
     }
   }
 
-  function escapeHtml(s){
-    return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  }
-
-  // Capitalizes just the first letter of each word — deliberately leaves the
-  // rest of each word untouched (doesn't force lowercase) so things like
-  // "iPhone" or "USB-C" already in the name aren't mangled.
-  function toTitleCase(s){
-    return (s || '').replace(/\S+/g, w => w.charAt(0).toUpperCase() + w.slice(1));
-  }
-
   // ---------- RENDER: FINANCE ----------
   function renderFinance(){
     const view = document.getElementById('financeView');
@@ -1475,20 +1459,7 @@ export const app = (function(){
     });
   }
 
-  function daysToSell(item){
-    if (!item.soldAt || !item.createdAt) return null;
-    return Math.floor((item.soldAt - item.createdAt) / 86400000);
-  }
-
   // ---------- CSV EXPORT ----------
-  function csvEscape(val){
-    const s = String(val ?? '');
-    if (s.includes(',') || s.includes('"') || s.includes('\n')){
-      return '"' + s.replace(/"/g, '""') + '"';
-    }
-    return s;
-  }
-
   function downloadCsv(filename, rows){
     const allRows = [...rows, [], [`Exported from Calculated Chaos ${APP_VERSION} (${APP_VERSION_DATE})`]];
     const csv = allRows.map(row => row.map(csvEscape).join(',')).join('\n');
