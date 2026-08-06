@@ -332,7 +332,23 @@ Depois do backlog de UX, voltamos a mexer na modularização de `main.js`:
   inacessível. Corrigido com `max-height:80vh; overflow-y:auto`. Foi assim
   que percebemos: funcionava com 2 itens selecionados, não com 31.
 
-`main.js` foi de 5.536 (início da sessão) → **5.229 linhas** hoje.
+Depois disso, mais 3 módulos extraídos no mesmo padrão seguro:
+- `modules/catalog-filters.js` — `isIncomplete`/`missingFields` (puras) e
+  `filtersActiveCount`/`applyFilters` (parametrizadas em `activeFilters`/
+  `searchQuery`).
+- `modules/catalog-lookups.js` — `nextProductCode` e todos os
+  `getAllStorageBoxes/Sizes/Sources/Categories/Colors/ClothingTypes`
+  (parametrizados em `items`), com os presets (`PRESET_CATEGORIES` etc.)
+  movidos pra `constants.js`.
+- `modules/image-compression.js` — `compressImage`, zero dependência.
+- `attachCurrencyFormatting` movido pra `format-utils.js` (DOM puro, já
+  parametrizado).
+
+`main.js` foi de 5.536 (início da sessão) → **5.083 linhas** agora (~8% de
+redução total). Todas as extrações seguiram o mesmo padrão: função pura
+parametrizada no módulo novo + wrapper fino em `main.js` com a assinatura
+original, verificado com `node --check` + `npm run build` + teste de
+carregamento via Chromium headless a cada passo.
 
 Verificação feita em cada passo: `node --check` em todos os arquivos
 tocados, `npm run build` (mesmo comando do Vercel) limpo, e um teste de
