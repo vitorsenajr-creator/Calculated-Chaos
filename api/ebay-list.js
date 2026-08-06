@@ -432,6 +432,34 @@ function buildTitle(item){
   return parts.slice(0, 80);
 }
 
+function escapeHtmlServer(s){
+  return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// eBay renders the description as real HTML — plain text with \n line
+// breaks just collapses into one run-on paragraph on the actual listing
+// page (this is what she saw). The Poshmark generator's output (both the
+// instant-template and AI versions) is structured as blocks separated by
+// blank lines, where a block is either a plain sentence/paragraph, a
+// single short label line (e.g. "Details:"), or a run of "* " bullet
+// lines — this turns that structure into actual <p>/<ul><li> HTML instead
+// of sending the raw text as-is.
+function formatDescriptionHtml(text){
+  const blocks = text.split(/\n{2,}/).map(b => b.trim()).filter(Boolean);
+  return blocks.map(block => {
+    const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
+    const isBulletList = lines.length > 0 && lines.every(l => l.startsWith('* '));
+    if (isBulletList){
+      return `<ul>${lines.map(l => `<li>${escapeHtmlServer(l.slice(2))}</li>`).join('')}</ul>`;
+    }
+    if (lines.length === 1 && lines[0].endsWith(':')){
+      // Short section label on its own (e.g. "Details:", "Keywords:")
+      return `<p><b>${escapeHtmlServer(lines[0])}</b></p>`;
+    }
+    return `<p>${lines.map(l => escapeHtmlServer(l)).join('<br>')}</p>`;
+  }).join('\n');
+}
+
 // Reuses the same description she already generated/reviewed for Poshmark
 // (saved on the item — see src/main.js's save handler) instead of building
 // a separate one here. The old version of this function pulled
@@ -442,8 +470,8 @@ function buildTitle(item){
 // publishItemToEbayCore in src/ebay-api.js), so this should never actually
 // hit the fallback below in normal use.
 function buildDescription(item){
-  if (item.poshmarkDescription) return item.poshmarkDescription;
-  return item.name || 'Item for sale';
+  if (item.poshmarkDescription) return formatDescriptionHtml(item.poshmarkDescription);
+  return `<p>${escapeHtmlServer(item.name || 'Item for sale')}</p>`;
 }
 
 export default async function handler(req, res){
