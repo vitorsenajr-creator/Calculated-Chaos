@@ -304,6 +304,42 @@ gerar uma descrição por IA (autosave + botão eBay habilitando na hora),
 rodar a geração em massa em 2-3 itens sem descrição, e reabrir um item já
 salvo pra confirmar que a descrição continua visível no painel.
 
+## Continuação da modularização (mesmo dia, sessão ao vivo)
+
+Depois do backlog de UX, voltamos a mexer na modularização de `main.js`:
+
+- `modules/reports.js` (191 linhas) — cálculos de categoria/top itens/slow
+  movers + montagem das linhas de CSV/Excel dos 4 botões de exportação.
+  `statusLabel` também migrou pra `format-utils.js`.
+- `modules/settings.js` — só a parte segura: `DEFAULT_SETTINGS` (dado puro),
+  `aiUsageRemaining`/`aiUsagePct` parametrizados, e um novo predicado puro
+  `isScheduledResetDue`. O resto do Settings (a tela gigante `renderSettings()`
+  e os ~15 handlers `window.save*Settings`) continua em `main.js` — eles leem
+  E escrevem `appSettings` diretamente, travados pelo mesmo motivo do
+  Catálogo/Modal (ver abaixo).
+- **`modules/state.js` (novo)** — o módulo de estado compartilhado que você
+  pediu pra eu avaliar lá no início. `items` e `appSettings` agora vivem lá
+  (bindings vivas do ES modules + `setItems`/`setAppSettings` pra troca de
+  valor inteiro), importados por `main.js` **e** `ebay-api.js` diretamente.
+  Isso elimina o getter `app.items` da ponte antiga — `ebay-api.js` não
+  depende mais de `main.js` pra enxergar o catálogo. É o pré-requisito real
+  pra extrair Catálogo/Modal/resto do Settings num próximo passo, sem precisar
+  duplicar wrapper por wrapper.
+- **Bug real encontrado e corrigido** (não relacionado à modularização):
+  `#bulkActionBar` (a barra fixa de seleção em massa) não tinha limite de
+  altura — com um relatório longo (ex: 31 itens publicados), a barra crescia
+  pra cima da tela e empurrava o botão "Close" pra fora da área visível,
+  inacessível. Corrigido com `max-height:80vh; overflow-y:auto`. Foi assim
+  que percebemos: funcionava com 2 itens selecionados, não com 31.
+
+`main.js` foi de 5.536 (início da sessão) → **5.229 linhas** hoje.
+
+Verificação feita em cada passo: `node --check` em todos os arquivos
+tocados, `npm run build` (mesmo comando do Vercel) limpo, e um teste de
+carregamento via Chromium headless confirmando zero erros de console/import
+até a tela de login (não dá pra testar login de verdade daqui — Firebase
+não é alcançável neste sandbox).
+
 ## Bugs found (not fixed) — none
 
 No behavioral bugs turned up while reading through this code tonight. The
