@@ -366,7 +366,7 @@ function buildInventoryItem(item, extraRequiredAspects, imageUrls){
   const conditionDescription = {
     novo_etiqueta:     'New with tags. Never worn or used.',
     novo_sem_etiqueta: 'New without tags. Never worn or used.',
-    excelente:         'Excellent pre-owned condition. Minimal signs of wear.',
+    excelente:         'Excellent pre-owned condition. No rips/stains/major flaws.',
     bom:               'Good pre-owned condition. Normal signs of wear.',
     aceitavel:         'Fair condition. Priced accordingly. See photos for details.',
     defeito:           'Sold as-is. For parts or repair. See photos for full details.',

@@ -1283,6 +1283,10 @@ export const app = (function(){
             const feesTotal = platformFee(item.platform || 'ebay', soldPrice);
             updated.soldPrice = soldPrice;
             updated.shippingCost = updated.shippingCost || 0;
+            // No per-item picker makes sense in a bulk action — defaults to
+            // the item's general platform field; she can correct it per-item
+            // afterward via the "Sold on" field if it actually sold elsewhere.
+            updated.soldPlatform = item.soldPlatform || item.platform || 'ebay';
             updated.feesTotal = feesTotal;
             updated.soldAt = item.soldAt || Date.now();
             updated.netProfit = soldPrice - (parseFloat(item.cost)||0) - feesTotal - (updated.shippingCost||0);
@@ -3403,6 +3407,11 @@ export const app = (function(){
     if (currentStatus !== 'vendido'){ area.innerHTML = ''; return; }
     const soldPriceVal = item?.soldPrice || document.getElementById('fListPrice').value || '';
     const shippingCostVal = item?.shippingCost || '';
+    // Which platform it actually sold on — separate from the generic
+    // "Platform" field above (used for fee estimates before a sale), since
+    // a cross-listed item could sell anywhere it was listed. Also feeds the
+    // real fee calc below instead of guessing from the generic field.
+    const soldPlatformVal = item?.soldPlatform || item?.platform || '';
     area.innerHTML = `
       <div class="field-row">
         <div class="field">
@@ -3413,6 +3422,13 @@ export const app = (function(){
           <label>Shipping paid ($)</label>
           <input type="number" class="mono" id="fShippingCost" step="0.01" value="${shippingCostVal !== '' ? parseFloat(shippingCostVal).toFixed(2) : ''}">
         </div>
+      </div>
+      <div class="field">
+        <label>Sold on</label>
+        <select id="fSoldPlatform">
+          <option value="">—</option>
+          ${getAllPlatforms().map(p => `<option value="${p.key}" ${soldPlatformVal===p.key?'selected':''}>${escapeHtml(PLATFORM_NAME[p.key] || p.label)}</option>`).join('')}
+        </select>
       </div>
     `;
     attachCurrencyFormatting(['fSoldPrice','fShippingCost']);
@@ -4450,9 +4466,11 @@ Be accurate and honest — never invent brand, material, or condition details th
     if (currentStatus === 'vendido'){
       const soldPrice = parseFloat(document.getElementById('fSoldPrice')?.value) || listPrice;
       const shippingCost = parseFloat(document.getElementById('fShippingCost')?.value) || 0;
-      const feesTotal = platformFee(platform, soldPrice);
+      const soldPlatform = document.getElementById('fSoldPlatform')?.value || platform;
+      const feesTotal = platformFee(soldPlatform, soldPrice);
       itemData.soldPrice = soldPrice;
       itemData.shippingCost = shippingCost;
+      itemData.soldPlatform = soldPlatform;
       itemData.feesTotal = feesTotal;
       itemData.soldAt = items.find(i=>i.id===currentEditId)?.soldAt || Date.now();
       itemData.netProfit = soldPrice - (parseFloat(itemData.cost)||0) - feesTotal - shippingCost;
