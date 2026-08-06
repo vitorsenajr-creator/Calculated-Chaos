@@ -5262,10 +5262,10 @@ EBAY_MERCHANT_LOCATION_KEY=${escapeHtml(data.results.merchantLocationKey)}</div>
     try{
       const label = getPlatformLabel(platformKey).replace(/^\p{Emoji}\s*/u, '');
       const idToken = await window.auth.currentUser.getIdToken();
-      const res = await fetch('/api/suggest-platform-fee', {
+      const res = await fetch('/api/ebay-item-aspects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
-        body: JSON.stringify({ platformName: label })
+        body: JSON.stringify({ mode: 'suggest_fee', platformName: label })
       });
       const data = await res.json();
       if (!res.ok || !data.feePct){
