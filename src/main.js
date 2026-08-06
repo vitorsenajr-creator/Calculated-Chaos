@@ -30,6 +30,11 @@ import {
   isScheduledResetDue,
 } from './modules/settings.js';
 import { items, setItems, appSettings, setAppSettings } from './modules/state.js';
+import {
+  isIncomplete, missingFields,
+  filtersActiveCount as _filtersActiveCount,
+  applyFilters as _applyFilters,
+} from './modules/catalog-filters.js';
 
 export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
@@ -565,17 +570,8 @@ export const app = (function(){
   function projectedProfit(item){ return _projectedProfit(items, appSettings, item); }
 
   // ---------- COMPLETENESS CHECK ----------
-  function isIncomplete(item){
-    return !(item.photos && item.photos.length > 0) || !item.cost || !item.weight || !item.length || !item.width;
-  }
-  function missingFields(item){
-    const missing = [];
-    if (!(item.photos && item.photos.length > 0)) missing.push('photos');
-    if (!item.cost) missing.push('cost');
-    if (!item.weight) missing.push('weight');
-    if (!item.length || !item.width) missing.push('dimensions');
-    return missing;
-  }
+  // isIncomplete/missingFields now live in modules/catalog-filters.js
+  // (imported above) — pure, no closure dependency, moved verbatim.
 
   // ---------- RENDER: STATS ----------
   function renderStats(){
@@ -731,44 +727,8 @@ export const app = (function(){
     });
   }
 
-  function filtersActiveCount(){
-    let n = 0;
-    if (activeFilters.status) n++;
-    if (activeFilters.category) n++;
-    if (activeFilters.incomplete) n++;
-    if (activeFilters.needsPhoto) n++;
-    if (activeFilters.box) n++;
-    if (activeFilters.notSold) n++;
-    if (activeFilters.size) n++;
-    if (activeFilters.platformsInclude.length || activeFilters.platformsExclude.length) n++;
-    return n;
-  }
-
-  function applyFilters(list){
-    return list.filter(item => {
-      if (activeFilters.status && item.status !== activeFilters.status) return false;
-      if (activeFilters.notSold && item.status === 'vendido') return false;
-      if (activeFilters.category && item.category !== activeFilters.category) return false;
-      if (activeFilters.incomplete && !isIncomplete(item)) return false;
-      if (activeFilters.needsPhoto && (item.photos && item.photos.length > 0)) return false;
-      if (activeFilters.box && item.storageBox !== activeFilters.box) return false;
-      if (activeFilters.size && item.size !== activeFilters.size) return false;
-      if (activeFilters.platformsInclude.length){
-        const onAny = activeFilters.platformsInclude.some(p => (item.listedPlatforms || []).includes(p));
-        if (!onAny) return false;
-      }
-      if (activeFilters.platformsExclude.length){
-        const onAnyExcluded = activeFilters.platformsExclude.some(p => (item.listedPlatforms || []).includes(p));
-        if (onAnyExcluded) return false;
-      }
-      if (searchQuery){
-        const q = searchQuery.toLowerCase();
-        const hay = [item.name, item.brand, item.category, item.clothingType, item.notes, item.productCode, item.storageBox, item.source, item.color].join(' ').toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
-      return true;
-    });
-  }
+  function filtersActiveCount(){ return _filtersActiveCount(activeFilters); }
+  function applyFilters(list){ return _applyFilters(list, activeFilters, searchQuery); }
 
   // ---------- RENDER: CATALOG ----------
 
