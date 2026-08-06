@@ -9,7 +9,18 @@ import {
   PLATFORM_FEES, PLATFORM_LABEL, PLATFORM_NAME, PLATFORM_COLOR, PLATFORM_FAVICON,
   CONDITION_FACTOR, CONDITION_LABEL, LISTING_CONDITION_LABEL, POSHMARK_STYLE_TAGS,
   PREP_LABEL, BASE_CATEGORY_VALUE, DAILY_QUOTES,
+  PRESET_CATEGORIES, PRESET_COLORS, PRESET_CLOTHING_TYPES,
 } from './modules/constants.js';
+import {
+  nextProductCode as _nextProductCode,
+  getAllStorageBoxes as _getAllStorageBoxes,
+  getAllSizes as _getAllSizes,
+  getSizeSuggestionsForType as _getSizeSuggestionsForType,
+  getAllSources as _getAllSources,
+  getAllCategories as _getAllCategories,
+  getAllColors as _getAllColors,
+  getAllClothingTypes as _getAllClothingTypes,
+} from './modules/catalog-lookups.js';
 import { escapeHtml, toTitleCase, daysSince, daysToSell, uid, csvEscape, statusLabel } from './modules/format-utils.js';
 import {
   getCategoryPriceHistory as _getCategoryPriceHistory,
@@ -316,21 +327,11 @@ export const app = (function(){
   }
 
   // ---------- PRODUCT CODE & STORAGE BOX HELPERS ----------
-  function nextProductCode(){
-    let maxNum = 0;
-    items.forEach(i => {
-      // Quantity > 1 items are tagged "#4578-2" etc. — strip that duplicate
-      // suffix before reading the base number, so a batch of duplicates
-      // doesn't corrupt where the main sequence resumes.
-      const base = (i.productCode || '').replace(/-\d+$/, '');
-      const match = base.match(/(\d+)\s*$/);
-      if (match){
-        const n = parseInt(match[1], 10);
-        if (n > maxNum) maxNum = n;
-      }
-    });
-    return '#' + String(maxNum + 1).padStart(4, '0');
-  }
+  // nextProductCode/getAllStorageBoxes/getAllSizes/getSizeSuggestionsForType/
+  // getAllSources/getAllCategories/getAllColors/getAllClothingTypes now live
+  // in modules/catalog-lookups.js, parameterized on items — these wrappers
+  // keep the original no-items-arg call sites unchanged.
+  function nextProductCode(){ return _nextProductCode(items); }
 
   // The catalog only briefly needs to keep loading in the background (so the
   // app still opens instantly even after being away for hours) — but that
@@ -354,61 +355,10 @@ export const app = (function(){
     setTimeout(waitAndFill, 100);
   }
 
-  function getAllStorageBoxes(){
-    const boxes = new Set();
-    items.forEach(i => { if (i.storageBox && i.storageBox.trim()) boxes.add(i.storageBox.trim()); });
-    return Array.from(boxes).sort((a,b)=> a.localeCompare(b, undefined, {numeric:true}));
-  }
-
-  function getAllSizes(clothingType){
-    const sizes = new Set();
-    items.forEach(i => {
-      if (!i.size || !i.size.trim()) return;
-      if (clothingType && i.clothingType !== clothingType) return;
-      sizes.add(i.size.trim());
-    });
-    return Array.from(sizes).sort((a,b)=> a.localeCompare(b, undefined, {numeric:true}));
-  }
-
-  // Standard size run for each clothing type, so the suggestion list isn't
-  // empty the very first time a type is used. Covers adult women's sizing
-  // (the primary inventory today) — tell Vitor if men's/kids' ranges are
-  // needed too and this table can grow per-gender.
-  const PRESET_SIZES_BY_TYPE = {
-    'T-Shirt':      ['XS','S','M','L','XL','XXL'],
-    'Tank Top':     ['XS','S','M','L','XL','XXL'],
-    'Blouse':       ['XS','S','M','L','XL','XXL'],
-    'Sweater':      ['XS','S','M','L','XL','XXL'],
-    'Hoodie':       ['XS','S','M','L','XL','XXL'],
-    'Blazer':       ['XS','S','M','L','XL','XXL'],
-    'Jacket/Coat':  ['XS','S','M','L','XL','XXL'],
-    'Activewear':   ['XS','S','M','L','XL','XXL'],
-    'Swimwear':     ['XS','S','M','L','XL','XXL'],
-    'Jeans':        ['0','2','4','6','8','10','12','14','16','18','20'],
-    'Pants':        ['0','2','4','6','8','10','12','14','16','18','20'],
-    'Shorts':       ['0','2','4','6','8','10','12','14','16','18','20'],
-    'Skirt':        ['0','2','4','6','8','10','12','14','16','18','20'],
-    'Dress':        ['0','2','4','6','8','10','12','14','16','18','20'],
-    'Shoes':        ['5','5.5','6','6.5','7','7.5','8','8.5','9','9.5','10','10.5','11'],
-    'Bag':          ['One Size'],
-    'Accessory':    ['One Size'],
-  };
-
-  // Presets first (in their natural size-run order), then any custom sizes
-  // she's actually used for this type that aren't already in that list —
-  // e.g. she types "Petite M" once and it's added to future suggestions
-  // for that same clothing type, same as colors.
-  function getSizeSuggestionsForType(clothingType){
-    const presets = PRESET_SIZES_BY_TYPE[clothingType] || [];
-    const used = getAllSizes(clothingType).filter(s => !presets.includes(s));
-    return [...presets, ...used];
-  }
-
-  function getAllSources(){
-    const sources = new Set();
-    items.forEach(i => { if (i.source && i.source.trim()) sources.add(i.source.trim()); });
-    return Array.from(sources).sort((a,b)=> a.localeCompare(b, undefined, {numeric:true}));
-  }
+  function getAllStorageBoxes(){ return _getAllStorageBoxes(items); }
+  function getAllSizes(clothingType){ return _getAllSizes(items, clothingType); }
+  function getSizeSuggestionsForType(clothingType){ return _getSizeSuggestionsForType(items, clothingType); }
+  function getAllSources(){ return _getAllSources(items); }
 
   // iOS Safari doesn't show suggestions for <input list="..."> the way
   // desktop browsers do — the native datalist dropdown effectively never
@@ -480,17 +430,7 @@ export const app = (function(){
     input.addEventListener('blur', () => { setTimeout(() => { box.style.display = 'none'; }, 150); });
   }
 
-  // Category is a dropdown of presets + "Add new…", same model as Color and
-  // Clothing Type: picking "Add new…" reveals a text field, and whatever she
-  // types there gets injected as a real dropdown option (above "Add new…")
-  // the next time she opens the form, so she only ever types a given custom
-  // category once.
-  const PRESET_CATEGORIES = Object.keys(BASE_CATEGORY_VALUE);
-  function getAllCategories(){
-    const cats = new Set();
-    items.forEach(i => { if (i.category && i.category.trim() && !PRESET_CATEGORIES.includes(i.category.trim())) cats.add(i.category.trim()); });
-    return Array.from(cats).sort((a,b)=> a.localeCompare(b, undefined, {numeric:true}));
-  }
+  function getAllCategories(){ return _getAllCategories(items); }
   // Reads the Category field's real value, resolving "__other__" to whatever
   // was typed into the reveal field — same idea as the Color/Clothing Type helpers.
   function getCategoryValue(){
@@ -498,19 +438,8 @@ export const app = (function(){
     return sel === '__other__' ? (document.getElementById('fCategoryOther')?.value.trim() || '') : (sel || '');
   }
 
-  const PRESET_COLORS = ['Black','White','Gray','Beige/Tan','Brown','Red','Pink','Orange','Yellow','Green','Blue','Purple','Gold','Silver','Multi-Color'];
-  function getAllColors(){
-    const colors = new Set();
-    items.forEach(i => { if (i.color && i.color.trim() && !PRESET_COLORS.includes(i.color.trim())) colors.add(i.color.trim()); });
-    return Array.from(colors).sort((a,b)=> a.localeCompare(b, undefined, {numeric:true}));
-  }
-
-  const PRESET_CLOTHING_TYPES = ['T-Shirt','Tank Top','Blouse','Sweater','Hoodie','Jeans','Pants','Shorts','Skirt','Dress','Jacket/Coat','Blazer','Activewear','Swimwear','Shoes','Bag','Accessory'];
-  function getAllClothingTypes(){
-    const types = new Set();
-    items.forEach(i => { if (i.clothingType && i.clothingType.trim() && !PRESET_CLOTHING_TYPES.includes(i.clothingType.trim())) types.add(i.clothingType.trim()); });
-    return Array.from(types).sort((a,b)=> a.localeCompare(b, undefined, {numeric:true}));
-  }
+  function getAllColors(){ return _getAllColors(items); }
+  function getAllClothingTypes(){ return _getAllClothingTypes(items); }
 
   // Default shipping package for clothing items — applied automatically when
   // Category is "Clothing" and the weight/dimensions fields are still empty,

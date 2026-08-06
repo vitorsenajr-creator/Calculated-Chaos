@@ -109,6 +109,41 @@ export const BASE_CATEGORY_VALUE = {
   'Home & Decor': 25, 'Collectibles': 40, 'Toys': 18, 'Books': 12, 'Other': 20
 };
 
+// Category is a dropdown of presets + "Add new…", same model as Color and
+// Clothing Type: picking "Add new…" reveals a text field, and whatever she
+// types there gets injected as a real dropdown option (above "Add new…")
+// the next time she opens the form, so she only ever types a given custom
+// category once.
+export const PRESET_CATEGORIES = Object.keys(BASE_CATEGORY_VALUE);
+
+export const PRESET_COLORS = ['Black','White','Gray','Beige/Tan','Brown','Red','Pink','Orange','Yellow','Green','Blue','Purple','Gold','Silver','Multi-Color'];
+
+export const PRESET_CLOTHING_TYPES = ['T-Shirt','Tank Top','Blouse','Sweater','Hoodie','Jeans','Pants','Shorts','Skirt','Dress','Jacket/Coat','Blazer','Activewear','Swimwear','Shoes','Bag','Accessory'];
+
+// Standard size run for each clothing type, so the suggestion list isn't
+// empty the very first time a type is used. Covers adult women's sizing
+// (the primary inventory today) — tell Vitor if men's/kids' ranges are
+// needed too and this table can grow per-gender.
+export const PRESET_SIZES_BY_TYPE = {
+  'T-Shirt':      ['XS','S','M','L','XL','XXL'],
+  'Tank Top':     ['XS','S','M','L','XL','XXL'],
+  'Blouse':       ['XS','S','M','L','XL','XXL'],
+  'Sweater':      ['XS','S','M','L','XL','XXL'],
+  'Hoodie':       ['XS','S','M','L','XL','XXL'],
+  'Blazer':       ['XS','S','M','L','XL','XXL'],
+  'Jacket/Coat':  ['XS','S','M','L','XL','XXL'],
+  'Activewear':   ['XS','S','M','L','XL','XXL'],
+  'Swimwear':     ['XS','S','M','L','XL','XXL'],
+  'Jeans':        ['0','2','4','6','8','10','12','14','16','18','20'],
+  'Pants':        ['0','2','4','6','8','10','12','14','16','18','20'],
+  'Shorts':       ['0','2','4','6','8','10','12','14','16','18','20'],
+  'Skirt':        ['0','2','4','6','8','10','12','14','16','18','20'],
+  'Dress':        ['0','2','4','6','8','10','12','14','16','18','20'],
+  'Shoes':        ['5','5.5','6','6.5','7','7.5','8','8.5','9','9.5','10','10.5','11'],
+  'Bag':          ['One Size'],
+  'Accessory':    ['One Size'],
+};
+
 export const DAILY_QUOTES = [
   "Somebody's closet clutter is somebody else's perfect find.",
   "Every tag you write is a tiny act of treasure hunting, in reverse.",
