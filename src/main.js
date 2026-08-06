@@ -1778,7 +1778,8 @@ export const app = (function(){
     document.getElementById('fEbayCategoryQuery').focus();
   });
 
-  function openModal(item, isDuplicate){
+  function openModal(item, isDuplicate, opts){
+    const keepScroll = !!(opts && opts.keepScroll);
     currentEditId = (item && !isDuplicate) ? item.id : null;
     currentPhotos = item && item.photos ? [...item.photos] : [];
     currentMeasurements = (item && !isDuplicate && item.measurements) ? JSON.parse(JSON.stringify(item.measurements)) : null;
@@ -1925,7 +1926,15 @@ export const app = (function(){
     const itemFreeShipping = item?.freeShipping !== undefined ? item.freeShipping : appSettings.sellerPaysShipping;
     document.getElementById('fFreeShipping').value = itemFreeShipping ? 'seller' : 'buyer';
     document.getElementById('suggestionArea').innerHTML = '';
-    document.getElementById('listingOutputArea').innerHTML = '';
+    // A previously generated/saved listing description belongs to this item
+    // (it's what's actually sent to eBay and copied to Poshmark) — show it
+    // again instead of leaving the panel blank and making her regenerate it
+    // just to see it.
+    if (item && !isDuplicate && item.listingDescription){
+      renderListingOutput(item.listingTitle || '', item.listingDescription, [], null);
+    } else {
+      document.getElementById('listingOutputArea').innerHTML = '';
+    }
     document.getElementById('aiAnalysisArea').innerHTML = '';
     document.getElementById('ebayStatusArea').innerHTML = '';
     setSaveProgress(null);
@@ -1945,10 +1954,16 @@ export const app = (function(){
     });
 
     overlay.classList.remove('hidden');
-    const modalScrollEl = document.querySelector('#itemModalOverlay .modal');
-    if (modalScrollEl) modalScrollEl.scrollTop = 0;
-    const backToTopBtn = document.getElementById('modalBackToTop');
-    if (backToTopBtn) backToTopBtn.style.display = 'none';
+    // Save re-opens the same item right after writing it (so "List on eBay"
+    // works without an extra click) — that's not a fresh open, so don't
+    // yank her scroll position back to the top of a form she was already
+    // scrolled through.
+    if (!keepScroll){
+      const modalScrollEl = document.querySelector('#itemModalOverlay .modal');
+      if (modalScrollEl) modalScrollEl.scrollTop = 0;
+      const backToTopBtn = document.getElementById('modalBackToTop');
+      if (backToTopBtn) backToTopBtn.style.display = 'none';
+    }
   }
 
   function closeModal(){
@@ -4188,13 +4203,13 @@ Be accurate and honest — never invent brand, material, or condition details th
       // eBay preflight — fixing and saving should offer to list it right
       // away instead of sending her back to redo bulk-select from scratch.
       openedFromBulkReview = false;
-      openModal(lastSaved);
+      openModal(lastSaved, false, { keepScroll: true });
       listItemOnEbay(lastSaved);
     } else {
       // Re-open the last-saved item (now with a real id) instead of closing —
       // this is what lets "List on eBay" work right after Save, without an
       // extra click to reopen the item first.
-      openModal(lastSaved);
+      openModal(lastSaved, false, { keepScroll: true });
       // Already live on eBay? The eBay app/mobile can't edit API-created
       // listings (a platform limitation, not ours — desktop Seller Hub
       // still can), so this is the practical way to push an edit out to the
