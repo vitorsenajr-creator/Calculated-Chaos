@@ -208,6 +208,20 @@ open per item, so there's no pill UI to sync there.
   above. Recommend clicking through the app once before doing more
   extraction on top of this branch.
 
+## Backlog — mudanças de UX pedidas (publicação eBay + modal do item)
+
+Levantadas em 2026-08-06, ainda não discutidas/implementadas. Ordem como
+foram passadas; vamos decidir prioridade e detalhes um por um antes de
+mexer em código.
+
+1. Melhoria do tamanho da fonte e botão de editar (no fluxo/preview de
+   publicação no eBay?)
+2. Edição em massa
+3. Salvar automático quando gerar a descrição
+4. Manter a descrição salva no item
+5. Manter a tela sem voltar ao topo quando recarrega
+6. Botão de fechar a janela do item fixo no topo
+
 ## Bugs found (not fixed) — none
 
 No behavioral bugs turned up while reading through this code tonight. The
