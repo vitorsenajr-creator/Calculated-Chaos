@@ -29,6 +29,7 @@ import {
   aiUsagePct as _aiUsagePct,
   isScheduledResetDue,
 } from './modules/settings.js';
+import { items, setItems, appSettings, setAppSettings } from './modules/state.js';
 
 export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
@@ -37,7 +38,7 @@ export const app = (function(){
   const APP_VERSION = 'v3.12.0';
   const APP_VERSION_DATE = '2026-08-06';
 
-  let items = [];
+  setAppSettings({ ...DEFAULT_SETTINGS });
   let itemsLoaded = false; // true once the initial Firestore fetch in loadItems() resolves
   let currentEditId = null;
   let currentDraftId = null; // set when the item modal was opened from a Photo Session draft, so a successful save knows to delete the source draft doc
@@ -163,7 +164,7 @@ export const app = (function(){
     try{
       const { collection, getDocs } = window.firestoreFns;
       const snap = await getDocs(collection(window.db, 'items'));
-      items = snap.docs.map(d => d.data());
+      setItems(snap.docs.map(d => d.data()));
       // Migration: the listing title/description fields used to be named
       // poshmarkTitle/poshmarkDescription (back when eBay had its own
       // separate, broken description builder, before this became a
@@ -176,7 +177,7 @@ export const app = (function(){
       });
     }catch(e){
       console.error('Load error', e);
-      items = [];
+      setItems([]);
     }
     // lastUsedSource/lastUsedBox used to only update in-memory when an item
     // was saved THIS session — so after any page reload they'd reset to
@@ -890,7 +891,7 @@ export const app = (function(){
     }).join('');
 
     const bulkBarHtml = bulkSelectMode ? `
-      <div id="bulkActionBar" style="position:fixed; bottom:0; left:0; right:0; background:var(--cream); border-top:2px solid var(--line); padding:12px 16px; box-shadow:0 -4px 14px rgba(0,0,0,0.1); z-index:60;">
+      <div id="bulkActionBar" style="position:fixed; bottom:0; left:0; right:0; max-height:80vh; overflow-y:auto; background:var(--cream); border-top:2px solid var(--line); padding:12px 16px; box-shadow:0 -4px 14px rgba(0,0,0,0.1); z-index:60;">
         <div style="font-size:12px; color:var(--plum-soft); margin-bottom:8px;">${bulkSelectedIds.size} item${bulkSelectedIds.size===1?'':'s'} selected</div>
         <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
           <select id="bulkStatusSelect" style="padding:8px 10px; border-radius:8px; border:1px solid var(--line); font-size:13px;">
@@ -1116,7 +1117,7 @@ export const app = (function(){
         bulkStatus(`Deleting ${ids.length} item${ids.length===1?'':'s'}…`);
         for (const id of ids){
           try{ await deleteItemFromDb(id); }catch(e){ continue; }
-          items = items.filter(i => i.id !== id);
+          setItems(items.filter(i => i.id !== id));
         }
         bulkSelectedIds.clear();
         bulkSelectMode = false;
@@ -4276,7 +4277,7 @@ Be accurate and honest — never invent brand, material, or condition details th
     }catch(e){
       return;
     }
-    items = items.filter(i => i.id !== idToDelete);
+    setItems(items.filter(i => i.id !== idToDelete));
     renderAll();
     closeModal();
   });
@@ -4285,22 +4286,22 @@ Be accurate and honest — never invent brand, material, or condition details th
   // ---------- SETTINGS ----------
   // DEFAULT_SETTINGS shape and the pure read-only calculations
   // (aiUsageRemaining/aiUsagePct/isScheduledResetDue) live in
-  // modules/settings.js now — appSettings itself stays here since
-  // loadSettings/resetAiCounter reassign/mutate it directly and persist it.
-  let appSettings = { ...DEFAULT_SETTINGS };
+  // modules/settings.js. `appSettings` itself lives in modules/state.js
+  // (set to DEFAULT_SETTINGS at the top of this file already) — loadSettings/
+  // resetAiCounter below reassign/mutate it via setAppSettings and persist it.
 
   async function loadSettings(){
     try{
       const { doc, getDoc } = window.firestoreFns;
       const snap = await getDoc(doc(window.db, 'app_config', 'settings'));
       if (snap.exists()){
-        appSettings = { ...DEFAULT_SETTINGS, ...snap.data() };
+        setAppSettings({ ...DEFAULT_SETTINGS, ...snap.data() });
         // Migration: renamed from poshmarkStandardText.
         if (!appSettings.listingStandardText && appSettings.poshmarkStandardText){
           appSettings.listingStandardText = appSettings.poshmarkStandardText;
         }
       }
-    }catch(e){ appSettings = { ...DEFAULT_SETTINGS }; }
+    }catch(e){ setAppSettings({ ...DEFAULT_SETTINGS }); }
     // Initialize period if first time
     if (!appSettings.aiUsagePeriodStart){
       appSettings.aiUsagePeriodStart = new Date().toISOString();
