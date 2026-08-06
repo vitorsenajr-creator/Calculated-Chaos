@@ -129,6 +129,7 @@
     border:1px solid var(--line); background:var(--cream-soft); color:var(--plum-soft); cursor:pointer;
   }
   .filter-chip.active{background:var(--terracotta); color:white; border-color:var(--terracotta);}
+  .filter-chip.platform-chip-excluded{background:var(--danger); color:white; border-color:var(--danger); text-decoration:line-through;}
   .filter-chip.warn-chip.active{background:var(--amber-deep); border-color:var(--amber-deep);}
   .filter-clear{font-size:12px; color:var(--terracotta-deep); font-weight:600; cursor:pointer; text-decoration:underline; margin-top:10px; display:inline-block;}
 

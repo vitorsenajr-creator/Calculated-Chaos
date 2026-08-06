@@ -24,7 +24,7 @@ export const app = (function(){
   let currentMeasurements = null; // {type, values:{label:inches}, photo:dataUrl} | null
   let currentStatus = 'catalogado';
   let currentPrep = 'ready';
-  let activeFilters = { status:null, category:null, incomplete:false, needsPhoto:false, box:null, notSold:false, size:null, platforms:[], platformInvert:false };
+  let activeFilters = { status:null, category:null, incomplete:false, needsPhoto:false, box:null, notSold:false, size:null, platformsInclude:[], platformsExclude:[] };
   let bulkSelectMode = false;
   let bulkSelectedIds = new Set();
   let searchQuery = '';
@@ -843,13 +843,13 @@ export const app = (function(){
         // same underlying data, just a faster path to it (and a natural
         // spot for deeper analysis instead of only ever seeing the total).
         if (stat === 'instock'){
-          activeFilters = { status:null, category:null, incomplete:false, needsPhoto:false, box:null, notSold:true, size:null, platforms:[], platformInvert:false };
+          activeFilters = { status:null, category:null, incomplete:false, needsPhoto:false, box:null, notSold:true, size:null, platformsInclude:[], platformsExclude:[] };
           switchToTab('catalog'); renderAll();
         } else if (stat === 'sold'){
-          activeFilters = { status:'vendido', category:null, incomplete:false, needsPhoto:false, box:null, notSold:false, size:null, platforms:[], platformInvert:false };
+          activeFilters = { status:'vendido', category:null, incomplete:false, needsPhoto:false, box:null, notSold:false, size:null, platformsInclude:[], platformsExclude:[] };
           switchToTab('catalog'); renderAll();
         } else if (stat === 'incomplete'){
-          activeFilters = { status:null, category:null, incomplete:true, needsPhoto:false, box:null, notSold:false, size:null, platforms:[], platformInvert:false };
+          activeFilters = { status:null, category:null, incomplete:true, needsPhoto:false, box:null, notSold:false, size:null, platformsInclude:[], platformsExclude:[] };
           switchToTab('catalog'); renderAll();
         } else if (stat === 'realized'){
           switchToTab('finance');
@@ -894,9 +894,15 @@ export const app = (function(){
         </div>
       </div>` : ''}
       <div class="filter-group">
-        <div class="fg-label">Platform${activeFilters.platforms.length ? ` <label style="font-weight:400; font-size:11px; cursor:pointer;"><input type="checkbox" id="platformInvertChk" ${activeFilters.platformInvert?'checked':''}> not listed on these</label>` : ''}</div>
+        <div class="fg-label">Platform <span style="font-weight:400; font-size:11px; opacity:0.7;">— tap once for "on this", twice for "NOT on this"</span></div>
         <div class="filter-chips" id="platformChips">
-          ${getAllPlatforms().map(p => `<div class="filter-chip ${activeFilters.platforms.includes(p.key)?'active':''}" data-filter-platform="${p.key}">${escapeHtml(p.label)}</div>`).join('')}
+          ${getAllPlatforms().map(p => {
+            const isIncluded = activeFilters.platformsInclude.includes(p.key);
+            const isExcluded = activeFilters.platformsExclude.includes(p.key);
+            const cls = isIncluded ? 'filter-chip active' : isExcluded ? 'filter-chip platform-chip-excluded' : 'filter-chip';
+            const label = isExcluded ? `NOT ${p.label}` : p.label;
+            return `<div class="${cls}" data-filter-platform="${p.key}">${escapeHtml(label)}</div>`;
+          }).join('')}
         </div>
       </div>
       <div class="filter-group">
@@ -940,20 +946,21 @@ export const app = (function(){
     panel.querySelectorAll('[data-filter-platform]').forEach(chip => {
       chip.addEventListener('click', () => {
         const p = chip.dataset.filterPlatform;
-        activeFilters.platforms = activeFilters.platforms.includes(p)
-          ? activeFilters.platforms.filter(x => x !== p)
-          : [...activeFilters.platforms, p];
-        if (!activeFilters.platforms.length) activeFilters.platformInvert = false;
+        // 3-state cycle: neutral → include ("on this platform") → exclude
+        // ("NOT on this platform") → back to neutral. Lets her combine
+        // "on Poshmark" with "not on eBay" at the same time, which a single
+        // multi-select + one global invert toggle couldn't express.
+        if (activeFilters.platformsInclude.includes(p)){
+          activeFilters.platformsInclude = activeFilters.platformsInclude.filter(x => x !== p);
+          activeFilters.platformsExclude = [...activeFilters.platformsExclude, p];
+        } else if (activeFilters.platformsExclude.includes(p)){
+          activeFilters.platformsExclude = activeFilters.platformsExclude.filter(x => x !== p);
+        } else {
+          activeFilters.platformsInclude = [...activeFilters.platformsInclude, p];
+        }
         renderAll();
       });
     });
-    const platformInvertChk = document.getElementById('platformInvertChk');
-    if (platformInvertChk){
-      platformInvertChk.addEventListener('change', (e) => {
-        activeFilters.platformInvert = e.target.checked;
-        renderAll();
-      });
-    }
     document.getElementById('incompleteChip').addEventListener('click', () => {
       activeFilters.incomplete = !activeFilters.incomplete;
       renderAll();
@@ -963,7 +970,7 @@ export const app = (function(){
       renderAll();
     });
     document.getElementById('clearFiltersBtn').addEventListener('click', () => {
-      activeFilters = { status:null, category:null, incomplete:false, needsPhoto:false, box:null, notSold:false, size:null, platforms:[], platformInvert:false };
+      activeFilters = { status:null, category:null, incomplete:false, needsPhoto:false, box:null, notSold:false, size:null, platformsInclude:[], platformsExclude:[] };
       renderAll();
     });
   }
@@ -977,7 +984,7 @@ export const app = (function(){
     if (activeFilters.box) n++;
     if (activeFilters.notSold) n++;
     if (activeFilters.size) n++;
-    if (activeFilters.platforms.length) n++;
+    if (activeFilters.platformsInclude.length || activeFilters.platformsExclude.length) n++;
     return n;
   }
 
@@ -990,9 +997,13 @@ export const app = (function(){
       if (activeFilters.needsPhoto && (item.photos && item.photos.length > 0)) return false;
       if (activeFilters.box && item.storageBox !== activeFilters.box) return false;
       if (activeFilters.size && item.size !== activeFilters.size) return false;
-      if (activeFilters.platforms && activeFilters.platforms.length){
-        const onAny = activeFilters.platforms.some(p => (item.listedPlatforms || []).includes(p));
-        if (activeFilters.platformInvert ? onAny : !onAny) return false;
+      if (activeFilters.platformsInclude.length){
+        const onAny = activeFilters.platformsInclude.some(p => (item.listedPlatforms || []).includes(p));
+        if (!onAny) return false;
+      }
+      if (activeFilters.platformsExclude.length){
+        const onAnyExcluded = activeFilters.platformsExclude.some(p => (item.listedPlatforms || []).includes(p));
+        if (onAnyExcluded) return false;
       }
       if (searchQuery){
         const q = searchQuery.toLowerCase();
