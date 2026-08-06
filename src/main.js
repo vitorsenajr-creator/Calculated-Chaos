@@ -5213,13 +5213,14 @@ EBAY_MERCHANT_LOCATION_KEY=${escapeHtml(data.results.merchantLocationKey)}</div>
   // Bridge for ebay-api.js — everything it needs from this closure that it
   // can't import directly (ebay-api.js is imported by this same file before
   // this IIFE's body runs, so it can't reach anything declared in here on
-  // its own). `items` and `currentEditId` are getters because they get
-  // reassigned (`items = …`, `currentEditId = …`) — a plain reference would
-  // freeze at whatever they were the instant this object was built. Every
-  // other entry here is a function or a const, which are never reassigned,
-  // so a plain reference stays correct.
+  // its own). `items`/`appSettings` no longer need to go through here —
+  // ebay-api.js imports those straight from modules/state.js now.
+  // `currentEditId` is still a getter because it gets reassigned
+  // (`currentEditId = …`) — a plain reference would freeze at whatever it
+  // was the instant this object was built. Every other entry here is a
+  // function or a const, which are never reassigned, so a plain reference
+  // stays correct.
   return {
-    get items(){ return items; },
     get currentEditId(){ return currentEditId; },
     saveItem, renderAll, escapeHtml, CONDITION_LABEL, bulkSelectedIds,
     suggestPrice, platformFee, showSavedToast, openModal, renderEbayConnectionStatus,

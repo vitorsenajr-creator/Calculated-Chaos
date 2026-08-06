@@ -15,6 +15,10 @@
   // something), both modules have long since finished loading and `app`
   // is fully populated. Do not destructure `app` at the top of this file.
   import { app } from './main.js';
+  // Not circular like the `app` import above — state.js has no imports of
+  // its own, so this is safe to read at the top level too, not just inside
+  // function bodies.
+  import { items } from './modules/state.js';
 
   // eBay tokens are stored in Firestore under 'ebay_tokens/main' so both users share the same connection
   export let ebayTokens = null; // { access_token, refresh_token, connected_at, expires_in }
@@ -96,7 +100,7 @@
       }
       let matchedCount = 0;
       for (const sale of (data.sales || [])){
-        const item = app.items.find(i =>
+        const item = items.find(i =>
           i.status !== 'vendido' &&
           ((sale.sku && i.ebaySku === sale.sku) || (sale.legacyItemId && i.ebayListingId === String(sale.legacyItemId)))
         );
@@ -113,8 +117,8 @@
           netProfit: soldPrice - (parseFloat(item.cost)||0) - feesTotal - (item.shippingCost||0),
           ebayAutoDetectedSale: true,
         };
-        const idx = app.items.findIndex(i => i.id === item.id);
-        if (idx >= 0) app.items[idx] = updated;
+        const idx = items.findIndex(i => i.id === item.id);
+        if (idx >= 0) items[idx] = updated;
         try{ await app.saveItem(updated); matchedCount++; }catch(e){ /* app.saveItem already alerts */ }
       }
       if (matchedCount > 0){
@@ -156,8 +160,8 @@
       const data = await res.json();
       if (data.success){
         itemData.ebayEndedAt = Date.now();
-        const idx = app.items.findIndex(i => i.id === itemData.id);
-        if (idx >= 0) app.items[idx].ebayEndedAt = itemData.ebayEndedAt;
+        const idx = items.findIndex(i => i.id === itemData.id);
+        if (idx >= 0) items[idx].ebayEndedAt = itemData.ebayEndedAt;
         await app.saveItem(itemData);
       } else {
         console.warn('Could not end eBay listing automatically:', data);
@@ -299,8 +303,8 @@
         hostedPhotoUrls = await ensureHostedPhotoUrls(item);
         // Cache the hosted URLs on the item so we don't re-upload next time.
         item.hostedPhotoUrls = hostedPhotoUrls;
-        const idxPhoto = app.items.findIndex(i => i.id === item.id);
-        if (idxPhoto >= 0) app.items[idxPhoto].hostedPhotoUrls = hostedPhotoUrls;
+        const idxPhoto = items.findIndex(i => i.id === item.id);
+        if (idxPhoto >= 0) items[idxPhoto].hostedPhotoUrls = hostedPhotoUrls;
         await app.saveItem({ ...item, hostedPhotoUrls });
       }
 
@@ -327,8 +331,8 @@
       // Poshmark) — this was previously only reflected via `status`.
       const listedPlatforms = Array.from(new Set([...(item.listedPlatforms || []), 'ebay']));
       const updated = { ...item, ebayListingId: data.listingId, ebayListingUrl: data.listingUrl, ebayOfferId: data.offerId || null, ebaySku: data.sku || null, ebayListedAt: Date.now(), status: 'anunciado', listedPlatforms };
-      const idx = app.items.findIndex(i => i.id === item.id);
-      if (idx >= 0) app.items[idx] = updated;
+      const idx = items.findIndex(i => i.id === item.id);
+      if (idx >= 0) items[idx] = updated;
       await app.saveItem(updated);
       return {
         success: true,
@@ -459,7 +463,7 @@ ${app.escapeHtml(JSON.stringify(result.debugPolicyIdsSent, null, 2))}</div>`;
         // won't show that on their own until she closes and reopens it.
         // Sync the pill UI live so it reflects reality without a reload.
         if (app.currentEditId === item.id){
-          const freshItem = app.items.find(i => i.id === item.id);
+          const freshItem = items.find(i => i.id === item.id);
           if (freshItem) app.setListedPlatformsUI([...(freshItem.listedPlatforms || [])]);
         }
         app.renderAll();
@@ -496,7 +500,7 @@ ${app.escapeHtml(JSON.stringify(result.debugPolicyIdsSent, null, 2))}</div>`;
   //  - ready: actually gets published when she confirms.
   function computeBulkEbayGroups(updateAlready){
     const ids = Array.from(app.bulkSelectedIds);
-    const selected = ids.map(id => app.items.find(i => i.id === id)).filter(Boolean);
+    const selected = ids.map(id => items.find(i => i.id === id)).filter(Boolean);
     const alreadyListed = selected.filter(i => i.ebayListingId);
     const eligible = selected.filter(i => !i.ebayListingId || updateAlready);
     const blockedNoPrice = eligible.filter(i => !i.listPrice);
@@ -568,7 +572,7 @@ ${app.escapeHtml(JSON.stringify(result.debugPolicyIdsSent, null, 2))}</div>`;
     document.getElementById('bulkCancelEbayBtn').addEventListener('click', () => { statusEl.innerHTML = ''; });
     statusEl.querySelectorAll('[data-edit-id]').forEach(btn => {
       btn.addEventListener('click', () => {
-        const item = app.items.find(i => i.id === btn.dataset.editId);
+        const item = items.find(i => i.id === btn.dataset.editId);
         // Remembers this was opened from the bulk-review flow so the item
         // modal's save handler can offer "list it now?" immediately after
         // she fixes and saves it, instead of making her redo the whole
@@ -638,7 +642,7 @@ ${app.escapeHtml(JSON.stringify(result.debugPolicyIdsSent, null, 2))}</div>`;
     statusEl.innerHTML = html;
     statusEl.querySelectorAll('[data-edit-id]').forEach(btn => {
       btn.addEventListener('click', () => {
-        const item = app.items.find(i => i.id === btn.dataset.editId);
+        const item = items.find(i => i.id === btn.dataset.editId);
         if (item) app.openModal(item);
       });
     });
@@ -647,7 +651,7 @@ ${app.escapeHtml(JSON.stringify(result.debugPolicyIdsSent, null, 2))}</div>`;
   }
 
   document.getElementById('ebayListBtn').addEventListener('click', () => {
-    const item = app.items.find(i => i.id === app.currentEditId);
+    const item = items.find(i => i.id === app.currentEditId);
     if (item) listItemOnEbay(item);
     else document.getElementById('ebayStatusArea').innerHTML = `<div class="ebay-status-box error">Save the item first before listing on eBay.</div>`;
   });
