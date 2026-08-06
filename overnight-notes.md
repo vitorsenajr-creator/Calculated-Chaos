@@ -282,11 +282,27 @@ como o usuário descreveu. Discutindo uma por uma antes de mexer em código.
   não jogar o scroll de volta pro topo.
 - ✅ Botão de voltar ao topo da página inteira (pedido à parte, mesma
   sessão) — mesmo padrão do botão do modal, mas rolando o documento.
-- ⏳ Item 3 (edição em massa de descrição via IA) — ainda não iniciado.
-- ⏳ Item 4 (autosave ao gerar descrição) — ainda não iniciado.
-- ❓ Item 8 (tag "ebay" em Listed on) — aguardando o usuário confirmar se
-  ainda vê o problema em algum fluxo específico, já que a base disso foi
-  implementada mais cedo nesta mesma sessão.
+- ✅ Item 4 — gerar descrição por IA agora salva automaticamente assim que
+  a resposta chega (item novo → save completo igual ao botão Save; item
+  já existente → só atualiza título/descrição no lugar, sem re-rodar o
+  fluxo pesado de save). Lógica de chamada da API foi extraída pra
+  `requestAiListingDescription(f)`, reaproveitada pelo item 3 também —
+  sem mudar nenhuma mensagem/comportamento do fluxo de item único.
+- ✅ Item 3 — botão "🪄 Generate descriptions" na barra de seleção em
+  massa, ao lado de "Publish on eBay". Mesmo padrão visual/UX do preflight
+  de publicação em massa: mostra quantos estão prontos (têm foto, ainda
+  sem descrição) vs. bloqueados (sem foto) vs. já prontos, avisa se o
+  limite mensal de IA não cobre o lote inteiro, roda sequencialmente
+  salvando cada um, termina com relatório de sucesso/falha.
+- ❓ Item 8 (tag "ebay" em Listed on) — usuário vai testar de novo (pode
+  ter usado uma versão anterior). Sem ação pendente por enquanto.
+
+Todos os itens do backlog original (1–7) mais o bônus do botão de voltar
+ao topo da página estão implementados e no `main` (deploy automático via
+Vercel a cada push, conforme configurado). Recomendo testar ao vivo:
+gerar uma descrição por IA (autosave + botão eBay habilitando na hora),
+rodar a geração em massa em 2-3 itens sem descrição, e reabrir um item já
+salvo pra confirmar que a descrição continua visível no painel.
 
 ## Bugs found (not fixed) — none
 
