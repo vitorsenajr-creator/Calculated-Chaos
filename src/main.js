@@ -3899,39 +3899,20 @@ Respond with the JSON object only. Do not include any text, explanation, or mark
     renderListingOutput(title, description, styleTagGuesses, null);
   }
 
-  async function generateListingDescriptionAI(){
-    const btn = document.getElementById('genListingAiBtn');
-    const area = document.getElementById('listingOutputArea');
-
-    if (aiUsageRemaining() <= 0){
-      area.innerHTML = `<div class="ai-error">❌ You've reached your monthly AI analysis limit (${appSettings.aiUsageLimit || 500} analyses). Go to ⚙ Settings to reset the counter.</div>`;
-      return;
-    }
-
-    const f = gatherListingFormFields();
-
-    // Always include the standard closing line from Settings when one is
-    // set — she can edit or clear it there if a particular listing shouldn't
-    // have it, instead of being asked on every single generation.
+  // Shared by the single-item generator below and the bulk "generate
+  // descriptions for selected items" tool — builds the prompt, calls the
+  // AI, and parses its JSON response. Doesn't touch the DOM or `items`;
+  // callers decide what to do with the result (render it, save it, both).
+  // `f` is the same shape gatherListingFormFields() returns, plus
+  // `imageBlocks` (already-built photo blocks, capped by the caller).
+  async function requestAiListingDescription(f){
     const standardText = (appSettings.listingStandardText || '').trim();
     const includeStandardText = !!standardText;
+    const closingLineInstruction = includeStandardText
+      ? `a closing line that is EXACTLY this seller-provided text, verbatim, only trimmed at the end if needed to fit the 500-character limit: "${standardText}"`
+      : `a line saying 'Bundle discount available — check my closet!'`;
 
-    btn.disabled = true;
-    btn.textContent = '🪄 Writing…';
-    area.innerHTML = `<div class="ai-loading">Writing a Poshmark-optimized listing…</div>`;
-
-    try{
-      // Send several photos, not just the cover shot — tag/label close-ups
-      // (fabric content, size, care instructions) are usually a few photos
-      // in, and reading them is what makes the AI's description as detailed
-      // as a description written by hand from the actual garment tag.
-      const imageBlocks = currentPhotos.slice(0, 5).map(photoToImageBlock).filter(Boolean);
-
-      const closingLineInstruction = includeStandardText
-        ? `a closing line that is EXACTLY this seller-provided text, verbatim, only trimmed at the end if needed to fit the 500-character limit: "${standardText}"`
-        : `a line saying 'Bundle discount available — check my closet!'`;
-
-      const promptText = `You are an expert Poshmark reseller writing an SEO-optimized listing for this item, following Poshmark's own best practices. You have been given up to 5 photos of the item — look at ALL of them carefully, not just the first. Sellers commonly include a close-up photo of the clothing tag/label showing fabric content (e.g. "100% cotton", "95% polyester 5% spandex"), care instructions, and sometimes country of origin or a style/RN number. If any such tag or label is visible in any photo, read it and use that real information — this is the single biggest thing that makes a description feel complete instead of generic. Never guess or invent fabric content or care instructions that you can't actually read; if no tag is visible or legible, just omit that detail rather than making it up.
+    const promptText = `You are an expert Poshmark reseller writing an SEO-optimized listing for this item, following Poshmark's own best practices. You have been given up to 5 photos of the item — look at ALL of them carefully, not just the first. Sellers commonly include a close-up photo of the clothing tag/label showing fabric content (e.g. "100% cotton", "95% polyester 5% spandex"), care instructions, and sometimes country of origin or a style/RN number. If any such tag or label is visible in any photo, read it and use that real information — this is the single biggest thing that makes a description feel complete instead of generic. Never guess or invent fabric content or care instructions that you can't actually read; if no tag is visible or legible, just omit that detail rather than making it up.
 
 Treat Brand, Size, Color, and Condition given in "Item data" below as ground truth — never contradict or change them. Every other descriptive detail (neckline, sleeve/hem/cuff style, knit or weave texture, silhouette/fit, closures, pockets, lining, pattern, etc.) must come ONLY from what you can actually see in the photos — never invent a construction detail you can't visually confirm.
 
@@ -3954,59 +3935,89 @@ Seller notes / flaws: ${f.notes || '(none)'}
 Price: ${f.price ? '$' + f.price : '(unset)'}
 Be accurate and honest — never invent brand, material, or condition details that aren't given above or clearly readable in a photo. Do not use words like "rare", "vintage", or "authentic" unless explicitly supported by the data. Respond with the JSON object only — no text before or after it.`;
 
-      const idToken = await window.auth.currentUser.getIdToken();
-      const response = await fetch("/api/generate-listing", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
-        body: JSON.stringify({ imageBlocks, promptText })
-      });
+    const idToken = await window.auth.currentUser.getIdToken();
+    const response = await fetch("/api/generate-listing", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
+      body: JSON.stringify({ imageBlocks: f.imageBlocks, promptText })
+    });
 
-      if (!response.ok){
-        let detail = '';
-        try{
-          const errJson = await response.json();
-          detail = errJson?.error?.message || errJson?.detail?.error?.message || errJson?.error || '';
-        }catch(parseErr){ /* body wasn't JSON — leave detail blank */ }
-        area.innerHTML = `<div class="ai-error">Couldn't generate the listing (server said: HTTP ${response.status}${detail ? ' — ' + escapeHtml(String(detail)) : ''}). Try again in a moment — if it keeps happening, tell Vitor this exact message.</div>`;
-        return;
-      }
-      const data = await response.json();
-      const textBlock = data.content && data.content.find(b => b.type === 'text');
-      if (!textBlock){
-        area.innerHTML = `<div class="ai-error">The AI didn't return a usable response. Please try again.</div>`;
-        return;
-      }
-      let cleaned = textBlock.text.replace(/```json|```/gi, '').trim();
-      const firstBrace = cleaned.indexOf('{');
-      const lastBrace = cleaned.lastIndexOf('}');
-      if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace){
-        area.innerHTML = `<div class="ai-error">Couldn't make sense of the AI's response. Please try again.</div>`;
-        return;
-      }
-      cleaned = cleaned.slice(firstBrace, lastBrace + 1);
-      // The description we ask for is explicitly multi-line (blank lines,
-      // bullet points), and the model very often writes real newline/tab
-      // characters inside that JSON string value instead of the escaped
-      // \n / \t JSON requires. A raw control character inside a quoted JSON
-      // string is invalid and makes JSON.parse throw even when the response
-      // is otherwise complete and well-formed. This walks the text and only
-      // escapes newlines/tabs that fall inside a quoted string, leaving
-      // structural whitespace outside strings untouched.
-      cleaned = escapeRawControlCharsInJsonStrings(cleaned);
-
-      let result;
+    if (!response.ok){
+      let detail = '';
       try{
-        result = JSON.parse(cleaned);
-      }catch(parseErr){
-        area.innerHTML = `<div class="ai-error">Couldn't make sense of the AI's response. Please try again.</div>`;
+        const errJson = await response.json();
+        detail = errJson?.error?.message || errJson?.detail?.error?.message || errJson?.error || '';
+      }catch(parseErr){ /* body wasn't JSON — leave detail blank */ }
+      return { ok:false, message: `Couldn't generate the listing (server said: HTTP ${response.status}${detail ? ' — ' + escapeHtml(String(detail)) : ''}). Try again in a moment — if it keeps happening, tell Vitor this exact message.` };
+    }
+    const data = await response.json();
+    const textBlock = data.content && data.content.find(b => b.type === 'text');
+    if (!textBlock){
+      return { ok:false, message: `The AI didn't return a usable response. Please try again.` };
+    }
+    let cleaned = textBlock.text.replace(/```json|```/gi, '').trim();
+    const firstBrace = cleaned.indexOf('{');
+    const lastBrace = cleaned.lastIndexOf('}');
+    if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace){
+      return { ok:false, message: `Couldn't make sense of the AI's response. Please try again.` };
+    }
+    cleaned = cleaned.slice(firstBrace, lastBrace + 1);
+    // The description we ask for is explicitly multi-line (blank lines,
+    // bullet points), and the model very often writes real newline/tab
+    // characters inside that JSON string value instead of the escaped
+    // \n / \t JSON requires. A raw control character inside a quoted JSON
+    // string is invalid and makes JSON.parse throw even when the response
+    // is otherwise complete and well-formed. This walks the text and only
+    // escapes newlines/tabs that fall inside a quoted string, leaving
+    // structural whitespace outside strings untouched.
+    cleaned = escapeRawControlCharsInJsonStrings(cleaned);
+
+    let result;
+    try{
+      result = JSON.parse(cleaned);
+    }catch(parseErr){
+      return { ok:false, message: `Couldn't make sense of the AI's response. Please try again.` };
+    }
+
+    const title = String(result.title || '').slice(0, 80);
+    const description = String(result.description || '').slice(0, LISTING_DESC_LIMIT);
+    const styleTagGuesses = Array.isArray(result.style_tags) ? result.style_tags.slice(0, 3).map(String) : [];
+    return { ok:true, title, description, styleTagGuesses };
+  }
+
+  async function generateListingDescriptionAI(){
+    const btn = document.getElementById('genListingAiBtn');
+    const area = document.getElementById('listingOutputArea');
+
+    if (aiUsageRemaining() <= 0){
+      area.innerHTML = `<div class="ai-error">❌ You've reached your monthly AI analysis limit (${appSettings.aiUsageLimit || 500} analyses). Go to ⚙ Settings to reset the counter.</div>`;
+      return;
+    }
+
+    const f = gatherListingFormFields();
+
+    btn.disabled = true;
+    btn.textContent = '🪄 Writing…';
+    area.innerHTML = `<div class="ai-loading">Writing a Poshmark-optimized listing…</div>`;
+
+    try{
+      // Send several photos, not just the cover shot — tag/label close-ups
+      // (fabric content, size, care instructions) are usually a few photos
+      // in, and reading them is what makes the AI's description as detailed
+      // as a description written by hand from the actual garment tag.
+      const imageBlocks = currentPhotos.slice(0, 5).map(photoToImageBlock).filter(Boolean);
+
+      const result = await requestAiListingDescription({ ...f, imageBlocks });
+      if (!result.ok){
+        area.innerHTML = `<div class="ai-error">${result.message}</div>`;
         return;
       }
 
-      const title = String(result.title || '').slice(0, 80);
-      const description = String(result.description || '').slice(0, LISTING_DESC_LIMIT);
-      const styleTagGuesses = Array.isArray(result.style_tags) ? result.style_tags.slice(0, 3).map(String) : [];
-
-      renderListingOutput(title, description, styleTagGuesses, '🪄 AI-written — review before copying');
+      renderListingOutput(result.title, result.description, result.styleTagGuesses, '🪄 AI-written — review before copying');
+      // Autosave the moment the description is delivered — previously she
+      // had to click Save separately just to enable "Publish on eBay",
+      // and until then the text only ever lived on screen.
+      await autosaveGeneratedListingText();
       await incrementAiUsage();
       const remaining = aiUsageRemaining();
       if (remaining <= 50 && remaining > 0){
@@ -4018,6 +4029,31 @@ Be accurate and honest — never invent brand, material, or condition details th
       btn.disabled = false;
       btn.textContent = '🪄 Generate listing description with AI';
     }
+  }
+
+  // Persists whatever's currently rendered in the listing-description panel
+  // onto the item — the trigger is the AI delivering a description, not a
+  // separate manual Save click.
+  //  - Brand-new item (never saved) → same full save the Save button does,
+  //    same validations (name, eBay category chosen) included.
+  //  - Already-saved item → just updates listingTitle/listingDescription in
+  //    place, without re-running the full save flow or its side effects
+  //    (photo upload, re-opening the modal, eBay relist prompt, etc.).
+  async function autosaveGeneratedListingText(){
+    if (!document.getElementById('fName').value.trim()) return;
+    if (!currentEditId){
+      document.getElementById('saveItemBtn').click();
+      return;
+    }
+    const idx = items.findIndex(i => i.id === currentEditId);
+    if (idx < 0) return;
+    const title = document.getElementById('listTitleText')?.textContent || '';
+    const description = document.getElementById('listDescText')?.value || '';
+    const updated = { ...items[idx], listingTitle: title, listingDescription: description };
+    items[idx] = updated;
+    try{
+      await saveItem(updated);
+    }catch(e){ /* saveItem already alerts the user on failure */ }
   }
 
   // Always uses the structured generator (title + "Details:" bullet
