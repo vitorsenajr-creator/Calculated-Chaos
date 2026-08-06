@@ -21,6 +21,7 @@ import {
   getAllColors as _getAllColors,
   getAllClothingTypes as _getAllClothingTypes,
 } from './modules/catalog-lookups.js';
+import { compressImage } from './modules/image-compression.js';
 import { escapeHtml, toTitleCase, daysSince, daysToSell, uid, csvEscape, statusLabel } from './modules/format-utils.js';
 import {
   getCategoryPriceHistory as _getCategoryPriceHistory,
@@ -457,33 +458,8 @@ export const app = (function(){
   }
 
   // ---------- IMAGE COMPRESSION ----------
-  function compressImage(file){
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        const img = new Image();
-        img.onload = () => {
-          let { width, height } = img;
-          if (width > height && width > MAX_PHOTO_DIM){
-            height = Math.round(height * (MAX_PHOTO_DIM / width));
-            width = MAX_PHOTO_DIM;
-          } else if (height > MAX_PHOTO_DIM){
-            width = Math.round(width * (MAX_PHOTO_DIM / height));
-            height = MAX_PHOTO_DIM;
-          }
-          const canvas = document.createElement('canvas');
-          canvas.width = width; canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, width, height);
-          resolve(canvas.toDataURL('image/jpeg', PHOTO_QUALITY));
-        };
-        img.onerror = reject;
-        img.src = ev.target.result;
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  }
+  // compressImage now lives in modules/image-compression.js — pure browser-
+  // API function, imported directly above (no wrapper needed).
 
   // ---------- PRICING ENGINE ----------
   // Pricing engine now lives in modules/pricing.js, parameterized on
