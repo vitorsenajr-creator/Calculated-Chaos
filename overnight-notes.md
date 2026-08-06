@@ -243,6 +243,28 @@ como o usuário descreveu. Discutindo uma por uma antes de mexer em código.
    volta pro topo do modal.
 7. **Botão de fechar o modal do item fixo no topo** — hoje aparentemente
    rola junto com o conteúdo; quer fixo (sticky) no topo do modal.
+8. **Marcar a tag "ebay" em "Listed on" ao publicar** — já existia no dado
+   (publishItemToEbayCore já tagueava) e o pill do modal já foi
+   sincronizado ao vivo mais cedo nesta sessão (commit
+   "Sync 'Listed on' pill UI live..."). Registrado aqui como confirmação —
+   aguardando o usuário dizer se ainda vê o problema em algum fluxo
+   específico (item único vs. publicação em massa) antes de mexer de novo.
+
+### Decisões tomadas na discussão (2026-08-06, sessão ao vivo)
+
+- **Item 1**: mantém a exigência de categoria eBay escolhida manualmente
+  antes de publicar em massa (decisão proposital antiga, evita repetir uma
+  leva de listagens com categoria adivinhada errada). Só melhorar a
+  clareza da tela pra ficar óbvio quais itens estão prontos vs. quais só
+  precisam da categoria escolhida.
+- **Item 3**: mesmo padrão visual do preflight de publicação em massa do
+  eBay — lista de progresso item a item, sequencial, relatório de
+  sucesso/erro no final.
+- **Item 4**: se o item ainda não foi salvo nenhuma vez (sem id), gerar a
+  descrição por IA deve salvar o item inteiro naquele momento (mesmo save
+  completo que o botão Save faria).
+- Ordem de implementação: itens 2, 5, 6, 7 (e a versão "só clareza" do
+  item 1) primeiro — mecânicos, sem ambiguidade. Itens 3 e 4 depois.
 
 ## Bugs found (not fixed) — none
 
