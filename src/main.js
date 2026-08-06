@@ -898,6 +898,7 @@ export const app = (function(){
           <button id="bulkApplyDiscountBtn" class="settings-save-btn" style="width:auto; padding:8px 14px; margin:0;" ${bulkSelectedIds.size===0?'disabled':''}>Apply %</button>
           <button id="bulkDeleteBtn" style="background:var(--danger); color:white; border:none; border-radius:8px; padding:8px 14px; font-size:13px; cursor:pointer;" ${bulkSelectedIds.size===0?'disabled':''}>Delete</button>
           <button id="bulkPublishEbayBtn" style="background:#E53238; color:white; border:none; border-radius:8px; padding:8px 14px; font-size:13px; font-weight:600; cursor:pointer;" ${bulkSelectedIds.size===0?'disabled':''}>🛒 Publish on eBay</button>
+          <button id="bulkGenerateDescBtn" style="background:var(--gold); color:white; border:none; border-radius:8px; padding:8px 14px; font-size:13px; font-weight:600; cursor:pointer;" ${bulkSelectedIds.size===0?'disabled':''}>🪄 Generate descriptions</button>
           <button id="bulkSelectAllBtn" style="background:transparent; border:1px solid var(--line); border-radius:8px; padding:8px 14px; font-size:13px; cursor:pointer;">Select all (${filtered.length})</button>
         </div>
         <div id="bulkActionStatus" style="margin-top:8px; font-size:12px;"></div>
@@ -1119,6 +1120,11 @@ export const app = (function(){
     const bulkPublishEbayBtn = document.getElementById('bulkPublishEbayBtn');
     if (bulkPublishEbayBtn){
       bulkPublishEbayBtn.addEventListener('click', () => showBulkEbayPreflight(false));
+    }
+
+    const bulkGenerateDescBtn = document.getElementById('bulkGenerateDescBtn');
+    if (bulkGenerateDescBtn){
+      bulkGenerateDescBtn.addEventListener('click', () => showBulkGenerateDescPreflight());
     }
   }
 
@@ -4054,6 +4060,139 @@ Be accurate and honest — never invent brand, material, or condition details th
     try{
       await saveItem(updated);
     }catch(e){ /* saveItem already alerts the user on failure */ }
+  }
+
+  // ---------- BULK AI DESCRIPTION GENERATION ----------
+  // Same shape as ebay-api.js's bulk eBay preflight/report (computeBulkEbayGroups
+  // / showBulkEbayPreflight / runBulkEbayPublish / renderBulkEbayReport): a
+  // preview of what will happen, a confirm button, a sequential run with
+  // live progress, then a report — for generating+saving listing
+  // descriptions across every selected item that doesn't have one yet,
+  // instead of opening and generating them one at a time.
+  function showBulkGenerateDescPreflight(){
+    const statusEl = document.getElementById('bulkActionStatus');
+    if (!statusEl) return;
+
+    const ids = Array.from(bulkSelectedIds);
+    const selected = ids.map(id => items.find(i => i.id === id)).filter(Boolean);
+    const alreadyHas = selected.filter(i => i.listingDescription);
+    const eligible = selected.filter(i => !i.listingDescription);
+    const noPhotos = eligible.filter(i => !(i.photos && i.photos.length));
+    const ready = eligible.filter(i => i.photos && i.photos.length);
+    const itemLabel = (item) => escapeHtml(item.name || item.productCode || 'Item');
+    const editBtn = (item) => `<button class="bulk-desc-edit-btn" data-edit-id="${item.id}" style="background:transparent; border:1px solid var(--line); border-radius:7px; padding:6px 12px; font-size:13px; cursor:pointer; margin-left:8px;">Edit</button>`;
+    const itemRow = (text) => `<div style="margin-top:6px; font-size:14px; line-height:1.4; display:flex; align-items:center; flex-wrap:wrap;">${text}</div>`;
+    const remaining = aiUsageRemaining();
+
+    statusEl.innerHTML = `
+      <div class="ebay-connect-box">
+        <div class="ec-title">Generate ${ready.length} description${ready.length===1?'':'s'} with AI?</div>
+        <div class="ec-sub">
+          ${alreadyHas.length ? `<div>⏭️ ${alreadyHas.length} already ${alreadyHas.length===1?'has':'have'} a description (skipped)</div>` : ''}
+          ${noPhotos.length ? `<div style="margin-top:8px; font-size:13px;"><b style="color:var(--danger);">🚫 ${noPhotos.length} can't generate — no photos</b>${noPhotos.map(i => itemRow(`${itemLabel(i)}${editBtn(i)}`)).join('')}</div>` : ''}
+          ${remaining < ready.length ? `<div style="margin-top:8px; font-size:13px; color:var(--amber-deep);">⚠ Only ${remaining} AI use${remaining===1?'':'s'} left this month — will stop once that runs out and report what's left.</div>` : ''}
+        </div>
+        <button id="bulkConfirmGenerateDescBtn" style="background:var(--gold); color:white; border:none; border-radius:8px; padding:11px; font-size:13px; font-weight:600; cursor:pointer; width:100%; margin-top:10px;" ${ready.length===0?'disabled':''}>
+          🪄 Generate ${ready.length} now
+        </button>
+        <button id="bulkCancelGenerateDescBtn" style="background:transparent; border:1px solid var(--line); border-radius:8px; padding:9px; font-size:13px; cursor:pointer; width:100%; margin-top:6px;">
+          Cancel
+        </button>
+      </div>`;
+
+    document.getElementById('bulkCancelGenerateDescBtn').addEventListener('click', () => { statusEl.innerHTML = ''; });
+    statusEl.querySelectorAll('[data-edit-id]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const item = items.find(i => i.id === btn.dataset.editId);
+        if (item) openModal(item);
+      });
+    });
+    const confirmBtn = document.getElementById('bulkConfirmGenerateDescBtn');
+    if (confirmBtn && ready.length){
+      confirmBtn.addEventListener('click', () => runBulkGenerateDescriptions(ready));
+    }
+  }
+
+  async function runBulkGenerateDescriptions(toGenerate){
+    const results = []; // { item, ok, message? }
+    for (let i = 0; i < toGenerate.length; i++){
+      const item = toGenerate[i];
+      const statusEl = document.getElementById('bulkActionStatus');
+      if (statusEl){
+        statusEl.innerHTML = `<div style="opacity:0.8;">⏳ Writing description ${i+1} of ${toGenerate.length}: ${escapeHtml(item.name || item.productCode || 'item')}…</div>`;
+      }
+      if (aiUsageRemaining() <= 0){
+        results.push({ item, ok:false, message: 'Monthly AI usage limit reached' });
+        continue;
+      }
+      try{
+        const f = {
+          brand: item.brand || '', category: item.category || '', clothingType: item.clothingType || '',
+          gender: item.gender || '', size: item.size || '', condition: item.condition || '',
+          notes: item.notes || '', color: item.color || '',
+          measurements: (item.measurements?.values && Object.keys(item.measurements.values).length > 0)
+            ? Object.entries(item.measurements.values).map(([k,v]) => `${k}: ${v.toFixed(1)}"`).join(', ')
+            : '',
+          price: item.listPrice || '',
+          imageBlocks: (item.photos || []).slice(0, 5).map(photoToImageBlock).filter(Boolean),
+        };
+        const result = await requestAiListingDescription(f);
+        if (!result.ok){
+          results.push({ item, ok:false, message: result.message });
+          continue;
+        }
+        const idx = items.findIndex(i => i.id === item.id);
+        if (idx >= 0){
+          const updated = { ...items[idx], listingTitle: result.title, listingDescription: result.description };
+          items[idx] = updated;
+          await saveItem(updated);
+        }
+        await incrementAiUsage();
+        results.push({ item, ok:true });
+      }catch(e){
+        results.push({ item, ok:false, message: "Couldn't complete the AI write-up right now." });
+      }
+    }
+    renderAll();
+    renderBulkGenerateDescReport(results);
+  }
+
+  function renderBulkGenerateDescReport(results){
+    // renderAll() rebuilds the bulk bar from scratch, so #bulkActionStatus
+    // from before the loop is stale — always re-query it here.
+    const statusEl = document.getElementById('bulkActionStatus');
+    if (!statusEl) return; // bulk mode got closed some other way mid-loop
+
+    const success = results.filter(r => r.ok);
+    const failed = results.filter(r => !r.ok);
+    const itemLabel = (item) => escapeHtml(item.name || item.productCode || 'Item');
+    const editBtn = (item) => `<button class="bulk-desc-edit-btn" data-edit-id="${item.id}" style="background:transparent; border:1px solid var(--line); border-radius:7px; padding:6px 12px; font-size:13px; cursor:pointer; margin-left:8px;">Edit</button>`;
+    const itemRow = (text) => `<div style="margin-top:6px; font-size:14px; line-height:1.4; display:flex; align-items:center; flex-wrap:wrap;">${text}</div>`;
+
+    let html = `<div class="ebay-connect-box"><div class="ec-title">Bulk description generation finished</div><div class="ec-sub">`;
+    if (success.length){
+      html += `<div style="margin-bottom:8px; font-size:13px;"><b style="color:var(--sage-deep);">✅ ${success.length} generated and saved</b>`;
+      html += success.map(r => itemRow(itemLabel(r.item))).join('');
+      html += `</div>`;
+    }
+    if (failed.length){
+      html += `<div style="font-size:13px;"><b style="color:var(--danger);">❌ ${failed.length} failed</b>`;
+      html += failed.map(r => itemRow(`${itemLabel(r.item)} — ${escapeHtml(r.message || 'unknown error')}${editBtn(r.item)}`)).join('');
+      html += `</div>`;
+    }
+    html += `</div>
+      <button id="bulkGenerateDescReportCloseBtn" style="background:transparent; border:1px solid var(--line); border-radius:8px; padding:9px; font-size:13px; cursor:pointer; width:100%; margin-top:8px;">Close</button>
+    </div>`;
+
+    statusEl.innerHTML = html;
+    statusEl.querySelectorAll('[data-edit-id]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const item = items.find(i => i.id === btn.dataset.editId);
+        if (item) openModal(item);
+      });
+    });
+    const closeBtn = document.getElementById('bulkGenerateDescReportCloseBtn');
+    if (closeBtn) closeBtn.addEventListener('click', () => { statusEl.innerHTML = ''; });
   }
 
   // Always uses the structured generator (title + "Details:" bullet
