@@ -453,6 +453,15 @@ ${app.escapeHtml(JSON.stringify(result.debugPolicyIdsSent, null, 2))}</div>`;
       const result = await publishItemToEbayCore(item, forceRelist);
 
       if (result.success){
+        // publishItemToEbayCore already tagged 'ebay' onto listedPlatforms
+        // and persisted it — but if this item's modal is still open, its
+        // "Listed on" pills were rendered from the pre-publish item and
+        // won't show that on their own until she closes and reopens it.
+        // Sync the pill UI live so it reflects reality without a reload.
+        if (app.currentEditId === item.id){
+          const freshItem = app.items.find(i => i.id === item.id);
+          if (freshItem) app.setListedPlatformsUI([...(freshItem.listedPlatforms || [])]);
+        }
         app.renderAll();
         area.innerHTML = `<div class="ebay-status-box success">
           🎉 Listed on eBay! · <a href="${result.listingUrl}" target="_blank">View listing ↗</a>

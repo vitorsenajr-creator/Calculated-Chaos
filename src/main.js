@@ -4,6 +4,21 @@ import {
   checkEbaySalesNow, endEbayListingIfSold, listItemOnEbay, showBulkEbayPreflight,
   ebayTokens, clearEbayTokens,
 } from './ebay-api.js';
+import {
+  MAX_PHOTOS, MAX_PHOTO_DIM, PHOTO_QUALITY,
+  PLATFORM_FEES, PLATFORM_LABEL, PLATFORM_NAME, PLATFORM_COLOR, PLATFORM_FAVICON,
+  CONDITION_FACTOR, CONDITION_LABEL, LISTING_CONDITION_LABEL, POSHMARK_STYLE_TAGS,
+  PREP_LABEL, BASE_CATEGORY_VALUE, DAILY_QUOTES,
+} from './modules/constants.js';
+import { escapeHtml, toTitleCase, daysSince, daysToSell, uid, csvEscape } from './modules/format-utils.js';
+import {
+  getCategoryPriceHistory as _getCategoryPriceHistory,
+  getPriceReference as _getPriceReference,
+  suggestPrice as _suggestPrice,
+  estimateShipping as _estimateShipping,
+  platformFee as _platformFee,
+  projectedProfit as _projectedProfit,
+} from './modules/pricing.js';
 
 export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
@@ -33,45 +48,6 @@ export const app = (function(){
   let lastUsedCategory = 'Clothing'; // pre-fills the category field with whatever was used last
   let lastUsedEbayCategory = null; // { id, path } — carries over between items during a Quick Catalog session only
 
-  const MAX_PHOTOS = 16;
-  const MAX_PHOTO_DIM = 1600; // px, longest side after compression — matches eBay's own zoom recommendation
-  const PHOTO_QUALITY = 0.85;
-
-  const PLATFORM_FEES = {
-    ebay: 0.1335,
-    mercari: 0.10,
-    poshmark: 0.20,
-    vinted: 0.05,
-    depop: 0.10,
-    outra: 0.12
-  };
-
-  const PLATFORM_LABEL = {
-    ebay: '🛒 eBay', mercari: '📦 Mercari', poshmark: '👗 Poshmark', vinted: '♻️ Vinted', depop: '📸 Depop', outra: 'Other'
-  };
-  // Plain names (no emoji) for built-ins — used next to their real favicon
-  // in badges, where an emoji alongside a real logo would be redundant.
-  const PLATFORM_NAME = {
-    ebay: 'eBay', mercari: 'Mercari', poshmark: 'Poshmark', vinted: 'Vinted', depop: 'Depop', outra: 'Other'
-  };
-  // Official brand colors (researched, not guessed).
-  const PLATFORM_COLOR = {
-    ebay: '#E53238', mercari: '#5E6DF2', poshmark: '#7F0353', vinted: '#007782', depop: '#FF2300', outra: '#8A7E82'
-  };
-  // Official favicons — used instead of emoji on badges for the 5 built-in
-  // platforms. Deliberately NOT bundling full logo assets (trademark risk,
-  // especially given this may become a real product later); a favicon is a
-  // much lighter, lower-risk way to show a recognizable real icon. Custom
-  // platforms she adds herself have no favicon to fetch, so they keep the
-  // emoji/color-only badge style.
-  const PLATFORM_FAVICON = {
-    ebay: 'https://www.ebay.com/favicon.ico',
-    mercari: 'https://www.mercari.com/favicon.ico',
-    poshmark: 'https://poshmark.com/favicon.ico',
-    vinted: 'https://www.vinted.com/favicon.ico',
-    depop: 'https://www.depop.com/favicon.ico',
-  };
-
   // ---------- PLATFORM MANAGEMENT (Settings → Platforms) ----------
   // Built-in platforms keep fixed keys (eBay especially has real API
   // integration logic keyed to that exact string) but her fee %s can be
@@ -96,107 +72,6 @@ export const app = (function(){
   function getPlatformColor(key){
     return getAllPlatforms().find(p => p.key === key)?.color || '#8A7E82';
   }
-
-  const CONDITION_FACTOR = {
-    novo_etiqueta: 1.0,
-    novo_sem_etiqueta: 0.85,
-    excelente: 0.70,
-    bom: 0.55,
-    aceitavel: 0.40,
-    defeito: 0.22
-  };
-
-  const CONDITION_LABEL = {
-    novo_etiqueta: 'New with tags',
-    novo_sem_etiqueta: 'New without tags',
-    excelente: 'Excellent pre-owned condition',
-    bom: 'Good pre-owned condition',
-    aceitavel: 'Fair condition, priced accordingly',
-    defeito: 'Sold as-is for parts or repair'
-  };
-
-  // Poshmark doesn't have a granular condition dropdown like eBay — sellers
-  // are expected to spell condition out in the description using these
-  // community-standard abbreviations (NWT/NWOT/EUC/VGUC/GUC).
-  const LISTING_CONDITION_LABEL = {
-    novo_etiqueta: 'NWT — New With Tags',
-    novo_sem_etiqueta: 'NWOT — New Without Tags',
-    excelente: 'EUC — Excellent Used Condition, no rips/stains/major flaws',
-    bom: 'VGUC — Very Good Used Condition, minor flaws from gentle use',
-    aceitavel: 'GUC — Good Used Condition, see notes for flaws',
-    defeito: 'Flawed / sold as-is — see photos & notes for details'
-  };
-
-  // Poshmark's own fixed "Style Tags" vocabulary — she picks these by
-  // clicking them in Poshmark's UI while publishing (not free text), so the
-  // AI must only ever suggest tags that actually exist in this list.
-  const POSHMARK_STYLE_TAGS = [
-    '70s','80s','90s','Activewear','Animal Print','Athleisure','Avant Garde',
-    'Baggy','Balletcore','Beach','Beaded','Bikercore','Blokecore','Bodycon','Bohemian','Bow','Bridal','Bridesmaid','Business Casual',
-    'Cable Knit','Cashmere','Casual','Chunky','Collegiate','Colorblock','Colorful','Contemporary','Coord Sets','Coquette Girl','Corduroy','Cottagecore','Cozy','Crochet','Cropped','Cruelty-Free','Cut Out',
-    'Denim','Distressed','DIY','Drop Waist',
-    'Eclectic Grandpa','Embroidered',
-    'Fall','Faux Fur','Feminine','Festival','Festive','Flannel','Flare','Floral','Formal','Fringe',
-    'Gingham','Girlhoodcore','Gorpcore','Goth','Grunge',
-    'Hand Knit','Handmade','Herringbone','Houndstooth',
-    'Indie Sleeze',
-    'Knit',
-    'Lace','Leather','Leopard Print','Lightweight','Linen','Luxury',
-    'Maximalism','Mesh','Metallic','Minimalist','Monochrome','Monogram','Moto',
-    'Neon','Neutral','Nylon',
-    'Office','Oversized',
-    'Paisley','Party','Pastel','Patchwork','Peplum','Plaid','Platform','Pleated','Polka Dot','Preppy','Punk',
-    'Quiet Luxury','Quilted',
-    'Relaxed Fit','Resortwear','Retro','Rosette','Ruffle',
-    'Satin','Sequins','Sheer','Sherpa','Silk','Sporty','Strapless','Streetwear','Stripes','Suede',
-    'Tailored','Tennis Prep','Travel','Tropical','Tweed','Two-Tone',
-    'Unisex','Upcycled','Utility',
-    'Vacation','Vegan','Velour','Vintage',
-    'Waterproof','Wedding','Western','Whimsigoth','Winter','Wool','Woven',
-    'Y2K',
-  ];
-
-  const PREP_LABEL = {
-    needs_wash: 'Needs wash', needs_repair: 'Needs repair', needs_photo: 'Needs photos', ready: 'Ready to list'
-  };
-
-  const BASE_CATEGORY_VALUE = {
-    'Clothing': 28, 'Shoes': 35, 'Accessories': 22, 'Electronics': 60,
-    'Home & Decor': 25, 'Collectibles': 40, 'Toys': 18, 'Books': 12, 'Other': 20
-  };
-
-  const DAILY_QUOTES = [
-    "Somebody's closet clutter is somebody else's perfect find.",
-    "Every tag you write is a tiny act of treasure hunting, in reverse.",
-    "Today's pile is tomorrow's paycheck. One photo at a time.",
-    "Thrifted doesn't mean tired — it means it found you twice.",
-    "A good sorter sees inventory. A great one sees stories waiting to ship.",
-    "Slow and steady fills the shelf. Today, just do one.",
-    "The best closet is the one that turns over.",
-    "Chaos, weighed and measured, is just a system in disguise.",
-    "Nobody buys what they can't see. Light wins more than luck.",
-    "Small stack today, smaller stack tomorrow.",
-    "You're not behind. You're mid-sort.",
-    "Every label you print is a little promise kept.",
-    "Good bones sell themselves. Good photos help them along.",
-    "A folded shirt and a fair price — that's the whole business.",
-    "Patience smells like cedar and looks like a full rack.",
-    "What didn't sell yesterday just needs a better light today.",
-    "Cataloging is just love letters to your future buyer.",
-    "The hanger remembers. So should the spreadsheet.",
-    "One box at a time turns clutter into cash flow.",
-    "You don't need to finish today. You need to start.",
-    "Worn once, loved twice — that's the resale promise.",
-    "Every measurement you log saves a future return.",
-    "Steady hands, fair prices, happy closets.",
-    "The pile shrinks the moment you stop staring at it.",
-    "A great listing is just honesty with good lighting.",
-    "Today's task: turn one maybe into one done.",
-    "Stock doesn't sort itself, but it does reward whoever starts.",
-    "Some days you list ten. Some days you list one. Both count.",
-    "The tag says condition. The photo says character.",
-    "Good inventory hygiene is just kindness to your future self."
-  ];
 
   function getDailyQuote(){
     const today = new Date();
@@ -331,8 +206,6 @@ export const app = (function(){
       throw e;
     }
   }
-
-  function uid(){ return 'it_' + Date.now() + '_' + Math.random().toString(36).slice(2,8); }
 
   // ---------- PHOTO SESSION DRAFTS (own Firestore collection) ----------
   async function loadDrafts(){
@@ -668,151 +541,17 @@ export const app = (function(){
   }
 
   // ---------- PRICING ENGINE ----------
-  function getCategoryPriceHistory(category){
-    const sold = items.filter(i => i.status === 'vendido' && i.category === category && i.soldPrice);
-    if (sold.length < 2) return null;
-    const avg = sold.reduce((s,i)=> s + parseFloat(i.soldPrice), 0) / sold.length;
-    return { avg: Math.round(avg*100)/100, count: sold.length };
-  }
-
-  // Reverses a past sale's own condition discount to estimate what that
-  // item would have been worth "as new" — this is what lets us compare
-  // sales across different conditions fairly, and is also the fix for a
-  // real bug: blending a raw historical sold price (which already reflects
-  // ITS OWN condition) with a fresh condition-factor multiplication was
-  // discounting twice.
-  function estimateMintValue(soldItem){
-    const factor = CONDITION_FACTOR[soldItem.condition] || 0.55;
-    return parseFloat(soldItem.soldPrice) / factor;
-  }
-
-  // Sales from last week should count more than sales from 6 months ago —
-  // decays smoothly rather than a hard cutoff.
-  function recencyWeight(soldAtMs){
-    const daysAgo = (Date.now() - (soldAtMs || Date.now())) / 86400000;
-    return 1 / (1 + Math.max(0, daysAgo) / 90);
-  }
-
-  // Weighted median (not mean) of "mint value" across a set of past sales —
-  // median resists a single unusually expensive or cheap sale skewing the
-  // whole estimate the way a plain average does.
-  function weightedMedianMintValue(soldItems){
-    const entries = soldItems
-      .map(i => ({ value: estimateMintValue(i), weight: recencyWeight(i.soldAt) }))
-      .sort((a,b) => a.value - b.value);
-    const totalWeight = entries.reduce((s,e)=> s + e.weight, 0);
-    let cum = 0;
-    for (const e of entries){
-      cum += e.weight;
-      if (cum >= totalWeight / 2) return e.value;
-    }
-    return entries[entries.length - 1].value;
-  }
-
-  // Finds the most specific real sales data we have for this item: same
-  // BRAND first (any category — a brand's value carries across categories
-  // and is far more predictive than category alone), falling back to same
-  // category if there isn't enough brand-specific history yet.
-  function getPriceReference(item){
-    const brand = (item.brand || '').trim().toLowerCase();
-    if (brand){
-      const sameBrand = items.filter(i => i.status === 'vendido' && i.soldPrice && (i.brand||'').trim().toLowerCase() === brand);
-      if (sameBrand.length >= 2){
-        return { mintValue: weightedMedianMintValue(sameBrand), count: sameBrand.length, matchType: 'brand' };
-      }
-    }
-    const sameCat = items.filter(i => i.status === 'vendido' && i.soldPrice && i.category === item.category);
-    if (sameCat.length >= 2){
-      return { mintValue: weightedMedianMintValue(sameCat), count: sameCat.length, matchType: 'category' };
-    }
-    return null;
-  }
-
-  function suggestPrice(item){
-    const base = BASE_CATEGORY_VALUE[item.category] || 20;
-    const condFactor = CONDITION_FACTOR[item.condition] || 0.5;
-    const ref = getPriceReference(item);
-    let suggested;
-    if (ref){
-      // Re-apply THIS item's condition to the real historical "mint value"
-      // — not to the raw sold price, which already had a condition baked
-      // in (that was the double-discount bug).
-      const historicalEstimate = ref.mintValue * condFactor;
-      // Trust brand-specific data a bit more than category-wide data.
-      const blendWeight = ref.matchType === 'brand' ? 0.7 : 0.6;
-      const formulaBrandBoost = (item.brand && item.brand.trim() && ref.matchType !== 'brand') ? 1.15 : 1.0;
-      const formulaEstimate = base * condFactor * formulaBrandBoost;
-      suggested = formulaEstimate * (1 - blendWeight) + historicalEstimate * blendWeight;
-    } else {
-      // No real sales data yet to lean on — softer generic brand boost than
-      // before (+15% instead of +25%), since a bare brand name alone isn't
-      // strong evidence of a premium; real data (above) is what should
-      // actually drive brand value once it exists.
-      const brandBoost = item.brand && item.brand.trim() ? 1.15 : 1.0;
-      suggested = base * condFactor * brandBoost;
-    }
-
-    const cost = parseFloat(item.cost) || 0;
-    const minMargin = cost * 1.8 + 5;
-    suggested = Math.max(suggested, minMargin);
-    return Math.round(suggested * 100) / 100;
-  }
-
-  function estimateShipping(item){
-    const weight = parseFloat(item.weight) || 0.5;
-    const len = parseFloat(item.length) || 10;
-    const wid = parseFloat(item.width) || 8;
-    const hei = parseFloat(item.height) || 2;
-    const dimWeight = (len * wid * hei) / 139;
-    const billable = Math.max(weight, dimWeight);
-
-    function tierPrice(base, perLb){
-      return Math.round((base + Math.max(0, billable - 1) * perLb) * 100) / 100;
-    }
-    const options = [];
-    if (billable <= 0.9 && len <= 15 && wid <= 12){
-      options.push({carrier:'USPS Ground Advantage (envelope)', price: 5.49});
-    }
-    options.push({carrier:'USPS Ground Advantage', price: tierPrice(8.40, 1.35)});
-    options.push({carrier:'USPS Priority Mail', price: tierPrice(10.85, 1.65)});
-    if (billable >= 5){
-      options.push({carrier:'UPS Ground', price: tierPrice(12.90, 1.45)});
-    }
-    (appSettings.customCarriers || []).forEach(c => {
-      options.push({carrier: c.name, price: tierPrice(c.basePrice || 0, c.perLbPrice || 0)});
-    });
-    return {billable: Math.round(billable*100)/100, options};
-  }
-
-  function platformFee(platform, price){
-    let rate;
-    if (appSettings.platformFeeOverrides?.[platform] !== undefined){
-      rate = appSettings.platformFeeOverrides[platform];
-    } else if (PLATFORM_FEES[platform] !== undefined){
-      rate = PLATFORM_FEES[platform];
-    } else {
-      const custom = (appSettings.customPlatforms || []).find(p => p.key === platform);
-      rate = custom ? custom.feePct / 100 : 0.12;
-    }
-    return Math.round(price * rate * 100) / 100;
-  }
+  // Pricing engine now lives in modules/pricing.js, parameterized on
+  // items/appSettings; these are thin wrappers so every existing call site
+  // in this file (there are many) keeps working unchanged.
+  function getCategoryPriceHistory(category){ return _getCategoryPriceHistory(items, category); }
+  function getPriceReference(item){ return _getPriceReference(items, item); }
+  function suggestPrice(item){ return _suggestPrice(items, item); }
+  function estimateShipping(item){ return _estimateShipping(appSettings, item); }
+  function platformFee(platform, price){ return _platformFee(appSettings, platform, price); }
 
   // ---------- PROJECTED PROFIT ----------
-  // Estimated profit for an item that hasn't sold yet — uses listing price if set,
-  // otherwise the suggested price, minus estimated platform fee and cheapest shipping.
-  function projectedProfit(item){
-    const price = item.listPrice ? parseFloat(item.listPrice) : suggestPrice(item);
-    const fee = platformFee(item.platform || 'ebay', price);
-    // Shipping is only a seller cost if this item offers free shipping (buyer absorbs it otherwise).
-    const itemOffersFreeShipping = item.freeShipping !== undefined ? item.freeShipping : appSettings.sellerPaysShipping;
-    let shipCost = 0;
-    if (itemOffersFreeShipping){
-      const ship = estimateShipping(item);
-      shipCost = ship.options[0]?.price || 0;
-    }
-    const cost = parseFloat(item.cost) || 0;
-    return Math.round((price - fee - shipCost - cost) * 100) / 100;
-  }
+  function projectedProfit(item){ return _projectedProfit(items, appSettings, item); }
 
   // ---------- COMPLETENESS CHECK ----------
   function isIncomplete(item){
@@ -825,10 +564,6 @@ export const app = (function(){
     if (!item.weight) missing.push('weight');
     if (!item.length || !item.width) missing.push('dimensions');
     return missing;
-  }
-
-  function daysSince(ts){
-    return Math.floor((Date.now() - ts) / 86400000);
   }
 
   // ---------- RENDER: STATS ----------
@@ -1387,17 +1122,6 @@ export const app = (function(){
     }
   }
 
-  function escapeHtml(s){
-    return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  }
-
-  // Capitalizes just the first letter of each word — deliberately leaves the
-  // rest of each word untouched (doesn't force lowercase) so things like
-  // "iPhone" or "USB-C" already in the name aren't mangled.
-  function toTitleCase(s){
-    return (s || '').replace(/\S+/g, w => w.charAt(0).toUpperCase() + w.slice(1));
-  }
-
   // ---------- RENDER: FINANCE ----------
   function renderFinance(){
     const view = document.getElementById('financeView');
@@ -1609,20 +1333,7 @@ export const app = (function(){
     });
   }
 
-  function daysToSell(item){
-    if (!item.soldAt || !item.createdAt) return null;
-    return Math.floor((item.soldAt - item.createdAt) / 86400000);
-  }
-
   // ---------- CSV EXPORT ----------
-  function csvEscape(val){
-    const s = String(val ?? '');
-    if (s.includes(',') || s.includes('"') || s.includes('\n')){
-      return '"' + s.replace(/"/g, '""') + '"';
-    }
-    return s;
-  }
-
   function downloadCsv(filename, rows){
     const allRows = [...rows, [], [`Exported from Calculated Chaos ${APP_VERSION} (${APP_VERSION_DATE})`]];
     const csv = allRows.map(row => row.map(csvEscape).join(',')).join('\n');
@@ -5531,6 +5242,6 @@ EBAY_MERCHANT_LOCATION_KEY=${escapeHtml(data.results.merchantLocationKey)}</div>
     get currentEditId(){ return currentEditId; },
     saveItem, renderAll, escapeHtml, CONDITION_LABEL, bulkSelectedIds,
     suggestPrice, platformFee, showSavedToast, openModal, renderEbayConnectionStatus,
-    openModalFromBulkReview,
+    openModalFromBulkReview, setListedPlatformsUI,
   };
 })();
