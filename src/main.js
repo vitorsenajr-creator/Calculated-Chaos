@@ -4270,81 +4270,21 @@ Be accurate and honest — never invent brand, material, or condition details th
     }
   }
 
-  function generateGenericListing(){
-    const name = document.getElementById('fName').value.trim() || 'Item';
-    const category = getCategoryValue();
-    const clothingTypeSelectVal = document.getElementById('fClothingType').value;
-    const clothingType = clothingTypeSelectVal === '__other__'
-      ? document.getElementById('fClothingTypeOther').value.trim()
-      : clothingTypeSelectVal;
-    const brand = document.getElementById('fBrand').value.trim();
-    const gender = document.getElementById('fGender').value;
-    const size = document.getElementById('fSize').value.trim();
-    const condition = document.getElementById('fCondition').value;
-    const notes = document.getElementById('fNotes').value.trim();
-    const len = document.getElementById('fLen').value;
-    const wid = document.getElementById('fWid').value;
-    const hei = document.getElementById('fHei').value;
-    const weight = document.getElementById('fWeight').value;
-    const price = document.getElementById('fListPrice').value;
-
-    const title = [brand, gender, name, size ? `Size ${size}` : '', condition === 'novo_etiqueta' ? 'NWT' : '', clothingType || (category !== 'Other' ? category : '')]
-      .filter(Boolean).join(' ').replace(/\s+/g,' ').trim().slice(0, 80);
-
-    let body = `${name}${brand ? ' by ' + brand : ''}\n\n`;
-    if (clothingType) body += `Type: ${clothingType}\n`;
-    if (gender) body += `Gender: ${gender}\n`;
-    if (size) body += `Size: ${size}\n`;
-    body += `Condition: ${CONDITION_LABEL[condition] || condition}\n`;
-    if (notes) body += `Details: ${notes}\n`;
-    if (len && wid) body += `Package: ${len}" L x ${wid}" W${hei ? ' x ' + hei + '" H' : ''}\n`;
-    if (currentMeasurements?.values && Object.keys(currentMeasurements.values).length > 0){
-      const m = Object.entries(currentMeasurements.values).map(([k,v]) => `${k}: ${v.toFixed(1)}"`).join(', ');
-      body += `Measurements (laid flat): ${m}\n`;
-    }
-    if (weight) body += `Weight: ${weight} lb\n`;
-    body += `\nFrom a smoke-free home. Ships fast and well-packaged. Bundle and save on multiple items — just ask!\n`;
-    if (price) body += `\nPrice: $${parseFloat(price).toFixed(2)}`;
-
-    document.getElementById('listingOutputArea').innerHTML = `
-      <div class="listing-output">
-        <div class="lo-label">Suggested title</div>
-        <div class="lo-title">${escapeHtml(title)}</div>
-        <div class="lo-label">Listing description</div>
-        <textarea id="listingBodyText" readonly>${escapeHtml(body)}</textarea>
-        <button class="copy-btn" id="copyListingBtn">Copy to clipboard</button>
-      </div>
-    `;
-    document.getElementById('copyListingBtn').addEventListener('click', () => {
-      const text = title + '\n\n' + body;
-      navigator.clipboard.writeText(text).then(() => {
-        const btn = document.getElementById('copyListingBtn');
-        btn.textContent = 'Copied ✓';
-        setTimeout(() => { btn.textContent = 'Copy to clipboard'; }, 1800);
-      }).catch(() => {
-        document.getElementById('listingBodyText').select();
-      });
-    });
-  }
-
-  document.getElementById('genListingBtn').addEventListener('click', () => {
-    const platform = document.getElementById('fPlatform').value;
-    if (platform === 'poshmark') generatePoshmarkListing();
-    else generateGenericListing();
-  });
-
+  // Always uses the structured generator (title + "Details:" bullet
+  // description), regardless of the Platform dropdown — this is the one
+  // and only description used everywhere now (eBay reuses whatever's saved
+  // here, see api/ebay-list.js's buildDescription), so gating it behind
+  // "Platform = Poshmark" only meant it silently went unsaved for anyone
+  // whose Platform was set to anything else. generateGenericListing() (the
+  // old fallback for non-Poshmark platforms) is retired — its output lived
+  // in different DOM elements the save handler never read from.
+  document.getElementById('genListingBtn').addEventListener('click', generatePoshmarkListing);
   document.getElementById('genPoshAiBtn').addEventListener('click', generatePoshmarkListingAI);
 
-  // The AI Poshmark button only makes sense once Platform is set to
-  // Poshmark — this also relabels the free/instant button so it's obvious
-  // there IS a Poshmark-specific generator instead of it silently doing
-  // something different depending on a dropdown she might not have touched.
   function updateListingGeneratorUI(){
-    const platform = document.getElementById('fPlatform').value;
-    const isPosh = platform === 'poshmark';
-    document.getElementById('genListingBtn').textContent = isPosh ? '📝 Generate Poshmark listing (instant template)' : '📝 Generate listing copy';
-    document.getElementById('genPoshAiBtn').style.display = isPosh ? 'block' : 'none';
-    document.getElementById('genPoshAiHint').style.display = isPosh ? 'block' : 'none';
+    document.getElementById('genListingBtn').textContent = '📝 Generate listing copy (instant template)';
+    document.getElementById('genPoshAiBtn').style.display = 'block';
+    document.getElementById('genPoshAiHint').style.display = 'block';
   }
   document.getElementById('fPlatform').addEventListener('change', updateListingGeneratorUI);
 
