@@ -5242,6 +5242,6 @@ EBAY_MERCHANT_LOCATION_KEY=${escapeHtml(data.results.merchantLocationKey)}</div>
     get currentEditId(){ return currentEditId; },
     saveItem, renderAll, escapeHtml, CONDITION_LABEL, bulkSelectedIds,
     suggestPrice, platformFee, showSavedToast, openModal, renderEbayConnectionStatus,
-    openModalFromBulkReview,
+    openModalFromBulkReview, setListedPlatformsUI,
   };
 })();
