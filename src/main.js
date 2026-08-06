@@ -52,7 +52,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.12.0';
+  const APP_VERSION = 'v3.12.1';
   const APP_VERSION_DATE = '2026-08-06';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -888,13 +888,16 @@ export const app = (function(){
           const updated = { ...item, status: newStatus };
           if (newStatus === 'vendido' && item.status !== 'vendido'){
             const soldPrice = parseFloat(item.listPrice) || suggestPrice(item);
-            const feesTotal = platformFee(item.platform || 'ebay', soldPrice);
+            const defaultSoldPlatform = item.soldPlatform || item.listedPlatforms?.[0] || item.platform || 'ebay';
+            const feesTotal = platformFee(defaultSoldPlatform, soldPrice);
             updated.soldPrice = soldPrice;
             updated.shippingCost = updated.shippingCost || 0;
             // No per-item picker makes sense in a bulk action — defaults to
-            // the item's general platform field; she can correct it per-item
-            // afterward via the "Sold on" field if it actually sold elsewhere.
-            updated.soldPlatform = item.soldPlatform || item.platform || 'ebay';
+            // the first "Listed on" platform (or the item's old legacy
+            // Platform field, for items catalogued before that field was
+            // retired); she can correct it per-item afterward via the
+            // "Sold on" field if it actually sold elsewhere.
+            updated.soldPlatform = defaultSoldPlatform;
             updated.feesTotal = feesTotal;
             updated.soldAt = item.soldAt || Date.now();
             updated.netProfit = soldPrice - (parseFloat(item.cost)||0) - feesTotal - (updated.shippingCost||0);
@@ -1635,7 +1638,6 @@ export const app = (function(){
     }
     document.getElementById('fNotes').value = item?.notes || '';
     document.getElementById('fListPrice').value = isDuplicate ? '' : (item?.listPrice || '');
-    document.getElementById('fPlatform').value = item?.platform || 'ebay';
     updateListingGeneratorUI();
     const itemFreeShipping = item?.freeShipping !== undefined ? item.freeShipping : appSettings.sellerPaysShipping;
     document.getElementById('fFreeShipping').value = itemFreeShipping ? 'seller' : 'buyer';
@@ -3440,7 +3442,7 @@ Respond with the JSON object only. Do not include any text, explanation, or mark
     };
     const price = suggestPrice(draft);
     const ship = estimateShipping(draft);
-    const platform = document.getElementById('fPlatform').value;
+    const platform = currentListedPlatforms[0] || 'ebay';
     const fee = platformFee(platform, price);
     const cheapestShip = ship.options[0]?.price || 0;
     const sellerAbsorbsShipping = document.getElementById('fFreeShipping')?.value === 'seller';
@@ -3919,7 +3921,6 @@ Be accurate and honest — never invent brand, material, or condition details th
     document.getElementById('genListingAiBtn').style.display = 'block';
     document.getElementById('genListingAiHint').style.display = 'block';
   }
-  document.getElementById('fPlatform').addEventListener('change', updateListingGeneratorUI);
 
   // ---------- SAVE / DELETE ----------
   document.getElementById('saveItemBtn').addEventListener('click', async () => {
@@ -3940,7 +3941,10 @@ Be accurate and honest — never invent brand, material, or condition details th
     saveBtn.textContent = 'Saving…';
     setSaveProgress(5, 'Preparing…');
 
-    const platform = document.getElementById('fPlatform').value;
+    // Legacy "Platform" field was retired — "Listed on" (currentListedPlatforms)
+    // is what actually drives fee estimates now, this is just the in-memory
+    // default used below when a sold-platform isn't chosen yet.
+    const platform = currentListedPlatforms[0] || 'ebay';
     const listPrice = parseFloat(document.getElementById('fListPrice').value) || 0;
     const storageBox = document.getElementById('fStorageBox').value.trim();
     if (storageBox) lastUsedBox = storageBox;
@@ -4026,7 +4030,6 @@ Be accurate and honest — never invent brand, material, or condition details th
       height: document.getElementById('fHei').value,
       notes: document.getElementById('fNotes').value.trim(),
       listPrice: listPrice || '',
-      platform,
       listedPlatforms: [...currentListedPlatforms],
       freeShipping: document.getElementById('fFreeShipping').value === 'seller',
       measurements: currentMeasurements || null,

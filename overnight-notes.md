@@ -294,8 +294,8 @@ como o usuário descreveu. Discutindo uma por uma antes de mexer em código.
   sem descrição) vs. bloqueados (sem foto) vs. já prontos, avisa se o
   limite mensal de IA não cobre o lote inteiro, roda sequencialmente
   salvando cada um, termina com relatório de sucesso/falha.
-- ❓ Item 8 (tag "ebay" em Listed on) — usuário vai testar de novo (pode
-  ter usado uma versão anterior). Sem ação pendente por enquanto.
+- ✅ Item 8 (tag "ebay" em Listed on) — confirmado pelo usuário em
+  2026-08-06 que já está funcionando perfeitamente. Sem ação pendente.
 
 Todos os itens do backlog original (1–7) mais o bônus do botão de voltar
 ao topo da página estão implementados e no `main` (deploy automático via

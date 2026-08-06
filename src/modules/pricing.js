@@ -137,7 +137,10 @@ export function platformFee(appSettings, platform, price){
 // otherwise the suggested price, minus estimated platform fee and cheapest shipping.
 export function projectedProfit(items, appSettings, item){
   const price = item.listPrice ? parseFloat(item.listPrice) : suggestPrice(items, item);
-  const fee = platformFee(appSettings, item.platform || 'ebay', price);
+  // The standalone "Platform" field was retired (redundant with "Listed on"
+  // + "Sold on") — the fee estimate now comes from whichever platform is
+  // first in listedPlatforms, falling back to eBay if nothing's marked yet.
+  const fee = platformFee(appSettings, item.listedPlatforms?.[0] || 'ebay', price);
   // Shipping is only a seller cost if this item offers free shipping (buyer absorbs it otherwise).
   const itemOffersFreeShipping = item.freeShipping !== undefined ? item.freeShipping : appSettings.sellerPaysShipping;
   let shipCost = 0;
