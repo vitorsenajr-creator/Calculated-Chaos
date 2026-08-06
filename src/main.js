@@ -2330,6 +2330,20 @@ export const app = (function(){
       });
     }
   }
+  {
+    // Same "back to top" affordance, for the whole page (catalog/reports/
+    // finance/settings views can all get long) rather than just the item
+    // modal — the page scrolls at the document level, not inside a div.
+    const pageBackToTopBtn = document.getElementById('pageBackToTop');
+    if (pageBackToTopBtn){
+      window.addEventListener('scroll', () => {
+        pageBackToTopBtn.style.display = window.scrollY > 300 ? 'flex' : 'none';
+      });
+      pageBackToTopBtn.addEventListener('click', () => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+    }
+  }
 
   // ---------- PHOTO SESSION ----------
   // Lets her batch-photograph a whole haul first and catalog every piece
