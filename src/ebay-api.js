@@ -286,7 +286,7 @@
     if (!item.listPrice){
       return { skipped: true, reason: 'no_price' };
     }
-    if (!item.poshmarkDescription){
+    if (!item.listingDescription){
       return { skipped: true, reason: 'no_description' };
     }
     const token = await getValidEbayToken();
@@ -406,7 +406,7 @@ ${app.escapeHtml(JSON.stringify(result.debugPolicyIdsSent, null, 2))}</div>`;
     // Check listing description — the eBay description reuses whatever was
     // generated/saved in the listing generator (Poshmark tab) rather than
     // eBay building its own from scratch.
-    if (!item.poshmarkDescription){
+    if (!item.listingDescription){
       area.innerHTML = `<div class="ebay-status-box error">❌ Generate a listing description first (scroll up to "Generate listing copy") — eBay reuses that same text.</div>`;
       return;
     }
@@ -492,8 +492,8 @@ ${app.escapeHtml(JSON.stringify(result.debugPolicyIdsSent, null, 2))}</div>`;
     const eligible = selected.filter(i => !i.ebayListingId || updateAlready);
     const blockedNoPrice = eligible.filter(i => !i.listPrice);
     const blockedNoPhotos = eligible.filter(i => i.listPrice && !(i.photos && i.photos.length));
-    const blockedNoDescription = eligible.filter(i => i.listPrice && (i.photos && i.photos.length) && !i.poshmarkDescription);
-    const publishable = eligible.filter(i => i.listPrice && (i.photos && i.photos.length) && i.poshmarkDescription);
+    const blockedNoDescription = eligible.filter(i => i.listPrice && (i.photos && i.photos.length) && !i.listingDescription);
+    const publishable = eligible.filter(i => i.listPrice && (i.photos && i.photos.length) && i.listingDescription);
     const needsReview = publishable.filter(i => !i.ebayCategoryId);
     const ready = publishable.filter(i => i.ebayCategoryId);
     return { selected, alreadyListed, blockedNoPrice, blockedNoPhotos, blockedNoDescription, needsReview, ready };

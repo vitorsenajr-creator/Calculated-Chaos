@@ -470,7 +470,7 @@ function formatDescriptionHtml(text){
 // publishItemToEbayCore in src/ebay-api.js), so this should never actually
 // hit the fallback below in normal use.
 function buildDescription(item){
-  if (item.poshmarkDescription) return formatDescriptionHtml(item.poshmarkDescription);
+  if (item.listingDescription) return formatDescriptionHtml(item.listingDescription);
   return `<p>${escapeHtmlServer(item.name || 'Item for sale')}</p>`;
 }
 

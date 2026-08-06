@@ -1,11 +1,12 @@
 // Vercel Serverless Function
-// Dedicated endpoint for AI-generated Poshmark listing copy (title +
-// description + style tags), kept separate from analyze-photo.js so the two
-// features can evolve independently (different prompt shape, images are
-// optional here instead of required). Runs server-side only, so the
-// ANTHROPIC_API_KEY never reaches the browser — same env var already
+// Dedicated endpoint for AI-generated listing copy (title + description +
+// style tags) — shared across platforms (eBay reuses this same saved
+// description, not just Poshmark), kept separate from analyze-photo.js so
+// the two features can evolve independently (different prompt shape,
+// images are optional here instead of required). Runs server-side only, so
+// the ANTHROPIC_API_KEY never reaches the browser — same env var already
 // configured on Vercel, no new secret needed.
-// The frontend calls this at /api/generate-poshmark-listing (see index.html).
+// The frontend calls this at /api/generate-listing (see src/main.js).
 
 import { requireApprovedUser } from './_requireApprovedUser.js';
 

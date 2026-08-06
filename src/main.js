@@ -118,7 +118,7 @@ export const app = (function(){
   // Poshmark doesn't have a granular condition dropdown like eBay — sellers
   // are expected to spell condition out in the description using these
   // community-standard abbreviations (NWT/NWOT/EUC/VGUC/GUC).
-  const POSHMARK_CONDITION_LABEL = {
+  const LISTING_CONDITION_LABEL = {
     novo_etiqueta: 'NWT — New With Tags',
     novo_sem_etiqueta: 'NWOT — New Without Tags',
     excelente: 'EUC — Excellent Used Condition, no rips/stains/major flaws',
@@ -279,6 +279,16 @@ export const app = (function(){
       const { collection, getDocs } = window.firestoreFns;
       const snap = await getDocs(collection(window.db, 'items'));
       items = snap.docs.map(d => d.data());
+      // Migration: the listing title/description fields used to be named
+      // poshmarkTitle/poshmarkDescription (back when eBay had its own
+      // separate, broken description builder, before this became a
+      // shared cross-platform field) — normalize older saved items to the
+      // new field names in memory. Not written back here; it happens
+      // naturally the next time she saves that item.
+      items.forEach(i => {
+        if (!i.listingTitle && i.poshmarkTitle) i.listingTitle = i.poshmarkTitle;
+        if (!i.listingDescription && i.poshmarkDescription) i.listingDescription = i.poshmarkDescription;
+      });
     }catch(e){
       console.error('Load error', e);
       items = [];
@@ -4022,9 +4032,9 @@ Respond with the JSON object only. Do not include any text, explanation, or mark
   // truncated her longer GPT-written descriptions in practice, so this is a
   // generous working limit rather than a confirmed platform maximum. Bump
   // this single number if a longer description ever gets rejected.
-  const POSHMARK_DESC_LIMIT = 1500;
+  const LISTING_DESC_LIMIT = 1500;
 
-  function buildPoshmarkTitle({ brand, clothingType, category, gender, size, color, condition }){
+  function buildListingTitle({ brand, clothingType, category, gender, size, color, condition }){
     let title = [brand, clothingType || category].filter(Boolean).join(' ').trim();
     const optional = [];
     if (size) optional.push(`Size ${size}`);
@@ -4042,16 +4052,16 @@ Respond with the JSON object only. Do not include any text, explanation, or mark
   // in priority order (most important first) and lower-priority lines are
   // dropped first if space runs out — mirrors the "never cut your first/last
   // 10 words" SEO guidance by keeping brand/type/size at the very top.
-  function buildPoshmarkDescription({ name, brand, clothingType, size, condition, notes, measurements, keywords }){
+  function buildListingDescription({ name, brand, clothingType, size, condition, notes, measurements, keywords }){
     const intro = `${name}${brand ? ' by ' + brand : ''}${clothingType ? ' — ' + clothingType : ''}`;
 
     const detailLines = [];
     if (size) detailLines.push(`* Size: ${size}`);
-    detailLines.push(`* Condition: ${POSHMARK_CONDITION_LABEL[condition] || condition}`);
+    detailLines.push(`* Condition: ${LISTING_CONDITION_LABEL[condition] || condition}`);
     if (measurements) detailLines.push(`* Measurements: ${measurements}`);
     if (notes) detailLines.push(`* ${notes}`);
 
-    const closing = (appSettings.poshmarkStandardText || '').trim() || `Bundle discount available — check my closet! 📦`;
+    const closing = (appSettings.listingStandardText || '').trim() || `Bundle discount available — check my closet! 📦`;
 
     const sections = [
       intro,
@@ -4063,25 +4073,25 @@ Respond with the JSON object only. Do not include any text, explanation, or mark
     let text = '';
     for (const section of sections){
       const candidate = text ? text + '\n\n' + section : section;
-      if (candidate.length <= POSHMARK_DESC_LIMIT) text = candidate;
+      if (candidate.length <= LISTING_DESC_LIMIT) text = candidate;
     }
     return text;
   }
 
-  function renderPoshmarkListingOutput(title, description, styleTagGuesses, sourceLabel){
+  function renderListingOutput(title, description, styleTagGuesses, sourceLabel){
     while (styleTagGuesses.length < 3) styleTagGuesses.push('');
 
     document.getElementById('listingOutputArea').innerHTML = `
       <div class="listing-output">
         ${sourceLabel ? `<div style="display:inline-block; background:var(--gold); color:white; font-size:9.5px; font-weight:700; padding:4px 10px; border-radius:20px; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:10px;">${escapeHtml(sourceLabel)}</div>` : ''}
         <div class="lo-label">Title <span style="font-family:'JetBrains Mono',monospace; font-weight:400; color:${title.length > 80 ? 'var(--danger)' : 'var(--plum-soft)'};">(${title.length}/80)</span></div>
-        <div class="lo-title" id="poshTitleText">${escapeHtml(title)}</div>
-        <button class="copy-btn" id="copyPoshTitleBtn" style="margin-bottom:12px;">Copy title</button>
+        <div class="lo-title" id="listTitleText">${escapeHtml(title)}</div>
+        <button class="copy-btn" id="copyListTitleBtn" style="margin-bottom:12px;">Copy title</button>
 
-        <div class="lo-label">Description <span style="font-family:'JetBrains Mono',monospace; font-weight:400; color:${description.length > POSHMARK_DESC_LIMIT ? 'var(--danger)' : 'var(--plum-soft)'};">(${description.length}/${POSHMARK_DESC_LIMIT})</span></div>
+        <div class="lo-label">Description <span style="font-family:'JetBrains Mono',monospace; font-weight:400; color:${description.length > LISTING_DESC_LIMIT ? 'var(--danger)' : 'var(--plum-soft)'};">(${description.length}/${LISTING_DESC_LIMIT})</span></div>
         <div style="font-size:11px; color:var(--plum-soft); margin-bottom:4px;">This exact text is also what gets sent as the eBay listing description — edit freely before saving the item.</div>
-        <textarea id="poshDescText">${escapeHtml(description)}</textarea>
-        <button class="copy-btn" id="copyPoshDescBtn" style="margin-bottom:12px;">Copy description</button>
+        <textarea id="listDescText">${escapeHtml(description)}</textarea>
+        <button class="copy-btn" id="copyListDescBtn" style="margin-bottom:12px;">Copy description</button>
 
         <div class="lo-label">Style Tags <span style="font-weight:400; color:var(--plum-soft);">(up to 3 — edit freely, then copy)</span></div>
         <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
@@ -4091,16 +4101,16 @@ Respond with the JSON object only. Do not include any text, explanation, or mark
       </div>
     `;
 
-    document.getElementById('copyPoshTitleBtn').addEventListener('click', () => {
-      navigator.clipboard.writeText(document.getElementById('poshTitleText').textContent).then(() => {
-        const btn = document.getElementById('copyPoshTitleBtn');
+    document.getElementById('copyListTitleBtn').addEventListener('click', () => {
+      navigator.clipboard.writeText(document.getElementById('listTitleText').textContent).then(() => {
+        const btn = document.getElementById('copyListTitleBtn');
         btn.textContent = 'Copied ✓';
         setTimeout(() => { btn.textContent = 'Copy title'; }, 1800);
       });
     });
-    document.getElementById('copyPoshDescBtn').addEventListener('click', () => {
-      navigator.clipboard.writeText(document.getElementById('poshDescText').value).then(() => {
-        const btn = document.getElementById('copyPoshDescBtn');
+    document.getElementById('copyListDescBtn').addEventListener('click', () => {
+      navigator.clipboard.writeText(document.getElementById('listDescText').value).then(() => {
+        const btn = document.getElementById('copyListDescBtn');
         btn.textContent = 'Copied ✓';
         setTimeout(() => { btn.textContent = 'Copy description'; }, 1800);
       });
@@ -4138,19 +4148,19 @@ Respond with the JSON object only. Do not include any text, explanation, or mark
     return { name, category, clothingType, brand, gender, size, condition, notes, color, measurements, price };
   }
 
-  function generatePoshmarkListing(){
+  function generateListingDescription(){
     const f = gatherListingFormFields();
     const keywords = Array.from(new Set([f.clothingType, f.category, f.color, f.gender].filter(Boolean))).slice(0, 5);
-    const title = buildPoshmarkTitle(f);
-    const description = buildPoshmarkDescription({ ...f, keywords });
+    const title = buildListingTitle(f);
+    const description = buildListingDescription({ ...f, keywords });
     // Best-effort starting point for Style Tags (max 3 on Poshmark) — she can
     // freely edit these before copying, this just saves typing from scratch.
     const styleTagGuesses = Array.from(new Set([f.clothingType, f.color, f.gender ? `${f.gender} Style` : ''].filter(Boolean))).slice(0, 3);
-    renderPoshmarkListingOutput(title, description, styleTagGuesses, null);
+    renderListingOutput(title, description, styleTagGuesses, null);
   }
 
-  async function generatePoshmarkListingAI(){
-    const btn = document.getElementById('genPoshAiBtn');
+  async function generateListingDescriptionAI(){
+    const btn = document.getElementById('genListingAiBtn');
     const area = document.getElementById('listingOutputArea');
 
     if (aiUsageRemaining() <= 0){
@@ -4163,7 +4173,7 @@ Respond with the JSON object only. Do not include any text, explanation, or mark
     // Always include the standard closing line from Settings when one is
     // set — she can edit or clear it there if a particular listing shouldn't
     // have it, instead of being asked on every single generation.
-    const standardText = (appSettings.poshmarkStandardText || '').trim();
+    const standardText = (appSettings.listingStandardText || '').trim();
     const includeStandardText = !!standardText;
 
     btn.disabled = true;
@@ -4188,7 +4198,7 @@ Treat Brand, Size, Color, and Condition given in "Item data" below as ground tru
 Respond with ONLY a JSON object (no markdown fences, no preamble), with this exact shape:
 {
   "title": "Poshmark title, HARD LIMIT 80 characters. Formula: Brand + Item Type + a key style/color detail + Size. Never omit Brand or Item Type if they are provided below. Keyword-first, no filler words, no ALL CAPS.",
-  "description": "Poshmark description, HARD LIMIT ${POSHMARK_DESC_LIMIT} characters, formatted in EXACTLY this structure:\n(1) A short, direct opening — 1 sentence, at most 2 only if truly needed. State what the item is and its most notable visual features (color/pattern, fabric texture, fit) in plain, factual language. NO marketing filler, NO phrases like 'the kind of piece that earns its keep', 'reach for this on...', 'effortlessly', 'elevate your wardrobe', or similar generic copywriting — just describe what it actually is and looks like.\n(2) A blank line, then the word 'Details:' alone on its own line.\n(3) A bullet list where every single line starts with '* ' (asterisk + space), in this order:\n  * Brand: <from item data>\n  * Style: <a specific, descriptive style phrase for this exact item — e.g. 'Oversized color block pullover sweater', not just the raw item type>\n  * Size: <from item data>\n  * Color: <from item data, described richly if it's multi-color or patterned>\n  * Condition: <the EXACT condition wording given below, never altered>\n  followed by 3-6 more '* Label: detail' lines covering whichever garment-construction attributes are actually visible AND relevant to this specific item type (a sweater and a dress need different attributes) — choose from things like Neckline, Sleeve length, Hem & cuffs, Fabric/knit texture, Closures, Pockets, Lining, Silhouette/fit, or fabric content/care instructions if a tag was legible.\n  then one final bullet noting which angles the photos show and confirming there's no visible flaw beyond what's noted in seller notes below (e.g. 'Front and back views shown — no visible wear or pilling'). Only state 'no visible flaws' if that's consistent with the seller notes; if seller notes mention a flaw, reflect that honestly instead.\n(4) A blank line, then one short, factual closing line (not flowery) — a genuine, concrete reason this specific piece is useful (e.g. what to pair it with), one sentence only.\n(5) A blank line, then ${closingLineInstruction}.\nDo not add anything after that — no keywords line, no hashtags, nothing else.",
+  "description": "Poshmark description, HARD LIMIT ${LISTING_DESC_LIMIT} characters, formatted in EXACTLY this structure:\n(1) A short, direct opening — 1 sentence, at most 2 only if truly needed. State what the item is and its most notable visual features (color/pattern, fabric texture, fit) in plain, factual language. NO marketing filler, NO phrases like 'the kind of piece that earns its keep', 'reach for this on...', 'effortlessly', 'elevate your wardrobe', or similar generic copywriting — just describe what it actually is and looks like.\n(2) A blank line, then the word 'Details:' alone on its own line.\n(3) A bullet list where every single line starts with '* ' (asterisk + space), in this order:\n  * Brand: <from item data>\n  * Style: <a specific, descriptive style phrase for this exact item — e.g. 'Oversized color block pullover sweater', not just the raw item type>\n  * Size: <from item data>\n  * Color: <from item data, described richly if it's multi-color or patterned>\n  * Condition: <the EXACT condition wording given below, never altered>\n  followed by 3-6 more '* Label: detail' lines covering whichever garment-construction attributes are actually visible AND relevant to this specific item type (a sweater and a dress need different attributes) — choose from things like Neckline, Sleeve length, Hem & cuffs, Fabric/knit texture, Closures, Pockets, Lining, Silhouette/fit, or fabric content/care instructions if a tag was legible.\n  then one final bullet noting which angles the photos show and confirming there's no visible flaw beyond what's noted in seller notes below (e.g. 'Front and back views shown — no visible wear or pilling'). Only state 'no visible flaws' if that's consistent with the seller notes; if seller notes mention a flaw, reflect that honestly instead.\n(4) A blank line, then one short, factual closing line (not flowery) — a genuine, concrete reason this specific piece is useful (e.g. what to pair it with), one sentence only.\n(5) A blank line, then ${closingLineInstruction}.\nDo not add anything after that — no keywords line, no hashtags, nothing else.",
   "style_tags": ["up to 3 tags chosen ONLY from this exact list (copy the spelling exactly, do not invent new ones or alter wording): ${POSHMARK_STYLE_TAGS.join(', ')}. Pick whichever 1-3 best match this item's era/material/silhouette/aesthetic — it's fine to return fewer than 3 if nothing else fits well."]
 }
 Item data:
@@ -4198,14 +4208,14 @@ Category: ${f.category}
 Gender: ${f.gender || '(unspecified)'}
 Size: ${f.size || '(unspecified)'}
 Color: ${f.color || '(unspecified)'}
-Condition (use this EXACT wording in the description): ${POSHMARK_CONDITION_LABEL[f.condition] || f.condition}
+Condition (use this EXACT wording in the description): ${LISTING_CONDITION_LABEL[f.condition] || f.condition}
 Measurements: ${f.measurements || '(none provided)'}
 Seller notes / flaws: ${f.notes || '(none)'}
 Price: ${f.price ? '$' + f.price : '(unset)'}
 Be accurate and honest — never invent brand, material, or condition details that aren't given above or clearly readable in a photo. Do not use words like "rare", "vintage", or "authentic" unless explicitly supported by the data. Respond with the JSON object only — no text before or after it.`;
 
       const idToken = await window.auth.currentUser.getIdToken();
-      const response = await fetch("/api/generate-poshmark-listing", {
+      const response = await fetch("/api/generate-listing", {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
         body: JSON.stringify({ imageBlocks, promptText })
@@ -4253,10 +4263,10 @@ Be accurate and honest — never invent brand, material, or condition details th
       }
 
       const title = String(result.title || '').slice(0, 80);
-      const description = String(result.description || '').slice(0, POSHMARK_DESC_LIMIT);
+      const description = String(result.description || '').slice(0, LISTING_DESC_LIMIT);
       const styleTagGuesses = Array.isArray(result.style_tags) ? result.style_tags.slice(0, 3).map(String) : [];
 
-      renderPoshmarkListingOutput(title, description, styleTagGuesses, '🪄 AI-written — review before copying');
+      renderListingOutput(title, description, styleTagGuesses, '🪄 AI-written — review before copying');
       await incrementAiUsage();
       const remaining = aiUsageRemaining();
       if (remaining <= 50 && remaining > 0){
@@ -4266,7 +4276,7 @@ Be accurate and honest — never invent brand, material, or condition details th
       area.innerHTML = `<div class="ai-error">Couldn't complete the AI write-up right now. Please try again in a moment.</div>`;
     }finally{
       btn.disabled = false;
-      btn.textContent = '🪄 Generate Poshmark listing with AI';
+      btn.textContent = '🪄 Generate listing description with AI';
     }
   }
 
@@ -4278,13 +4288,13 @@ Be accurate and honest — never invent brand, material, or condition details th
   // whose Platform was set to anything else. generateGenericListing() (the
   // old fallback for non-Poshmark platforms) is retired — its output lived
   // in different DOM elements the save handler never read from.
-  document.getElementById('genListingBtn').addEventListener('click', generatePoshmarkListing);
-  document.getElementById('genPoshAiBtn').addEventListener('click', generatePoshmarkListingAI);
+  document.getElementById('genListingBtn').addEventListener('click', generateListingDescription);
+  document.getElementById('genListingAiBtn').addEventListener('click', generateListingDescriptionAI);
 
   function updateListingGeneratorUI(){
     document.getElementById('genListingBtn').textContent = '📝 Generate listing copy (instant template)';
-    document.getElementById('genPoshAiBtn').style.display = 'block';
-    document.getElementById('genPoshAiHint').style.display = 'block';
+    document.getElementById('genListingAiBtn').style.display = 'block';
+    document.getElementById('genListingAiHint').style.display = 'block';
   }
   document.getElementById('fPlatform').addEventListener('change', updateListingGeneratorUI);
 
@@ -4372,16 +4382,16 @@ Be accurate and honest — never invent brand, material, or condition details th
       ebayValidConditions: chosenEbayCategory?.validConditions || null,
       ebayAspects: { ...currentEbayAspects },
       // Persists whatever's currently in the listing-generator output (if a
-      // Poshmark listing was generated/edited this session) so it survives
-      // closing the modal — previously this text only ever lived on screen,
-      // never saved. This exact text also becomes the eBay description
-      // (point 4) instead of eBay building its own disconnected one from
+      // listing description was generated/edited this session) so it
+      // survives closing the modal — previously this text only ever lived
+      // on screen, never saved. This exact text also becomes the eBay
+      // description instead of eBay building its own disconnected one from
       // shipping-box dimensions. Falls back to whatever was already saved
       // if nothing was (re)generated this time.
-      poshmarkTitle: document.getElementById('poshTitleText')?.textContent
-        || items.find(i => i.id === currentEditId)?.poshmarkTitle || '',
-      poshmarkDescription: document.getElementById('poshDescText')?.value
-        || items.find(i => i.id === currentEditId)?.poshmarkDescription || '',
+      listingTitle: document.getElementById('listTitleText')?.textContent
+        || items.find(i => i.id === currentEditId)?.listingTitle || '',
+      listingDescription: document.getElementById('listDescText')?.value
+        || items.find(i => i.id === currentEditId)?.listingDescription || '',
       brand: document.getElementById('fBrand').value.trim(),
       gender: document.getElementById('fGender').value,
       size: document.getElementById('fSize').value.trim(),
@@ -4536,10 +4546,12 @@ Be accurate and honest — never invent brand, material, or condition details th
     aiResetDayOfMonth: 1,       // day of month to auto-reset (1 = first of month)
     aiScheduledReset: true,     // true = auto-reset monthly, false = manual only
 
-    // Poshmark listing generator — her own standard closing line (shipping
-    // policy, bundle offer, thank-you note, whatever she wants) so she
-    // never has to type it by hand every time she generates a listing.
-    poshmarkStandardText: '',
+    // Listing description generator — her own standard closing line
+    // (shipping policy, bundle offer, thank-you note, whatever she wants)
+    // so she never has to type it by hand every time she generates a
+    // listing. Shared across platforms (renamed from poshmarkStandardText
+    // — see loadSettings() migration).
+    listingStandardText: '',
 
     // Platform management (Settings → Platforms). The 5 built-in platforms
     // (ebay/mercari/poshmark/vinted/depop) keep their fixed keys — eBay
@@ -4574,6 +4586,10 @@ Be accurate and honest — never invent brand, material, or condition details th
       const snap = await getDoc(doc(window.db, 'app_config', 'settings'));
       if (snap.exists()){
         appSettings = { ...DEFAULT_SETTINGS, ...snap.data() };
+        // Migration: renamed from poshmarkStandardText.
+        if (!appSettings.listingStandardText && appSettings.poshmarkStandardText){
+          appSettings.listingStandardText = appSettings.poshmarkStandardText;
+        }
       }
     }catch(e){ appSettings = { ...DEFAULT_SETTINGS }; }
     // Initialize period if first time
@@ -4796,13 +4812,13 @@ Be accurate and honest — never invent brand, material, or condition details th
         <div class="settings-success" id="prepSaveMsg">✓ Saved!</div>
       </div>
 
-      <!-- POSHMARK STANDARD TEXT -->
+      <!-- LISTING STANDARD TEXT -->
       <div class="settings-section">
-        <h3>Poshmark listing text</h3>
-        <div class="ss-desc">Your own standard closing line — shipping policy, bundle offer, thank-you note, whatever you want. It's used automatically every time you generate a Poshmark listing (instant template), and offered as an option when generating with AI.</div>
-        <textarea id="sPoshText" placeholder="e.g. Bundle discount available — check my closet! Ships next business day 📦" style="width:100%; min-height:70px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; font-size:13px; font-family:'Inter',sans-serif; resize:vertical;">${escapeHtml(appSettings.poshmarkStandardText || '')}</textarea>
-        <button class="settings-save-btn" onclick="savePoshmarkTextSettings()">Save Poshmark text</button>
-        <div class="settings-success" id="poshTextSaveMsg">✓ Saved!</div>
+        <h3>Listing closing text</h3>
+        <div class="ss-desc">Your own standard closing line — shipping policy, bundle offer, thank-you note, whatever you want. It's used automatically every time you generate a listing description (instant template), shared across every platform (eBay reuses it too), and offered as an option when generating with AI.</div>
+        <textarea id="sListingText" placeholder="e.g. Bundle discount available — check my closet! Ships next business day 📦" style="width:100%; min-height:70px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; font-size:13px; font-family:'Inter',sans-serif; resize:vertical;">${escapeHtml(appSettings.listingStandardText || '')}</textarea>
+        <button class="settings-save-btn" onclick="saveListingTextSettings()">Save listing text</button>
+        <div class="settings-success" id="listingTextSaveMsg">✓ Saved!</div>
       </div>
 
       <!-- PLATFORMS -->
@@ -5301,10 +5317,10 @@ EBAY_MERCHANT_LOCATION_KEY=${escapeHtml(data.results.merchantLocationKey)}</div>
     showSaveMsg('shippingSaveMsg');
   };
 
-  window.savePoshmarkTextSettings = async function(){
-    appSettings.poshmarkStandardText = document.getElementById('sPoshText').value.trim();
+  window.saveListingTextSettings = async function(){
+    appSettings.listingStandardText = document.getElementById('sListingText').value.trim();
     await saveSettings();
-    showSaveMsg('poshTextSaveMsg');
+    showSaveMsg('listingTextSaveMsg');
   };
 
   window.addCustomCarrier = async function(){
