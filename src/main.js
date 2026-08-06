@@ -9,8 +9,8 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.10.1';
-  const APP_VERSION_DATE = '2026-08-03';
+  const APP_VERSION = 'v3.11.0';
+  const APP_VERSION_DATE = '2026-08-06';
 
   let items = [];
   let itemsLoaded = false; // true once the initial Firestore fetch in loadItems() resolves
