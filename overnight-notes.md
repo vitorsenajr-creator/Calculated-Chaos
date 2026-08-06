@@ -266,6 +266,28 @@ como o usuário descreveu. Discutindo uma por uma antes de mexer em código.
 - Ordem de implementação: itens 2, 5, 6, 7 (e a versão "só clareza" do
   item 1) primeiro — mecânicos, sem ambiguidade. Itens 3 e 4 depois.
 
+### Status (2026-08-06, sessão ao vivo)
+
+- ✅ Item 7 — botão fechar/voltar ao topo do modal movidos pra fora do
+  scroll interno (`.modal-overlay` em vez de `.modal`) — bug clássico de
+  iOS Safari com `position:fixed` dentro de contêiner com scroll próprio.
+- ✅ Item 2 — texto e botão "Edit" maiores no preflight/relatório de
+  publicação em massa (12px/11px → 13-14px, botão com padding maior).
+- ✅ Item 1 (lite) — preflight agora deixa explícito quantos vão publicar
+  agora vs. quantos não vão nesta rodada (e por quê), sem mudar a regra de
+  exigir categoria eBay manual.
+- ✅ Itens 5+6 — `openModal()` agora repopula o painel de descrição a
+  partir do `item.listingDescription` salvo (em vez de sempre limpar), e
+  ganhou um modo `{ keepScroll: true }` usado só no reabrir pós-save, pra
+  não jogar o scroll de volta pro topo.
+- ✅ Botão de voltar ao topo da página inteira (pedido à parte, mesma
+  sessão) — mesmo padrão do botão do modal, mas rolando o documento.
+- ⏳ Item 3 (edição em massa de descrição via IA) — ainda não iniciado.
+- ⏳ Item 4 (autosave ao gerar descrição) — ainda não iniciado.
+- ❓ Item 8 (tag "ebay" em Listed on) — aguardando o usuário confirmar se
+  ainda vê o problema em algum fluxo específico, já que a base disso foi
+  implementada mais cedo nesta mesma sessão.
+
 ## Bugs found (not fixed) — none
 
 No behavioral bugs turned up while reading through this code tonight. The
