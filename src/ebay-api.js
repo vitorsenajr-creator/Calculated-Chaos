@@ -525,7 +525,11 @@ ${app.escapeHtml(JSON.stringify(result.debugPolicyIdsSent, null, 2))}</div>`;
 
     const g = computeBulkEbayGroups(updateAlready);
     const itemLabel = (item) => app.escapeHtml(item.name || item.productCode || 'Item');
-    const editBtn = (item) => `<button class="bulk-ebay-edit-btn" data-edit-id="${item.id}" style="background:transparent; border:1px solid var(--line); border-radius:6px; padding:2px 8px; font-size:11px; cursor:pointer; margin-left:6px;">Edit</button>`;
+    // Bigger than the surrounding 12px .ec-sub text and a real tappable
+    // target (was 11px/2px-8px — too small to read or tap reliably when
+    // reviewing a long blocked/needs-review list on a phone).
+    const editBtn = (item) => `<button class="bulk-ebay-edit-btn" data-edit-id="${item.id}" style="background:transparent; border:1px solid var(--line); border-radius:7px; padding:6px 12px; font-size:13px; cursor:pointer; margin-left:8px;">Edit</button>`;
+    const itemRow = (text) => `<div style="margin-top:6px; font-size:14px; line-height:1.4; display:flex; align-items:center; flex-wrap:wrap;">${text}</div>`;
 
     statusEl.innerHTML = `
       <div class="ebay-connect-box">
@@ -537,14 +541,14 @@ ${app.escapeHtml(JSON.stringify(result.debugPolicyIdsSent, null, 2))}</div>`;
             Also update the ${g.alreadyListed.length} already-listed item${g.alreadyListed.length===1?'':'s'} instead of skipping ${g.alreadyListed.length===1?'it':'them'}
           </label>` : ''}
           ${(g.blockedNoPrice.length || g.blockedNoPhotos.length || g.blockedNoDescription.length) ? `
-            <div style="margin-top:8px;"><b style="color:var(--danger);">🚫 ${g.blockedNoPrice.length + g.blockedNoPhotos.length + g.blockedNoDescription.length} can't publish</b>
-              ${g.blockedNoPrice.map(i => `<div style="margin-top:2px;">${itemLabel(i)} — no list price${editBtn(i)}</div>`).join('')}
-              ${g.blockedNoPhotos.map(i => `<div style="margin-top:2px;">${itemLabel(i)} — no photos${editBtn(i)}</div>`).join('')}
-              ${g.blockedNoDescription.map(i => `<div style="margin-top:2px;">${itemLabel(i)} — no listing description generated${editBtn(i)}</div>`).join('')}
+            <div style="margin-top:8px; font-size:13px;"><b style="color:var(--danger);">🚫 ${g.blockedNoPrice.length + g.blockedNoPhotos.length + g.blockedNoDescription.length} can't publish</b>
+              ${g.blockedNoPrice.map(i => itemRow(`${itemLabel(i)} — no list price${editBtn(i)}`)).join('')}
+              ${g.blockedNoPhotos.map(i => itemRow(`${itemLabel(i)} — no photos${editBtn(i)}`)).join('')}
+              ${g.blockedNoDescription.map(i => itemRow(`${itemLabel(i)} — no listing description generated${editBtn(i)}`)).join('')}
             </div>` : ''}
           ${g.needsReview.length ? `
-            <div style="margin-top:8px;"><b style="color:var(--amber-deep);">⚠️ ${g.needsReview.length} need${g.needsReview.length===1?'s':''} review — no eBay category chosen</b>
-              ${g.needsReview.map(i => `<div style="margin-top:2px;">${itemLabel(i)} ${editBtn(i)}</div>`).join('')}
+            <div style="margin-top:8px; font-size:13px;"><b style="color:var(--amber-deep);">⚠️ ${g.needsReview.length} need${g.needsReview.length===1?'s':''} review — no eBay category chosen</b>
+              ${g.needsReview.map(i => itemRow(`${itemLabel(i)}${editBtn(i)}`)).join('')}
             </div>` : ''}
         </div>
         <button id="bulkConfirmEbayBtn" style="background:#E53238; color:white; border:none; border-radius:8px; padding:11px; font-size:13px; font-weight:600; cursor:pointer; width:100%; margin-top:10px;" ${g.ready.length===0?'disabled':''}>
@@ -599,27 +603,28 @@ ${app.escapeHtml(JSON.stringify(result.debugPolicyIdsSent, null, 2))}</div>`;
     const skipped = results.filter(r => r.result.skipped);
     const failed = results.filter(r => !r.result.success && !r.result.skipped);
     const itemLabel = (item) => app.escapeHtml(item.name || item.productCode || 'Item');
-    const editBtn = (item) => `<button class="bulk-ebay-edit-btn" data-edit-id="${item.id}" style="background:transparent; border:1px solid var(--line); border-radius:6px; padding:2px 8px; font-size:11px; cursor:pointer; margin-left:6px;">Edit</button>`;
+    const editBtn = (item) => `<button class="bulk-ebay-edit-btn" data-edit-id="${item.id}" style="background:transparent; border:1px solid var(--line); border-radius:7px; padding:6px 12px; font-size:13px; cursor:pointer; margin-left:8px;">Edit</button>`;
+    const itemRow = (text) => `<div style="margin-top:6px; font-size:14px; line-height:1.4; display:flex; align-items:center; flex-wrap:wrap;">${text}</div>`;
 
     let html = `<div class="ebay-connect-box"><div class="ec-title">Bulk publish finished</div><div class="ec-sub">`;
     if (success.length){
-      html += `<div style="margin-bottom:8px;"><b style="color:var(--sage-deep);">✅ ${success.length} published</b>`;
-      html += success.map(r => `<div style="margin-top:2px;">${itemLabel(r.item)} · <a href="${r.result.listingUrl}" target="_blank">View ↗</a>${r.result.categoryWasGuessed ? ' <small style="color:var(--amber);">(category guessed)</small>' : ''}</div>`).join('');
+      html += `<div style="margin-bottom:8px; font-size:13px;"><b style="color:var(--sage-deep);">✅ ${success.length} published</b>`;
+      html += success.map(r => itemRow(`${itemLabel(r.item)} · <a href="${r.result.listingUrl}" target="_blank">View ↗</a>${r.result.categoryWasGuessed ? ' <small style="color:var(--amber);">(category guessed)</small>' : ''}`)).join('');
       html += `</div>`;
     }
     if (failed.length){
-      html += `<div style="margin-bottom:8px;"><b style="color:var(--danger);">❌ ${failed.length} failed</b>`;
-      html += failed.map(r => `<div style="margin-top:2px;">${itemLabel(r.item)} — ${app.escapeHtml(r.result.error || 'unknown error')}${editBtn(r.item)}</div>`).join('');
+      html += `<div style="margin-bottom:8px; font-size:13px;"><b style="color:var(--danger);">❌ ${failed.length} failed</b>`;
+      html += failed.map(r => itemRow(`${itemLabel(r.item)} — ${app.escapeHtml(r.result.error || 'unknown error')}${editBtn(r.item)}`)).join('');
       html += `</div>`;
     }
     if (skipped.length){
       const noPriceSkipped = skipped.filter(r => r.result.reason === 'no_price');
       const noDescSkipped = skipped.filter(r => r.result.reason === 'no_description');
       const alreadySkipped = skipped.filter(r => r.result.reason === 'already_listed');
-      html += `<div><b style="color:var(--plum-soft);">⏭️ ${skipped.length} skipped</b>`;
-      html += noPriceSkipped.map(r => `<div style="margin-top:2px;">${itemLabel(r.item)} — no list price${editBtn(r.item)}</div>`).join('');
-      html += noDescSkipped.map(r => `<div style="margin-top:2px;">${itemLabel(r.item)} — no listing description generated yet${editBtn(r.item)}</div>`).join('');
-      html += alreadySkipped.map(r => `<div style="margin-top:2px;">${itemLabel(r.item)} — already listed</div>`).join('');
+      html += `<div style="font-size:13px;"><b style="color:var(--plum-soft);">⏭️ ${skipped.length} skipped</b>`;
+      html += noPriceSkipped.map(r => itemRow(`${itemLabel(r.item)} — no list price${editBtn(r.item)}`)).join('');
+      html += noDescSkipped.map(r => itemRow(`${itemLabel(r.item)} — no listing description generated yet${editBtn(r.item)}`)).join('');
+      html += alreadySkipped.map(r => itemRow(`${itemLabel(r.item)} — already listed`)).join('');
       html += `</div>`;
     }
     html += `</div>
