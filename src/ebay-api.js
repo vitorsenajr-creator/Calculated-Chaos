@@ -152,15 +152,31 @@
   // listing, Mercari/Poshmark don't — so this only covers the eBay side.
   // When an item is marked Sold and it has a live eBay listing (an
   // ebayOfferId from a prior publish), automatically withdraw that listing
-  // so it can't sell twice. Best-effort: failures here are logged but never
-  // block the actual item save, since the sale itself is already recorded
-  // either way.
+  // so it can't sell twice.
+  //
+  // The save itself is never blocked on this — the sale is already recorded
+  // either way — but this used to fail 100% silently (console.warn only) on
+  // every failure path: token expired, network error, eBay API error, or
+  // the item never having been published through this app in the first
+  // place. That silence is exactly how one item got sold on both Poshmark
+  // and eBay — the eBay listing stayed live and nobody knew this had failed
+  // to shut it down. Callers now get a result back and are expected to
+  // surface it loudly when `ended` is false for a reason that means "there
+  // may still be a live eBay listing we couldn't take down."
   export async function endEbayListingIfSold(itemData){
-    if (itemData.status !== 'vendido') return;
-    if (!itemData.ebayOfferId || itemData.ebayEndedAt) return;
+    if (itemData.status !== 'vendido') return { ended: false, reason: 'not_sold' };
+    if (itemData.ebayEndedAt) return { ended: true, reason: 'already_ended' };
+    if (!itemData.ebayListingId){
+      // Never published to eBay through this app (or listed manually on
+      // eBay outside it) — nothing here for us to track or end.
+      return { ended: false, reason: 'not_listed' };
+    }
+    if (!itemData.ebayOfferId){
+      return { ended: false, reason: 'no_offer_id' };
+    }
     try{
       const token = await getValidEbayToken();
-      if (!token) return;
+      if (!token) return { ended: false, reason: 'not_connected' };
       const res = await fetch('/api/ebay-end-listing', {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
@@ -172,12 +188,36 @@
         const idx = items.findIndex(i => i.id === itemData.id);
         if (idx >= 0) items[idx].ebayEndedAt = itemData.ebayEndedAt;
         await app.saveItem(itemData);
+        return { ended: true };
       } else {
         console.warn('Could not end eBay listing automatically:', data);
+        return { ended: false, reason: 'api_error', detail: data };
       }
     }catch(e){
       console.warn('Could not end eBay listing automatically:', e);
+      return { ended: false, reason: 'exception', detail: (e && e.message) || String(e) };
     }
+  }
+
+  // Human-readable reason for endEbayListingIfSold's failure, shared by the
+  // single-item and bulk mark-as-sold flows so the wording stays consistent.
+  const EBAY_END_FAILURE_REASON = {
+    no_offer_id: 'o app não tem o ID do anúncio salvo para encerrá-lo automaticamente',
+    not_connected: 'a conta do eBay não está conectada no momento',
+    api_error: 'o eBay recusou o pedido para encerrar o anúncio',
+    exception: 'houve um erro de rede/servidor ao tentar encerrar o anúncio',
+  };
+
+  // Only reasons meaning "there IS a known eBay listing and we could not
+  // confirm it's down" warrant an alarm — not_sold/not_listed/already_ended
+  // are all fine, nothing to warn about.
+  export function ebayEndListingNeedsWarning(result){
+    return !!(result && !result.ended && EBAY_END_FAILURE_REASON[result.reason]);
+  }
+
+  export function ebayEndListingWarningText(itemLabel, result){
+    const reason = EBAY_END_FAILURE_REASON[result.reason] || 'motivo desconhecido';
+    return `⚠️ "${itemLabel}" foi marcado como vendido, mas NÃO conseguimos encerrar automaticamente o anúncio dele no eBay (${reason}). Ele pode ainda estar ativo — entre no eBay agora e encerre esse anúncio manualmente para não vender o mesmo item duas vezes.`;
   }
 
   // Works whether called from the item modal (ebayStatusArea) or from

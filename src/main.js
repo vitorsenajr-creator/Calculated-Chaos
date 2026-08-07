@@ -3,6 +3,7 @@ import {
   loadEbayTokens, saveEbayTokens, ebayTokenIsValid, getValidEbayToken,
   checkEbaySalesNow, endEbayListingIfSold, listItemOnEbay, showBulkEbayPreflight,
   ebayTokens, clearEbayTokens, ebayConnectFlowPending,
+  ebayEndListingNeedsWarning, ebayEndListingWarningText,
 } from './ebay-api.js';
 import {
   MAX_PHOTOS, MAX_PHOTO_DIM, PHOTO_QUALITY,
@@ -52,7 +53,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.12.2';
+  const APP_VERSION = 'v3.12.3';
   const APP_VERSION_DATE = '2026-08-07';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -882,6 +883,7 @@ export const app = (function(){
         const ids = Array.from(bulkSelectedIds);
         bulkApplyStatusBtn.disabled = true;
         bulkStatus(`Updating ${ids.length} item${ids.length===1?'':'s'}…`);
+        const unresolvedEbayWarnings = [];
         for (const id of ids){
           const item = items.find(i => i.id === id);
           if (!item) continue;
@@ -906,13 +908,26 @@ export const app = (function(){
           if (idx >= 0) items[idx] = updated;
           try{
             await saveItem(updated);
-            if (newStatus === 'vendido') endEbayListingIfSold(updated); // best-effort
+            if (newStatus === 'vendido'){
+              const ebayEndResult = await endEbayListingIfSold(updated);
+              if (ebayEndListingNeedsWarning(ebayEndResult)){
+                unresolvedEbayWarnings.push({ item: updated, result: ebayEndResult });
+              }
+            }
           }catch(e){ /* saveItem already alerts */ }
         }
         bulkSelectedIds.clear();
         bulkSelectMode = false;
         renderAll();
-        showSavedToast();
+        if (unresolvedEbayWarnings.length){
+          // Loud and blocking on purpose — this is a real double-sell risk,
+          // not a "review when convenient" notice.
+          const lines = unresolvedEbayWarnings.map(({ item, result }) =>
+            ebayEndListingWarningText(item.name || item.productCode || 'Item', result));
+          alert(lines.join('\n\n'));
+        } else {
+          showSavedToast();
+        }
       });
     }
 
@@ -4087,7 +4102,16 @@ Be accurate and honest — never invent brand, material, or condition details th
       setSaveProgress(null);
       return; // error already shown to user inside saveItem
     }
-    endEbayListingIfSold(itemData); // best-effort, doesn't block the save above
+    // Doesn't block the save above (that's already committed), but DOES get
+    // awaited here so we know whether to warn before moving on — silently
+    // firing-and-forgetting this is what let one item stay live on eBay
+    // after it sold elsewhere and get sold a second time.
+    const ebayEndResult = await endEbayListingIfSold(itemData);
+    if (ebayEndListingNeedsWarning(ebayEndResult)){
+      // Loud and blocking on purpose — this is a real double-sell risk, not
+      // a "review when convenient" notice.
+      alert(ebayEndListingWarningText(itemData.name || itemData.productCode || 'Item', ebayEndResult));
+    }
     // If this save completed a Photo Session draft, it's now a real item —
     // remove the source draft doc so it stops showing up in the drafts list.
     if (currentDraftId){
