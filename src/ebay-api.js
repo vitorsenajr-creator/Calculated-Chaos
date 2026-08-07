@@ -28,6 +28,15 @@
   // importer's side; this is the one legal way to do it from outside.
   export function clearEbayTokens(){ ebayTokens = null; }
 
+  // True while the "open eBay tab -> copy token -> paste it back" flow is
+  // waiting on the user (the paste textarea is showing but nothing's saved
+  // yet). Switching app tabs (e.g. back to Settings after authorizing on
+  // eBay) used to fully rebuild the Settings section and silently wipe that
+  // textarea out from under her — she'd get back from authorizing and find
+  // no paste box at all. main.js checks this flag before rebuilding
+  // Settings so the pending paste UI survives.
+  export let ebayConnectFlowPending = false;
+
  export async function loadEbayTokens(){
     try{
       const { doc, getDoc } = window.firestoreFns;
@@ -186,6 +195,7 @@
   window.connectEbay = async function connectEbay(){
     const area = ebayTargetArea();
     area.innerHTML = `<div class="ebay-status-box pending">⏳ Opening eBay authorization page…</div>`;
+    ebayConnectFlowPending = true;
     // Open the tab IMMEDIATELY (synchronously, inside the click handler) so the
     // browser still counts this as a direct result of the user's tap/click.
     // If we wait for the fetch below to finish first, mobile and desktop
@@ -217,6 +227,7 @@
           </button>
         </div>`;
     }catch(err){
+      ebayConnectFlowPending = false;
       if (authTab && !authTab.closed) authTab.close();
       area.innerHTML = `<div class="ebay-status-box error">❌ Could not start eBay authorization. Make sure the app is deployed and configured correctly.</div>`;
     }
@@ -230,6 +241,7 @@
       const tokens = JSON.parse(raw);
       if (!tokens.access_token || !tokens.refresh_token) throw new Error('Invalid token format');
       const result = await saveEbayTokens(tokens);
+      ebayConnectFlowPending = false;
       if (result.ok){
         area.innerHTML = `
           <div class="ebay-status-box success">✅ eBay account connected successfully${tokens.sellerUsername ? ` as <b>${app.escapeHtml(tokens.sellerUsername)}</b>` : ''}!</div>`;

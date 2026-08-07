@@ -2,7 +2,7 @@ import './config/firebase.js';
 import {
   loadEbayTokens, saveEbayTokens, ebayTokenIsValid, getValidEbayToken,
   checkEbaySalesNow, endEbayListingIfSold, listItemOnEbay, showBulkEbayPreflight,
-  ebayTokens, clearEbayTokens,
+  ebayTokens, clearEbayTokens, ebayConnectFlowPending,
 } from './ebay-api.js';
 import {
   MAX_PHOTOS, MAX_PHOTO_DIM, PHOTO_QUALITY,
@@ -1272,7 +1272,12 @@ export const app = (function(){
     document.getElementById('financeView').style.display = tab === 'finance' ? 'block' : 'none';
     document.getElementById('reportsView').style.display = tab === 'reports' ? 'block' : 'none';
     document.getElementById('settingsView').style.display = tab === 'settings' ? 'block' : 'none';
-    if (tab === 'settings') renderSettings();
+    // Skip the rebuild while the "paste your eBay token" box is showing and
+    // waiting on her — a full re-render replaces the whole Settings section,
+    // including that box, with a fresh "Not connected" state (since the
+    // token isn't saved yet), so switching tabs and back looked like the
+    // connect flow had vanished.
+    if (tab === 'settings' && !ebayConnectFlowPending) renderSettings();
   }
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => switchToTab(btn.dataset.tab));
