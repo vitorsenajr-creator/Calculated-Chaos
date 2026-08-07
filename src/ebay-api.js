@@ -173,9 +173,15 @@
 
   // Works whether called from the item modal (ebayStatusArea) or from
   // Settings (ebayConnectionStatus) — whichever is present in the DOM.
-  function ebayTargetArea(){
-    return document.getElementById('ebayStatusArea') || document.getElementById('ebayConnectionStatus');
-  }
+ function ebayTargetArea(){
+  const modalArea = document.getElementById('ebayStatusArea');
+  // Só usa a área do modal se o modal de item estiver de fato aberto
+  // (senão ele existe escondido no HTML e sempre "vence" por engano).
+  const modalOpen = document.getElementById('itemModalOverlay') &&
+    !document.getElementById('itemModalOverlay').classList.contains('hidden');
+  if (modalArea && modalOpen) return modalArea;
+  return document.getElementById('ebayConnectionStatus') || modalArea;
+}
 
   window.connectEbay = async function connectEbay(){
     const area = ebayTargetArea();
