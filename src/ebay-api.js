@@ -220,6 +220,30 @@
     return `⚠️ "${itemLabel}" foi marcado como vendido, mas NÃO conseguimos encerrar automaticamente o anúncio dele no eBay (${reason}). Ele pode ainda estar ativo — entre no eBay agora e encerre esse anúncio manualmente para não vender o mesmo item duas vezes.`;
   }
 
+  const EBAY_PLATFORM_DISPLAY_NAME = {
+    mercari: 'Mercari', poshmark: 'Poshmark', vinted: 'Vinted', depop: 'Depop', outra: 'Other',
+  };
+
+  // eBay is the only platform this app can auto-remove a sold item from (it
+  // has a real "end listing" API). Mercari/Poshmark/Vinted/depop don't, so
+  // any of those also marked on the item need a manual check every time —
+  // otherwise this same double-sell risk exists there too, just with no
+  // automation at all to even attempt catching it.
+  export function ebayPostSoldMessageLines(itemData, result){
+    const lines = [];
+    if (result && result.ended && result.reason !== 'already_ended'){
+      lines.push('✅ Item removido da lista de disponíveis do eBay.');
+    } else if (ebayEndListingNeedsWarning(result)){
+      lines.push(ebayEndListingWarningText(itemData.name || itemData.productCode || 'Item', result));
+    }
+    const otherPlatforms = (itemData.listedPlatforms || []).filter(p => p !== 'ebay');
+    if (otherPlatforms.length){
+      const names = otherPlatforms.map(p => EBAY_PLATFORM_DISPLAY_NAME[p] || p).join(', ');
+      lines.push(`⚠️ Verifique manualmente se o item também precisa ser removido de: ${names} — essas plataformas não têm remoção automática pelo app.`);
+    }
+    return lines;
+  }
+
   // Works whether called from the item modal (ebayStatusArea) or from
   // Settings (ebayConnectionStatus) — whichever is present in the DOM.
  function ebayTargetArea(){
