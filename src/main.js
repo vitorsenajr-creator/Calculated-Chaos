@@ -53,7 +53,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.12.4';
+  const APP_VERSION = 'v3.12.5';
   const APP_VERSION_DATE = '2026-08-07';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -884,9 +884,18 @@ export const app = (function(){
         bulkApplyStatusBtn.disabled = true;
         bulkStatus(`Updating ${ids.length} item${ids.length===1?'':'s'}…`);
         const ebayPostSoldMessages = [];
+        const skippedNoPlatform = [];
         for (const id of ids){
           const item = items.find(i => i.id === id);
           if (!item) continue;
+          if (newStatus === 'anunciado' && (item.listedPlatforms || []).length === 0){
+            // Same rule as the item modal: "Listed" without a platform
+            // checked under "Listed on" means the app has no idea where to
+            // look for this item once it sells — skip it instead of saving
+            // a status that can't be acted on later.
+            skippedNoPlatform.push(item.name || item.productCode || 'Item');
+            continue;
+          }
           const updated = { ...item, status: newStatus };
           if (newStatus === 'vendido' && item.status !== 'vendido'){
             const soldPrice = parseFloat(item.listPrice) || suggestPrice(item);
@@ -917,10 +926,14 @@ export const app = (function(){
         bulkSelectedIds.clear();
         bulkSelectMode = false;
         renderAll();
-        if (ebayPostSoldMessages.length){
+        const alertLines = [...ebayPostSoldMessages];
+        if (skippedNoPlatform.length){
+          alertLines.push(`⚠️ Skipped setting these to "Listed" — no platform checked under "Listed on": ${skippedNoPlatform.join(', ')}. Edit each one, pick a platform, then try again.`);
+        }
+        if (alertLines.length){
           // Loud and blocking on purpose — a missed eBay/other-platform
           // double-sell is a real money loss, not a "review later" notice.
-          alert(ebayPostSoldMessages.join('\n\n'));
+          alert(alertLines.join('\n\n'));
         } else {
           showSavedToast();
         }
@@ -3947,6 +3960,10 @@ Be accurate and honest — never invent brand, material, or condition details th
     }
     if (!chosenEbayCategory){
       alert('Choose an eBay category before saving — tap the eBay Category field and search for it.');
+      return;
+    }
+    if (currentStatus === 'anunciado' && currentListedPlatforms.length === 0){
+      alert('Status is "Listed" but no platform is checked under "Listed on" — pick at least one platform before saving, so the app knows where to look when it sells.');
       return;
     }
     name = toTitleCase(name);

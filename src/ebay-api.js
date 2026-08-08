@@ -202,10 +202,10 @@
   // Human-readable reason for endEbayListingIfSold's failure, shared by the
   // single-item and bulk mark-as-sold flows so the wording stays consistent.
   const EBAY_END_FAILURE_REASON = {
-    no_offer_id: 'o app não tem o ID do anúncio salvo para encerrá-lo automaticamente',
-    not_connected: 'a conta do eBay não está conectada no momento',
-    api_error: 'o eBay recusou o pedido para encerrar o anúncio',
-    exception: 'houve um erro de rede/servidor ao tentar encerrar o anúncio',
+    no_offer_id: "the app doesn't have the listing's ID saved to end it automatically",
+    not_connected: 'the eBay account is not connected right now',
+    api_error: 'eBay rejected the request to end the listing',
+    exception: 'there was a network/server error while trying to end the listing',
   };
 
   // Only reasons meaning "there IS a known eBay listing and we could not
@@ -216,8 +216,8 @@
   }
 
   export function ebayEndListingWarningText(itemLabel, result){
-    const reason = EBAY_END_FAILURE_REASON[result.reason] || 'motivo desconhecido';
-    return `⚠️ "${itemLabel}" foi marcado como vendido, mas NÃO conseguimos encerrar automaticamente o anúncio dele no eBay (${reason}). Ele pode ainda estar ativo — entre no eBay agora e encerre esse anúncio manualmente para não vender o mesmo item duas vezes.`;
+    const reason = EBAY_END_FAILURE_REASON[result.reason] || 'unknown reason';
+    return `⚠️ "${itemLabel}" was marked as sold, but we could NOT automatically end its eBay listing (${reason}). It may still be live — go end that listing on eBay manually right now so it doesn't sell twice.`;
   }
 
   const EBAY_PLATFORM_DISPLAY_NAME = {
@@ -225,21 +225,27 @@
   };
 
   // eBay is the only platform this app can auto-remove a sold item from (it
-  // has a real "end listing" API). Mercari/Poshmark/Vinted/depop don't, so
+  // has a real "end listing" API). Mercari/Poshmark/Vinted/Depop don't, so
   // any of those also marked on the item need a manual check every time —
   // otherwise this same double-sell risk exists there too, just with no
   // automation at all to even attempt catching it.
+  //
+  // Only relevant when this save is actually marking the item sold — call
+  // sites used to call this unconditionally on every save, which fired the
+  // "check other platforms" reminder even while just publishing/editing a
+  // listing (nothing to do with a sale at all).
   export function ebayPostSoldMessageLines(itemData, result){
+    if (itemData.status !== 'vendido') return [];
     const lines = [];
     if (result && result.ended && result.reason !== 'already_ended'){
-      lines.push('✅ Item removido da lista de disponíveis do eBay.');
+      lines.push('✅ Item removed from eBay availability.');
     } else if (ebayEndListingNeedsWarning(result)){
       lines.push(ebayEndListingWarningText(itemData.name || itemData.productCode || 'Item', result));
     }
     const otherPlatforms = (itemData.listedPlatforms || []).filter(p => p !== 'ebay');
     if (otherPlatforms.length){
       const names = otherPlatforms.map(p => EBAY_PLATFORM_DISPLAY_NAME[p] || p).join(', ');
-      lines.push(`⚠️ Verifique manualmente se o item também precisa ser removido de: ${names} — essas plataformas não têm remoção automática pelo app.`);
+      lines.push(`⚠️ Please manually check whether this item also needs to be removed from: ${names} — those platforms have no automatic removal in this app.`);
     }
     return lines;
   }
