@@ -49,12 +49,21 @@ import {
   applyFilters as _applyFilters,
 } from './modules/catalog-filters.js';
 import { computeDashboardData } from './modules/dashboard.js';
+import {
+  getAllPlatforms as _getAllPlatforms,
+  getPlatformLabel as _getPlatformLabel,
+  getPlatformColor as _getPlatformColor,
+} from './modules/platforms.js';
+import {
+  initSoldConfirmModal,
+  showBulkSoldConfirm as _showBulkSoldConfirm,
+} from './modules/sold-confirm.js';
 
 export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.4';
+  const APP_VERSION = 'v3.13.5';
   const APP_VERSION_DATE = '2026-08-09';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -89,23 +98,9 @@ export const app = (function(){
   // Every place that used to read PLATFORM_LABEL/PLATFORM_FEES/PLATFORM_COLOR
   // directly should go through these instead so custom platforms show up
   // everywhere built-ins do (filters, badges, the Platform dropdown, fee calc).
-  function getAllPlatforms(){
-    const builtIns = Object.keys(PLATFORM_LABEL).filter(k => k !== 'outra').map(key => ({
-      key,
-      label: PLATFORM_LABEL[key],
-      color: PLATFORM_COLOR[key] || '#8A7E82',
-      feePct: (appSettings.platformFeeOverrides?.[key] ?? PLATFORM_FEES[key]) * 100,
-      builtIn: true,
-    }));
-    const custom = (appSettings.customPlatforms || []).map(p => ({ ...p, builtIn: false }));
-    return [...builtIns, ...custom];
-  }
-  function getPlatformLabel(key){
-    return getAllPlatforms().find(p => p.key === key)?.label || PLATFORM_LABEL[key] || key;
-  }
-  function getPlatformColor(key){
-    return getAllPlatforms().find(p => p.key === key)?.color || '#8A7E82';
-  }
+  function getAllPlatforms(){ return _getAllPlatforms(appSettings); }
+  function getPlatformLabel(key){ return _getPlatformLabel(appSettings, key); }
+  function getPlatformColor(key){ return _getPlatformColor(appSettings, key); }
 
   function getDailyQuote(){
     const today = new Date();
@@ -888,9 +883,18 @@ export const app = (function(){
         const ids = Array.from(bulkSelectedIds);
         if (newStatus === 'vendido'){
           // Sold needs price/fee/shipping confirmed per item — see
-          // showBulkSoldConfirm, same "explicit confirmation before the
+          // modules/sold-confirm.js, same "explicit confirmation before the
           // financial calc runs" rule as the single-item modal.
-          showBulkSoldConfirm(ids);
+          _showBulkSoldConfirm(ids, {
+            escapeHtml, saveItem,
+            onDone: (ebayPostSoldMessages) => {
+              bulkSelectedIds.clear();
+              bulkSelectMode = false;
+              renderAll();
+              if (ebayPostSoldMessages.length) alert(ebayPostSoldMessages.join('\n\n'));
+              else showSavedToast();
+            },
+          });
           return;
         }
         bulkApplyStatusBtn.disabled = true;
@@ -923,113 +927,6 @@ export const app = (function(){
       });
     }
 
-    // Review-and-confirm screen for bulk "Set: Sold" — one row per selected
-    // item with editable price/sold-platform/shipping-payer, prefilled with
-    // the same best-guesses the old silent auto-apply used, so nothing
-    // actually gets worse for someone who just wants to accept the guesses
-    // — but now she SEES them first instead of them being invisible.
-    function showBulkSoldConfirm(ids){
-      const statusEl = document.getElementById('bulkActionStatus');
-      if (!statusEl) return;
-      const rows = ids.map(id => items.find(i => i.id === id)).filter(Boolean);
-      const platformOptions = getAllPlatforms();
-      statusEl.innerHTML = `
-        <div class="ebay-connect-box">
-          <div class="ec-title">Confirm sale details for ${rows.length} item${rows.length===1?'':'s'}</div>
-          <div class="ec-sub">Price, platform fee, and who paid shipping — review before this feeds into profit reporting.</div>
-          ${rows.map(item => {
-            const guessedPrice = item.soldPrice || item.listPrice || suggestPrice(item);
-            const guessedPlatform = item.soldPlatform || item.listedPlatforms?.[0] || item.platform || 'ebay';
-            const listingSaysSellerPays = item.freeShipping === true;
-            const guessedWho = item.shippingCost ? 'seller' : (listingSaysSellerPays ? 'seller' : 'buyer');
-            return `
-            <div data-bulk-sold-row="${item.id}" style="border-top:1px dashed var(--line); padding-top:10px; margin-top:10px;">
-              <div style="font-size:13px; font-weight:600; color:var(--plum); margin-bottom:6px;">${escapeHtml(item.name || item.productCode || 'Item')}</div>
-              <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
-                <span style="font-size:11px; color:var(--plum-soft);">Price $</span>
-                <input type="number" class="mono" data-bs-price step="0.01" value="${parseFloat(guessedPrice||0).toFixed(2)}" style="width:70px; padding:5px 6px; border:1px solid var(--line); border-radius:6px; font-size:12px;">
-                <select data-bs-platform style="padding:5px 6px; border:1px solid var(--line); border-radius:6px; font-size:12px;">
-                  ${platformOptions.map(p => `<option value="${p.key}" ${p.key===guessedPlatform?'selected':''}>${escapeHtml(PLATFORM_NAME[p.key] || p.label)}</option>`).join('')}
-                </select>
-                <select data-bs-who style="padding:5px 6px; border:1px solid var(--line); border-radius:6px; font-size:12px;">
-                  <option value="buyer" ${guessedWho==='buyer'?'selected':''}>Buyer paid shipping</option>
-                  <option value="seller" ${guessedWho==='seller'?'selected':''}>I paid shipping</option>
-                </select>
-                <input type="number" class="mono" data-bs-shipping step="0.01" placeholder="ship $" value="${item.shippingCost ? parseFloat(item.shippingCost).toFixed(2) : ''}" style="width:60px; padding:5px 6px; border:1px solid var(--line); border-radius:6px; font-size:12px; ${guessedWho==='seller'?'':'display:none;'}">
-              </div>
-            </div>`;
-          }).join('')}
-          <button id="bulkSoldConfirmBtn" style="background:var(--terracotta); color:white; border:none; border-radius:8px; padding:11px; font-size:13px; font-weight:600; cursor:pointer; width:100%; margin-top:14px;">
-            ✓ Confirm & mark ${rows.length} as sold
-          </button>
-          <button id="bulkSoldCancelBtn" style="background:transparent; border:1px solid var(--line); border-radius:8px; padding:9px; font-size:13px; cursor:pointer; width:100%; margin-top:6px;">
-            Cancel
-          </button>
-        </div>`;
-
-      statusEl.querySelectorAll('[data-bs-who]').forEach(sel => {
-        sel.addEventListener('change', () => {
-          const row = sel.closest('[data-bulk-sold-row]');
-          row.querySelector('[data-bs-shipping]').style.display = sel.value === 'seller' ? 'block' : 'none';
-        });
-      });
-      document.getElementById('bulkSoldCancelBtn').addEventListener('click', () => { statusEl.innerHTML = ''; });
-      document.getElementById('bulkSoldConfirmBtn').addEventListener('click', async () => {
-        // Same "required" rule as the single-item confirm modal: a sale
-        // price and a specific platform aren't optional, since both feed
-        // straight into the fee calc and profit reporting.
-        const invalid = [];
-        for (const item of rows){
-          const row = statusEl.querySelector(`[data-bulk-sold-row="${item.id}"]`);
-          if (!row) continue;
-          const price = parseFloat(row.querySelector('[data-bs-price]').value);
-          const platform = row.querySelector('[data-bs-platform]').value;
-          if (!(price > 0) || !platform) invalid.push(item.name || item.productCode || 'Item');
-        }
-        if (invalid.length){
-          alert(`⚠️ These items need a sale price and a platform before they can be marked sold: ${invalid.join(', ')}`);
-          return;
-        }
-        const confirmBtn = document.getElementById('bulkSoldConfirmBtn');
-        confirmBtn.disabled = true;
-        confirmBtn.textContent = 'Saving…';
-        const ebayPostSoldMessages = [];
-        for (const item of rows){
-          const row = statusEl.querySelector(`[data-bulk-sold-row="${item.id}"]`);
-          if (!row) continue;
-          const soldPrice = parseFloat(row.querySelector('[data-bs-price]').value) || 0;
-          const soldPlatform = row.querySelector('[data-bs-platform]').value;
-          const who = row.querySelector('[data-bs-who]').value;
-          const shippingCost = who === 'seller' ? (parseFloat(row.querySelector('[data-bs-shipping]').value) || 0) : 0;
-          const feesTotal = platformFee(soldPlatform, soldPrice);
-          const updated = {
-            ...item,
-            status: 'vendido',
-            soldPrice,
-            soldPlatform,
-            shippingCost,
-            feesTotal,
-            soldAt: item.soldAt || Date.now(),
-            netProfit: soldPrice - (parseFloat(item.cost)||0) - feesTotal - shippingCost,
-          };
-          const idx = items.findIndex(i => i.id === item.id);
-          if (idx >= 0) items[idx] = updated;
-          try{
-            await saveItem(updated);
-            const ebayEndResult = await endEbayListingIfSold(updated);
-            ebayPostSoldMessages.push(...ebayPostSoldMessageLines(updated, ebayEndResult));
-          }catch(e){ /* saveItem already alerts */ }
-        }
-        bulkSelectedIds.clear();
-        bulkSelectMode = false;
-        renderAll();
-        if (ebayPostSoldMessages.length){
-          alert(ebayPostSoldMessages.join('\n\n'));
-        } else {
-          showSavedToast();
-        }
-      });
-    }
 
     const bulkApplyBoxBtn = document.getElementById('bulkApplyBoxBtn');
     if (bulkApplyBoxBtn){
@@ -3147,77 +3044,29 @@ export const app = (function(){
 
   // ---------- SOLD CONFIRMATION MODAL ----------
   // Fires the moment an item transitions to Sold (single-item modal only —
-  // bulk "Set: Sold" has its own review list, see showBulkSoldConfirm).
-  // Forces confirming (1) sale price (2) which platform's fee applies
-  // (3) who paid shipping, with a live net-profit preview, BEFORE
-  // currentStatus actually flips to 'vendido' — replaces silently
-  // computing off whatever was already sitting in the form fields.
-  function updateSoldConfirmPreview(){
-    const price = parseFloat(document.getElementById('scPrice').value) || 0;
-    const platform = document.getElementById('scPlatform').value;
-    const who = document.querySelector('#scShippingWhoRow .status-pill.selected')?.dataset.who || 'buyer';
-    const shipField = document.getElementById('scShippingCostField');
-    shipField.style.display = who === 'seller' ? 'block' : 'none';
-    const shippingCost = who === 'seller' ? (parseFloat(document.getElementById('scShippingCost').value) || 0) : 0;
-    const fee = platformFee(platform, price);
-    const cost = parseFloat(document.getElementById('fCost').value) || 0;
-    const netProfit = price - cost - fee - shippingCost;
-    document.getElementById('scFeePreview').textContent = `$${fee.toFixed(2)}`;
-    document.getElementById('scShipPreview').textContent = `$${shippingCost.toFixed(2)}`;
-    document.getElementById('scNetPreview').textContent = `Net profit: $${netProfit.toFixed(2)}`;
-  }
-  function openSoldConfirmModal(){
-    const item = items.find(i => i.id === currentEditId);
-    const platformSelect = document.getElementById('scPlatform');
-    // Only pre-select when there's an actually confident signal (already
-    // recorded as sold there, or exactly one platform it was ever listed
-    // on) — blindly defaulting to 'ebay' otherwise would make the
-    // "required" validation below meaningless, since a <select> is never
-    // really empty unless we leave it that way on purpose.
-    const confidentGuess = item?.soldPlatform || (currentListedPlatforms.length === 1 ? currentListedPlatforms[0] : null);
-    platformSelect.innerHTML = `<option value="">— Select platform —</option>` +
-      getAllPlatforms().map(p => `<option value="${p.key}">${escapeHtml(PLATFORM_NAME[p.key] || p.label)}</option>`).join('');
-    platformSelect.value = confidentGuess || '';
-    const listPriceVal = document.getElementById('fListPrice').value;
-    document.getElementById('scPrice').value = (item?.soldPrice || listPriceVal || '') !== '' ? parseFloat(item?.soldPrice || listPriceVal).toFixed(2) : '';
-    const listingSaysSellerPays = document.getElementById('fFreeShipping')?.value === 'seller';
-    const guessedWho = item?.shippingCost ? 'seller' : (listingSaysSellerPays ? 'seller' : 'buyer');
-    document.querySelectorAll('#scShippingWhoRow .status-pill').forEach(p => p.classList.toggle('selected', p.dataset.who === guessedWho));
-    document.getElementById('scShippingCost').value = item?.shippingCost ? parseFloat(item.shippingCost).toFixed(2) : '';
-    updateSoldConfirmPreview();
-    document.getElementById('soldConfirmOverlay').classList.remove('hidden');
-  }
-  document.getElementById('scPrice').addEventListener('input', updateSoldConfirmPreview);
-  document.getElementById('scPlatform').addEventListener('change', updateSoldConfirmPreview);
-  document.getElementById('scShippingCost').addEventListener('input', updateSoldConfirmPreview);
-  document.getElementById('scShippingWhoRow').addEventListener('click', (e) => {
-    const pill = e.target.closest('.status-pill');
-    if (!pill) return;
-    document.querySelectorAll('#scShippingWhoRow .status-pill').forEach(p => p.classList.toggle('selected', p === pill));
-    updateSoldConfirmPreview();
-  });
-  document.getElementById('scCancelBtn').addEventListener('click', () => {
-    document.getElementById('soldConfirmOverlay').classList.add('hidden');
-    // Deliberately does NOT touch currentStatus/the pills — canceling
-    // leaves the item exactly as it was before she tapped "Sold".
-  });
-  document.getElementById('scConfirmBtn').addEventListener('click', () => {
-    const price = document.getElementById('scPrice').value;
-    if (!price || parseFloat(price) <= 0){ alert('Enter the sale price — this is required to record the sale.'); return; }
-    const platform = document.getElementById('scPlatform').value;
-    if (!platform){ alert('Select which platform this sold on — this is required to calculate the right fee.'); return; }
-    const who = document.querySelector('#scShippingWhoRow .status-pill.selected')?.dataset.who || 'buyer';
-    const shippingCost = who === 'seller' ? (document.getElementById('scShippingCost').value || '0') : '0';
-    document.getElementById('soldConfirmOverlay').classList.add('hidden');
-    setStatusUI('vendido'); // rebuilds #soldFieldsArea — set its values AFTER this
-    document.getElementById('fSoldPrice').value = parseFloat(price).toFixed(2);
-    document.getElementById('fShippingCost').value = parseFloat(shippingCost).toFixed(2);
-    document.getElementById('fSoldPlatform').value = platform;
-    // Autosave right away — she just explicitly confirmed every number
-    // that feeds this sale, no reason to make her also remember to hit
-    // the main Save button afterward. Reuses the real save button's full
-    // pipeline (validation, photo upload, etc.) instead of duplicating it.
-    document.getElementById('saveItemBtn').click();
+  // bulk "Set: Sold" has its own review list, see modules/sold-confirm.js).
+  // UI + validation lives in the module; here we just tell it what "sold
+  // this item" means for the currently-open form: flip currentStatus,
+  // populate the (still-existing) sold-fields inputs the normal Save flow
+  // already reads, and autosave.
+  const openSoldConfirmModal = initSoldConfirmModal({
+    getItem: () => items.find(i => i.id === currentEditId),
+    getListedPlatforms: () => currentListedPlatforms,
+    escapeHtml,
+    onConfirm: ({ price, platform, fee, shippingCost, otherCosts }) => {
+      setStatusUI('vendido'); // rebuilds #soldFieldsArea — set its values AFTER this
+      document.getElementById('fSoldPrice').value = price.toFixed(2);
+      document.getElementById('fShippingCost').value = shippingCost.toFixed(2);
+      document.getElementById('fSoldPlatform').value = platform;
+      document.getElementById('fFeesTotal').value = fee.toFixed(2);
+      document.getElementById('fOtherCosts').value = otherCosts.toFixed(2);
+      // Autosave right away — she just explicitly confirmed every number
+      // that feeds this sale, no reason to make her also remember to hit
+      // the main Save button afterward. Reuses the real save button's
+      // full pipeline (validation, photo upload, etc.) instead of
+      // duplicating it.
+      document.getElementById('saveItemBtn').click();
+    },
   });
 
   // ---------- PREP PILLS ----------
@@ -3261,6 +3110,12 @@ export const app = (function(){
     // a cross-listed item could sell anywhere it was listed. Also feeds the
     // real fee calc below instead of guessing from the generic field.
     const soldPlatformVal = item?.soldPlatform || item?.platform || '';
+    // Fee starts from the auto calc but is a real editable field from here
+    // on — the confirmation modal writes into this same input, and a
+    // reopened already-sold item shows whatever was actually saved/edited
+    // rather than recomputing and silently overwriting it.
+    const feesTotalVal = item?.feesTotal !== undefined ? item.feesTotal : (soldPlatformVal && soldPriceVal ? platformFee(soldPlatformVal, parseFloat(soldPriceVal)) : 0);
+    const otherCostsVal = item?.otherCosts || '';
     area.innerHTML = `
       <div class="field-row">
         <div class="field">
@@ -3272,6 +3127,16 @@ export const app = (function(){
           <input type="number" class="mono" id="fShippingCost" step="0.01" value="${shippingCostVal !== '' ? parseFloat(shippingCostVal).toFixed(2) : ''}">
         </div>
       </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Platform fee ($)</label>
+          <input type="number" class="mono" id="fFeesTotal" step="0.01" value="${parseFloat(feesTotalVal||0).toFixed(2)}">
+        </div>
+        <div class="field">
+          <label>Other costs ($)</label>
+          <input type="number" class="mono" id="fOtherCosts" step="0.01" value="${otherCostsVal !== '' ? parseFloat(otherCostsVal).toFixed(2) : ''}" placeholder="0.00">
+        </div>
+      </div>
       <div class="field">
         <label>Sold on</label>
         <select id="fSoldPlatform">
@@ -3280,7 +3145,7 @@ export const app = (function(){
         </select>
       </div>
     `;
-    attachCurrencyFormatting(['fSoldPrice','fShippingCost']);
+    attachCurrencyFormatting(['fSoldPrice','fShippingCost','fFeesTotal','fOtherCosts']);
   }
 
   // ---------- PHOTOS ----------
@@ -4430,13 +4295,21 @@ Be accurate and honest — never invent brand, material, or condition details th
       const soldPrice = parseFloat(document.getElementById('fSoldPrice')?.value) || listPrice;
       const shippingCost = parseFloat(document.getElementById('fShippingCost')?.value) || 0;
       const soldPlatform = document.getElementById('fSoldPlatform')?.value || platform;
-      const feesTotal = platformFee(soldPlatform, soldPrice);
+      // The fee field is editable (pre-filled from the platform calc, but
+      // she can override it — a promo, a dispute credit, whatever doesn't
+      // match the standard rate) — read whatever's actually in the field
+      // rather than silently recomputing and overwriting an edit. Only
+      // falls back to a fresh calc if the field is somehow missing/empty.
+      const feesTotalInput = document.getElementById('fFeesTotal')?.value;
+      const feesTotal = feesTotalInput !== undefined && feesTotalInput !== '' ? parseFloat(feesTotalInput) : platformFee(soldPlatform, soldPrice);
+      const otherCosts = parseFloat(document.getElementById('fOtherCosts')?.value) || 0;
       itemData.soldPrice = soldPrice;
       itemData.shippingCost = shippingCost;
       itemData.soldPlatform = soldPlatform;
       itemData.feesTotal = feesTotal;
+      itemData.otherCosts = otherCosts;
       itemData.soldAt = items.find(i=>i.id===currentEditId)?.soldAt || Date.now();
-      itemData.netProfit = soldPrice - (parseFloat(itemData.cost)||0) - feesTotal - shippingCost;
+      itemData.netProfit = soldPrice - (parseFloat(itemData.cost)||0) - feesTotal - shippingCost - otherCosts;
     }
 
     // Quantity > 1: build N copies sharing every field except id/productCode,

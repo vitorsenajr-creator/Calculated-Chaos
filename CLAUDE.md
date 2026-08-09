@@ -41,6 +41,19 @@ next minor bump:
 - **v3.13.3** — Added the "mark as sold" confirmation flow and tiered
   platform fees (both requested 2026-08-09) — see their own sections
   below for the full detail.
+- **v3.13.4** — Sale price and platform are now genuinely required in the
+  sold-confirmation flow (price `> 0`, platform starts blank unless
+  confidently guessable), and confirming the single-item modal now
+  autosaves immediately.
+- **v3.13.5** — Made the sold-confirmation platform fee an editable field
+  (was a read-only computed preview) and added an "Other costs" field
+  (packaging, extra postage, anything else) — both persist to the item as
+  `feesTotal`/`otherCosts` and factor into `netProfit`. Extracted the
+  whole sold-confirmation flow (single-item modal + bulk review list) into
+  `modules/sold-confirm.js`, and `getAllPlatforms`/`getPlatformLabel`/
+  `getPlatformColor` into `modules/platforms.js` — done immediately since
+  the code was brand new, cheaper to modularize now than after more piles
+  on top. See "Modularization progress" below.
 
 ## Planned changes (backlog)
 
@@ -69,6 +82,18 @@ inline sold-fields section:
   sold" is clicked.
 - Both paths still run `endEbayListingIfSold` + the platform-mismatch
   warnings from v3.12.3/v3.12.4 afterward, unchanged.
+- (v3.13.5) Platform fee is a real editable field, not just a computed
+  preview — pre-filled from `platformFee()` but she can override it (a
+  promo, a dispute credit, whatever doesn't match the standard rate); the
+  single-item modal only re-autocalculates on price/platform change until
+  she's touched the fee field herself (`scFeeManuallyEdited`/
+  `feeManuallyEdited` flag). Also added "Other costs" (packaging, extra
+  postage, anything else) in both flows — persists as `item.otherCosts`,
+  factored into `netProfit` alongside `feesTotal`/`shippingCost`.
+- Now lives in `modules/sold-confirm.js` (`initSoldConfirmModal` for the
+  single-item modal, `showBulkSoldConfirm` for the bulk list,
+  `computeNetProfit` as the one shared formula) — see "Modularization
+  progress" below.
 - **v3.13.4** — Sale price and platform are now genuinely required, not
   just usually-filled: price must be `> 0` (was `>= 0`), and the
   single-item modal's platform `<select>` only pre-selects when there's
@@ -85,6 +110,54 @@ Shipped as part of the new desktop Dashboard (`modules/dashboard.js`'s
 `revenueByPlatform`, grouped by `soldPlatform`) rather than in Reports.
 Still not in the Reports tab itself — revisit if that's wanted there too
 (e.g. in a CSV export).
+
+## Modularization progress
+
+`main.js` is still one big IIFE (`export const app = (function(){ ... })()`)
+and has grown back to 5,541 lines as of v3.13.5 (was down to ~5,083 after
+an earlier extraction session, then +600 from this session's features
+before some of that got pulled back out — see below). Extracted so far
+into `src/modules/` (pure functions parameterized on `items`/`appSettings`
+instead of closing over them; main.js keeps thin wrapper functions with
+the original names so call sites don't change): `constants.js`,
+`format-utils.js`, `pricing.js`, `reports.js`, `settings.js`, `state.js`
+(shared `items`/`appSettings`, imported directly by both `main.js` and
+`ebay-api.js`), `catalog-filters.js`, `catalog-lookups.js`,
+`image-compression.js`, `dashboard.js`, `platforms.js` (v3.13.5).
+`sold-confirm.js` (v3.13.5) is the first module that's a DOM-touching
+controller rather than pure calculations — extracted immediately after
+being written rather than left to accumulate in `main.js`, since that's
+much cheaper than extracting battle-tested legacy code later.
+
+**Proposed next phases** (discussed 2026-08-09, not started), ordered
+safest-first same as always:
+1. **Low risk, mechanical**: `modules/listing-copy.js` (pure
+   `buildListingTitle`/`buildListingDescription` string builders),
+   `modules/label-printing.js` (thermal label/marker canvas drawing +
+   print modal, ~360 lines, only depends on `appSettings` + one item),
+   `modules/lightbox.js` (photo gallery, ~100 lines, fully self-contained).
+2. **Medium risk, self-contained but stateful subsystems**:
+   `modules/measure-tool.js` (the photo measurement tool, ~550 lines —
+   the single largest remaining self-contained chunk, has its own
+   pan/zoom/calibration state), `modules/photo-session.js` (~210 lines),
+   `modules/ai-photo-analysis.js` (~330 lines).
+3. **Bigger win, more tedious**: Settings — `renderSettings()` alone is
+   ~330 lines, plus the eBay/employee-accounts/authorize-access panels
+   and ~15 individual `window.save*Settings` handlers, all reading/
+   writing `appSettings` (~950 lines total). More feasible now than in
+   the original modularization session since `appSettings` already lives
+   centrally in `state.js`.
+4. **Leave for last / maybe never**: item modal open/save/delete + eBay
+   category search wiring (~650 lines) — the most state-coupled section,
+   touching nearly every piece of mutable closure state (photos, status,
+   listed platforms, chosen eBay category...). Every feature added this
+   session (sold confirmation, tiered fees) runs through here. High risk
+   of breaking working functionality for comparatively little clarity
+   gain without a broader state-management redesign.
+
+Phases 1-3 would realistically bring `main.js` down to roughly
+3,200-3,300 lines; phase 4 is the honest floor without redesigning how
+state is shared beyond what `state.js` already does.
 
 ## Desktop Dashboard (added v3.13.0, 2026-08-09)
 
