@@ -16,7 +16,17 @@
 
 ### Pending changelog entry (not yet in CHANGELOG.md)
 
-Empty — last folded into `CHANGELOG.md` at v3.13.0 (2026-08-09).
+Changes since the last CHANGELOG.md entry (v3.13.0), to fold into the
+next minor bump:
+
+- **v3.13.1** — Full color rebrand: `--terracotta`/`-deep` went from
+  coral-red to warm taupe-brown, `--plum`/`-soft` from plum-purple to
+  near-black warm brown, `--cream`/`-soft`/`--blush`/`--gold`/`--amber`
+  all warmed to match — applied everywhere (mobile included), not just
+  the Dashboard, since all of `style.css` keys off these CSS custom
+  properties. `--danger` (red) deliberately left unchanged — semantic
+  status color, not brand. See "Desktop Dashboard" section below for
+  the full rationale.
 
 ## Planned changes (backlog)
 
@@ -72,12 +82,16 @@ duplicated:
   to avoid relocating the sign-out button as part of this change.
 
 Deliberate scope decisions, worth knowing before extending this:
-- **Color palette**: the Dashboard reuses the app's existing CSS tokens
-  (terracotta/plum/cream/sage/gold from `:root`) — it does NOT adopt the
-  different olive/warm-neutral palette from the external mockup that
-  inspired it. Nobody explicitly asked for a full rebrand, only for the
-  dashboard layout/content, so the existing brand stayed put. Revisit if
-  a palette change is ever explicitly requested.
+- **Color palette**: shipped in v3.13.0 still using the OLD tokens
+  (coral-red terracotta, plum-purple text) — deliberately not adopting
+  the mockup's warm-neutral palette yet, since nobody had explicitly
+  asked for a full rebrand. That changed in v3.13.1 (2026-08-09, same
+  day): Vitor explicitly asked for the mockup's color scheme applied to
+  the WHOLE app (mobile included), not just the Dashboard. Done by
+  changing the `:root` token *values* in `style.css` only — same token
+  names throughout, so every component re-themed without being touched
+  individually. `--danger` (red) was kept as-is on purpose: semantic
+  status color, not brand identity, shouldn't shift with a rebrand.
 - **Quick actions**: only "Add item" and "Photo haul" are wired up (both
   just trigger the existing `#fabAdd`/`#fabPhotoSession` buttons) — the
   mockup's other two tiles ("Generate Listing", "Price Item") need an

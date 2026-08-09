@@ -54,7 +54,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.0';
+  const APP_VERSION = 'v3.13.1';
   const APP_VERSION_DATE = '2026-08-09';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -1895,7 +1895,7 @@ export const app = (function(){
     if (!toast){
       toast = document.createElement('div');
       toast.id = 'savedToast';
-      toast.style.cssText = 'position:fixed; left:50%; bottom:28px; transform:translateX(-50%); background:var(--plum, #3D2C32); color:white; padding:11px 20px; border-radius:999px; font-size:13px; font-weight:600; box-shadow:0 6px 18px rgba(0,0,0,0.25); z-index:9999; opacity:0; transition:opacity 0.25s ease;';
+      toast.style.cssText = 'position:fixed; left:50%; bottom:28px; transform:translateX(-50%); background:var(--plum, #2B241E); color:white; padding:11px 20px; border-radius:999px; font-size:13px; font-weight:600; box-shadow:0 6px 18px rgba(0,0,0,0.25); z-index:9999; opacity:0; transition:opacity 0.25s ease;';
       document.body.appendChild(toast);
     }
     toast.textContent = '✓ Item saved';
@@ -1940,7 +1940,7 @@ export const app = (function(){
 
   function buildMarkerInnerHtml(w, h){
     const { cx, cy, armLen, gapR, thick, tickLen, tickGap } = markerGeometry(w, h);
-    const color = '#3D2C32';
+    const color = '#2B241E';
     const bar = (left, top, width, height) =>
       `<div style="position:absolute; left:${left}in; top:${top}in; width:${width}in; height:${height}in; background:${color};"></div>`;
     return `
@@ -1961,14 +1961,14 @@ export const app = (function(){
     canvas.width = Math.round(w * dpi);
     canvas.height = Math.round(h * dpi);
     const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#FFFDFA';
+    ctx.fillStyle = '#FFFDF9';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     const g = markerGeometry(w, h);
     const cx = g.cx * dpi, cy = g.cy * dpi;
     const armLen = g.armLen * dpi, gapR = g.gapR * dpi, thick = g.thick * dpi;
     const tickLen = g.tickLen * dpi, tickGap = g.tickGap * dpi;
-    const color = '#3D2C32';
+    const color = '#2B241E';
 
     ctx.fillStyle = color;
     ctx.fillRect(cx - thick / 2, cy - gapR - armLen, thick, armLen);
@@ -1998,7 +1998,7 @@ export const app = (function(){
     canvas.width = Math.round(w * dpi);
     canvas.height = Math.round(h * dpi);
     const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#FFFDFA';
+    ctx.fillStyle = '#FFFDF9';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -2032,7 +2032,7 @@ export const app = (function(){
     const totalIn = codeFontIn + (boxText ? gapIn + boxFontIn : 0) + (secondary ? gapIn + secFontIn : 0);
     let curY = ((h - totalIn) / 2 + codeFontIn / 2) * dpi;
 
-    ctx.fillStyle = '#3D2C32';
+    ctx.fillStyle = '#2B241E';
     ctx.font = `700 ${codeFontIn * dpi}px 'JetBrains Mono', monospace`;
     ctx.fillText(code, canvas.width / 2, curY);
     curY += (codeFontIn / 2) * dpi;
@@ -2047,7 +2047,7 @@ export const app = (function(){
     if (secondary){
       curY += (gapIn + secFontIn / 2) * dpi;
       ctx.font = `500 ${secFontIn * dpi}px 'Inter', sans-serif`;
-      ctx.fillStyle = '#6B5760';
+      ctx.fillStyle = '#6E5F4E';
       let text = secondary;
       while (ctx.measureText(text).width > maxWidth && text.length > 1){
         text = text.slice(0, -1);

@@ -11,21 +11,31 @@
      fix for this exact bug. Do not remove or lower this. */
   input, select, textarea{ font-size:16px !important; }
 
+  /* Palette — v3.13.1 warm-neutral rebrand (2026-08-09), matched to an
+     external dashboard mockup Vitor liked. Same token NAMES as before on
+     purpose: every rule in this file (and every inline var(--x, #fallback)
+     elsewhere) keys off these, so changing values here re-themes the whole
+     app — mobile included — without touching individual components.
+     --terracotta/-deep went from a coral-red to a warm taupe-brown;
+     --plum/-soft went from a plum-purple-brown to a near-black warm brown.
+     --danger is deliberately UNCHANGED — it's a semantic status color
+     (errors/delete), not part of the brand accent, and needs to keep
+     reading as "red" against the new brown accent, not shift with it. */
   :root{
-    --cream: #FBF3E9;
-    --cream-soft: #F6EAE0;
-    --blush: #E8C4C0;
-    --terracotta: #C2705F;
-    --terracotta-deep: #A85647;
-    --plum: #3D2C32;
-    --plum-soft: #6B5760;
+    --cream: #F4EEE2;
+    --cream-soft: #EBE1CE;
+    --blush: #E1D2B9;
+    --terracotta: #8C6F52;
+    --terracotta-deep: #6B5540;
+    --plum: #2B241E;
+    --plum-soft: #6E5F4E;
     --sage: #7E9678;
     --sage-deep: #5F7459;
-    --gold: #C9A35F;
-    --amber: #D9A05B;
-    --amber-deep: #B97F3E;
-    --line: rgba(61,44,50,0.13);
-    --white: #FFFDFA;
+    --gold: #B99B5B;
+    --amber: #C99B5E;
+    --amber-deep: #A67D3E;
+    --line: rgba(43,36,30,0.13);
+    --white: #FFFDF9;
     --danger: #B5564A;
   }
 
@@ -879,18 +889,18 @@
     .dash-lower-grid{grid-template-columns:1fr;}
   }
 
-   #authOverlay{ position:fixed; inset:0; background:var(--cream, #FBF3E9); z-index:500; display:flex; align-items:center; justify-content:center; padding:24px; }
+   #authOverlay{ position:fixed; inset:0; background:var(--cream, #F4EEE2); z-index:500; display:flex; align-items:center; justify-content:center; padding:24px; }
   #authOverlay .auth-card{ width:100%; max-width:360px; background:#fff; border-radius:16px; padding:28px 24px; box-shadow:0 4px 20px rgba(0,0,0,0.08); }
-  #authOverlay h2{ margin:0 0 4px; color:var(--plum, #3D2C32); font-size:20px; }
-  #authOverlay p.auth-sub{ margin:0 0 20px; color:var(--plum-soft, #6B5760); font-size:13px; }
-  #authOverlay label{ display:block; font-size:12px; font-weight:600; color:var(--plum-soft, #6B5760); margin:14px 0 5px; }
+  #authOverlay h2{ margin:0 0 4px; color:var(--plum, #2B241E); font-size:20px; }
+  #authOverlay p.auth-sub{ margin:0 0 20px; color:var(--plum-soft, #6E5F4E); font-size:13px; }
+  #authOverlay label{ display:block; font-size:12px; font-weight:600; color:var(--plum-soft, #6E5F4E); margin:14px 0 5px; }
   #authOverlay input{ width:100%; padding:10px 12px; border-radius:8px; border:1px solid var(--line, #E4D9CE); font-size:14px; box-sizing:border-box; }
-  #authOverlay button.auth-submit{ width:100%; margin-top:20px; padding:11px; border:none; border-radius:8px; background:var(--terracotta, #C2705F); color:#fff; font-size:14px; font-weight:600; cursor:pointer; }
-  #authOverlay .auth-toggle{ margin-top:14px; text-align:center; font-size:13px; color:var(--plum-soft, #6B5760); }
-  #authOverlay .auth-toggle a{ color:var(--terracotta, #C2705F); cursor:pointer; text-decoration:underline; }
+  #authOverlay button.auth-submit{ width:100%; margin-top:20px; padding:11px; border:none; border-radius:8px; background:var(--terracotta, #8C6F52); color:#fff; font-size:14px; font-weight:600; cursor:pointer; }
+  #authOverlay .auth-toggle{ margin-top:14px; text-align:center; font-size:13px; color:var(--plum-soft, #6E5F4E); }
+  #authOverlay .auth-toggle a{ color:var(--terracotta, #8C6F52); cursor:pointer; text-decoration:underline; }
   #authOverlay .auth-error{ margin-top:12px; font-size:13px; color:var(--danger, #C0392B); }
   #authOverlay .auth-pending{ text-align:center; }
-  #authOverlay .auth-pending button{ margin-top:18px; background:transparent; border:1px solid var(--line, #E4D9CE); border-radius:8px; padding:9px 16px; font-size:13px; cursor:pointer; color:var(--plum, #3D2C32); }
+  #authOverlay .auth-pending button{ margin-top:18px; background:transparent; border:1px solid var(--line, #E4D9CE); border-radius:8px; padding:9px 16px; font-size:13px; cursor:pointer; color:var(--plum, #2B241E); }
   /* header/.tabs/main now live inside .app-shell > .app-column (added for
      the desktop sidebar layout) instead of directly under body — this has
      to hide the whole shell, not the old direct-child selectors, or the
