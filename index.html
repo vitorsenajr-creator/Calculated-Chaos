@@ -497,6 +497,52 @@
   </div>
 </div>
 
+<!-- SOLD CONFIRMATION — shown the moment an item transitions to "Sold"
+     (single item here; bulk "Set: Sold" uses its own review list in the
+     bulk action bar instead, since it covers many items at once). Forces
+     confirming sale price / platform fee / who paid shipping BEFORE the
+     financial calc runs, instead of computing off whatever was already
+     sitting in the form fields. -->
+<div class="modal-overlay hidden" id="soldConfirmOverlay" style="z-index:140;">
+  <div class="modal" style="max-width:440px;">
+    <div class="modal-handle"></div>
+    <h2>Confirm sale details</h2>
+    <div class="ss-desc" style="margin-top:-10px; margin-bottom:16px;">Marking this Sold — confirm the real numbers before it feeds into profit reporting.</div>
+
+    <div class="field">
+      <label>1. Sale price ($)</label>
+      <input type="number" class="mono" id="scPrice" step="0.01">
+    </div>
+
+    <div class="field">
+      <label>2. Sold on (which platform fee applies)</label>
+      <select id="scPlatform"></select>
+    </div>
+
+    <label style="display:block; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; color:var(--plum-soft); margin-bottom:7px;">3. Who paid for shipping?</label>
+    <div class="status-select-row" id="scShippingWhoRow">
+      <div class="status-pill" data-who="buyer">Buyer paid</div>
+      <div class="status-pill" data-who="seller">I paid (seller)</div>
+    </div>
+    <div class="field" id="scShippingCostField" style="display:none;">
+      <label>Shipping cost ($)</label>
+      <input type="number" class="mono" id="scShippingCost" step="0.01">
+    </div>
+
+    <div class="suggestion-box" style="margin-top:16px;">
+      <div class="stamp-corner">Preview</div>
+      <div class="suggestion-row">Platform fee <b id="scFeePreview">$0.00</b></div>
+      <div class="suggestion-row">Shipping cost <b id="scShipPreview">$0.00</b></div>
+      <div class="suggestion-final" id="scNetPreview">Net profit: $0.00</div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="scCancelBtn">Cancel</button>
+      <button class="btn btn-primary" id="scConfirmBtn">Confirm sale</button>
+    </div>
+  </div>
+</div>
+
   <script type="module" src="/src/main.js"></script>
   <script>
     if ('serviceWorker' in navigator) {

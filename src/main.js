@@ -54,7 +54,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.2';
+  const APP_VERSION = 'v3.13.3';
   const APP_VERSION_DATE = '2026-08-09';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -886,9 +886,15 @@ export const app = (function(){
       bulkApplyStatusBtn.addEventListener('click', async () => {
         const newStatus = document.getElementById('bulkStatusSelect').value;
         const ids = Array.from(bulkSelectedIds);
+        if (newStatus === 'vendido'){
+          // Sold needs price/fee/shipping confirmed per item — see
+          // showBulkSoldConfirm, same "explicit confirmation before the
+          // financial calc runs" rule as the single-item modal.
+          showBulkSoldConfirm(ids);
+          return;
+        }
         bulkApplyStatusBtn.disabled = true;
         bulkStatus(`Updating ${ids.length} item${ids.length===1?'':'s'}…`);
-        const ebayPostSoldMessages = [];
         const skippedNoPlatform = [];
         for (const id of ids){
           const item = items.find(i => i.id === id);
@@ -902,43 +908,108 @@ export const app = (function(){
             continue;
           }
           const updated = { ...item, status: newStatus };
-          if (newStatus === 'vendido' && item.status !== 'vendido'){
-            const soldPrice = parseFloat(item.listPrice) || suggestPrice(item);
-            const defaultSoldPlatform = item.soldPlatform || item.listedPlatforms?.[0] || item.platform || 'ebay';
-            const feesTotal = platformFee(defaultSoldPlatform, soldPrice);
-            updated.soldPrice = soldPrice;
-            updated.shippingCost = updated.shippingCost || 0;
-            // No per-item picker makes sense in a bulk action — defaults to
-            // the first "Listed on" platform (or the item's old legacy
-            // Platform field, for items catalogued before that field was
-            // retired); she can correct it per-item afterward via the
-            // "Sold on" field if it actually sold elsewhere.
-            updated.soldPlatform = defaultSoldPlatform;
-            updated.feesTotal = feesTotal;
-            updated.soldAt = item.soldAt || Date.now();
-            updated.netProfit = soldPrice - (parseFloat(item.cost)||0) - feesTotal - (updated.shippingCost||0);
-          }
           const idx = items.findIndex(i => i.id === id);
+          if (idx >= 0) items[idx] = updated;
+          try{ await saveItem(updated); }catch(e){ /* saveItem already alerts */ }
+        }
+        bulkSelectedIds.clear();
+        bulkSelectMode = false;
+        renderAll();
+        if (skippedNoPlatform.length){
+          alert(`⚠️ Skipped setting these to "Listed" — no platform checked under "Listed on": ${skippedNoPlatform.join(', ')}. Edit each one, pick a platform, then try again.`);
+        } else {
+          showSavedToast();
+        }
+      });
+    }
+
+    // Review-and-confirm screen for bulk "Set: Sold" — one row per selected
+    // item with editable price/sold-platform/shipping-payer, prefilled with
+    // the same best-guesses the old silent auto-apply used, so nothing
+    // actually gets worse for someone who just wants to accept the guesses
+    // — but now she SEES them first instead of them being invisible.
+    function showBulkSoldConfirm(ids){
+      const statusEl = document.getElementById('bulkActionStatus');
+      if (!statusEl) return;
+      const rows = ids.map(id => items.find(i => i.id === id)).filter(Boolean);
+      const platformOptions = getAllPlatforms();
+      statusEl.innerHTML = `
+        <div class="ebay-connect-box">
+          <div class="ec-title">Confirm sale details for ${rows.length} item${rows.length===1?'':'s'}</div>
+          <div class="ec-sub">Price, platform fee, and who paid shipping — review before this feeds into profit reporting.</div>
+          ${rows.map(item => {
+            const guessedPrice = item.soldPrice || item.listPrice || suggestPrice(item);
+            const guessedPlatform = item.soldPlatform || item.listedPlatforms?.[0] || item.platform || 'ebay';
+            const listingSaysSellerPays = item.freeShipping === true;
+            const guessedWho = item.shippingCost ? 'seller' : (listingSaysSellerPays ? 'seller' : 'buyer');
+            return `
+            <div data-bulk-sold-row="${item.id}" style="border-top:1px dashed var(--line); padding-top:10px; margin-top:10px;">
+              <div style="font-size:13px; font-weight:600; color:var(--plum); margin-bottom:6px;">${escapeHtml(item.name || item.productCode || 'Item')}</div>
+              <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
+                <span style="font-size:11px; color:var(--plum-soft);">Price $</span>
+                <input type="number" class="mono" data-bs-price step="0.01" value="${parseFloat(guessedPrice||0).toFixed(2)}" style="width:70px; padding:5px 6px; border:1px solid var(--line); border-radius:6px; font-size:12px;">
+                <select data-bs-platform style="padding:5px 6px; border:1px solid var(--line); border-radius:6px; font-size:12px;">
+                  ${platformOptions.map(p => `<option value="${p.key}" ${p.key===guessedPlatform?'selected':''}>${escapeHtml(PLATFORM_NAME[p.key] || p.label)}</option>`).join('')}
+                </select>
+                <select data-bs-who style="padding:5px 6px; border:1px solid var(--line); border-radius:6px; font-size:12px;">
+                  <option value="buyer" ${guessedWho==='buyer'?'selected':''}>Buyer paid shipping</option>
+                  <option value="seller" ${guessedWho==='seller'?'selected':''}>I paid shipping</option>
+                </select>
+                <input type="number" class="mono" data-bs-shipping step="0.01" placeholder="ship $" value="${item.shippingCost ? parseFloat(item.shippingCost).toFixed(2) : ''}" style="width:60px; padding:5px 6px; border:1px solid var(--line); border-radius:6px; font-size:12px; ${guessedWho==='seller'?'':'display:none;'}">
+              </div>
+            </div>`;
+          }).join('')}
+          <button id="bulkSoldConfirmBtn" style="background:var(--terracotta); color:white; border:none; border-radius:8px; padding:11px; font-size:13px; font-weight:600; cursor:pointer; width:100%; margin-top:14px;">
+            ✓ Confirm & mark ${rows.length} as sold
+          </button>
+          <button id="bulkSoldCancelBtn" style="background:transparent; border:1px solid var(--line); border-radius:8px; padding:9px; font-size:13px; cursor:pointer; width:100%; margin-top:6px;">
+            Cancel
+          </button>
+        </div>`;
+
+      statusEl.querySelectorAll('[data-bs-who]').forEach(sel => {
+        sel.addEventListener('change', () => {
+          const row = sel.closest('[data-bulk-sold-row]');
+          row.querySelector('[data-bs-shipping]').style.display = sel.value === 'seller' ? 'block' : 'none';
+        });
+      });
+      document.getElementById('bulkSoldCancelBtn').addEventListener('click', () => { statusEl.innerHTML = ''; });
+      document.getElementById('bulkSoldConfirmBtn').addEventListener('click', async () => {
+        const confirmBtn = document.getElementById('bulkSoldConfirmBtn');
+        confirmBtn.disabled = true;
+        confirmBtn.textContent = 'Saving…';
+        const ebayPostSoldMessages = [];
+        for (const item of rows){
+          const row = statusEl.querySelector(`[data-bulk-sold-row="${item.id}"]`);
+          if (!row) continue;
+          const soldPrice = parseFloat(row.querySelector('[data-bs-price]').value) || 0;
+          const soldPlatform = row.querySelector('[data-bs-platform]').value;
+          const who = row.querySelector('[data-bs-who]').value;
+          const shippingCost = who === 'seller' ? (parseFloat(row.querySelector('[data-bs-shipping]').value) || 0) : 0;
+          const feesTotal = platformFee(soldPlatform, soldPrice);
+          const updated = {
+            ...item,
+            status: 'vendido',
+            soldPrice,
+            soldPlatform,
+            shippingCost,
+            feesTotal,
+            soldAt: item.soldAt || Date.now(),
+            netProfit: soldPrice - (parseFloat(item.cost)||0) - feesTotal - shippingCost,
+          };
+          const idx = items.findIndex(i => i.id === item.id);
           if (idx >= 0) items[idx] = updated;
           try{
             await saveItem(updated);
-            if (newStatus === 'vendido'){
-              const ebayEndResult = await endEbayListingIfSold(updated);
-              ebayPostSoldMessages.push(...ebayPostSoldMessageLines(updated, ebayEndResult));
-            }
+            const ebayEndResult = await endEbayListingIfSold(updated);
+            ebayPostSoldMessages.push(...ebayPostSoldMessageLines(updated, ebayEndResult));
           }catch(e){ /* saveItem already alerts */ }
         }
         bulkSelectedIds.clear();
         bulkSelectMode = false;
         renderAll();
-        const alertLines = [...ebayPostSoldMessages];
-        if (skippedNoPlatform.length){
-          alertLines.push(`⚠️ Skipped setting these to "Listed" — no platform checked under "Listed on": ${skippedNoPlatform.join(', ')}. Edit each one, pick a platform, then try again.`);
-        }
-        if (alertLines.length){
-          // Loud and blocking on purpose — a missed eBay/other-platform
-          // double-sell is a real money loss, not a "review later" notice.
-          alert(alertLines.join('\n\n'));
+        if (ebayPostSoldMessages.length){
+          alert(ebayPostSoldMessages.join('\n\n'));
         } else {
           showSavedToast();
         }
@@ -3048,7 +3119,78 @@ export const app = (function(){
   }
   document.getElementById('statusRow').addEventListener('click', (e) => {
     const pill = e.target.closest('.status-pill');
-    if (pill) setStatusUI(pill.dataset.status);
+    if (!pill) return;
+    // Marking Sold specifically (not re-clicking an already-selected Sold
+    // pill, and not the other statuses) needs an explicit confirmation of
+    // price/fee/shipping first — see openSoldConfirmModal.
+    if (pill.dataset.status === 'vendido' && currentStatus !== 'vendido'){
+      openSoldConfirmModal();
+    } else {
+      setStatusUI(pill.dataset.status);
+    }
+  });
+
+  // ---------- SOLD CONFIRMATION MODAL ----------
+  // Fires the moment an item transitions to Sold (single-item modal only —
+  // bulk "Set: Sold" has its own review list, see showBulkSoldConfirm).
+  // Forces confirming (1) sale price (2) which platform's fee applies
+  // (3) who paid shipping, with a live net-profit preview, BEFORE
+  // currentStatus actually flips to 'vendido' — replaces silently
+  // computing off whatever was already sitting in the form fields.
+  function updateSoldConfirmPreview(){
+    const price = parseFloat(document.getElementById('scPrice').value) || 0;
+    const platform = document.getElementById('scPlatform').value;
+    const who = document.querySelector('#scShippingWhoRow .status-pill.selected')?.dataset.who || 'buyer';
+    const shipField = document.getElementById('scShippingCostField');
+    shipField.style.display = who === 'seller' ? 'block' : 'none';
+    const shippingCost = who === 'seller' ? (parseFloat(document.getElementById('scShippingCost').value) || 0) : 0;
+    const fee = platformFee(platform, price);
+    const cost = parseFloat(document.getElementById('fCost').value) || 0;
+    const netProfit = price - cost - fee - shippingCost;
+    document.getElementById('scFeePreview').textContent = `$${fee.toFixed(2)}`;
+    document.getElementById('scShipPreview').textContent = `$${shippingCost.toFixed(2)}`;
+    document.getElementById('scNetPreview').textContent = `Net profit: $${netProfit.toFixed(2)}`;
+  }
+  function openSoldConfirmModal(){
+    const item = items.find(i => i.id === currentEditId);
+    const platformSelect = document.getElementById('scPlatform');
+    platformSelect.innerHTML = getAllPlatforms().map(p => `<option value="${p.key}">${escapeHtml(PLATFORM_NAME[p.key] || p.label)}</option>`).join('');
+    const guessedPlatform = item?.soldPlatform || currentListedPlatforms[0] || 'ebay';
+    platformSelect.value = guessedPlatform;
+    const listPriceVal = document.getElementById('fListPrice').value;
+    document.getElementById('scPrice').value = (item?.soldPrice || listPriceVal || '') !== '' ? parseFloat(item?.soldPrice || listPriceVal).toFixed(2) : '';
+    const listingSaysSellerPays = document.getElementById('fFreeShipping')?.value === 'seller';
+    const guessedWho = item?.shippingCost ? 'seller' : (listingSaysSellerPays ? 'seller' : 'buyer');
+    document.querySelectorAll('#scShippingWhoRow .status-pill').forEach(p => p.classList.toggle('selected', p.dataset.who === guessedWho));
+    document.getElementById('scShippingCost').value = item?.shippingCost ? parseFloat(item.shippingCost).toFixed(2) : '';
+    updateSoldConfirmPreview();
+    document.getElementById('soldConfirmOverlay').classList.remove('hidden');
+  }
+  document.getElementById('scPrice').addEventListener('input', updateSoldConfirmPreview);
+  document.getElementById('scPlatform').addEventListener('change', updateSoldConfirmPreview);
+  document.getElementById('scShippingCost').addEventListener('input', updateSoldConfirmPreview);
+  document.getElementById('scShippingWhoRow').addEventListener('click', (e) => {
+    const pill = e.target.closest('.status-pill');
+    if (!pill) return;
+    document.querySelectorAll('#scShippingWhoRow .status-pill').forEach(p => p.classList.toggle('selected', p === pill));
+    updateSoldConfirmPreview();
+  });
+  document.getElementById('scCancelBtn').addEventListener('click', () => {
+    document.getElementById('soldConfirmOverlay').classList.add('hidden');
+    // Deliberately does NOT touch currentStatus/the pills — canceling
+    // leaves the item exactly as it was before she tapped "Sold".
+  });
+  document.getElementById('scConfirmBtn').addEventListener('click', () => {
+    const price = document.getElementById('scPrice').value;
+    if (!price || parseFloat(price) < 0){ alert('Enter a valid sale price.'); return; }
+    const platform = document.getElementById('scPlatform').value;
+    const who = document.querySelector('#scShippingWhoRow .status-pill.selected')?.dataset.who || 'buyer';
+    const shippingCost = who === 'seller' ? (document.getElementById('scShippingCost').value || '0') : '0';
+    document.getElementById('soldConfirmOverlay').classList.add('hidden');
+    setStatusUI('vendido'); // rebuilds #soldFieldsArea — set its values AFTER this
+    document.getElementById('fSoldPrice').value = parseFloat(price).toFixed(2);
+    document.getElementById('fShippingCost').value = parseFloat(shippingCost).toFixed(2);
+    document.getElementById('fSoldPlatform').value = platform;
   });
 
   // ---------- PREP PILLS ----------
@@ -5028,19 +5170,51 @@ EBAY_MERCHANT_LOCATION_KEY=${escapeHtml(data.results.merchantLocationKey)}</div>
   };
 
   // ---------- PLATFORMS SETTINGS (Settings → Platforms) ----------
+  // Which platform's tiered-fee editor is expanded — survives re-renders
+  // triggered by editing a tier (module-level, resets on Settings reopen,
+  // which is fine, this is just an open/closed UI state).
+  let openFeeRulesPlatform = null;
+
   function renderPlatformsSettingsList(){
     const container = document.getElementById('platformsList');
     if (!container) return;
     const platforms = getAllPlatforms();
-    container.innerHTML = platforms.map(p => `
-      <div style="display:flex; align-items:center; gap:8px; padding:8px 0; border-bottom:1px solid var(--line);">
-        <span style="flex:1; font-size:13px; font-weight:600; color:var(--plum);">${escapeHtml(p.label)}</span>
-        <input type="number" data-platform-fee="${p.key}" value="${p.feePct.toFixed(2)}" min="0" max="100" step="0.1" style="width:70px; padding:6px 8px; border:1px solid var(--line); border-radius:6px; font-size:13px;">
-        <span style="font-size:12px; color:var(--plum-soft);">%</span>
-        <button class="icon-btn" data-platform-suggest="${p.key}" title="Ask the AI for a current fee % estimate">🔍</button>
-        ${p.builtIn ? '' : `<button class="icon-btn" data-platform-delete="${p.key}" style="color:var(--danger);" title="Remove this platform">🗑</button>`}
+    container.innerHTML = platforms.map(p => {
+      const rules = appSettings.platformFeeRules?.[p.key];
+      const hasTiers = rules && rules.length > 0;
+      const isOpen = openFeeRulesPlatform === p.key;
+      return `
+      <div style="padding:8px 0; border-bottom:1px solid var(--line);">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="flex:1; font-size:13px; font-weight:600; color:var(--plum);">${escapeHtml(p.label)}</span>
+          ${hasTiers
+            ? `<span style="font-size:11px; color:var(--sage-deep); font-weight:600;">🎚️ Tiered</span>`
+            : `<input type="number" data-platform-fee="${p.key}" value="${p.feePct.toFixed(2)}" min="0" max="100" step="0.1" style="width:70px; padding:6px 8px; border:1px solid var(--line); border-radius:6px; font-size:13px;"><span style="font-size:12px; color:var(--plum-soft);">%</span>`}
+          <button class="icon-btn" data-platform-rules-toggle="${p.key}" title="Tiered fees (e.g. a flat $ fee under a price, % above it)">🎚️</button>
+          <button class="icon-btn" data-platform-suggest="${p.key}" title="Ask the AI for a current fee % estimate">🔍</button>
+          ${p.builtIn ? '' : `<button class="icon-btn" data-platform-delete="${p.key}" style="color:var(--danger);" title="Remove this platform">🗑</button>`}
+        </div>
+        ${isOpen ? `
+          <div style="margin-top:8px; padding:10px; background:var(--cream-soft); border-radius:10px;">
+            <div style="font-size:11px; color:var(--plum-soft); margin-bottom:8px;">Fee = % of sale price + a flat $ amount, per tier. The last tier (no "up to") catches everything above the ones before it.</div>
+            ${(rules || []).map((r, i) => `
+              <div style="display:flex; align-items:center; gap:6px; margin-bottom:6px;">
+                ${r.upTo === null || r.upTo === undefined
+                  ? `<span style="font-size:12px; color:var(--plum-soft); width:110px;">Above all tiers:</span>`
+                  : `<span style="font-size:12px; color:var(--plum-soft);">Up to $</span><input type="number" data-tier-upto="${p.key}:${i}" value="${r.upTo}" min="0" step="0.5" style="width:60px; padding:5px 6px; border:1px solid var(--line); border-radius:6px; font-size:12px;">`}
+                <input type="number" data-tier-pct="${p.key}:${i}" value="${r.pct || 0}" min="0" max="100" step="0.1" style="width:55px; padding:5px 6px; border:1px solid var(--line); border-radius:6px; font-size:12px;"><span style="font-size:11px; color:var(--plum-soft);">% +</span>
+                <input type="number" data-tier-flat="${p.key}:${i}" value="${r.flat || 0}" min="0" step="0.01" style="width:55px; padding:5px 6px; border:1px solid var(--line); border-radius:6px; font-size:12px;"><span style="font-size:11px; color:var(--plum-soft);">$ flat</span>
+                <button class="icon-btn" data-tier-delete="${p.key}:${i}" style="color:var(--danger); padding:4px 8px;" title="Remove this tier">🗑</button>
+              </div>
+            `).join('')}
+            <div style="display:flex; gap:8px; margin-top:8px;">
+              <button class="icon-btn" data-add-tier="${p.key}">+ Add tier</button>
+              ${hasTiers ? `<button class="icon-btn" data-clear-tiers="${p.key}" style="color:var(--danger);">Use flat % instead</button>` : ''}
+            </div>
+          </div>
+        ` : ''}
       </div>
-    `).join('');
+    `;}).join('');
 
     container.querySelectorAll('[data-platform-fee]').forEach(input => {
       input.addEventListener('change', async () => {
@@ -5069,6 +5243,69 @@ EBAY_MERCHANT_LOCATION_KEY=${escapeHtml(data.results.merchantLocationKey)}</div>
     container.querySelectorAll('[data-platform-suggest]').forEach(btn => {
       btn.addEventListener('click', () => suggestPlatformFee(btn.dataset.platformSuggest));
     });
+    container.querySelectorAll('[data-platform-rules-toggle]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const key = btn.dataset.platformRulesToggle;
+        openFeeRulesPlatform = openFeeRulesPlatform === key ? null : key;
+        renderPlatformsSettingsList();
+      });
+    });
+    container.querySelectorAll('[data-add-tier]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const key = btn.dataset.addTier;
+        const existing = appSettings.platformFeeRules?.[key] || [];
+        // New tier goes in just before the catch-all (no-limit) one, if
+        // there is one, with a starting threshold that doesn't collide.
+        const lastFiniteUpTo = existing.filter(r => r.upTo !== null && r.upTo !== undefined).reduce((m,r) => Math.max(m, r.upTo), 0);
+        const newTier = { upTo: lastFiniteUpTo > 0 ? lastFiniteUpTo + 10 : 15, pct: 0, flat: 0 };
+        const catchAllIdx = existing.findIndex(r => r.upTo === null || r.upTo === undefined);
+        const updated = catchAllIdx >= 0
+          ? [...existing.slice(0, catchAllIdx), newTier, ...existing.slice(catchAllIdx)]
+          : [...existing, newTier, { upTo: null, pct: 0, flat: 0 }];
+        appSettings.platformFeeRules = { ...appSettings.platformFeeRules, [key]: updated };
+        await saveSettings();
+        renderPlatformsSettingsList();
+        showSaveMsg('platformsSaveMsg');
+      });
+    });
+    container.querySelectorAll('[data-tier-delete]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const [key, idxStr] = btn.dataset.tierDelete.split(':');
+        const idx = parseInt(idxStr, 10);
+        const updated = (appSettings.platformFeeRules?.[key] || []).filter((_, i) => i !== idx);
+        appSettings.platformFeeRules = { ...appSettings.platformFeeRules, [key]: updated };
+        await saveSettings();
+        renderPlatformsSettingsList();
+        showSaveMsg('platformsSaveMsg');
+      });
+    });
+    container.querySelectorAll('[data-clear-tiers]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const key = btn.dataset.clearTiers;
+        if (!confirm(`Switch "${getPlatformLabel(key)}" back to a single flat %? Its tiers will be discarded.`)) return;
+        appSettings.platformFeeRules = { ...appSettings.platformFeeRules, [key]: [] };
+        await saveSettings();
+        renderPlatformsSettingsList();
+        showSaveMsg('platformsSaveMsg');
+      });
+    });
+    const tierFieldHandler = (selector, field, parseFn) => {
+      container.querySelectorAll(selector).forEach(input => {
+        input.addEventListener('change', async () => {
+          const [key, idxStr] = input.dataset[field].split(':');
+          const idx = parseInt(idxStr, 10);
+          const val = parseFn(input.value);
+          if (val === null) return;
+          const updated = (appSettings.platformFeeRules?.[key] || []).map((r, i) => i === idx ? { ...r, [field === 'tierUpto' ? 'upTo' : field === 'tierPct' ? 'pct' : 'flat']: val } : r);
+          appSettings.platformFeeRules = { ...appSettings.platformFeeRules, [key]: updated };
+          await saveSettings();
+          showSaveMsg('platformsSaveMsg');
+        });
+      });
+    };
+    tierFieldHandler('[data-tier-upto]', 'tierUpto', v => { const n = parseFloat(v); return isNaN(n) || n < 0 ? null : n; });
+    tierFieldHandler('[data-tier-pct]', 'tierPct', v => { const n = parseFloat(v); return isNaN(n) || n < 0 ? null : n; });
+    tierFieldHandler('[data-tier-flat]', 'tierFlat', v => { const n = parseFloat(v); return isNaN(n) || n < 0 ? null : n; });
   }
 
   window.addCustomPlatform = async function(){

@@ -4,6 +4,18 @@
 // signatures so every existing call site is unchanged).
 import { CONDITION_FACTOR, BASE_CATEGORY_VALUE, PLATFORM_FEES } from './constants.js';
 
+// Evaluates a platform's tiered fee rules (see DEFAULT_PLATFORM_FEE_RULES
+// in constants.js for the shape) against a sale price: first tier whose
+// `upTo` the price fits under wins (a null upTo never fails to match, so
+// it must be the last/catch-all tier); fee = price*(pct/100) + flat.
+function computeTieredFee(rules, price){
+  const sorted = [...rules].sort((a,b) => (a.upTo ?? Infinity) - (b.upTo ?? Infinity));
+  const tier = sorted.find(r => r.upTo === null || r.upTo === undefined || price <= r.upTo) || sorted[sorted.length - 1];
+  if (!tier) return 0;
+  const fee = price * ((tier.pct || 0) / 100) + (tier.flat || 0);
+  return Math.round(fee * 100) / 100;
+}
+
 export function getCategoryPriceHistory(items, category){
   const sold = items.filter(i => i.status === 'vendido' && i.category === category && i.soldPrice);
   if (sold.length < 2) return null;
@@ -121,6 +133,11 @@ export function estimateShipping(appSettings, item){
 }
 
 export function platformFee(appSettings, platform, price){
+  // Tiered rules (Settings → Platforms → "Tiered fees") win outright when
+  // present — they're a deliberate, explicit choice to model a platform's
+  // real fee structure instead of one flat %.
+  const rules = appSettings.platformFeeRules?.[platform];
+  if (rules && rules.length) return computeTieredFee(rules, price);
   let rate;
   if (appSettings.platformFeeOverrides?.[platform] !== undefined){
     rate = appSettings.platformFeeOverrides[platform];

@@ -6,13 +6,53 @@ export const MAX_PHOTOS = 16;
 export const MAX_PHOTO_DIM = 1600; // px, longest side after compression — matches eBay's own zoom recommendation
 export const PHOTO_QUALITY = 0.85;
 
+// Flat-rate fallback used when a platform has no tiered rules (see
+// DEFAULT_PLATFORM_FEE_RULES below) — either because it genuinely charges
+// one flat %, or as a rough single-number estimate for platforms whose
+// real fee is a %+flat combo. Researched 2026-08-09 (see sources in that
+// commit's message); Vinted in particular changed from a 5% seller cut to
+// $0 — sellers keep 100% of the list price now, the buyer absorbs a
+// separate "Buyer Protection" fee instead.
 export const PLATFORM_FEES = {
-  ebay: 0.1335,
+  ebay: 0.136,
   mercari: 0.10,
   poshmark: 0.20,
-  vinted: 0.05,
+  vinted: 0,
   depop: 0.10,
   outra: 0.12
+};
+
+// Tiered fee rules for platforms whose real structure isn't one flat % —
+// each tier is `{ upTo, pct, flat }`: fee = price*(pct/100) + flat, applied
+// to the first tier where price <= upTo (upTo:null = no ceiling, always
+// matches, must be last). Seeded here as the default so every account
+// starts with accurate numbers; editable per-account in Settings →
+// Platforms, stored in appSettings.platformFeeRules once she does.
+// Researched 2026-08-09:
+//  - eBay: 13.6% final value fee + a flat per-order fee that itself steps
+//    up at $10 ($0.30 -> $0.40). Not modeling eBay's separate $7,500
+//    high-value breakpoint (2.35% above that) — not a realistic price for
+//    a thrift resale item in this app.
+//  - Poshmark: flat $2.95 under $15, 20% at $15 and up. Official, simple,
+//    exactly a 2-tier case.
+//  - Depop: no % commission anymore, just a ~3.3% + $0.45 payment
+//    processing fee — modeled as a single "tier" so the flat component
+//    isn't lost the way a pure-% approximation would lose it.
+export const DEFAULT_PLATFORM_FEE_RULES = {
+  ebay: [
+    { upTo: 10, pct: 13.6, flat: 0.30 },
+    { upTo: null, pct: 13.6, flat: 0.40 },
+  ],
+  // upTo is inclusive ("price <= upTo" picks the tier) — 14.99, not 15,
+  // because the real rule is "under $15", and $15.00 itself is already in
+  // the 20% tier.
+  poshmark: [
+    { upTo: 14.99, pct: 0, flat: 2.95 },
+    { upTo: null, pct: 20, flat: 0 },
+  ],
+  depop: [
+    { upTo: null, pct: 3.3, flat: 0.45 },
+  ],
 };
 
 export const PLATFORM_LABEL = {

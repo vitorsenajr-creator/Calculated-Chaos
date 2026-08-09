@@ -3,6 +3,7 @@
 // main.js (loadSettings/saveSettings/resetAiCounter reassign/mutate it and
 // persist to Firestore) — only the parts that just *read* it move here,
 // parameterized like pricing.js/reports.js.
+import { DEFAULT_PLATFORM_FEE_RULES } from './constants.js';
 
 export const DEFAULT_SETTINGS = {
   // 1. Price markup rule
@@ -48,6 +49,13 @@ export const DEFAULT_SETTINGS = {
   // her own (key/label/emoji/feePct), addable and removable.
   platformFeeOverrides: {}, // { ebay: 0.15, ... } — overrides PLATFORM_FEES per key
   customPlatforms: [],      // [{ key, label, emoji, feePct }]
+  // Tiered fee rules (see DEFAULT_PLATFORM_FEE_RULES in constants.js for
+  // the shape and the research behind these starting numbers) — take
+  // priority over platformFeeOverrides/feePct above whenever present for
+  // a given platform. Pre-filled for eBay/Poshmark/Depop since those
+  // don't charge one flat %; she can edit or clear them per platform in
+  // Settings → Platforms.
+  platformFeeRules: { ...DEFAULT_PLATFORM_FEE_RULES },
 
   // 4. Thermal label printing (per-item)
   labelWidthIn: 2.25,
