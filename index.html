@@ -40,32 +40,56 @@
   </div>
 </div>
 
-<header>
-  <div class="eyebrow">Resale Studio · eBay / Mercari / Poshmark</div>
-  <div class="version-badge" id="versionBadge"></div>
-  <button id="appRefreshBtn" title="Refresh app" aria-label="Refresh app" style="position:absolute; top:12px; left:12px; background:rgba(255,255,255,0.5); border:none; border-radius:50%; width:36px; height:36px; font-size:18px; cursor:pointer; color:var(--plum); z-index:5;">⟳</button>
-  <button id="headerLogOutBtn" title="Log out" aria-label="Log out" style="position:absolute; top:12px; right:12px; background:rgba(255,255,255,0.5); border:none; border-radius:50%; width:36px; height:36px; font-size:16px; cursor:pointer; color:var(--plum); z-index:5;">⏻</button>
-  <h1>Calculated Chaos</h1>
-  <p class="subtitle">Every thrift find, cataloged, priced, and accounted for.</p>
+<div class="app-shell">
+  <!-- Desktop-only sidebar (hidden under the responsive breakpoint in
+       style.css — mobile keeps the .tabs bar below untouched). Mirrors
+       .tabs exactly via the same data-tab + switchToTab() wiring, plus
+       one extra entry (Dashboard) that only exists here. -->
+  <nav class="sidebar" id="sidebarNav">
+    <div class="sidebar-brand">
+      <div class="sidebar-mark">✦</div>
+      <div>
+        <div class="sidebar-title">Calculated Chaos</div>
+        <div class="sidebar-sub">Resale Ops</div>
+      </div>
+    </div>
+    <button class="sidebar-link" data-tab="dashboard">📊 Dashboard</button>
+    <button class="sidebar-link active" data-tab="catalog">👕 Catalog</button>
+    <button class="sidebar-link" data-tab="finance">💰 Finances</button>
+    <button class="sidebar-link" data-tab="reports">📈 Reports</button>
+    <button class="sidebar-link" data-tab="settings">⚙ Settings</button>
+  </nav>
 
-  <div class="daily-quote" id="dailyQuote"></div>
+  <div class="app-column">
+    <header>
+      <div class="eyebrow">Resale Studio · eBay / Mercari / Poshmark</div>
+      <div class="version-badge" id="versionBadge"></div>
+      <button id="appRefreshBtn" title="Refresh app" aria-label="Refresh app" style="position:absolute; top:12px; left:12px; background:rgba(255,255,255,0.5); border:none; border-radius:50%; width:36px; height:36px; font-size:18px; cursor:pointer; color:var(--plum); z-index:5;">⟳</button>
+      <button id="headerLogOutBtn" title="Log out" aria-label="Log out" style="position:absolute; top:12px; right:12px; background:rgba(255,255,255,0.5); border:none; border-radius:50%; width:36px; height:36px; font-size:16px; cursor:pointer; color:var(--plum); z-index:5;">⏻</button>
+      <h1>Calculated Chaos</h1>
+      <p class="subtitle">Every thrift find, cataloged, priced, and accounted for.</p>
 
-  <div class="stats-strip" id="statsStrip"></div>
-</header>
+      <div class="daily-quote" id="dailyQuote"></div>
 
-<div class="tabs">
-  <button class="tab-btn active" data-tab="catalog">Catalog</button>
-  <button class="tab-btn" data-tab="finance">Finances</button>
-  <button class="tab-btn" data-tab="reports">Reports</button>
-  <button class="tab-btn" data-tab="settings">⚙ Settings</button>
+      <div class="stats-strip" id="statsStrip"></div>
+    </header>
+
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="catalog">Catalog</button>
+      <button class="tab-btn" data-tab="finance">Finances</button>
+      <button class="tab-btn" data-tab="reports">Reports</button>
+      <button class="tab-btn" data-tab="settings">⚙ Settings</button>
+    </div>
+
+    <main>
+      <div id="dashboardView" style="display:none;"></div>
+      <div id="catalogView"><div class="loading">Loading your pieces…</div></div>
+      <div id="financeView" style="display:none;"></div>
+      <div id="reportsView" style="display:none;"></div>
+      <div id="settingsView" style="display:none;"></div>
+    </main>
+  </div>
 </div>
-
-<main>
-  <div id="catalogView"><div class="loading">Loading your pieces…</div></div>
-  <div id="financeView" style="display:none;"></div>
-  <div id="reportsView" style="display:none;"></div>
-  <div id="settingsView" style="display:none;"></div>
-</main>
 
 <button type="button" id="pageBackToTop" aria-label="Back to top" title="Back to top" style="display:none; position:fixed; bottom:24px; left:22px; width:48px; height:48px; border:none; background:var(--cream, #FBF3E9); color:var(--plum, #3D2C32); border-radius:50%; font-size:18px; cursor:pointer; z-index:50; align-items:center; justify-content:center; box-shadow:0 6px 18px rgba(0,0,0,0.18);">↑</button>
 <button class="fab" id="fabPhotoSession" title="Photo session — batch photos first, catalog later" style="bottom:160px; width:48px; height:48px; font-size:20px; background:var(--gold);">📷</button>

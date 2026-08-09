@@ -16,16 +16,7 @@
 
 ### Pending changelog entry (not yet in CHANGELOG.md)
 
-Changes since the last CHANGELOG.md entry (v3.12.4), to fold into the
-v3.13.0 entry whenever that minor bump happens:
-
-- **v3.12.5** — Fixed `ebayPostSoldMessageLines()` firing its "check other
-  platforms manually" reminder on every item save, not only when the item
-  was actually being marked sold. Translated the eBay post-sold messages
-  to English (they'd been written in Portuguese by mistake). Added
-  validation: an item can't be saved with status "Listed" unless at least
-  one platform is checked under "Listed on" (same rule applied to the bulk
-  "Set: Listed" action).
+Empty — last folded into `CHANGELOG.md` at v3.13.0 (2026-08-09).
 
 ## Planned changes (backlog)
 
@@ -57,15 +48,58 @@ existing inline sold-fields section to require explicit confirmation
 before the fields become editable/save-able. Needs a design pass before
 implementation.
 
-### 2. Revenue-by-platform breakdown (requested by Vitor, 2026-08-09)
+### 2. Revenue-by-platform breakdown — ✅ done (v3.13.0, 2026-08-09)
 
-Reports currently has category performance, projected pipeline, and best
-earners — but nothing that breaks down realized revenue/units-sold per
-selling platform (eBay vs. Poshmark vs. Mercari vs. …), which came up
-after reviewing an external dashboard mockup that included one. Add a
-report section (or dashboard stat) showing $ revenue and # sold per
-platform, similar in spirit to `catRows` in `computeReportsData` but
-grouped by `soldPlatform` instead of category.
+Shipped as part of the new desktop Dashboard (`modules/dashboard.js`'s
+`revenueByPlatform`, grouped by `soldPlatform`) rather than in Reports.
+Still not in the Reports tab itself — revisit if that's wanted there too
+(e.g. in a CSV export).
+
+## Desktop Dashboard (added v3.13.0, 2026-08-09)
+
+Responsive breakpoint at **900px** (`@media (min-width: 900px)` in
+`style.css`) switches between two layouts of the *same* app — nothing is
+duplicated:
+- **Under 900px (mobile/tablet)**: unchanged from before — top `.tabs`
+  bar, Catalog as the starting tab, no sidebar. This is the primary,
+  heavily-used surface (one-handed, mid-sourcing-trip), so it was
+  deliberately left untouched rather than redesigned.
+- **900px and up (desktop)**: `.sidebar` (`#sidebarNav`) replaces the top
+  tabs, and the app opens on the new `dashboard` tab instead of `catalog`
+  (see `waitForFirebaseThenLoad` in `main.js`). The existing `<header>`
+  (title, daily quote, stats strip, refresh/logout buttons) still renders
+  above the content on desktop too — it wasn't folded into the sidebar,
+  to avoid relocating the sign-out button as part of this change.
+
+Deliberate scope decisions, worth knowing before extending this:
+- **Color palette**: the Dashboard reuses the app's existing CSS tokens
+  (terracotta/plum/cream/sage/gold from `:root`) — it does NOT adopt the
+  different olive/warm-neutral palette from the external mockup that
+  inspired it. Nobody explicitly asked for a full rebrand, only for the
+  dashboard layout/content, so the existing brand stayed put. Revisit if
+  a palette change is ever explicitly requested.
+- **Quick actions**: only "Add item" and "Photo haul" are wired up (both
+  just trigger the existing `#fabAdd`/`#fabPhotoSession` buttons) — the
+  mockup's other two tiles ("Generate Listing", "Price Item") need an
+  item already selected and have no standalone entry point today, so
+  they were left out rather than wired to something fake.
+- **Data logic lives in `modules/dashboard.js`** (`computeDashboardData`),
+  pure functions over `items`, same pattern as `modules/reports.js` — no
+  DOM in there, `renderDashboard()` in `main.js` builds the HTML.
+- **"Needs attention"** = items either blocked from listing
+  (`isIncomplete`, status `catalogado`) or stale (status `anunciado`,
+  30+ days since `ebayListedAt`/`createdAt`) — reuses existing helpers,
+  no new business rules invented.
+- **"Sourcing streak"** = consecutive calendar days (through today) with
+  at least one item's `createdAt` on that day. New concept, not used
+  anywhere else in the app.
+- Not verified in a real browser against live Firebase data (this
+  sandbox can't reach it) — verified via `node --check`, a clean
+  `vite build`, a headless-Chromium load up to the login screen (zero
+  thrown JS errors, auth-lock hiding confirmed working after the HTML
+  restructure), and `computeDashboardData` exercised directly with
+  synthetic item data. **Click through the real Dashboard on desktop
+  once before trusting it further.**
 
 ## User-facing text: English only
 

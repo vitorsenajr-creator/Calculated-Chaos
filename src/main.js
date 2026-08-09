@@ -48,13 +48,14 @@ import {
   filtersActiveCount as _filtersActiveCount,
   applyFilters as _applyFilters,
 } from './modules/catalog-filters.js';
+import { computeDashboardData } from './modules/dashboard.js';
 
 export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.12.5';
-  const APP_VERSION_DATE = '2026-08-07';
+  const APP_VERSION = 'v3.13.0';
+  const APP_VERSION_DATE = '2026-08-09';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
   let itemsLoaded = false; // true once the initial Firestore fetch in loadItems() resolves
@@ -1289,13 +1290,184 @@ export const app = (function(){
     renderReports();
   }
 
+  // ---------- DASHBOARD (desktop home — see switchToTab) ----------
+  const DASH_ACTIVITY_ICON = { added: '📷', listed: '🏷️', sold: '💰' };
+  const DASH_ACTIVITY_LABEL = { added: 'Added', listed: 'Listed', sold: 'Sold' };
+
+  // Small inline sparkline for the "profit, last 7 days" panel — no chart
+  // library, just a scaled polyline over the 7 daily totals.
+  function buildDashSparklineSvg(profitByDay){
+    const w = 600, h = 80, pad = 6;
+    const values = profitByDay.map(d => d.profit);
+    const max = Math.max(...values, 1);
+    const min = Math.min(...values, 0);
+    const range = (max - min) || 1;
+    const stepX = (w - pad * 2) / (values.length - 1 || 1);
+    const points = values.map((v, i) => {
+      const x = pad + i * stepX;
+      const y = h - pad - ((v - min) / range) * (h - pad * 2);
+      return [x, y];
+    });
+    const pathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
+    const areaD = `${pathD} L${points[points.length-1][0].toFixed(1)},${h} L${points[0][0].toFixed(1)},${h} Z`;
+    const last = points[points.length - 1];
+    return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+      <path d="${areaD}" fill="rgba(194,112,95,0.12)" stroke="none"/>
+      <path d="${pathD}" fill="none" stroke="var(--terracotta)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+      <circle cx="${last[0].toFixed(1)}" cy="${last[1].toFixed(1)}" r="4" fill="var(--terracotta-deep)"/>
+    </svg>`;
+  }
+
+  function renderDashboard(){
+    const view = document.getElementById('dashboardView');
+    if (!view) return;
+    const d = computeDashboardData(items);
+    const todayLabel = new Date().toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' }).toUpperCase();
+
+    const statCards = `
+      <div class="dash-stat-grid">
+        <div class="dash-stat-card">
+          <div class="label">Inventory</div>
+          <div class="value">${d.inventoryCount}</div>
+          <div class="delta up">↗ +${d.addedThisWeek} this week</div>
+        </div>
+        <div class="dash-stat-card">
+          <div class="label">Pending listings</div>
+          <div class="value">${d.pendingListings.length}</div>
+          <div class="delta">Ready to publish</div>
+        </div>
+        <div class="dash-stat-card highlight">
+          <div class="label">Profit YTD</div>
+          <div class="value">$${d.profitYTD.toFixed(0)}</div>
+          <div class="delta${d.profitYTDDeltaPct !== null && d.profitYTDDeltaPct >= 0 ? ' up' : ''}">${d.profitYTDDeltaPct === null ? '—' : `${d.profitYTDDeltaPct >= 0 ? '↗' : '↘'} ${Math.abs(d.profitYTDDeltaPct).toFixed(1)}% vs last year`}</div>
+        </div>
+        <div class="dash-stat-card">
+          <div class="label">Avg margin</div>
+          <div class="value">${d.avgMargin.toFixed(1)}%</div>
+          <div class="delta">${d.sellThroughPct.toFixed(1)}% sell-through</div>
+        </div>
+      </div>`;
+
+    const quickActions = `
+      <div class="dash-section-label">Quick actions</div>
+      <div class="dash-quick-grid">
+        <button type="button" class="dash-quick-btn primary" id="dashAddItemBtn">
+          <div class="qb-icon">+</div>
+          <div class="qb-title">Add item</div>
+          <div class="qb-sub">Catalog a new find</div>
+        </button>
+        <button type="button" class="dash-quick-btn" id="dashPhotoHaulBtn">
+          <div class="qb-icon">📷</div>
+          <div class="qb-title">Photo haul</div>
+          <div class="qb-sub">Bulk-photograph items</div>
+        </button>
+      </div>`;
+
+    const chartPanel = `
+      <div class="dash-panel">
+        <div class="dash-panel-head"><h3>Profit — last 7 days</h3></div>
+        <div class="dash-chart-total">$${d.profitLast7Days.toFixed(0)} <span style="font-size:11px; font-weight:500; color:var(--plum-soft);">this week</span></div>
+        <div class="dash-chart">${buildDashSparklineSvg(d.profitByDay)}</div>
+      </div>`;
+
+    const revenueLegend = d.revenueByPlatform.length ? d.revenueByPlatform.map(r => `
+        <div class="dash-revenue-item">
+          <span class="dash-revenue-dot" style="background:${PLATFORM_COLOR[r.platform] || PLATFORM_COLOR.outra};"></span>
+          <span class="dash-revenue-name">${escapeHtml(PLATFORM_NAME[r.platform] || r.platform)}</span>
+          <span class="dash-revenue-amt">$${r.revenue.toFixed(0)}</span>
+          <span class="dash-revenue-count">${r.count} sold</span>
+        </div>`).join('')
+      : `<div class="dash-empty">No sales recorded yet.</div>`;
+    const revenueBar = d.totalPlatformRevenue > 0 ? d.revenueByPlatform.map(r =>
+        `<div style="width:${(r.revenue / d.totalPlatformRevenue * 100).toFixed(2)}%; background:${PLATFORM_COLOR[r.platform] || PLATFORM_COLOR.outra};"></div>`
+      ).join('') : '';
+    const revenuePanel = `
+      <div class="dash-panel">
+        <div class="dash-panel-head"><h3>Revenue by platform</h3></div>
+        <div class="dash-revenue-row">
+          <div class="dash-revenue-bar">${revenueBar}</div>
+          <div class="dash-revenue-legend">${revenueLegend}</div>
+        </div>
+      </div>`;
+
+    const activityRows = d.recentActivity.length ? d.recentActivity.map(ev => {
+        const amount = ev.kind === 'sold' ? (ev.item.netProfit !== undefined ? `${ev.item.netProfit >= 0 ? '+' : ''}$${ev.item.netProfit.toFixed(2)}` : '')
+          : ev.kind === 'listed' ? (ev.platform || '') : '';
+        const deltaClass = ev.kind === 'sold' ? ((ev.item.netProfit||0) >= 0 ? 'pos' : 'neg') : '';
+        return `
+        <div class="dash-activity-row">
+          <div class="dash-activity-icon ${ev.kind}">${DASH_ACTIVITY_ICON[ev.kind]}</div>
+          <div class="dash-activity-main">
+            <div class="dash-activity-name">${escapeHtml(ev.item.name || ev.item.productCode || 'Item')}</div>
+            <div class="dash-activity-meta">${DASH_ACTIVITY_LABEL[ev.kind]} · ${escapeHtml(daysSince(ev.ts) === 0 ? 'today' : `${daysSince(ev.ts)}d ago`)}</div>
+          </div>
+          <div class="dash-activity-delta ${deltaClass}">${escapeHtml(amount)}</div>
+        </div>`;
+      }).join('')
+      : `<div class="dash-empty">Nothing cataloged yet.</div>`;
+    const activityPanel = `
+      <div class="dash-panel">
+        <div class="dash-panel-head"><h3>Recent activity</h3></div>
+        ${activityRows}
+      </div>`;
+
+    const attnRows = d.needsAttention.length ? d.needsAttention.map(item => {
+        const isStale = item.status === 'anunciado';
+        return `
+        <div class="dash-attn-row">
+          <div class="dash-attn-swatch"></div>
+          <div class="dash-attn-main">
+            <div class="dash-attn-name">${escapeHtml(item.name || item.productCode || 'Item')}</div>
+            <div class="dash-attn-tags">
+              <span class="dash-attn-tag ${isStale ? 'stale' : 'blocked'}">${isStale ? 'Stale listing' : 'Missing info'}</span>
+            </div>
+          </div>
+          <div>
+            <div class="dash-attn-price">${item.listPrice ? `$${parseFloat(item.listPrice).toFixed(0)}` : '—'}</div>
+            <div class="dash-attn-cost">${item.cost ? `cost $${parseFloat(item.cost).toFixed(0)}` : ''}</div>
+          </div>
+        </div>`;
+      }).join('') + (d.needsAttentionMoreCount > 0 ? `<div class="dash-attn-more">${d.needsAttentionMoreCount} more item${d.needsAttentionMoreCount===1?'':'s'} waiting</div>` : '')
+      : `<div class="dash-empty">Nothing needs attention right now.</div>`;
+    const attnPanel = `
+      <div class="dash-panel">
+        <div class="dash-panel-head"><h3>Needs attention</h3></div>
+        ${attnRows}
+      </div>
+      <div class="dash-streak-card">
+        <div class="dash-streak-label">Sourcing streak</div>
+        <div class="dash-streak-value">${d.sourcingStreak} day${d.sourcingStreak===1?'':'s'}</div>
+        <div class="dash-streak-sub">${d.sourcingStreak > 0 ? 'Keep the hauls coming.' : 'Catalog something today to start a streak.'}</div>
+      </div>`;
+
+    view.innerHTML = `
+      <div class="dash-greeting">
+        <div class="dash-date">${todayLabel}</div>
+        <div class="dash-headline">Good ${new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 18 ? 'afternoon' : 'evening'} — here's the chaos.</div>
+      </div>
+      ${statCards}
+      ${quickActions}
+      <div class="dash-lower-grid">
+        <div>${chartPanel}${revenuePanel}${activityPanel}</div>
+        <div>${attnPanel}</div>
+      </div>`;
+
+    document.getElementById('dashAddItemBtn').addEventListener('click', () => document.getElementById('fabAdd').click());
+    document.getElementById('dashPhotoHaulBtn').addEventListener('click', () => document.getElementById('fabPhotoSession').click());
+  }
+
   // ---------- TABS ----------
   function switchToTab(tab){
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+    // .tab-btn = mobile top tabs, .sidebar-link = desktop sidebar — both
+    // drive the same tab state, kept in sync so resizing the window mid-use
+    // doesn't leave the wrong one highlighted.
+    document.querySelectorAll('.tab-btn, .sidebar-link').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+    document.getElementById('dashboardView').style.display = tab === 'dashboard' ? 'block' : 'none';
     document.getElementById('catalogView').style.display = tab === 'catalog' ? 'block' : 'none';
     document.getElementById('financeView').style.display = tab === 'finance' ? 'block' : 'none';
     document.getElementById('reportsView').style.display = tab === 'reports' ? 'block' : 'none';
     document.getElementById('settingsView').style.display = tab === 'settings' ? 'block' : 'none';
+    if (tab === 'dashboard') renderDashboard();
     // Skip the rebuild while the "paste your eBay token" box is showing and
     // waiting on her — a full re-render replaces the whole Settings section,
     // including that box, with a fresh "Not connected" state (since the
@@ -1303,7 +1475,7 @@ export const app = (function(){
     // connect flow had vanished.
     if (tab === 'settings' && !ebayConnectFlowPending) renderSettings();
   }
-  document.querySelectorAll('.tab-btn').forEach(btn => {
+  document.querySelectorAll('.tab-btn, .sidebar-link').forEach(btn => {
     btn.addEventListener('click', () => switchToTab(btn.dataset.tab));
   });
 
@@ -4981,6 +5153,9 @@ EBAY_MERCHANT_LOCATION_KEY=${escapeHtml(data.results.merchantLocationKey)}</div>
     if (window.firebaseReady){
       await Promise.all([loadSettings(), loadItems(), loadEbayTokens(), loadDrafts()]);
       checkEbaySalesNow(); // best-effort, silent unless it finds something
+      // Desktop (sidebar visible, same breakpoint as style.css) lands on the
+      // Dashboard; mobile keeps Catalog as the starting tab, unchanged.
+      if (window.innerWidth >= 900) switchToTab('dashboard');
     } else {
       setTimeout(waitForFirebaseThenLoad, 50);
     }

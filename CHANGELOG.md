@@ -3,6 +3,26 @@
 Histórico de versões do Calculated Chaos. A versão atual também aparece no
 badge no topo do app (`APP_VERSION` em `src/main.js`).
 
+## v3.13.0 — 2026-08-09
+
+- **Novo Dashboard desktop.** Em telas largas (PC), o app agora abre numa
+  tela inicial de Dashboard com menu lateral fixo (Dashboard, Catalog,
+  Finances, Reports, Settings) — no celular continua exatamente igual
+  (abas embaixo, Catalog como início), nada mudou aí. O Dashboard traz:
+  cards de estoque ativo/pendentes de listar/lucro no ano/margem média,
+  atalhos rápidos (Add item, Photo haul), gráfico de lucro dos últimos 7
+  dias, receita por plataforma (eBay/Poshmark/Mercari/...), atividade
+  recente (itens cadastrados/listados/vendidos), painel "Needs attention"
+  (itens incompletos ou anunciados há 30+ dias sem vender) e contador de
+  sequência de dias cadastrando itens.
+- **v3.12.5** — Corrigido `ebayPostSoldMessageLines()` disparando o aviso
+  de "verifique outras plataformas manualmente" em todo salvamento de
+  item, não só quando o item era de fato marcado como vendido. Traduzidas
+  as mensagens pós-venda do eBay pro inglês (tinham sido escritas em
+  português por engano). Nova validação: um item não pode ser salvo com
+  status "Listed" sem pelo menos uma plataforma marcada em "Listed on"
+  (mesma regra aplicada à ação em massa "Set: Listed").
+
 ## v3.12.4 — 2026-08-07
 
 - Ao encerrar automaticamente um anúncio no eBay com sucesso, agora mostra
