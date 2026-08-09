@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex, nofollow" />
+<title>Calculated Chaos — Design Snapshot</title>
+<style>
+  :root{
+    --cream: #FBF3E9;
+    --cream-soft: #F6EAE0;
+    --blush: #E8C4C0;
+    --terracotta: #C2705F;
+    --terracotta-deep: #A85647;
+    --plum: #3D2C32;
+    --plum-soft: #6B5760;
+    --sage: #7E9678;
+    --sage-deep: #5F7459;
+    --gold: #C9A35F;
+    --amber: #D9A05B;
+    --amber-deep: #B97F3E;
+    --line: rgba(61,44,50,0.13);
+    --white: #FFFDFA;
+    --danger: #B5564A;
+    --page-bg: #EDE4DA;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--page-bg);
+    color:var(--plum);
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .serif{font-family:Georgia,'Iowan Old Style','Palatino Linotype',serif; font-style:italic;}
+  .mono{font-family:ui-monospace,'SF Mono','JetBrains Mono',Menlo,monospace;}
+
+  /* ---- meta banner: this is a review tool, not the app itself ---- */
+  .review-banner{
+    max-width:900px; margin:0 auto; padding:28px 22px 0;
+  }
+  .review-banner .rb-inner{
+    background:var(--plum); color:var(--cream); border-radius:14px;
+    padding:16px 20px; font-size:13px; line-height:1.6;
+  }
+  .review-banner .rb-inner b{color:#fff;}
+  .review-banner .rb-inner .rb-fonts{
+    display:block; margin-top:8px; font-size:11.5px; color:rgba(251,243,233,0.65);
+  }
+
+  .section-divider{
+    max-width:900px; margin:40px auto 0; padding:0 22px;
+    display:flex; align-items:center; gap:14px;
+  }
+  .section-divider .sd-line{flex:1; height:1px; background:var(--line);}
+  .section-divider .sd-label{
+    font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.1em;
+    color:var(--plum-soft); white-space:nowrap;
+  }
+
+  .frame{
+    max-width:900px; margin:18px auto 0; padding:0 22px 40px;
+  }
+  .frame-inner{
+    background:var(--cream);
+    background-image: radial-gradient(circle at 50% 0%, var(--cream-soft) 0%, var(--cream) 60%);
+    border-radius:20px; border:1px solid rgba(61,44,50,0.08);
+    box-shadow:0 12px 32px rgba(61,44,50,0.14);
+    overflow:hidden;
+  }
+
+  /* ---------- HEADER ---------- */
+  header{
+    padding:30px 22px 20px;
+    position:relative;
+    background:linear-gradient(180deg, var(--blush) 0%, var(--cream) 100%);
+    border-bottom:1px solid var(--line);
+  }
+  .eyebrow{
+    font-size:11px; letter-spacing:0.16em; text-transform:uppercase;
+    color:var(--terracotta-deep); font-weight:600; margin-bottom:8px;
+  }
+  .version-badge{
+    position:absolute; top:14px; right:18px;
+    font-family:ui-monospace,'SF Mono','JetBrains Mono',monospace; font-size:10px; font-weight:600;
+    color:var(--plum-soft); background:var(--white); border:1px solid var(--line);
+    border-radius:10px; padding:3px 9px; opacity:0.85;
+  }
+  h1{
+    font-family:Georgia,'Iowan Old Style',serif; font-style:italic; font-weight:500;
+    font-size:32px; margin:0 0 4px; letter-spacing:-0.01em; color:var(--plum);
+  }
+  .subtitle{font-size:13.5px; color:var(--plum-soft); margin:0 0 14px; font-weight:500;}
+  .daily-quote{
+    background:var(--white); border:1px solid var(--blush); border-radius:14px;
+    padding:11px 15px; font-family:Georgia,serif; font-style:italic; font-size:13.5px;
+    color:var(--plum); display:flex; align-items:center; gap:9px;
+    box-shadow:0 2px 8px rgba(61,44,50,0.05);
+  }
+  .stats-strip{display:flex; gap:9px; margin-top:16px; overflow-x:auto; padding-bottom:2px;}
+  .stat-card{
+    flex:1; min-width:92px;
+    background:var(--white); border:1px solid var(--line); border-radius:12px;
+    padding:11px 12px; box-shadow:0 2px 8px rgba(61,44,50,0.06);
+  }
+  .stat-card .label{font-size:9.5px; text-transform:uppercase; letter-spacing:0.06em; color:var(--plum-soft); font-weight:600;}
+  .stat-card .value{font-family:Georgia,serif; font-size:20px; font-weight:600; margin-top:3px; color:var(--plum);}
+  .stat-card.profit .value{color:var(--sage-deep);}
+  .stat-card.projected .value{color:var(--gold);}
+  .stat-card.warn .value{color:var(--amber-deep);}
+
+  /* ---------- TABS ---------- */
+  .tabs{display:flex; gap:8px; padding:18px 22px 0; overflow-x:auto;}
+  .tab-btn{
+    font-size:13px; font-weight:600; white-space:nowrap;
+    padding:9px 16px; border:1px solid var(--line); background:var(--white);
+    border-radius:20px; cursor:default; color:var(--plum-soft);
+  }
+  .tab-btn.active{background:var(--terracotta); color:var(--white); border-color:var(--terracotta);}
+
+  main{padding:16px 22px 26px;}
+
+  /* ---------- SEARCH & FILTERS ---------- */
+  .search-row{display:flex; gap:8px; margin-bottom:12px;}
+  .search-input{
+    flex:1; padding:11px 14px; border:1px solid var(--line); border-radius:20px;
+    background:var(--white); font-size:14px; color:var(--plum-soft);
+  }
+  .filter-toggle-btn{
+    border:1px solid var(--line); background:var(--white); border-radius:20px;
+    padding:11px 15px; font-size:13px; font-weight:600; color:var(--plum); white-space:nowrap;
+  }
+  .filter-chips{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px;}
+  .filter-chip{
+    font-size:12px; font-weight:600; padding:6px 12px; border-radius:16px;
+    border:1px solid var(--line); background:var(--cream-soft); color:var(--plum-soft);
+  }
+  .filter-chip.active{background:var(--terracotta); color:white; border-color:var(--terracotta);}
+
+  /* ---------- ITEM CARD ---------- */
+  .item-card{
+    background:var(--white); border:1px solid var(--line); border-radius:16px;
+    margin-bottom:14px; position:relative; overflow:hidden; display:flex;
+    box-shadow:0 2px 10px rgba(61,44,50,0.05);
+  }
+  .item-photo{
+    width:92px; flex-shrink:0; background:var(--cream-soft);
+    display:flex; align-items:center; justify-content:center; overflow:hidden; position:relative;
+  }
+  .item-photo .swatch{width:100%; height:100%;}
+  .item-icon{width:100%; height:100%; display:flex; align-items:center; justify-content:center;}
+  .item-icon svg{width:66%; height:66%;}
+  .ii-jacket{background:linear-gradient(160deg,#F3D9D2 0%,#EAC0B6 100%); color:var(--terracotta-deep);}
+  .ii-bag{background:linear-gradient(160deg,#E4EAE0 0%,#C9D6C1 100%); color:var(--sage-deep);}
+  .ii-sneaker{background:linear-gradient(160deg,#F3E4C9 0%,#E9CE9C 100%); color:var(--amber-deep);}
+  .ii-dress{background:linear-gradient(160deg,#F1DFC0 0%,#E3C088 100%); color:#9C5A2E;}
+  .photo-preview .item-icon svg{width:56%; height:56%;}
+  .photo-count-badge{
+    position:absolute; bottom:4px; right:4px; background:rgba(61,44,50,0.75); color:white;
+    font-size:9px; font-weight:700; padding:2px 6px; border-radius:10px;
+  }
+  .item-body{flex:1; padding:13px 15px; min-width:0;}
+  .item-top{display:flex; justify-content:space-between; align-items:flex-start; gap:8px;}
+  .item-name{font-family:Georgia,serif; font-weight:600; font-style:italic; font-size:14.5px; line-height:1.3; color:var(--plum);}
+  .product-code{font-family:ui-monospace,monospace; font-weight:600; font-size:12px; color:var(--terracotta-deep); background:rgba(194,112,95,0.1); padding:1px 6px; border-radius:6px;}
+  .item-cat{font-size:11px; color:var(--plum-soft); margin-top:2px;}
+  .chip-row{display:flex; gap:5px; flex-wrap:wrap; align-items:flex-end; justify-content:flex-end;}
+  .status-chip{font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; padding:4px 9px; border-radius:20px; white-space:nowrap;}
+  .status-catalogado{background:var(--cream-soft); color:var(--plum-soft);}
+  .status-anunciado{background:rgba(194,112,95,0.16); color:var(--terracotta-deep);}
+  .status-vendido{background:rgba(127,150,120,0.18); color:var(--sage-deep);}
+  .item-meta-row{display:flex; gap:12px; margin-top:9px; flex-wrap:wrap;}
+  .meta-bit{font-size:11px; color:var(--plum-soft);}
+  .meta-bit b{color:var(--plum); font-weight:600; font-family:ui-monospace,monospace;}
+  .item-price-row{display:flex; justify-content:space-between; align-items:center; margin-top:11px; padding-top:10px; border-top:1px dashed var(--line);}
+  .price-suggested{font-family:ui-monospace,monospace; font-weight:700; font-size:16px; color:var(--terracotta-deep);}
+  .price-suggested .tag-label{font-size:9px; text-transform:uppercase; color:var(--plum-soft); display:block; font-weight:600; letter-spacing:0.04em; font-family:-apple-system,sans-serif;}
+  .icon-btn{border:1px solid var(--line); background:var(--cream-soft); border-radius:20px; padding:6px 13px; font-size:12px; font-weight:600; color:var(--plum);}
+  .platform-badge{display:inline-flex; align-items:center; gap:4px; color:white; font-size:9.5px; font-weight:700; padding:3px 8px; border-radius:10px;}
+  .pb-ebay{background:#E53238;}
+  .pb-poshmark{background:#C2185B;}
+  .pb-mercari{background:#FF6E4E;}
+
+  .fab-row{display:flex; justify-content:flex-end; gap:10px; padding:0 22px 22px;}
+  .fab{
+    background:var(--terracotta); color:white; border:none; border-radius:50%;
+    width:52px; height:52px; font-size:22px; box-shadow:0 6px 18px rgba(194,112,95,0.4); font-weight:300;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .fab.sage{background:var(--sage); width:44px; height:44px; font-size:18px;}
+  .fab.gold{background:var(--gold); width:44px; height:44px; font-size:18px;}
+
+  /* ---------- MODAL (rendered inline for this snapshot) ---------- */
+  .modal-frame{background:rgba(61,44,50,0.06); padding:26px 0 30px;}
+  .modal{
+    background:var(--cream); width:100%; max-width:520px; margin:0 auto;
+    border-radius:24px; padding:22px 22px 26px; position:relative;
+    box-shadow:0 18px 40px rgba(61,44,50,0.18);
+  }
+  .modal-handle{width:38px; height:4px; background:var(--blush); border-radius:4px; margin:0 auto 16px;}
+  .modal h2{font-family:Georgia,serif; font-style:italic; font-size:20px; margin:0 0 16px; font-weight:500; color:var(--plum);}
+  .field{margin-bottom:14px;}
+  .field label{display:block; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; color:var(--plum-soft); margin-bottom:6px;}
+  .field .fake-input{
+    width:100%; padding:11px 13px; border:1px solid var(--line); border-radius:10px;
+    font-size:14px; background:var(--white); color:var(--plum);
+  }
+  .field .fake-input.mono{font-family:ui-monospace,monospace;}
+  .field-row{display:flex; gap:10px;}
+  .field-row .field{flex:1;}
+
+  .photo-upload-zone{
+    border:1.5px dashed var(--blush); border-radius:14px; padding:18px; text-align:center;
+    background:var(--white); color:var(--plum-soft); font-size:13.5px; font-weight:500; margin-bottom:10px;
+  }
+  .photo-preview-grid{display:grid; grid-template-columns:repeat(4, 1fr); gap:7px; margin-bottom:14px;}
+  .photo-preview{width:100%; aspect-ratio:1; border-radius:10px; overflow:hidden; border:1px solid var(--line); position:relative;}
+  .photo-preview .cover-badge{
+    position:absolute; top:3px; left:3px; background:var(--gold); color:var(--plum); font-size:9px; font-weight:700;
+    padding:2px 6px; border-radius:6px; letter-spacing:0.02em;
+  }
+
+  .status-select-row{display:flex; gap:7px; margin-bottom:14px;}
+  .status-pill{flex:1; text-align:center; padding:9px 4px; border-radius:20px; border:1px solid var(--line); font-size:11.5px; font-weight:600; background:var(--white); color:var(--plum-soft);}
+  .status-pill.selected{background:var(--plum); color:white; border-color:var(--plum);}
+  .prep-row{display:flex; gap:7px; margin-bottom:14px; flex-wrap:wrap;}
+  .prep-pill{padding:8px 13px; border-radius:20px; border:1px solid var(--line); font-size:12px; font-weight:600; background:var(--white); color:var(--plum-soft);}
+  .prep-pill.selected{background:var(--amber); color:white; border-color:var(--amber-deep);}
+
+  .suggestion-box{
+    background:linear-gradient(135deg, var(--white) 0%, var(--cream-soft) 100%);
+    border:1px solid var(--blush); border-radius:16px; padding:14px 15px; margin:14px 0; position:relative;
+  }
+  .suggestion-box .stamp-corner{
+    position:absolute; top:-9px; right:14px; background:var(--terracotta); color:white;
+    font-size:9.5px; font-weight:700; padding:4px 10px; border-radius:20px; text-transform:uppercase; letter-spacing:0.04em;
+  }
+  .suggestion-row{display:flex; justify-content:space-between; font-size:13px; margin-top:6px; color:var(--plum-soft);}
+  .suggestion-row b{font-family:ui-monospace,monospace; color:var(--plum);}
+  .suggestion-final{font-family:Georgia,serif; font-size:24px; font-weight:600; color:var(--terracotta-deep); margin-top:8px; padding-top:9px; border-top:1px dashed var(--line);}
+
+  .listing-output{background:var(--white); border:1px solid var(--line); border-radius:16px; padding:16px; margin-top:14px;}
+  .listing-output .lo-label{font-size:10.5px; text-transform:uppercase; letter-spacing:0.05em; color:var(--plum-soft); font-weight:600; margin-bottom:6px;}
+  .listing-output .lo-body{font-size:12.5px; line-height:1.6; color:var(--plum); background:var(--cream-soft); border-radius:10px; padding:12px;}
+  .listing-output .lo-body b{font-weight:700;}
+
+  .btn{flex:1; padding:14px; border-radius:14px; border:1px solid var(--line); font-weight:600; font-size:14px;}
+  .btn-primary{background:var(--terracotta); color:white; border-color:var(--terracotta);}
+  .btn-secondary{background:var(--white); color:var(--plum);}
+  .btn-ebay{background:#E53238; color:white; border-color:#C7292E; display:flex; align-items:center; justify-content:center; gap:8px; width:100%; margin-top:8px;}
+  .modal-actions{display:flex; gap:10px; margin-top:18px;}
+  .ebay-status-box{border-radius:12px; padding:12px 14px; margin-top:8px; font-size:13px;}
+  .ebay-status-box.success{background:rgba(127,150,120,0.15); border:1px solid var(--sage-deep); color:var(--sage-deep);}
+
+  /* ---------- REPORTS ---------- */
+  .export-section{margin-bottom:18px;}
+  .export-section .es-label{font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:var(--plum-soft); font-weight:600; margin-bottom:8px;}
+  .export-btn-grid{display:flex; flex-direction:column; gap:8px;}
+  .export-btn{display:flex; justify-content:space-between; align-items:center; background:var(--white); border:1px solid var(--line); border-radius:14px; padding:13px 15px;}
+  .export-btn .et-title{font-weight:600; font-size:13.5px; color:var(--plum);}
+  .export-btn .et-sub{font-size:11px; color:var(--plum-soft); margin-top:2px;}
+  .export-btn .et-arrow{color:var(--terracotta); font-weight:700;}
+
+  .cat-card{background:var(--white); border:1px solid var(--line); border-radius:18px; padding:18px; margin-bottom:14px; box-shadow:0 2px 10px rgba(61,44,50,0.05);}
+  .cat-card h3{margin:0 0 4px; font-size:16px; font-weight:600; font-family:Georgia,serif; font-style:italic; color:var(--plum);}
+  .cat-card .sub{font-size:12px; color:var(--plum-soft); margin-bottom:10px;}
+  .pipeline-card{border-color:var(--gold);}
+  .pipeline-total{font-family:Georgia,serif; font-weight:600; font-size:28px; color:var(--gold); margin-bottom:10px; padding-bottom:12px; border-bottom:1px dashed var(--line);}
+  .pipeline-total span{font-family:-apple-system,sans-serif; font-weight:500; font-size:12px; color:var(--plum-soft); margin-left:6px;}
+  .cat-rank-row{display:flex; justify-content:space-between; align-items:center; padding:9px 0; border-bottom:1px dashed var(--line); font-size:13px;}
+  .cat-rank-row:last-child{border-bottom:none;}
+  .cat-rank-row .name{font-weight:600; color:var(--plum);}
+  .cat-rank-row .sub{font-size:10.5px; color:var(--plum-soft); margin-top:1px;}
+  .cat-rank-row .num{font-family:ui-monospace,monospace; font-weight:700; color:var(--sage-deep); text-align:right;}
+  .cat-rank-row .num.projected-num{color:var(--gold);}
+
+  @media (max-width: 560px){
+    .field-row{flex-direction:column;}
+    .stats-strip{flex-wrap:wrap;}
+  }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute;">
+  <defs>
+    <symbol id="icon-jacket" viewBox="0 0 100 120" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round">
+      <path d="M38 8 L50 20 L62 8 L74 14 L68 26 L74 36 L74 100 L60 106 L60 40 L50 46 L40 40 L40 106 L26 100 L26 36 L32 26 L26 14 Z"/>
+      <line x1="50" y1="20" x2="50" y2="106"/>
+      <circle cx="50" cy="34" r="1.6" fill="currentColor" stroke="none"/>
+      <circle cx="50" cy="54" r="1.6" fill="currentColor" stroke="none"/>
+      <circle cx="50" cy="74" r="1.6" fill="currentColor" stroke="none"/>
+    </symbol>
+    <symbol id="icon-bag" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round">
+      <path d="M20 14 C40 -6 60 -6 80 14" />
+      <rect x="24" y="38" width="52" height="44" rx="8"/>
+      <path d="M24 50 L76 50" />
+      <circle cx="50" cy="50" r="3" fill="currentColor" stroke="none"/>
+    </symbol>
+    <symbol id="icon-sneaker" viewBox="0 0 120 100" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round">
+      <path d="M12 78 L12 56 C28 56 34 44 44 40 C54 36 62 40 66 46 L100 46 C108 46 112 52 112 60 L112 78 Z"/>
+      <path d="M44 40 L52 56 M56 38 L62 54 M66 46 L70 58"/>
+      <path d="M12 78 L112 78" stroke-width="4"/>
+    </symbol>
+    <symbol id="icon-dress" viewBox="0 0 100 120" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round">
+      <path d="M38 6 L34 18 M62 6 L66 18"/>
+      <path d="M34 18 C34 30 40 34 40 40 L24 108 L76 108 L60 40 C60 34 66 30 66 18"/>
+      <path d="M40 40 L60 40"/>
+    </symbol>
+  </defs>
+</svg>
+
+<div class="review-banner">
+  <div class="rb-inner">
+    <b>Design review snapshot — Calculated Chaos</b> (resale/thrift-flip inventory app, eBay + Poshmark + Mercari). Static capture with sample data, sequenced Catalog → Item form → Reports for feedback on visual hierarchy, color, and layout.
+    <span class="rb-fonts">Note for review: production uses Fraunces (serif display/italic), Inter (body/UI), and JetBrains Mono (numbers/codes) — this snapshot substitutes system fonts since webfont CDNs aren't available here, so judge type choice by the pairing role (serif display / sans body / mono data), not by these exact glyphs.</span>
+  </div>
+</div>
+
+<div class="section-divider"><div class="sd-line"></div><div class="sd-label">1 · Catalog</div><div class="sd-line"></div></div>
+
+<div class="frame">
+  <div class="frame-inner">
+    <header>
+      <div class="eyebrow">Resale Studio · eBay / Mercari / Poshmark</div>
+      <div class="version-badge">v3.12.5 · Aug 7</div>
+      <h1>Calculated Chaos</h1>
+      <p class="subtitle">Every thrift find, cataloged, priced, and accounted for.</p>
+      <div class="daily-quote"><span>✦</span> "Clothing is your best earner so far — averaging $18 net per sale."</div>
+      <div class="stats-strip">
+        <div class="stat-card"><div class="label">Active</div><div class="value">14</div></div>
+        <div class="stat-card profit"><div class="label">Profit (mo)</div><div class="value">$612</div></div>
+        <div class="stat-card projected"><div class="label">Pipeline</div><div class="value">$940</div></div>
+        <div class="stat-card warn"><div class="label">Stale 30d+</div><div class="value">3</div></div>
+      </div>
+    </header>
+    <div class="tabs">
+      <div class="tab-btn active">Catalog</div>
+      <div class="tab-btn">Finances</div>
+      <div class="tab-btn">Reports</div>
+      <div class="tab-btn">⚙ Settings</div>
+    </div>
+    <main>
+      <div class="search-row">
+        <div class="search-input">Search items…</div>
+        <div class="filter-toggle-btn">Filters</div>
+      </div>
+      <div class="filter-chips">
+        <div class="filter-chip active">Listed</div>
+        <div class="filter-chip">Cataloged</div>
+        <div class="filter-chip">Sold</div>
+        <div class="filter-chip">Clothing</div>
+      </div>
+
+      <div class="item-card">
+        <div class="item-photo"><div class="item-icon ii-jacket"><svg><use href="#icon-jacket"/></svg></div><div class="photo-count-badge">4</div></div>
+        <div class="item-body">
+          <div class="item-top">
+            <div><div class="item-name">Vintage Levi's Denim Jacket</div><div class="item-cat">Outerwear · Women's · M</div></div>
+            <div class="chip-row"><span class="product-code">#0142</span><span class="status-chip status-anunciado">Listed</span></div>
+          </div>
+          <div class="item-meta-row"><span class="meta-bit">📅 <b>6d</b> listed</span><span class="meta-bit">Box 3</span></div>
+          <div class="item-price-row">
+            <div class="price-suggested"><span class="tag-label">Listed</span>$48.00</div>
+            <div class="chip-row"><span class="platform-badge pb-ebay">eBay</span><span class="platform-badge pb-poshmark">Posh</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="item-card">
+        <div class="item-photo"><div class="item-icon ii-bag"><svg><use href="#icon-bag"/></svg></div><div class="photo-count-badge">6</div></div>
+        <div class="item-body">
+          <div class="item-top">
+            <div><div class="item-name">Coach Leather Crossbody</div><div class="item-cat">Accessories · Women's</div></div>
+            <div class="chip-row"><span class="product-code">#0139</span><span class="status-chip status-vendido">Sold</span></div>
+          </div>
+          <div class="item-meta-row"><span class="meta-bit">Sold in <b>9d</b></span><span class="meta-bit">Net <b>$41.20</b></span></div>
+          <div class="item-price-row">
+            <div class="price-suggested"><span class="tag-label">Sold on</span>$65.00</div>
+            <div class="chip-row"><span class="platform-badge pb-ebay">eBay</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="item-card">
+        <div class="item-photo"><div class="item-icon ii-sneaker"><svg><use href="#icon-sneaker"/></svg></div></div>
+        <div class="item-body">
+          <div class="item-top">
+            <div><div class="item-name">Nike Air Max 90, size 9.5</div><div class="item-cat">Shoes · Men's</div></div>
+            <div class="chip-row"><span class="product-code">#0151</span><span class="status-chip status-catalogado">Cataloged</span></div>
+          </div>
+          <div class="item-meta-row"><span class="meta-bit">📅 <b>2d</b> in catalog</span><span class="meta-bit">Box 5</span></div>
+          <div class="item-price-row">
+            <div class="price-suggested"><span class="tag-label">Suggested</span>$54.00</div>
+            <div class="icon-btn">List →</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="item-card">
+        <div class="item-photo"><div class="item-icon ii-dress"><svg><use href="#icon-dress"/></svg></div><div class="photo-count-badge">3</div></div>
+        <div class="item-body">
+          <div class="item-top">
+            <div><div class="item-name">Silk Floral Midi Dress</div><div class="item-cat">Clothing · Women's · S</div></div>
+            <div class="chip-row"><span class="product-code">#0148</span><span class="status-chip status-anunciado">Listed</span></div>
+          </div>
+          <div class="item-meta-row"><span class="meta-bit stale">📅 <b>34d</b> listed</span><span class="meta-bit">Box 2</span></div>
+          <div class="item-price-row">
+            <div class="price-suggested"><span class="tag-label">Listed</span>$32.00</div>
+            <div class="chip-row"><span class="platform-badge pb-mercari">Mercari</span></div>
+          </div>
+        </div>
+      </div>
+    </main>
+    <div class="fab-row">
+      <div class="fab gold">📷</div>
+      <div class="fab sage">⚡</div>
+      <div class="fab">+</div>
+    </div>
+  </div>
+</div>
+
+<div class="section-divider"><div class="sd-line"></div><div class="sd-label">2 · Item form, open</div><div class="sd-line"></div></div>
+
+<div class="modal-frame">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h2>Vintage Levi's Denim Jacket</h2>
+
+    <div class="photo-upload-zone">📷 Tap to add photos</div>
+    <div class="photo-preview-grid">
+      <div class="photo-preview"><div class="item-icon ii-jacket"><svg><use href="#icon-jacket"/></svg></div><span class="cover-badge">Cover</span></div>
+      <div class="photo-preview"><div class="item-icon ii-jacket" style="transform:scaleX(-1);"><svg><use href="#icon-jacket"/></svg></div></div>
+      <div class="photo-preview"><div class="item-icon ii-jacket" style="filter:brightness(0.85);"><svg><use href="#icon-jacket"/></svg></div></div>
+      <div class="photo-preview"><div class="item-icon ii-jacket" style="filter:brightness(1.1) saturate(0.7);"><svg><use href="#icon-jacket"/></svg></div></div>
+    </div>
+
+    <div class="field-row">
+      <div class="field"><label>Product code</label><div class="fake-input mono">#0142</div></div>
+      <div class="field"><label>Storage box</label><div class="fake-input">Box 3</div></div>
+    </div>
+    <div class="field"><label>Item name</label><div class="fake-input">Vintage Levi's Denim Jacket</div></div>
+    <div class="field-row">
+      <div class="field"><label>Category</label><div class="fake-input">Outerwear</div></div>
+      <div class="field"><label>Brand</label><div class="fake-input">Levi's</div></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Color</label><div class="fake-input">Indigo</div></div>
+      <div class="field"><label>Size</label><div class="fake-input">M</div></div>
+    </div>
+    <div class="field"><label>eBay Category</label><div class="fake-input" style="background:rgba(127,150,120,0.12); border-color:var(--sage); color:var(--sage-deep); font-weight:600;">Coats, Jackets &amp; Vests ✓</div></div>
+    <div class="field"><label>Condition</label><div class="fake-input">Used — excellent</div></div>
+
+    <label style="display:block; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; color:var(--plum-soft); margin-bottom:7px;">Prep status</label>
+    <div class="prep-row">
+      <div class="prep-pill">Needs wash</div>
+      <div class="prep-pill">Needs repair</div>
+      <div class="prep-pill">Needs photos</div>
+      <div class="prep-pill selected">Ready to list</div>
+    </div>
+
+    <div class="suggestion-box">
+      <div class="stamp-corner">Suggested</div>
+      <div class="suggestion-row">Market reference (12 sold) <b>$46 avg</b></div>
+      <div class="suggestion-row">Cheapest shipping <b>$8.20</b></div>
+      <div class="suggestion-final">$48.00</div>
+    </div>
+
+    <div class="field" style="margin-top:14px;"><label>Listing price ($)</label><div class="fake-input mono">48.00</div></div>
+    <div class="field"><label>Listed on</label>
+      <div class="prep-row">
+        <div class="prep-pill selected" style="background:#E53238; border-color:#C7292E;">eBay</div>
+        <div class="prep-pill selected" style="background:#C2185B; border-color:#A31650;">Poshmark</div>
+        <div class="prep-pill">Mercari</div>
+        <div class="prep-pill">Vinted</div>
+      </div>
+    </div>
+
+    <label style="display:block; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; color:var(--plum-soft); margin-bottom:7px;">Status</label>
+    <div class="status-select-row">
+      <div class="status-pill">Cataloged</div>
+      <div class="status-pill selected">Listed</div>
+      <div class="status-pill">Sold</div>
+    </div>
+
+    <div class="listing-output">
+      <div class="lo-label">Listing description</div>
+      <div class="lo-body">Classic Levi's trucker jacket in indigo denim, medium wash with soft fading at the seams.<br><br><b>Details:</b><br>* Brand: Levi's &nbsp; * Size: M &nbsp; * Color: Indigo<br>* Condition: Used — excellent, no visible flaws</div>
+    </div>
+
+    <div class="btn-ebay">🛒 List on eBay</div>
+    <div class="ebay-status-box success">✅ Listed on eBay · <span style="text-decoration:underline;">View listing ↗</span></div>
+
+    <div class="modal-actions">
+      <div class="btn btn-secondary">Cancel</div>
+      <div class="btn btn-primary">Save item</div>
+    </div>
+  </div>
+</div>
+
+<div class="section-divider"><div class="sd-line"></div><div class="sd-label">3 · Reports</div><div class="sd-line"></div></div>
+
+<div class="frame" style="margin-top:18px;">
+  <div class="frame-inner">
+    <main style="padding-top:26px;">
+      <div class="export-section">
+        <div class="es-label">Export data</div>
+        <div class="export-btn-grid">
+          <div class="export-btn"><div><div class="et-title">📊 Export to Excel (.xlsx)</div><div class="et-sub">Same format as the original Clothing Inventory Tracker</div></div><div class="et-arrow">↓</div></div>
+          <div class="export-btn"><div><div class="et-title">Full inventory (CSV)</div><div class="et-sub">Every item, every status — backup or spreadsheet work</div></div><div class="et-arrow">↓</div></div>
+          <div class="export-btn"><div><div class="et-title">Performance by category (CSV)</div><div class="et-sub">See what's worth sourcing more of</div></div><div class="et-arrow">↓</div></div>
+        </div>
+      </div>
+
+      <div class="cat-card pipeline-card">
+        <h3>Projected pipeline</h3>
+        <div class="sub">What's still on the shelf, at today's suggested/listed prices, after fees and shipping.</div>
+        <div class="pipeline-total">$940 <span>across 14 active items</span></div>
+        <div class="cat-rank-row"><div><div class="name">Clothing</div><div class="sub">8 items not yet sold</div></div><div class="num projected-num">$520</div></div>
+        <div class="cat-rank-row"><div><div class="name">Shoes</div><div class="sub">3 items not yet sold</div></div><div class="num projected-num">$260</div></div>
+        <div class="cat-rank-row"><div><div class="name">Accessories</div><div class="sub">3 items not yet sold</div></div><div class="num projected-num">$160</div></div>
+      </div>
+
+      <div class="cat-card">
+        <h3>Category performance</h3>
+        <div class="sub">Realized profit from items already sold.</div>
+        <div class="cat-rank-row"><div><div class="name">Clothing</div><div class="sub">22 sold · avg 11d to sell · 61% margin</div></div><div class="num">$398</div></div>
+        <div class="cat-rank-row"><div><div class="name">Accessories</div><div class="sub">9 sold · avg 14d to sell · 54% margin</div></div><div class="num">$214</div></div>
+      </div>
+
+      <div class="cat-card">
+        <h3>Best earners</h3>
+        <div class="cat-rank-row"><div><div class="name">Coach Leather Crossbody</div><div class="sub">Accessories · Coach · Sold</div></div><div class="num">$41.20</div></div>
+        <div class="cat-rank-row"><div><div class="name">North Face Fleece</div><div class="sub">Outerwear · The North Face · Sold</div></div><div class="num">$36.80</div></div>
+      </div>
+    </main>
+  </div>
+</div>
+
+</body>
+</html>
