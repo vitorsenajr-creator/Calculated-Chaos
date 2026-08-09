@@ -43,9 +43,22 @@ export function computeDashboardData(items){
   const sellThroughPct = items.length > 0 ? (sold.length / items.length) * 100 : 0;
 
   // ---- Revenue by platform (realized, from sold items) ----
+  // Items sold before soldPlatform was reliably recorded (in particular,
+  // eBay auto-detected sales didn't stamp it until this was fixed) would
+  // otherwise all pile up under a single uninformative "Other" bucket.
+  // Best-effort backfill from other signals already on the item, instead
+  // of giving up: an eBay-auto-detected or eBay-listed sale is eBay; an
+  // item only ever listed on exactly one platform almost certainly sold
+  // there too.
+  function inferSoldPlatform(i){
+    if (i.soldPlatform) return i.soldPlatform;
+    if (i.ebayAutoDetectedSale || i.ebayListingId) return 'ebay';
+    if (i.listedPlatforms && i.listedPlatforms.length === 1) return i.listedPlatforms[0];
+    return 'outra';
+  }
   const byPlatform = {};
   sold.forEach(i => {
-    const p = i.soldPlatform || 'outra';
+    const p = inferSoldPlatform(i);
     if (!byPlatform[p]) byPlatform[p] = { revenue: 0, count: 0 };
     byPlatform[p].revenue += parseFloat(i.soldPrice) || 0;
     byPlatform[p].count += 1;

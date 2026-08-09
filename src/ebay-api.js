@@ -120,6 +120,7 @@
           ...item,
           status: 'vendido',
           soldPrice,
+          soldPlatform: 'ebay', // this sale WAS found via the eBay orders API — this is a known fact, not a guess
           shippingCost: item.shippingCost || 0,
           feesTotal,
           soldAt: sale.creationDate ? new Date(sale.creationDate).getTime() : Date.now(),

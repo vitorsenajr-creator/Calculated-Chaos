@@ -54,7 +54,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.1';
+  const APP_VERSION = 'v3.13.2';
   const APP_VERSION_DATE = '2026-08-09';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -62,6 +62,10 @@ export const app = (function(){
   let currentEditId = null;
   let currentDraftId = null; // set when the item modal was opened from a Photo Session draft, so a successful save knows to delete the source draft doc
   let openedFromBulkReview = false; // set when the item modal was opened via "Edit" from the bulk eBay preflight's blocked/needs-review lists — a successful save then offers to list it immediately instead of making her redo the whole bulk flow
+  // 'owner' (default, full access) or 'employee' (Catalog only — see
+  // applyRoleRestrictions()). Set from the signed-in user's Firestore doc
+  // right after login, before anything else renders.
+  let currentUserRole = 'owner';
   let draftItems = []; // Photo Session groups awaiting cataloging — own Firestore collection, never mixed into `items`
   let draftsPanelOpen = false;
   let filterPanelOpen = false; // survives re-renders (e.g. picking a filter chip), unlike the old plain classList.toggle which reset on every re-render
@@ -1327,22 +1331,22 @@ export const app = (function(){
     const statCards = `
       <div class="dash-stat-grid">
         <div class="dash-stat-card">
-          <div class="label">Inventory</div>
+          <div class="dash-stat-top"><div class="label">Inventory</div><div class="stat-icon">👕</div></div>
           <div class="value">${d.inventoryCount}</div>
           <div class="delta up">↗ +${d.addedThisWeek} this week</div>
         </div>
         <div class="dash-stat-card">
-          <div class="label">Pending listings</div>
+          <div class="dash-stat-top"><div class="label">Pending listings</div><div class="stat-icon">🏷️</div></div>
           <div class="value">${d.pendingListings.length}</div>
           <div class="delta">Ready to publish</div>
         </div>
         <div class="dash-stat-card highlight">
-          <div class="label">Profit YTD</div>
+          <div class="dash-stat-top"><div class="label">Profit YTD</div><div class="stat-icon">📈</div></div>
           <div class="value">$${d.profitYTD.toFixed(0)}</div>
           <div class="delta${d.profitYTDDeltaPct !== null && d.profitYTDDeltaPct >= 0 ? ' up' : ''}">${d.profitYTDDeltaPct === null ? '—' : `${d.profitYTDDeltaPct >= 0 ? '↗' : '↘'} ${Math.abs(d.profitYTDDeltaPct).toFixed(1)}% vs last year`}</div>
         </div>
         <div class="dash-stat-card">
-          <div class="label">Avg margin</div>
+          <div class="dash-stat-top"><div class="label">Avg margin</div><div class="stat-icon">%</div></div>
           <div class="value">${d.avgMargin.toFixed(1)}%</div>
           <div class="delta">${d.sellThroughPct.toFixed(1)}% sell-through</div>
         </div>
@@ -1442,22 +1446,31 @@ export const app = (function(){
 
     view.innerHTML = `
       <div class="dash-greeting">
-        <div class="dash-date">${todayLabel}</div>
-        <div class="dash-headline">Good ${new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 18 ? 'afternoon' : 'evening'} — here's the chaos.</div>
+        <div>
+          <div class="dash-date">${todayLabel}</div>
+          <div class="dash-headline">Good ${new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 18 ? 'afternoon' : 'evening'} — here's the chaos.</div>
+        </div>
+        <button type="button" class="dash-header-add-btn" id="dashHeaderAddBtn">👕 Add Item</button>
       </div>
       ${statCards}
       ${quickActions}
       <div class="dash-lower-grid">
-        <div>${chartPanel}${revenuePanel}${activityPanel}</div>
-        <div>${attnPanel}</div>
+        <div class="dash-col">${chartPanel}${revenuePanel}${activityPanel}</div>
+        <div class="dash-col">${attnPanel}</div>
       </div>`;
 
     document.getElementById('dashAddItemBtn').addEventListener('click', () => document.getElementById('fabAdd').click());
     document.getElementById('dashPhotoHaulBtn').addEventListener('click', () => document.getElementById('fabPhotoSession').click());
+    document.getElementById('dashHeaderAddBtn').addEventListener('click', () => document.getElementById('fabAdd').click());
   }
 
   // ---------- TABS ----------
   function switchToTab(tab){
+    // Belt-and-suspenders: applyRoleRestrictions() already hides every
+    // nav entry but Catalog for an employee, but anything that calls
+    // switchToTab() directly (stat-card shortcuts, etc.) goes through
+    // here too, so re-check rather than trust the UI was never bypassed.
+    if (currentUserRole === 'employee') tab = 'catalog';
     // .tab-btn = mobile top tabs, .sidebar-link = desktop sidebar — both
     // drive the same tab state, kept in sync so resizing the window mid-use
     // doesn't leave the wrong one highlighted.
@@ -4442,6 +4455,19 @@ Be accurate and honest — never invent brand, material, or condition details th
         <div id="authorizeAccessBox"></div>
       </div>
 
+      <!-- EMPLOYEE ACCOUNTS (admin only) -->
+      <div class="settings-section" id="employeeAccountsSection" style="display:none;">
+        <h3>Employee accounts</h3>
+        <div class="ss-desc">Create a login for someone who should only see the Catalog — no Dashboard, Finances, Reports, or Settings. This restricts what the app SHOWS them; it isn't a database-level guarantee (see CLAUDE.md for the Firestore rule that closes that gap).</div>
+        <div class="field-row">
+          <div class="field"><label>Employee email</label><input type="email" id="newEmployeeEmail" placeholder="employee@example.com"></div>
+          <div class="field"><label>Temporary password</label><input type="text" id="newEmployeePassword" placeholder="At least 6 characters"></div>
+        </div>
+        <button id="createEmployeeBtn" class="settings-save-btn" style="width:auto; padding:8px 14px; margin:0;">Create employee account</button>
+        <div id="employeeAccountsResult" style="margin-top:10px;"></div>
+        <div id="employeeAccountsList" style="margin-top:14px;"></div>
+      </div>
+
       <!-- AI USAGE COUNTER -->
       <div class="settings-section">
         <h3>AI Analysis Usage</h3>
@@ -4690,8 +4716,35 @@ Be accurate and honest — never invent brand, material, or condition details th
     document.getElementById('signOutBtn')?.addEventListener('click', async () => {
       await window.authFns.signOut(window.auth);
     });
+    document.getElementById('createEmployeeBtn')?.addEventListener('click', async () => {
+      const email = document.getElementById('newEmployeeEmail').value.trim();
+      const password = document.getElementById('newEmployeePassword').value;
+      const resultEl = document.getElementById('employeeAccountsResult');
+      if (!email || !password){
+        resultEl.innerHTML = `<div class="ebay-status-box error">Enter both an email and a password.</div>`;
+        return;
+      }
+      if (password.length < 6){
+        resultEl.innerHTML = `<div class="ebay-status-box error">Password needs to be at least 6 characters (Firebase's minimum).</div>`;
+        return;
+      }
+      const btn = document.getElementById('createEmployeeBtn');
+      btn.disabled = true;
+      resultEl.innerHTML = `<div class="ebay-status-box pending">⏳ Creating account…</div>`;
+      const result = await window.createEmployeeAccount(email, password);
+      btn.disabled = false;
+      if (result.ok){
+        resultEl.innerHTML = `<div class="ebay-status-box success">✅ Employee account created for ${escapeHtml(email)} — Catalog-only access. Share the email/password with them directly; they can sign in right away (no approval step needed).</div>`;
+        document.getElementById('newEmployeeEmail').value = '';
+        document.getElementById('newEmployeePassword').value = '';
+        renderEmployeeAccountsPanel();
+      } else {
+        resultEl.innerHTML = `<div class="ebay-status-box error">❌ Could not create the account: ${escapeHtml(result.error || 'unknown error')}</div>`;
+      }
+    });
     if (window.isAdminEmail(window.auth.currentUser?.email)){
       renderAuthorizeAccessPanel();
+      renderEmployeeAccountsPanel();
     }
   }
 
@@ -4739,6 +4792,32 @@ Be accurate and honest — never invent brand, material, or condition details th
     }catch(e){
       console.error('Failed to load access requests:', e);
       box.innerHTML = '<div style="font-size:12px; color:var(--danger);">Failed to load — try again.</div>';
+    }
+  }
+
+  // Lets the admin create a login for someone who should only see Catalog
+  // (a Poshmark-only helper, e.g.) — writes role:'employee' on their user
+  // doc, which is what applyRoleRestrictions() checks after sign-in to hide
+  // everything else. Uses a throwaway secondary Firebase app instance to
+  // create the auth user (see window.createEmployeeAccount in
+  // config/firebase.js) so it doesn't sign the admin out of their own
+  // session — createUserWithEmailAndPassword normally does that.
+  async function renderEmployeeAccountsPanel(){
+    const section = document.getElementById('employeeAccountsSection');
+    const listEl = document.getElementById('employeeAccountsList');
+    if (!section || !listEl) return;
+    section.style.display = 'block';
+    try{
+      const { collection, getDocs } = window.firestoreFns;
+      const snap = await getDocs(collection(window.db, 'users'));
+      const employees = [];
+      snap.forEach(d => { if (d.data().role === 'employee') employees.push({ id: d.id, ...d.data() }); });
+      listEl.innerHTML = employees.length
+        ? `<div style="font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:var(--plum-soft); margin-bottom:6px;">Employee accounts (${employees.length})</div>` +
+          employees.map(u => `<div style="font-size:13px; padding:6px 0; border-bottom:1px dashed var(--line);">${escapeHtml(u.email || u.id)} <span style="color:var(--plum-soft); font-size:11px;">· Catalog only</span></div>`).join('')
+        : '';
+    }catch(e){
+      console.error('Failed to load employee accounts:', e);
     }
   }
 
@@ -5184,6 +5263,25 @@ EBAY_MERCHANT_LOCATION_KEY=${escapeHtml(data.results.merchantLocationKey)}</div>
     document.getElementById('authOverlay').style.display = 'none';
     document.body.classList.remove('auth-locked');
   }
+
+  // Hides every nav entry except Catalog for an employee account, plus the
+  // header's profit numbers (stats strip, daily quote — which sometimes
+  // shows a profit/margin insight instead of the plain quote). This is a
+  // UI-level restriction only — it stops an employee from casually
+  // stumbling into financial data, it does NOT stop someone who opens
+  // devtools and queries Firestore directly. Closing that gap needs a
+  // matching rule in the Firebase Console's Firestore Security Rules
+  // (not something this repo can deploy) — see CLAUDE.md.
+  function applyRoleRestrictions(){
+    if (currentUserRole !== 'employee') return;
+    document.querySelectorAll('.tab-btn, .sidebar-link').forEach(btn => {
+      if (btn.dataset.tab !== 'catalog') btn.style.display = 'none';
+    });
+    const statsStrip = document.getElementById('statsStrip');
+    if (statsStrip) statsStrip.style.display = 'none';
+    const dailyQuote = document.getElementById('dailyQuote');
+    if (dailyQuote) dailyQuote.style.display = 'none';
+  }
   function setAuthError(msg){
     const el = document.getElementById('authError');
     el.style.display = msg ? 'block' : 'none';
@@ -5265,7 +5363,9 @@ EBAY_MERCHANT_LOCATION_KEY=${escapeHtml(data.results.merchantLocationKey)}</div>
           snap = await getDoc(userRef);
         }
         if (snap.data().status === 'approved'){
+          currentUserRole = snap.data().role === 'employee' ? 'employee' : 'owner';
           showApp();
+          applyRoleRestrictions();
           waitForFirebaseThenLoad();
         } else {
           showAuthPending();
