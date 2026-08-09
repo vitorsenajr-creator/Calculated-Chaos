@@ -69,6 +69,15 @@ inline sold-fields section:
   sold" is clicked.
 - Both paths still run `endEbayListingIfSold` + the platform-mismatch
   warnings from v3.12.3/v3.12.4 afterward, unchanged.
+- **v3.13.4** — Sale price and platform are now genuinely required, not
+  just usually-filled: price must be `> 0` (was `>= 0`), and the
+  single-item modal's platform `<select>` only pre-selects when there's
+  an actually confident signal (`item.soldPlatform` already set, or
+  exactly one entry in `listedPlatforms`) — otherwise it starts on a
+  blank "— Select platform —" option so the required-field check means
+  something, instead of blindly defaulting to eBay. Confirming the
+  single-item modal now also autosaves immediately (`#saveItemBtn`
+  .click()) instead of leaving her to remember to hit Save separately.
 
 ### 2. Revenue-by-platform breakdown — ✅ done (v3.13.0, 2026-08-09)
 

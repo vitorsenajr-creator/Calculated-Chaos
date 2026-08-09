@@ -54,7 +54,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.3';
+  const APP_VERSION = 'v3.13.4';
   const APP_VERSION_DATE = '2026-08-09';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -975,6 +975,21 @@ export const app = (function(){
       });
       document.getElementById('bulkSoldCancelBtn').addEventListener('click', () => { statusEl.innerHTML = ''; });
       document.getElementById('bulkSoldConfirmBtn').addEventListener('click', async () => {
+        // Same "required" rule as the single-item confirm modal: a sale
+        // price and a specific platform aren't optional, since both feed
+        // straight into the fee calc and profit reporting.
+        const invalid = [];
+        for (const item of rows){
+          const row = statusEl.querySelector(`[data-bulk-sold-row="${item.id}"]`);
+          if (!row) continue;
+          const price = parseFloat(row.querySelector('[data-bs-price]').value);
+          const platform = row.querySelector('[data-bs-platform]').value;
+          if (!(price > 0) || !platform) invalid.push(item.name || item.productCode || 'Item');
+        }
+        if (invalid.length){
+          alert(`⚠️ These items need a sale price and a platform before they can be marked sold: ${invalid.join(', ')}`);
+          return;
+        }
         const confirmBtn = document.getElementById('bulkSoldConfirmBtn');
         confirmBtn.disabled = true;
         confirmBtn.textContent = 'Saving…';
@@ -3154,9 +3169,15 @@ export const app = (function(){
   function openSoldConfirmModal(){
     const item = items.find(i => i.id === currentEditId);
     const platformSelect = document.getElementById('scPlatform');
-    platformSelect.innerHTML = getAllPlatforms().map(p => `<option value="${p.key}">${escapeHtml(PLATFORM_NAME[p.key] || p.label)}</option>`).join('');
-    const guessedPlatform = item?.soldPlatform || currentListedPlatforms[0] || 'ebay';
-    platformSelect.value = guessedPlatform;
+    // Only pre-select when there's an actually confident signal (already
+    // recorded as sold there, or exactly one platform it was ever listed
+    // on) — blindly defaulting to 'ebay' otherwise would make the
+    // "required" validation below meaningless, since a <select> is never
+    // really empty unless we leave it that way on purpose.
+    const confidentGuess = item?.soldPlatform || (currentListedPlatforms.length === 1 ? currentListedPlatforms[0] : null);
+    platformSelect.innerHTML = `<option value="">— Select platform —</option>` +
+      getAllPlatforms().map(p => `<option value="${p.key}">${escapeHtml(PLATFORM_NAME[p.key] || p.label)}</option>`).join('');
+    platformSelect.value = confidentGuess || '';
     const listPriceVal = document.getElementById('fListPrice').value;
     document.getElementById('scPrice').value = (item?.soldPrice || listPriceVal || '') !== '' ? parseFloat(item?.soldPrice || listPriceVal).toFixed(2) : '';
     const listingSaysSellerPays = document.getElementById('fFreeShipping')?.value === 'seller';
@@ -3182,8 +3203,9 @@ export const app = (function(){
   });
   document.getElementById('scConfirmBtn').addEventListener('click', () => {
     const price = document.getElementById('scPrice').value;
-    if (!price || parseFloat(price) < 0){ alert('Enter a valid sale price.'); return; }
+    if (!price || parseFloat(price) <= 0){ alert('Enter the sale price — this is required to record the sale.'); return; }
     const platform = document.getElementById('scPlatform').value;
+    if (!platform){ alert('Select which platform this sold on — this is required to calculate the right fee.'); return; }
     const who = document.querySelector('#scShippingWhoRow .status-pill.selected')?.dataset.who || 'buyer';
     const shippingCost = who === 'seller' ? (document.getElementById('scShippingCost').value || '0') : '0';
     document.getElementById('soldConfirmOverlay').classList.add('hidden');
@@ -3191,6 +3213,11 @@ export const app = (function(){
     document.getElementById('fSoldPrice').value = parseFloat(price).toFixed(2);
     document.getElementById('fShippingCost').value = parseFloat(shippingCost).toFixed(2);
     document.getElementById('fSoldPlatform').value = platform;
+    // Autosave right away — she just explicitly confirmed every number
+    // that feeds this sale, no reason to make her also remember to hit
+    // the main Save button afterward. Reuses the real save button's full
+    // pipeline (validation, photo upload, etc.) instead of duplicating it.
+    document.getElementById('saveItemBtn').click();
   });
 
   // ---------- PREP PILLS ----------
