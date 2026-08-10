@@ -178,6 +178,11 @@ next minor bump:
   showed `data.error` ("Failed to fetch eBay offers"), never the actual
   eBay error behind it — added `data.detail` to the error box so the
   next failure is diagnosable without needing DevTools.
+- **v3.13.16** — That improved error message immediately paid off:
+  errorId 25709 "Invalid value for header Accept-Language" — the
+  audit's `getOffers` call omitted `Content-Language`/`Accept-Language`
+  entirely, unlike `ebay-setup.js`'s `ebayRequest()` helper, which
+  always sends both. Added both headers (`en-US`) to the audit's fetch.
 
 ## Planned changes (backlog)
 

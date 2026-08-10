@@ -151,7 +151,14 @@ async function handleAudit(req, res, access_token){
   for (let page = 0; page < 20; page++){
     const r = await fetch(
       `${API_BASE}/sell/inventory/v1/offer?marketplace_id=${MARKETPLACE_ID}&limit=${pageSize}&offset=${offset}`,
-      { headers: { 'Authorization': `Bearer ${access_token}`, 'Content-Type': 'application/json' } }
+      {
+        headers: {
+          'Authorization': `Bearer ${access_token}`,
+          'Content-Type': 'application/json',
+          'Content-Language': 'en-US',
+          'Accept-Language': 'en-US',
+        },
+      }
     );
     const text = await r.text();
     let data;
