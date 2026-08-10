@@ -305,6 +305,18 @@ next minor bump:
   documentation but haven't been exercised against a real account; watch
   the first real run closely, and if `legacy_scan` fails, the raw XML is
   surfaced via the error's `detail` field to diagnose from.
+- **v3.13.24** — Vitor asked whether the eBay listing audit's "import
+  invisible listing" flow (v3.13.23) pulls all of a listing's photos, not
+  just one — it didn't: `GetMyeBaySelling`'s `ActiveList` (used to find
+  the invisible listings) only ever returns one gallery/primary photo per
+  item. Added a second Trading API call, `GetItem` (new
+  `fetchListingPhotos()` in `api/ebay-listing-tools.js`), fired once per
+  listing right at import time (inside `action:'migrate_listing'`, after
+  the migration itself succeeds) to fetch the listing's full
+  `PictureDetails.PictureURL` set. Best-effort: if this call fails, the
+  import still succeeds — it just falls back to the single photo already
+  known from `legacy_scan`, same as before this change, rather than
+  failing the whole import over a missing extra photo.
 
 ## Planned changes (backlog)
 
