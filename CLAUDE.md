@@ -116,6 +116,25 @@ next minor bump:
   `estimateShipping()` already uses for her profit math, so an
   un-measured item still gets a valid non-zero value instead of failing
   to publish.
+- **v3.13.12** — Added an "eBay listing audit" tool (Settings, below
+  "eBay one-time setup") — Vitor asked for a way to be sure the shipping
+  bug is actually fully fixed rather than just trusting it. Fetches every
+  live eBay listing (paginated `getOffers`) and cross-references by SKU
+  against the catalog, flagging: listings with no matching item
+  ("orphaned" — never auto-imported, review-only per his explicit
+  choice) and listings whose live `fulfillmentPolicyId` doesn't match
+  what `item.freeShipping` says it should be — the exact class of bug
+  that started this whole thread. The policy-ID comparison happens
+  server-side (`api/ebay-listing-tools.js`, new `action:'audit'`) since
+  the real IDs are Vercel env vars; the client only sends `{sku,
+  freeShipping}` pairs. Added as a new action on the already-consolidated
+  `ebay-listing-tools.js` rather than a new file, to stay at exactly 12
+  functions (see the Hobby-plan cap note above — still no slack for a
+  genuinely new endpoint). New module `modules/ebay-audit.js`, exported
+  as a plain function (`window.runEbayAudit`) rather than an
+  init-with-listener controller, since its button/result area live
+  inside `renderSettings()`'s HTML, rebuilt on every render — same
+  pattern as `runEbaySetup`/`checkEbaySalesNow` already use.
 
 ## Planned changes (backlog)
 
