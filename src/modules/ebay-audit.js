@@ -239,19 +239,25 @@ function renderAuditReport(data){
             results.push({ row, itemId, sku, ok: false, error: migrateData.error || 'eBay rejected the migration' });
             continue;
           }
-          // Best-effort catalog entry — only the fields eBay's ActiveList
-          // actually gives us (title/price/one picture) are filled in;
-          // everything else (type, brand, size, cost...) needs a manual
-          // pass in Catalog afterward, same as any freshly-cataloged item.
-          // freeShipping defaults to true (seller-paid) since there's no
-          // reliable way to infer the real policy from ActiveList alone —
-          // flagged in the result summary below for her to double-check.
+          // Best-effort catalog entry — only the fields eBay actually gives
+          // us (title/price/photos) are filled in; everything else (type,
+          // brand, size, cost...) needs a manual pass in Catalog afterward,
+          // same as any freshly-cataloged item. freeShipping defaults to
+          // true (seller-paid) since there's no reliable way to infer the
+          // real policy from these calls alone — flagged in the result
+          // summary below for her to double-check.
+          // migrateData.photos is the FULL photo set (fetched via GetItem
+          // at migration time); legacy_scan's ActiveList only ever had the
+          // one gallery photo, kept here as a fallback if that fetch failed.
+          const photos = (migrateData.photos && migrateData.photos.length)
+            ? migrateData.photos
+            : (listing?.pictureUrl ? [listing.pictureUrl] : []);
           const newItem = {
             id: uid(),
             productCode: sku,
             name: listing?.title || sku,
             listPrice: listing?.price || '',
-            photos: listing?.pictureUrl ? [listing.pictureUrl] : [],
+            photos,
             listedPlatforms: ['ebay'],
             ebayListingId: itemId,
             status: 'anunciado',

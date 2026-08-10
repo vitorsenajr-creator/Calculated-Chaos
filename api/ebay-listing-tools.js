@@ -70,7 +70,9 @@
 //        bulk_migrate_listing. The listing itself is untouched on eBay
 //        (same ItemID/URL) — it just becomes visible to the Inventory API
 //        (and therefore to this app's tools and future audits) afterward.
-//     Returns: { success, sku, listingId } | { success: false, error, detail }
+//        Also fetches the listing's full photo set (GetItem, Trading API —
+//        legacy_scan's ActiveList only ever has the one gallery photo).
+//     Returns: { success, sku, listingId, photos: [...] | null } | { success: false, error, detail }
 
 import { XMLParser, XMLBuilder } from 'fast-xml-parser';
 
@@ -401,6 +403,43 @@ async function handleLegacyScan(req, res, access_token){
   return res.status(200).json({ success: true, items, totalItems: items.length });
 }
 
+// GetMyeBaySelling's ActiveList only ever gives one picture per item (the
+// gallery/primary photo) — the full photo set for a listing requires a
+// separate Trading API call, GetItem, keyed by ItemID. Fetched only at
+// import time (one listing at a time, not for the whole legacy_scan list)
+// since it's an extra round-trip per item and most invisible listings never
+// get imported. Best-effort: a failure here doesn't fail the migration
+// itself, it just falls back to the single picture already known
+// client-side from legacy_scan.
+async function fetchListingPhotos(itemId, access_token){
+  try{
+    const body = xmlBuilder.build({
+      '?xml': { '@_version': '1.0', '@_encoding': 'utf-8' },
+      GetItemRequest: {
+        '@_xmlns': 'urn:ebay:apis:eBLBaseComponents',
+        ErrorLanguage: 'en_US',
+        WarningLevel: 'High',
+        ItemID: itemId,
+        DetailLevel: 'ReturnAll',
+      },
+    });
+    const r = await fetch(TRADING_API_BASE, {
+      method: 'POST',
+      headers: tradingApiHeaders(access_token, 'GetItem'),
+      body,
+    });
+    const text = await r.text();
+    const parsed = xmlParser.parse(text);
+    const response = parsed?.GetItemResponse;
+    if (!response || response.Ack === 'Failure') return null;
+    const raw = response.Item?.PictureDetails?.PictureURL;
+    if (!raw) return null;
+    return Array.isArray(raw) ? raw : [raw];
+  }catch(e){
+    return null;
+  }
+}
+
 // ---------- Migrate a legacy (non-Inventory-API) listing ----------
 // Converts an already-live listing found by handleLegacyScan into an
 // Inventory API item + offer under a chosen SKU, via eBay's
@@ -429,7 +468,9 @@ async function handleMigrateListing(req, res, access_token){
   if (!result || result.statusCode >= 300){
     return res.status(200).json({ success: false, error: 'eBay rejected the migration', detail: result || data });
   }
-  return res.status(200).json({ success: true, sku: result.sku || sku, listingId });
+
+  const photos = await fetchListingPhotos(listingId, access_token);
+  return res.status(200).json({ success: true, sku: result.sku || sku, listingId, photos });
 }
 
 export default async (req, res) => {
