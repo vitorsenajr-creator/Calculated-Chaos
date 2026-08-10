@@ -69,3 +69,13 @@ export function getAllClothingTypes(items){
   items.forEach(i => { if (i.clothingType && i.clothingType.trim() && !PRESET_CLOTHING_TYPES.includes(i.clothingType.trim())) types.add(i.clothingType.trim()); });
   return Array.from(types).sort((a,b)=> a.localeCompare(b, undefined, {numeric:true}));
 }
+
+// Brand has no preset list (too open-ended to guess) — just every distinct
+// value actually typed on a real item. Added for the Live Catalog quick-add
+// tool, which needed a brand suggestion list the same way the item form
+// already has one for sizes/sources/etc.
+export function getAllBrands(items){
+  const brands = new Set();
+  items.forEach(i => { if (i.brand && i.brand.trim()) brands.add(i.brand.trim()); });
+  return Array.from(brands).sort((a,b)=> a.localeCompare(b, undefined, {numeric:true}));
+}
