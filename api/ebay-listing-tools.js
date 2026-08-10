@@ -176,9 +176,37 @@ async function handleAudit(req, res, access_token){
 
   const orphans = [];
   const shippingMismatches = [];
+  const lookupErrors = [];
   const fulfillmentPolicyId = process.env.EBAY_FULFILLMENT_POLICY_ID || '';
   const fulfillmentPolicyIdBuyerPays = process.env.EBAY_FULFILLMENT_POLICY_ID_BUYER_PAYS || '';
   let checkedCount = 0;
+
+  // Fetches one SKU's offer, with one retry after a short backoff — eBay
+  // occasionally rate-limits a handful of the 10-concurrent requests below,
+  // and silently dropping those (the original version of this function did)
+  // undercounts the audit without any sign anything went wrong, which is
+  // worse than a slower but complete result.
+  async function fetchOfferForSku(sku, isRetry){
+    try{
+      const r = await fetch(`${API_BASE}/sell/inventory/v1/offer?sku=${encodeURIComponent(sku)}`, { headers });
+      if (!r.ok){
+        if (!isRetry){
+          await new Promise(resolve => setTimeout(resolve, 400));
+          return fetchOfferForSku(sku, true);
+        }
+        return { sku, error: `HTTP ${r.status}` };
+      }
+      const data = await r.json().catch(() => null);
+      const offer = (data?.offers || []).find(o => o.status === 'PUBLISHED');
+      return offer ? { sku, offer } : { sku, offer: null };
+    }catch(e){
+      if (!isRetry){
+        await new Promise(resolve => setTimeout(resolve, 400));
+        return fetchOfferForSku(sku, true);
+      }
+      return { sku, error: String(e && e.message || e) };
+    }
+  }
 
   // One request per SKU is a lot of round-trips for a large catalog —
   // batch them concurrently (10 at a time) to stay well inside this
@@ -186,20 +214,14 @@ async function handleAudit(req, res, access_token){
   const BATCH_SIZE = 10;
   for (let i = 0; i < skus.length; i += BATCH_SIZE){
     const batch = skus.slice(i, i + BATCH_SIZE);
-    const results = await Promise.all(batch.map(async (sku) => {
-      try{
-        const r = await fetch(`${API_BASE}/sell/inventory/v1/offer?sku=${encodeURIComponent(sku)}`, { headers });
-        if (!r.ok) return null; // don't fail the whole audit over one bad SKU lookup
-        const data = await r.json().catch(() => null);
-        const offer = (data?.offers || []).find(o => o.status === 'PUBLISHED');
-        return offer ? { sku, offer } : null;
-      }catch(e){
-        return null;
-      }
-    }));
+    const results = await Promise.all(batch.map(sku => fetchOfferForSku(sku, false)));
 
     for (const result of results){
-      if (!result) continue; // not actually live right now, or lookup failed
+      if (result.error){
+        lookupErrors.push({ sku: result.sku, error: result.error });
+        continue;
+      }
+      if (!result.offer) continue; // not actually live right now
       const { sku, offer } = result;
       checkedCount++;
       const listingId = offer.listing?.listingId || null;
@@ -219,7 +241,7 @@ async function handleAudit(req, res, access_token){
     }
   }
 
-  return res.status(200).json({ success: true, orphans, shippingMismatches, checkedCount });
+  return res.status(200).json({ success: true, orphans, shippingMismatches, checkedCount, totalSkus: skus.length, lookupErrors });
 }
 
 export default async (req, res) => {

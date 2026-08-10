@@ -194,6 +194,21 @@ next minor bump:
   a larger catalog) to get its live status/price/`fulfillmentPolicyId`.
   More requests than the original single-paginated-call design, but
   it's the only way this API actually supports it.
+- **v3.13.18** — Vitor reported 102 active eBay listings but the audit
+  only checked 82 — a real undercount, not a display issue. Root cause:
+  the batched (10-at-a-time) per-SKU `getOffers` calls silently dropped
+  any SKU whose request failed (rate-limited or errored), with no sign
+  anything was skipped. Added a one-retry-with-backoff wrapper per SKU
+  lookup, and now surfaces `lookupErrors` (which SKUs still couldn't be
+  checked after the retry) and `totalSkus` (how many SKUs exist on the
+  account at all, live or not) in the report — so a future gap between
+  "active listings" and "checked" is visible and explainable instead of
+  silently swallowed. **If the count still doesn't reach 102 after
+  this**, the next suspect is listings that exist outside the Inventory
+  API entirely (e.g. created directly in eBay's Seller Hub rather than
+  through this app or the modern API) — `inventory_item`/`getOffers`
+  can't see those at all; would need eBay's legacy Trading API
+  (`GetSellerList`) to find them, which is a bigger change not started.
 
 ## Planned changes (backlog)
 

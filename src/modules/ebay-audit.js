@@ -33,10 +33,20 @@ function itemNameForSku(sku){
 function renderAuditReport(data){
   const area = document.getElementById('ebayAuditResult');
   if (!area) return;
-  const { orphans, shippingMismatches, checkedCount } = data;
+  const { orphans, shippingMismatches, checkedCount, totalSkus, lookupErrors } = data;
   const listingUrl = (id) => id ? `https://www.ebay.com/itm/${id}` : null;
 
   let html = `<div class="ebay-connect-box"><div class="ec-title">Audit finished — ${checkedCount} live listing${checkedCount===1?'':'s'} checked</div><div class="ec-sub">`;
+
+  if (typeof totalSkus === 'number'){
+    html += `<div style="font-size:12px; opacity:0.75; margin-bottom:6px;">${totalSkus} SKU${totalSkus===1?'':'s'} found on the eBay account total (includes ended/unpublished, not just live).</div>`;
+  }
+
+  if (lookupErrors && lookupErrors.length){
+    html += `<div style="margin-bottom:10px;"><b style="color:var(--amber-deep);">⚠️ ${lookupErrors.length} SKU${lookupErrors.length===1?'':'s'} couldn't be checked</b> (eBay didn't respond after a retry — rerun the audit to pick these back up):`;
+    html += lookupErrors.map(e => `<div style="margin-top:4px; font-size:12px; opacity:0.85;">SKU ${escapeHtml(e.sku)} — ${escapeHtml(e.error)}</div>`).join('');
+    html += `</div>`;
+  }
 
   if (orphans.length === 0 && shippingMismatches.length === 0){
     html += `<div style="color:var(--sage-deep); font-weight:600;">✅ Everything matches — no orphaned listings, no shipping policy mismatches.</div>`;
