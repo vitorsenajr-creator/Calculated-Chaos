@@ -458,6 +458,13 @@ next minor bump:
   into business policies" notice eBay attaches to most responses) and
   show them as a readable line above the raw JSON, which now collapses
   into a `<details>` toggle instead of always being shown expanded.
+- **v3.13.34** — The eBay listing audit's invisible-listings row truncated
+  title + price + "View ↗" link onto one `white-space:nowrap` line, so a
+  long title clipped the link off entirely and made it unclickable (seen
+  on a real $17-something wrench-set title). Split each row into two
+  lines — title on its own truncated line, price + link always visible
+  on the line below — so the link is never cut off regardless of title
+  length.
 
 ## Planned changes (backlog)
 
