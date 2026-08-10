@@ -68,6 +68,13 @@ next minor bump:
   quick-add form and table (`item.fabric`), same free-text
   datalist-with-memory pattern as Tipo/Brand/Size — no preset list since
   the main catalog has no structured fabric field either.
+- **v3.13.8** — Added voice narration capture to the standard Add Item
+  modal: a "🎙️ Narrate item" button records a spoken description
+  (tap-to-start/tap-to-stop, English only), transcribes it server-side
+  with Deepgram Nova-3 (`api/transcribe-narration.js`), then extracts
+  catalog fields from the transcript with Claude Haiku 4.5
+  (`api/extract-narration-fields.js`). See its own section below for the
+  full design rationale.
 
 ## Planned changes (backlog)
 
@@ -142,6 +149,8 @@ the original names so call sites don't change): `constants.js`,
 controller rather than pure calculations — extracted immediately after
 being written rather than left to accumulate in `main.js`, since that's
 much cheaper than extracting battle-tested legacy code later.
+`narration-capture.js` (v3.13.8) follows the same immediate-extraction
+approach for the voice-narration feature — see its own section below.
 
 **Proposed next phases** (discussed 2026-08-09, not started), ordered
 safest-first same as always:
@@ -365,6 +374,59 @@ explicit spec. Desktop/PC only, still behind the same Firebase login.
   capture tool for use *during* the live, not an import pipeline. Revisit
   if she wants captured items promoted into the real `items` collection
   afterward.
+
+## Voice narration capture (added v3.13.8, 2026-08-10)
+
+A "🎙️ Narrate item" button in the standard Add Item modal (`index.html`,
+next to the existing "🔮 Analyze with AI" photo button) records a spoken
+item description and auto-fills catalog fields from it — for cataloging
+outside a live sale, where narrating while holding the item is faster than
+typing. Discussed at length with Vitor before building; decisions below
+reflect that conversation, not defaults picked unilaterally.
+
+- **Recording UX**: tap-to-start/tap-to-stop (not push-to-talk, not
+  silence-detection auto-stop — his explicit choice). 2-minute safety
+  auto-stop in case the button tap to stop is missed.
+  `modules/narration-capture.js`'s `pickSupportedMimeType()` tries
+  `audio/mp4` first specifically for Safari (the primary target platform
+  per Vitor — he's on Safari now, native app later), falling back through
+  `audio/webm`/`audio/ogg` for other browsers.
+- **Pipeline**: record → `POST /api/transcribe-narration` (Deepgram
+  Nova-3, `language=en` — English only, no auto-detect, since the narrator
+  doesn't speak Portuguese) → `POST /api/extract-narration-fields` (Claude
+  Haiku 4.5 — plain structured extraction from a short transcript doesn't
+  need Sonnet's cost/latency) → review card → "Apply to form". Both
+  endpoints follow the existing `api/analyze-photo.js`/
+  `api/generate-listing.js` pattern: `requireApprovedUser` guard, API keys
+  server-side only, prompt built client-side and passed as `promptText` (so
+  prompt iteration doesn't need a backend redeploy).
+- **Audio is never persisted** — not in Firestore, not in Storage, not by
+  either serverless function. It's base64-encoded client-side, POSTed,
+  and discarded the moment the transcript comes back.
+- **Review card only shows fields the extraction actually found** (empty
+  string / null fields are omitted entirely) — deliberately different from
+  the photo-analysis card, which always shows its four fixed fields
+  regardless of confidence. Each shown field is still editable before
+  applying.
+- **Overwrite protection**: "Apply to form" always runs a `confirm()`
+  (same browser-dialog pattern used everywhere else in this app for
+  destructive actions — see the delete-item/delete-photo confirms) before
+  overwriting any field that already holds a different value. Mainly
+  matters if photo analysis was already run on the same item — in
+  practice a rare collision today since items are usually cataloged
+  before photos are added, and the in-browser photo-session feature isn't
+  functional yet.
+- **New env var required**: `DEEPGRAM_API_KEY`, alongside the existing
+  `ANTHROPIC_API_KEY` on Vercel. Not yet confirmed set — the feature will
+  500 on the transcription step until it's added.
+- **Not yet wired into Live Catalog** — Vitor asked to start with the
+  standard Add Item modal first; Live Catalog's quick-add form was
+  discussed as a likely follow-up but is explicitly out of scope for this
+  pass.
+- **Not yet tested against real audio/a real device** — built and verified
+  via `node --check` + a clean `vite build` only, same caveat as the
+  original Dashboard ship. Needs a real pass on Safari/iOS before trusting
+  it in the field.
 
 ## User-facing text: English only
 

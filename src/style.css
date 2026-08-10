@@ -575,6 +575,14 @@
     color:white; border:none; flex:none;
   }
   .btn-ai:disabled{opacity:0.6; cursor:default;}
+  .btn-ai.recording{
+    background:var(--danger);
+    animation:narration-pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes narration-pulse{
+    0%, 100%{ opacity:1; }
+    50%{ opacity:0.72; }
+  }
 
   .ai-analysis-box{
     background:linear-gradient(135deg, var(--white) 0%, var(--cream-soft) 100%);

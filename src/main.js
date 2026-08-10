@@ -58,12 +58,13 @@ import {
   initSoldConfirmModal,
   showBulkSoldConfirm as _showBulkSoldConfirm,
 } from './modules/sold-confirm.js';
+import { initNarrationCapture } from './modules/narration-capture.js';
 
 export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.7';
+  const APP_VERSION = 'v3.13.8';
   const APP_VERSION_DATE = '2026-08-10';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -3675,6 +3676,13 @@ Respond with the JSON object only. Do not include any text, explanation, or mark
   }
 
   document.getElementById('analyzePhotoBtn').addEventListener('click', analyzeItemPhoto);
+
+  // ---------- VOICE NARRATION CAPTURE ----------
+  // Record → transcribe (Deepgram) → extract fields (Claude) → review card,
+  // see modules/narration-capture.js. Self-contained: touches the same
+  // form field IDs analyzeItemPhoto/renderAiAnalysis do, no extra wiring
+  // needed here.
+  initNarrationCapture();
 
   // ---------- PRICE + SHIPPING SUGGESTION ----------
   document.getElementById('calcSuggestionBtn').addEventListener('click', () => {
