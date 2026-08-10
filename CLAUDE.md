@@ -93,6 +93,21 @@ next minor bump:
   below**: rerun eBay setup, add a new env var, and manually fix listings
   that already published before this fix (it does not retroactively
   correct live listings).
+- **v3.13.10** — Found while testing the v3.13.9 fix: `runEbaySetup()`'s
+  result screen in Settings never displayed the new
+  `fulfillmentPolicyIdBuyerPays` value (still showed the old hardcoded
+  4-value template), so there was no way to actually copy the 5th env
+  var. Fixed. Also fixed a real eBay publish failure hit during that same
+  test — `errorId 25002` ("item specific Type is missing") on a Dresses
+  listing, even though eBay's own Taxonomy API never flagged "Type" as
+  required for that category (a known Taxonomy/Inventory API
+  inconsistency, not specific to this app). Added
+  `extractMissingAspectName()` + a retry loop (up to 3 attempts) in
+  `api/ebay-list.js`: on this exact error shape, parse the missing field
+  name out of eBay's own message and retry with `'Does not apply'`
+  filled in, instead of hardcoding "Type" (or any other field) for one
+  category — the same fix now protects against any other category
+  eBay is similarly inconsistent about.
 
 ## Planned changes (backlog)
 

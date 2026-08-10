@@ -298,6 +298,23 @@ async function getValidConditionsForCategory(leafCategoryId, accessToken){
   return null; // null = unknown, buildInventoryItem falls back to the universal map
 }
 
+// eBay's Taxonomy API (get_item_aspects_for_category, used by
+// getRequiredAspects above) doesn't always agree with what the Inventory
+// API actually enforces at publish time — a category can reject a listing
+// for a missing item specific that the Taxonomy API never flagged as
+// required (seen for "Type" on a Dresses listing even though
+// aspectConstraint.aspectRequired was false for it). Rather than special-
+// case every category/aspect combination eBay is inconsistent about, this
+// parses that exact error shape ("The item specific X is missing.") and
+// hands back just the field name X, so the caller can fill it and retry.
+function extractMissingAspectName(errorData){
+  const err = Array.isArray(errorData) ? errorData[0] : errorData?.errors?.[0];
+  if (!err) return null;
+  const msg = err.message || err.longMessage || '';
+  const m = msg.match(/item specific ["“]?([^"”.]+?)["”]?\s+is missing/i);
+  return m ? m[1].trim() : null;
+}
+
 // Fills in any required aspect that our own data doesn't already cover, using
 // eBay's own suggested first value as a safe, always-valid placeholder. This
 // means we ask eBay upfront what's needed instead of reacting to errors one
@@ -523,8 +540,21 @@ export default async function handler(req, res){
     const itemForBuild = { ...item, ebayValidConditions: validConditions };
 
     // Step 1: Create or update inventory item
-    const inventoryBody = buildInventoryItem(itemForBuild, requiredAspects, imageUrls);
-    const invResult = await ebayRequest('PUT', `/sell/inventory/v1/inventory_item/${encodedSku}`, access_token, inventoryBody);
+    let inventoryBody = buildInventoryItem(itemForBuild, requiredAspects, imageUrls);
+    let invResult = await ebayRequest('PUT', `/sell/inventory/v1/inventory_item/${encodedSku}`, access_token, inventoryBody);
+
+    // Retry with whatever specific item-specific eBay says is missing, up to
+    // a few times — see extractMissingAspectName's comment for why this is
+    // needed instead of a fixed per-category field list.
+    let missingAspectRetries = 0;
+    while (!invResult.ok && invResult.status !== 204 && missingAspectRetries < 3){
+      const missingName = extractMissingAspectName(invResult.data);
+      if (!missingName) break;
+      itemForBuild.ebayAspects = { ...(itemForBuild.ebayAspects || {}), [missingName]: 'Does not apply' };
+      inventoryBody = buildInventoryItem(itemForBuild, requiredAspects, imageUrls);
+      invResult = await ebayRequest('PUT', `/sell/inventory/v1/inventory_item/${encodedSku}`, access_token, inventoryBody);
+      missingAspectRetries++;
+    }
 
     if (!invResult.ok && invResult.status !== 204){
       console.error('Inventory item error:', invResult.data);
