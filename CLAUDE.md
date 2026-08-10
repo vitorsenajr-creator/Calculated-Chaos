@@ -1,5 +1,26 @@
 # Project conventions — Calculated Chaos
 
+## Git workflow: feature branch + PR (added 2026-08-10)
+
+Vitor asked (2026-08-10) why a Claude Code session's changes landed on a
+separate branch + PR (`claude/audit-sku-discovery-gap-dx0uw5` → PR #2)
+instead of going straight to `main` like some earlier sessions apparently
+did. Clarifying so it doesn't come up as a surprise again:
+
+- Whether a given Claude Code session commits straight to `main` or works
+  on a branch + opens a PR is a **per-session/task setup choice** (set
+  when the session is created — e.g. via claude.ai/code, a GitHub Action,
+  or however it was invoked), not something Claude decides mid-session.
+  It's plausible earlier sessions were configured to bind directly to
+  `main`; this one was explicitly told to develop on a named branch and
+  never push elsewhere without permission.
+- Vitor confirmed (2026-08-10) he's fine keeping this branch+PR pattern —
+  no change requested. Documenting it here just so the answer isn't a
+  mystery again if it recurs. Nothing to actually configure in this repo
+  itself (no branch-protection rules or required-reviews setting live
+  here) — it's controlled by whatever spins up the session, outside this
+  codebase.
+
 ## Versioning & CHANGELOG.md
 
 `APP_VERSION` in `src/main.js` follows `vMAJOR.MINOR.PATCH` (e.g. `v3.12.5`).
