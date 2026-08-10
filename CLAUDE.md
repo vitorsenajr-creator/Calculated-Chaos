@@ -153,6 +153,27 @@ next minor bump:
   config) — watch the next deploy for a build-time rejection of this
   file, and if the timeouts persist even after this, that's the next
   thing to check.
+- **v3.13.14** — **Found the actual root cause of v3.13.13's crashes**
+  (the 60s timeout bump didn't fix it — same error came back in under
+  2 seconds, too fast to be a timeout): `package.json` has `"type":
+  "module"`, which makes Node treat every `.js` file as an ES module by
+  default, but `ebay-category-search.js`, `ebay-check-sales.js`,
+  `ebay-end-listing.js`, and the new `ebay-listing-tools.js` still used
+  `module.exports = ...` (CommonJS) — invalid syntax under ESM, which
+  crashes the function at import time, before any of its own try/catch
+  ever runs. That's exactly the symptom reported all session: fast,
+  every time, a non-JSON "A server error has occurred" body with a
+  500 status (Vercel's own crash page, not this app's JSON error
+  responses). The first three predate this session entirely — meaning
+  eBay category search, sale-sync, and "End listing" were likely broken
+  in production for a while before today, not something this session
+  broke. `ebay-listing-tools.js` inherited the same broken pattern
+  because it was written by merging two of those already-broken files
+  (`ebay-condition-policies.js`/`ebay-negotiation.js`) — copying their
+  `module.exports` style without noticing it never actually worked.
+  Fixed all four to `export default`, matching every other file in
+  `api/`. **Lesson for future `api/` files**: always use `export
+  default`, never `module.exports` — this repo's `package.json` is ESM.
 
 ## Planned changes (backlog)
 

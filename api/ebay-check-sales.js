@@ -15,7 +15,7 @@ const API_BASE = EBAY_SANDBOX
   ? 'https://api.sandbox.ebay.com'
   : 'https://api.ebay.com';
 
-module.exports = async (req, res) => {
+export default async (req, res) => {
   if (req.method !== 'POST'){
     return res.status(405).json({ error: 'Method not allowed' });
   }

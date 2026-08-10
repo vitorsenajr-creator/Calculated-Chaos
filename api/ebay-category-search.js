@@ -13,7 +13,7 @@ const API_BASE = EBAY_SANDBOX
   : 'https://api.ebay.com';
 const CATEGORY_TREE_ID = '0'; // eBay's default/shared tree ID for EBAY_US
 
-module.exports = async (req, res) => {
+export default async (req, res) => {
   if (req.method !== 'POST'){
     return res.status(405).json({ error: 'Method not allowed' });
   }
