@@ -229,6 +229,17 @@ next minor bump:
   because they were published before that became a hard requirement),
   fixable via Catalog's "🪄 Generate descriptions" bulk action first,
   then rerunning the audit fix.
+- **v3.13.21** — The audit hit a real `504 Gateway Timeout` on the full
+  ~127-SKU account, even with `maxDuration:60` already set — confirms
+  the Hobby plan doesn't reliably honor that config for a call this
+  chatty (list SKUs + one offer lookup per SKU). Split `action:'audit'`
+  into `action:'audit_list_skus'` (fast, no per-item calls) and
+  `action:'audit_check_skus'` (takes a `skus` chunk), and rewrote
+  `runEbayAudit()` in `modules/ebay-audit.js` to drive the check in
+  20-SKU chunks client-side, merging results as it goes and showing
+  live "Checking listings — X of Y SKUs…" progress. No single request
+  can time out regardless of catalog size now, since each one only
+  covers a small, bounded chunk of work.
 
 ## Planned changes (backlog)
 

@@ -134,6 +134,23 @@ function renderAuditReport(data){
   }
 }
 
+async function postAuditAction(token, body){
+  const res = await fetch('/api/ebay-listing-tools', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ access_token: token, ...body }),
+  });
+  return res.json();
+}
+
+// Drives the audit as a client-side loop over small chunks rather than one
+// big server call — a single-request version hit a real 504 gateway
+// timeout on a 100+ SKU account even with the function's maxDuration
+// raised to 60s (Hobby plan doesn't reliably honor that). No individual
+// request here can time out regardless of catalog size, and she gets live
+// progress instead of a silent multi-second wait.
+const CHUNK_SIZE = 20;
+
 export async function runEbayAudit(){
   const area = document.getElementById('ebayAuditResult');
   if (!area) return;
@@ -146,25 +163,40 @@ export async function runEbayAudit(){
       return;
     }
 
-    area.innerHTML = `<div class="ebay-status-box pending">⏳ Fetching live eBay listings and comparing against your catalog — this can take a moment if you have a lot listed…</div>`;
-
-    const knownItems = items.map(i => ({ sku: i.productCode || i.id, freeShipping: i.freeShipping === true }));
-    const res = await fetch('/api/ebay-listing-tools', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ access_token: token, action: 'audit', knownItems }),
-    });
-    const data = await res.json();
-    if (!data.success){
+    area.innerHTML = `<div class="ebay-status-box pending">⏳ Listing every SKU on your eBay account…</div>`;
+    const listData = await postAuditAction(token, { action: 'audit_list_skus' });
+    if (!listData.success){
       area.innerHTML = `
         <div class="ebay-status-box error">
-          ❌ Audit failed: ${escapeHtml(data.error || 'unknown error')}
-          ${data.detail ? `<div style="margin-top:8px; padding:8px; background:rgba(0,0,0,0.04); border-radius:6px; font-family:monospace; font-size:11px; white-space:pre-wrap;">${escapeHtml(JSON.stringify(data.detail, null, 2))}</div>` : ''}
+          ❌ Audit failed: ${escapeHtml(listData.error || 'unknown error')}
+          ${listData.detail ? `<div style="margin-top:8px; padding:8px; background:rgba(0,0,0,0.04); border-radius:6px; font-family:monospace; font-size:11px; white-space:pre-wrap;">${escapeHtml(JSON.stringify(listData.detail, null, 2))}</div>` : ''}
         </div>`;
       return;
     }
 
-    renderAuditReport(data);
+    const { skus, totalSkus } = listData;
+    const knownItems = items.map(i => ({ sku: i.productCode || i.id, freeShipping: i.freeShipping === true }));
+
+    const merged = { orphans: [], shippingMismatches: [], lookupErrors: [], checkedCount: 0, totalSkus };
+    for (let i = 0; i < skus.length; i += CHUNK_SIZE){
+      const chunk = skus.slice(i, i + CHUNK_SIZE);
+      area.innerHTML = `<div class="ebay-status-box pending">⏳ Checking listings — ${Math.min(i + CHUNK_SIZE, skus.length)} of ${skus.length} SKUs…</div>`;
+      const chunkData = await postAuditAction(token, { action: 'audit_check_skus', knownItems, skus: chunk });
+      if (!chunkData.success){
+        area.innerHTML = `
+          <div class="ebay-status-box error">
+            ❌ Audit failed partway through (checked ${merged.checkedCount} of ${totalSkus}): ${escapeHtml(chunkData.error || 'unknown error')}
+            ${chunkData.detail ? `<div style="margin-top:8px; padding:8px; background:rgba(0,0,0,0.04); border-radius:6px; font-family:monospace; font-size:11px; white-space:pre-wrap;">${escapeHtml(JSON.stringify(chunkData.detail, null, 2))}</div>` : ''}
+          </div>`;
+        return;
+      }
+      merged.orphans.push(...chunkData.orphans);
+      merged.shippingMismatches.push(...chunkData.shippingMismatches);
+      merged.lookupErrors.push(...chunkData.lookupErrors);
+      merged.checkedCount += chunkData.checkedCount;
+    }
+
+    renderAuditReport({ success: true, ...merged });
   }catch(e){
     area.innerHTML = `<div class="ebay-status-box error">❌ ${escapeHtml(String(e.message || e))}</div>`;
   }

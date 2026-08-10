@@ -30,20 +30,28 @@
 //        (send_offer_to_interested_buyers).
 //     Returns: { success, result }
 //
-//   action: 'audit'  { knownItems: [{ sku, freeShipping }] }
-//     -> added 2026-08-10 after the shipping-policy bug (see CLAUDE.md "eBay
-//        shipping policy bug"), to answer "are we sure everything is
-//        correct now?" — fetches every offer on the eBay account
-//        (paginated) and cross-references by SKU against knownItems (the
-//        catalog items the frontend already has loaded). Flags two things:
-//        offers with no matching catalog item ("orphaned" — live on eBay,
-//        untracked in the app) and offers whose fulfillmentPolicyId
-//        doesn't match what item.freeShipping says it should be (the exact
-//        class of bug that started this). The knownItems freeShipping
-//        values come from the client since env vars (the two real policy
-//        IDs) are only known server-side — matching happens here so
-//        neither side needs the other's secret/private data.
-//     Returns: { success, orphans: [...], shippingMismatches: [...], checkedCount }
+//   action: 'audit_list_skus'
+//     -> added 2026-08-10 after the shipping-policy bug (see CLAUDE.md
+//        "eBay shipping policy bug"), to answer "are we sure everything is
+//        correct now?" — first of two audit calls: lists every SKU that
+//        exists on the eBay account (paginated, fast, no per-item calls).
+//     Returns: { success, skus: [...], totalSkus }
+//
+//   action: 'audit_check_skus'  { knownItems: [{ sku, freeShipping }], skus: [...] }
+//     -> second audit call, driven by the client in small chunks (not one
+//        call for the whole account — a single-request version hit a real
+//        504 gateway timeout on a 100+ SKU account even with maxDuration
+//        raised to 60s). Fetches each given SKU's live offer and cross-
+//        references against knownItems (the catalog items the frontend
+//        already has loaded). Flags two things: offers with no matching
+//        catalog item ("orphaned" — live on eBay, untracked in the app)
+//        and offers whose fulfillmentPolicyId doesn't match what
+//        item.freeShipping says it should be (the exact class of bug that
+//        started this). The knownItems freeShipping values come from the
+//        client since env vars (the two real policy IDs) are only known
+//        server-side — matching happens here so neither side needs the
+//        other's secret/private data.
+//     Returns: { success, orphans: [...], shippingMismatches: [...], checkedCount, lookupErrors }
 
 const EBAY_SANDBOX = process.env.EBAY_SANDBOX === 'true';
 const API_BASE = EBAY_SANDBOX
@@ -137,24 +145,31 @@ async function handleSendOffer(req, res, access_token){
   return res.status(200).json({ success: true, result: data });
 }
 
-async function handleAudit(req, res, access_token){
-  const { knownItems } = req.body || {};
-  const known = new Map((Array.isArray(knownItems) ? knownItems : []).map(k => [String(k.sku), k]));
-
-  const headers = {
+function ebayAuthHeaders(access_token){
+  return {
     'Authorization': `Bearer ${access_token}`,
     'Content-Type': 'application/json',
     'Content-Language': 'en-US',
     'Accept-Language': 'en-US',
   };
+}
 
-  // eBay's getOffers (GET /sell/inventory/v1/offer) REQUIRES a sku filter
-  // — errorId 25707 if you try to call it without one, there's no
-  // "list every offer on the account" mode. So this happens in two
-  // passes: first list every SKU that exists at all (inventory_item DOES
-  // paginate with no filter), then fetch each SKU's offer individually to
-  // get its live status/price/fulfillmentPolicyId. More requests than a
-  // single paginated call, but it's the only way this API supports it.
+// Split into two sub-actions (list_skus / check_skus) instead of one big
+// audit call — a single-request version that walked every SKU on a large
+// account (100+) hit a real 504 gateway timeout even with maxDuration
+// raised to 60s (Hobby plan apparently doesn't honor that reliably). The
+// client now drives a loop: one list_skus call, then repeated check_skus
+// calls over small chunks — no single request can time out regardless of
+// catalog size, and she gets live progress instead of a silent multi-
+// second wait.
+
+// eBay's getOffers (GET /sell/inventory/v1/offer) REQUIRES a sku filter —
+// errorId 25707 if you try to call it without one, there's no "list every
+// offer on the account" mode. So SKUs come from inventory_item instead
+// (DOES paginate with no filter) — check_skus below fetches each one's
+// offer individually to get its live status/price/fulfillmentPolicyId.
+async function handleAuditListSkus(req, res, access_token){
+  const headers = ebayAuthHeaders(access_token);
   const skus = [];
   let offset = 0;
   const pageSize = 100;
@@ -173,6 +188,14 @@ async function handleAudit(req, res, access_token){
     if (batch.length < pageSize) break;
     offset += pageSize;
   }
+  return res.status(200).json({ success: true, skus, totalSkus: skus.length });
+}
+
+async function handleAuditCheckSkus(req, res, access_token){
+  const { knownItems, skus } = req.body || {};
+  const known = new Map((Array.isArray(knownItems) ? knownItems : []).map(k => [String(k.sku), k]));
+  const chunk = Array.isArray(skus) ? skus : [];
+  const headers = ebayAuthHeaders(access_token);
 
   const orphans = [];
   const shippingMismatches = [];
@@ -183,15 +206,14 @@ async function handleAudit(req, res, access_token){
 
   // Fetches one SKU's offer, with one retry after a short backoff — eBay
   // occasionally rate-limits a handful of the 10-concurrent requests below,
-  // and silently dropping those (the original version of this function did)
-  // undercounts the audit without any sign anything went wrong, which is
-  // worse than a slower but complete result.
+  // and silently dropping those undercounts the audit without any sign
+  // anything went wrong, which is worse than a slower but complete result.
   async function fetchOfferForSku(sku, isRetry){
     try{
       const r = await fetch(`${API_BASE}/sell/inventory/v1/offer?sku=${encodeURIComponent(sku)}`, { headers });
       if (!r.ok){
         if (!isRetry){
-          await new Promise(resolve => setTimeout(resolve, 400));
+          await new Promise(resolve => setTimeout(resolve, 300));
           return fetchOfferForSku(sku, true);
         }
         return { sku, error: `HTTP ${r.status}` };
@@ -201,19 +223,18 @@ async function handleAudit(req, res, access_token){
       return offer ? { sku, offer } : { sku, offer: null };
     }catch(e){
       if (!isRetry){
-        await new Promise(resolve => setTimeout(resolve, 400));
+        await new Promise(resolve => setTimeout(resolve, 300));
         return fetchOfferForSku(sku, true);
       }
       return { sku, error: String(e && e.message || e) };
     }
   }
 
-  // One request per SKU is a lot of round-trips for a large catalog —
-  // batch them concurrently (10 at a time) to stay well inside this
-  // function's maxDuration instead of going fully sequential.
+  // One request per SKU is a lot of round-trips — batch them concurrently
+  // (10 at a time) within this already-small chunk.
   const BATCH_SIZE = 10;
-  for (let i = 0; i < skus.length; i += BATCH_SIZE){
-    const batch = skus.slice(i, i + BATCH_SIZE);
+  for (let i = 0; i < chunk.length; i += BATCH_SIZE){
+    const batch = chunk.slice(i, i + BATCH_SIZE);
     const results = await Promise.all(batch.map(sku => fetchOfferForSku(sku, false)));
 
     for (const result of results){
@@ -241,7 +262,7 @@ async function handleAudit(req, res, access_token){
     }
   }
 
-  return res.status(200).json({ success: true, orphans, shippingMismatches, checkedCount, totalSkus: skus.length, lookupErrors });
+  return res.status(200).json({ success: true, orphans, shippingMismatches, checkedCount, lookupErrors });
 }
 
 export default async (req, res) => {
@@ -256,7 +277,8 @@ export default async (req, res) => {
     if (action === 'condition_policies') return await handleConditionPolicies(req, res, access_token);
     if (action === 'find_eligible') return await handleFindEligible(req, res, access_token);
     if (action === 'send_offer') return await handleSendOffer(req, res, access_token);
-    if (action === 'audit') return await handleAudit(req, res, access_token);
+    if (action === 'audit_list_skus') return await handleAuditListSkus(req, res, access_token);
+    if (action === 'audit_check_skus') return await handleAuditCheckSkus(req, res, access_token);
 
     return res.status(400).json({ error: 'Unknown action' });
   }catch(err){
