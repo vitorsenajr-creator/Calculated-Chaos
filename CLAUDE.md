@@ -445,6 +445,19 @@ next minor bump:
   (the "USPS Ground + Priority (Buyer Pays)" policy switch from v3.13.29
   needed republishing every existing buyer-pays listing), so checking
   each row individually wasn't practical there either.
+- **v3.13.33** — A real import hit a ReviseItem failure with a raw Trading
+  API error array dumped as unreadable JSON ("Package girth is too
+  large" / "Package dimensions exceeded maximum limit" for SKU #0643 —
+  a genuine pre-existing shipping-service/package-size conflict on that
+  specific legacy eBay listing, surfaced because ReviseItem revalidates
+  the whole listing even for a SKU-only partial update; not a bug in
+  this app, needs fixing directly on that eBay listing). Added
+  `ebayErrorShortMessages()` in `modules/ebay-audit.js` to pull the
+  Error-severity `ShortMessage`s out of a Trading API error array
+  (skipping informational Warnings, like the standing "seller has opted
+  into business policies" notice eBay attaches to most responses) and
+  show them as a readable line above the raw JSON, which now collapses
+  into a `<details>` toggle instead of always being shown expanded.
 
 ## Planned changes (backlog)
 
