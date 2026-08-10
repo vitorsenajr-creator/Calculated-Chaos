@@ -2,6 +2,8 @@
 // Creates or updates a listing on eBay using the Inventory + Offer APIs (modern approach)
 // POST body: { access_token, item, refresh_token }
 
+import { estimateShipping } from '../src/modules/pricing.js';
+
 const EBAY_SANDBOX = process.env.EBAY_SANDBOX === 'true';
 
 const API_BASE = EBAY_SANDBOX
@@ -547,6 +549,37 @@ export default async function handler(req, res){
       offerId = existingOffers.data.offers[0].offerId;
     }
 
+    // Which of the two fulfillment policies (see api/ebay-setup.js) this
+    // listing uses depends on the per-item "Buyer pays / I pay" choice made
+    // at cataloging time (item.freeShipping) — previously EVERY listing
+    // silently used the free-shipping policy regardless of this field, since
+    // only one policy existed. When the buyer pays, we also override the
+    // policy's placeholder shipping cost with this item's real estimate
+    // (same estimateShipping() formula used for her own profit math), so the
+    // number a buyer actually sees matches what she's accounting for.
+    const sellerPaysShipping = item.freeShipping === true;
+    const fulfillmentPolicyId = sellerPaysShipping
+      ? (process.env.EBAY_FULFILLMENT_POLICY_ID || '')
+      : (process.env.EBAY_FULFILLMENT_POLICY_ID_BUYER_PAYS || '');
+
+    const listingPolicies = {
+      // These policy IDs must be set up in her eBay seller account
+      // They'll be configured when we do the production setup
+      // For Sandbox testing, eBay provides default policy IDs
+      fulfillmentPolicyId,
+      paymentPolicyId: process.env.EBAY_PAYMENT_POLICY_ID || '',
+      returnPolicyId: process.env.EBAY_RETURN_POLICY_ID || '',
+    };
+    if (!sellerPaysShipping){
+      const { options } = estimateShipping({}, item);
+      const shipCost = (options.find(o => o.carrier === 'USPS Priority Mail') || options[0] || { price: 8 }).price;
+      listingPolicies.shippingCostOverrides = [{
+        priority: 1,
+        shippingCost: { value: shipCost.toFixed(2), currency: CURRENCY },
+        shippingServiceType: 'DOMESTIC',
+      }];
+    }
+
     const offerBody = {
       sku,
       marketplaceId: MARKETPLACE_ID,
@@ -560,14 +593,7 @@ export default async function handler(req, res){
           currency: CURRENCY,
         },
       },
-      listingPolicies: {
-        // These policy IDs must be set up in her eBay seller account
-        // They'll be configured when we do the production setup
-        // For Sandbox testing, eBay provides default policy IDs
-        fulfillmentPolicyId: process.env.EBAY_FULFILLMENT_POLICY_ID || '',
-        paymentPolicyId: process.env.EBAY_PAYMENT_POLICY_ID || '',
-        returnPolicyId: process.env.EBAY_RETURN_POLICY_ID || '',
-      },
+      listingPolicies,
       merchantLocationKey: process.env.EBAY_MERCHANT_LOCATION_KEY || 'default',
     };
 
@@ -588,7 +614,8 @@ export default async function handler(req, res){
         detail: offerResult.data,
         step: 'offer',
         debugPolicyIdsSent: {
-          fulfillmentPolicyId: process.env.EBAY_FULFILLMENT_POLICY_ID || '(empty)',
+          fulfillmentPolicyId: fulfillmentPolicyId || '(empty)',
+          sellerPaysShipping,
           paymentPolicyId: process.env.EBAY_PAYMENT_POLICY_ID || '(empty)',
           returnPolicyId: process.env.EBAY_RETURN_POLICY_ID || '(empty)',
           merchantLocationKey: process.env.EBAY_MERCHANT_LOCATION_KEY || '(empty)',

@@ -75,6 +75,24 @@ next minor bump:
   catalog fields from the transcript with Claude Haiku 4.5
   (`api/extract-narration-fields.js`). See its own section below for the
   full design rationale.
+- **v3.13.9** — **Fixed a real financial bug**: every eBay listing was
+  silently published with free/seller-paid shipping regardless of the
+  per-item "Buyer pays / I pay" choice made at cataloging time, because
+  `api/ebay-setup.js` only ever created ONE fulfillment policy
+  (hardcoded `freeShipping: true`) and `api/ebay-list.js` used it for
+  every listing unconditionally — the item-level toggle only ever fed
+  her own internal profit math, never actually reached eBay. Found after
+  a sale went through at a loss because of it (2026-08-10). Fixed by
+  adding a second fulfillment policy (buyer pays, see
+  `FULFILLMENT_NAME_BUYER_PAYS`) and having `ebay-list.js` pick between
+  the two based on `item.freeShipping`, overriding the buyer-pays
+  policy's shipping cost per listing via `listingPolicies.
+  shippingCostOverrides` with that item's `estimateShipping()` estimate
+  (USPS Priority Mail figure, same formula already used for her profit
+  numbers). **Requires action — see "eBay shipping policy bug" section
+  below**: rerun eBay setup, add a new env var, and manually fix listings
+  that already published before this fix (it does not retroactively
+  correct live listings).
 
 ## Planned changes (backlog)
 
@@ -374,6 +392,51 @@ explicit spec. Desktop/PC only, still behind the same Firebase login.
   capture tool for use *during* the live, not an import pipeline. Revisit
   if she wants captured items promoted into the real `items` collection
   afterward.
+
+## eBay shipping policy bug (fixed v3.13.9, 2026-08-10) — ACTION NEEDED
+
+**What was wrong**: `api/ebay-setup.js` created exactly one eBay
+fulfillment (shipping) policy, hardcoded to free/seller-paid shipping.
+`api/ebay-list.js` used that same policy for every single listing,
+completely ignoring the item's own "Buyer pays / I pay" field
+(`item.freeShipping`, set via the `#fFreeShipping` dropdown at cataloging
+time). That field only ever fed the app's own internal profit-margin
+math — it never reached the real eBay listing. Every listing published
+through this app before v3.13.9 has free/seller-paid shipping on eBay
+regardless of what was chosen per item. Confirmed causing real losses on
+at least one completed sale.
+
+**The fix**: `ebay-setup.js` now creates a SECOND fulfillment policy
+(`CC Buyer Pays Shipping`, not free) alongside the original
+(`CC Standard Shipping`, still free — used when she genuinely wants to
+absorb shipping). `ebay-list.js` picks between the two per listing based
+on `item.freeShipping`, and when the buyer pays, overrides that policy's
+placeholder cost with the item's real `estimateShipping()` figure via
+`listingPolicies.shippingCostOverrides` — so the dollar amount the buyer
+sees matches what the app's own profit numbers assume.
+
+**Vitor still needs to, in order**:
+1. Settings → eBay one-time setup → **"Run eBay setup"** again (safe to
+   re-run — existing policies are detected and reused, only the new
+   buyer-pays policy gets created)
+2. Copy the returned `fulfillmentPolicyIdBuyerPays` value into a NEW
+   Vercel env var: `EBAY_FULFILLMENT_POLICY_ID_BUYER_PAYS`
+3. Redeploy (a push does this automatically, or trigger one manually)
+4. **This does NOT retroactively fix listings already live on eBay** —
+   for each currently-published item where "Buyer pays" was intended,
+   open it in the app and use "Update existing listing" (in the item's
+   eBay panel) to republish it with the corrected policy. There is no
+   bulk version of this yet — revisit if the number of affected listings
+   makes that worth building.
+5. Spot-check one republished listing on eBay itself to confirm the
+   shipping cost shown to buyers is no longer $0/free before assuming
+   the fix is fully live.
+
+Not yet tested against eBay's live API (no sandbox/production
+credentials in this environment) — verified via `node --check` and a
+clean `vite build` only. The `shippingCostOverrides` field/shape is from
+documentation, not confirmed against a real eBay response — **watch the
+first few publishes closely**.
 
 ## Voice narration capture (added v3.13.8, 2026-08-10)
 

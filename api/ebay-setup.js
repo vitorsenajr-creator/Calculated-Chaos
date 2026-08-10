@@ -20,6 +20,14 @@ const MARKETPLACE_ID = 'EBAY_US';
 // Fixed names (no timestamp) so re-running this endpoint always targets the
 // SAME policies/location instead of piling up duplicates every time.
 const FULFILLMENT_NAME = 'CC Standard Shipping';
+// Second policy, added when we found every listing was silently using the
+// FULFILLMENT_NAME policy above (hardcoded free shipping) regardless of the
+// per-item "Buyer pays / I pay" choice in the app — that toggle only ever
+// fed her own profit math, never the real eBay listing. This policy starts
+// as NOT free (a placeholder cost that ebay-list.js always overrides per
+// listing via listingPolicies.shippingCostOverrides with the item's actual
+// estimated shipping cost) so buyer-pays items really charge the buyer.
+const FULFILLMENT_NAME_BUYER_PAYS = 'CC Buyer Pays Shipping';
 const PAYMENT_NAME = 'CC Standard Payment';
 const RETURN_NAME = 'CC 30 Day Returns';
 const LOCATION_KEY = 'cc_main_location';
@@ -144,6 +152,43 @@ export default async function handler(req, res){
     }
   }
 
+  // ---------- Fulfillment Policy (buyer pays) ----------
+  const fulfillmentBodyBuyerPays = {
+    name: FULFILLMENT_NAME_BUYER_PAYS,
+    marketplaceId: MARKETPLACE_ID,
+    categoryTypes: [{ name: 'ALL_EXCLUDING_MOTORS_VEHICLES' }],
+    handlingTime: { value: 2, unit: 'DAY' },
+    shippingOptions: [
+      {
+        optionType: 'DOMESTIC',
+        costType: 'FLAT_RATE',
+        shippingServices: [
+          {
+            sortOrder: 1,
+            shippingCarrierCode: 'USPS',
+            shippingServiceCode: 'USPSPriority',
+            // Placeholder — ebay-list.js always sends a real per-item
+            // shippingCostOverrides value, this base cost is never what a
+            // buyer actually sees, it just can't be $0/freeShipping:true.
+            shippingCost: { value: '8.00', currency: 'USD' },
+            freeShipping: false,
+          },
+        ],
+      },
+    ],
+  };
+  const fulfillResultBuyerPays = await ebayRequest('POST', '/sell/account/v1/fulfillment_policy', access_token, fulfillmentBodyBuyerPays);
+  if (fulfillResultBuyerPays.ok && fulfillResultBuyerPays.data.fulfillmentPolicyId){
+    results.fulfillmentPolicyIdBuyerPays = fulfillResultBuyerPays.data.fulfillmentPolicyId;
+  } else {
+    const dupId = extractDuplicateId(fulfillResultBuyerPays.data);
+    if (dupId){
+      results.fulfillmentPolicyIdBuyerPays = dupId;
+    } else {
+      errors.fulfillmentBuyerPays = fulfillResultBuyerPays.data;
+    }
+  }
+
   // ---------- Payment Policy ----------
   // Note: for EBAY_US, eBay's managed payments system handles payment methods
   // automatically — no paymentMethods array is required or accepted here.
@@ -192,6 +237,11 @@ export default async function handler(req, res){
     const found = findPolicyByName(list.data, 'fulfillmentPolicies', 'fulfillmentPolicyId', FULFILLMENT_NAME);
     if (found){ results.fulfillmentPolicyId = found; delete errors.fulfillment; }
   }
+  if (!results.fulfillmentPolicyIdBuyerPays){
+    const list = await ebayRequest('GET', `/sell/account/v1/fulfillment_policy?marketplace_id=${MARKETPLACE_ID}`, access_token);
+    const found = findPolicyByName(list.data, 'fulfillmentPolicies', 'fulfillmentPolicyId', FULFILLMENT_NAME_BUYER_PAYS);
+    if (found){ results.fulfillmentPolicyIdBuyerPays = found; delete errors.fulfillmentBuyerPays; }
+  }
   if (!results.paymentPolicyId){
     const list = await ebayRequest('GET', `/sell/account/v1/payment_policy?marketplace_id=${MARKETPLACE_ID}`, access_token);
     const found = findPolicyByName(list.data, 'paymentPolicies', 'paymentPolicyId', PAYMENT_NAME);
@@ -203,14 +253,15 @@ export default async function handler(req, res){
     if (found){ results.returnPolicyId = found; delete errors.return; }
   }
 
-  const hasAllPolicies = results.fulfillmentPolicyId && results.paymentPolicyId && results.returnPolicyId && results.merchantLocationKey;
+  const hasAllPolicies = results.fulfillmentPolicyId && results.fulfillmentPolicyIdBuyerPays &&
+    results.paymentPolicyId && results.returnPolicyId && results.merchantLocationKey;
 
   return res.status(hasAllPolicies ? 200 : 207).json({
     success: hasAllPolicies,
     results,
     errors: Object.keys(errors).length ? errors : undefined,
     nextSteps: hasAllPolicies
-      ? 'Copy these 4 values into your Vercel Environment Variables (EBAY_FULFILLMENT_POLICY_ID, EBAY_PAYMENT_POLICY_ID, EBAY_RETURN_POLICY_ID, EBAY_MERCHANT_LOCATION_KEY), then redeploy.'
+      ? 'Copy these 5 values into your Vercel Environment Variables (EBAY_FULFILLMENT_POLICY_ID, EBAY_FULFILLMENT_POLICY_ID_BUYER_PAYS, EBAY_PAYMENT_POLICY_ID, EBAY_RETURN_POLICY_ID, EBAY_MERCHANT_LOCATION_KEY), then redeploy.'
       : 'One or more policies failed to create — check the errors field for details.',
   });
 }
