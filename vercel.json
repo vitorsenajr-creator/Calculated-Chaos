@@ -1,0 +1,8 @@
+{
+  "functions": {
+    "api/narration.js": { "maxDuration": 60 },
+    "api/ebay-check-sales.js": { "maxDuration": 30 },
+    "api/ebay-listing-tools.js": { "maxDuration": 60 },
+    "api/ebay-list.js": { "maxDuration": 30 }
+  }
+}

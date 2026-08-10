@@ -135,6 +135,24 @@ next minor bump:
   init-with-listener controller, since its button/result area live
   inside `renderSettings()`'s HTML, rebuilt on every render — same
   pattern as `runEbaySetup`/`checkEbaySalesNow` already use.
+- **v3.13.13** — **Likely fixes the recurring "A server error has
+  occurred" / "Unexpected token 'A'..." crashes** seen throughout this
+  session on `/api/narration`, `/api/ebay-check-sales`, and the new
+  audit endpoint — three otherwise-unrelated routes all timing out past
+  Vercel's default 10-second function limit on the Hobby plan (narration
+  does two sequential external calls — Deepgram then Claude; the audit
+  endpoint paginates through every eBay offer; `ebay-check-sales` calls
+  eBay's order API, which can be slow). When a function times out,
+  Vercel returns its own generic error page instead of JSON, which is
+  exactly the "Unexpected token 'A', 'A server e'... is not valid JSON"
+  shape reported. Added `vercel.json` with `functions.*.maxDuration`
+  raised to 30-60s for `narration.js`, `ebay-check-sales.js`,
+  `ebay-listing-tools.js` (audit lives here), and `ebay-list.js`.
+  **Unverified**: not confirmed whether the Hobby plan actually honors a
+  60s `maxDuration` (some Vercel tiers cap this lower regardless of
+  config) — watch the next deploy for a build-time rejection of this
+  file, and if the timeouts persist even after this, that's the next
+  thing to check.
 
 ## Planned changes (backlog)
 
