@@ -5059,8 +5059,9 @@ Be accurate and honest — never invent brand, material, or condition details th
       if (data.success){
         area.innerHTML = `
           <div class="ebay-status-box success">
-            ✅ Created successfully! Copy these 4 values into your Vercel Environment Variables, then redeploy:
+            ✅ Created successfully! Copy these 5 values into your Vercel Environment Variables, then redeploy:
             <div style="margin-top:8px; padding:8px; background:rgba(0,0,0,0.04); border-radius:6px; font-family:monospace; font-size:11px; white-space:pre-wrap;">EBAY_FULFILLMENT_POLICY_ID=${escapeHtml(data.results.fulfillmentPolicyId)}
+EBAY_FULFILLMENT_POLICY_ID_BUYER_PAYS=${escapeHtml(data.results.fulfillmentPolicyIdBuyerPays)}
 EBAY_PAYMENT_POLICY_ID=${escapeHtml(data.results.paymentPolicyId)}
 EBAY_RETURN_POLICY_ID=${escapeHtml(data.results.returnPolicyId)}
 EBAY_MERCHANT_LOCATION_KEY=${escapeHtml(data.results.merchantLocationKey)}</div>
