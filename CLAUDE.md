@@ -240,6 +240,19 @@ next minor bump:
   live "Checking listings — X of Y SKUs…" progress. No single request
   can time out regardless of catalog size now, since each one only
   covers a small, bounded chunk of work.
+- **v3.13.22** — Vitor asked to skip the manual detour through Catalog
+  for the 35 `no_description` skips from v3.13.20 — wanted to generate
+  those descriptions using the selection already made in the audit
+  screen. Extracted the per-item core of `runBulkGenerateDescriptions`
+  into `generateListingDescriptionForItem(item)` (main.js), exposed as
+  `window.generateListingDescriptionForItem` for cross-module reuse —
+  `runBulkGenerateDescriptions` now calls it too instead of duplicating
+  the AI-request/usage-tracking logic. The audit's "Fix selected now"
+  report now shows a "🪄 Generate N missing descriptions & retry
+  publish" button whenever some fixes were skipped for `no_description`
+  specifically — one click writes each missing description then
+  immediately retries `publishItemToEbayCore`, chaining both steps that
+  previously required leaving the audit screen.
 
 ## Planned changes (backlog)
 

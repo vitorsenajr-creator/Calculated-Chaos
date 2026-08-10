@@ -65,7 +65,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.21';
+  const APP_VERSION = 'v3.13.22';
   const APP_VERSION_DATE = '2026-08-10';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -4080,6 +4080,41 @@ Be accurate and honest — never invent brand, material, or condition details th
     }
   }
 
+  // Single-item core, extracted so it can be reused outside the bulk
+  // preflight flow too (see window.generateListingDescriptionForItem below
+  // — the eBay audit's "generate missing descriptions" button calls this
+  // directly instead of duplicating the AI request/usage-tracking logic).
+  async function generateListingDescriptionForItem(item){
+    if (aiUsageRemaining() <= 0){
+      return { ok:false, message: 'Monthly AI usage limit reached' };
+    }
+    try{
+      const f = {
+        brand: item.brand || '', category: item.category || '', clothingType: item.clothingType || '',
+        gender: item.gender || '', size: item.size || '', condition: item.condition || '',
+        notes: item.notes || '', color: item.color || '',
+        measurements: (item.measurements?.values && Object.keys(item.measurements.values).length > 0)
+          ? Object.entries(item.measurements.values).map(([k,v]) => `${k}: ${v.toFixed(1)}"`).join(', ')
+          : '',
+        price: item.listPrice || '',
+        imageBlocks: (item.photos || []).slice(0, 5).map(photoToImageBlock).filter(Boolean),
+      };
+      const result = await requestAiListingDescription(f);
+      if (!result.ok) return { ok:false, message: result.message };
+      const idx = items.findIndex(i => i.id === item.id);
+      if (idx >= 0){
+        const updated = { ...items[idx], listingTitle: result.title, listingDescription: result.description };
+        items[idx] = updated;
+        await saveItem(updated);
+      }
+      await incrementAiUsage();
+      return { ok:true };
+    }catch(e){
+      return { ok:false, message: "Couldn't complete the AI write-up right now." };
+    }
+  }
+  window.generateListingDescriptionForItem = generateListingDescriptionForItem;
+
   async function runBulkGenerateDescriptions(toGenerate){
     const results = []; // { item, ok, message? }
     for (let i = 0; i < toGenerate.length; i++){
@@ -4088,37 +4123,8 @@ Be accurate and honest — never invent brand, material, or condition details th
       if (statusEl){
         statusEl.innerHTML = `<div style="opacity:0.8;">⏳ Writing description ${i+1} of ${toGenerate.length}: ${escapeHtml(item.name || item.productCode || 'item')}…</div>`;
       }
-      if (aiUsageRemaining() <= 0){
-        results.push({ item, ok:false, message: 'Monthly AI usage limit reached' });
-        continue;
-      }
-      try{
-        const f = {
-          brand: item.brand || '', category: item.category || '', clothingType: item.clothingType || '',
-          gender: item.gender || '', size: item.size || '', condition: item.condition || '',
-          notes: item.notes || '', color: item.color || '',
-          measurements: (item.measurements?.values && Object.keys(item.measurements.values).length > 0)
-            ? Object.entries(item.measurements.values).map(([k,v]) => `${k}: ${v.toFixed(1)}"`).join(', ')
-            : '',
-          price: item.listPrice || '',
-          imageBlocks: (item.photos || []).slice(0, 5).map(photoToImageBlock).filter(Boolean),
-        };
-        const result = await requestAiListingDescription(f);
-        if (!result.ok){
-          results.push({ item, ok:false, message: result.message });
-          continue;
-        }
-        const idx = items.findIndex(i => i.id === item.id);
-        if (idx >= 0){
-          const updated = { ...items[idx], listingTitle: result.title, listingDescription: result.description };
-          items[idx] = updated;
-          await saveItem(updated);
-        }
-        await incrementAiUsage();
-        results.push({ item, ok:true });
-      }catch(e){
-        results.push({ item, ok:false, message: "Couldn't complete the AI write-up right now." });
-      }
+      const { ok, message } = await generateListingDescriptionForItem(item);
+      results.push({ item, ok, message });
     }
     renderAll();
     renderBulkGenerateDescReport(results);

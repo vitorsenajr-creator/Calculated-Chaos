@@ -107,11 +107,12 @@ function renderAuditReport(data){
 
       const SKIP_REASON_LABEL = {
         no_price: 'no list price set',
-        no_description: 'no listing description generated — use "🪄 Generate descriptions" in Catalog first, then retry',
+        no_description: 'no listing description generated',
         already_listed: 'already listed (unexpected — should have force-updated)',
       };
       const success = results.filter(r => r.result.success);
       const skipped = results.filter(r => r.result.skipped);
+      const noDescSkipped = skipped.filter(r => r.result.reason === 'no_description');
       const failed = results.filter(r => !r.result.success && !r.result.skipped);
       if (progressEl){
         let summary = `<div style="font-size:13px; margin-top:4px;">`;
@@ -126,10 +127,52 @@ function renderAuditReport(data){
           summary += `<div style="color:var(--danger); font-weight:600; margin-top:4px;">❌ ${failed.length} failed</div>`;
           summary += failed.map(r => `<div style="font-size:12px; margin-top:2px;">${escapeHtml(r.item.name || r.item.productCode || 'item')} — ${escapeHtml(r.result.error || 'unknown error')}</div>`).join('');
         }
+        if (noDescSkipped.length){
+          summary += `<button id="auditGenDescBtn" style="margin-top:10px; background:var(--gold); color:white; border:none; border-radius:8px; padding:9px 14px; font-size:13px; font-weight:600; cursor:pointer;">🪄 Generate ${noDescSkipped.length} missing description${noDescSkipped.length===1?'':'s'} & retry publish</button>`;
+          summary += `<div id="auditGenDescProgress" style="margin-top:8px;"></div>`;
+        }
         summary += `<div style="margin-top:6px; opacity:0.8;">Rerun the audit to confirm.</div></div>`;
         progressEl.innerHTML = summary;
       }
       fixBtn.disabled = false;
+
+      const genBtn = document.getElementById('auditGenDescBtn');
+      if (genBtn){
+        genBtn.addEventListener('click', async () => {
+          genBtn.disabled = true;
+          const genProgressEl = document.getElementById('auditGenDescProgress');
+          const genResults = []; // { item, ok, message?, published? }
+          for (let i = 0; i < noDescSkipped.length; i++){
+            const item = noDescSkipped[i].item;
+            if (genProgressEl){
+              genProgressEl.innerHTML = `<div style="font-size:12px; opacity:0.8;">⏳ Writing description ${i+1} of ${noDescSkipped.length}: ${escapeHtml(item.name || item.productCode || 'item')}…</div>`;
+            }
+            const genResult = await window.generateListingDescriptionForItem(item);
+            if (!genResult.ok){
+              genResults.push({ item, ok: false, message: genResult.message });
+              continue;
+            }
+            const publishResult = await publishItemToEbayCore(item, true);
+            genResults.push({ item, ok: true, published: publishResult.success, publishError: publishResult.error });
+          }
+
+          const genOk = genResults.filter(r => r.ok && r.published);
+          const genFailed = genResults.filter(r => !r.ok || !r.published);
+          if (genProgressEl){
+            let genSummary = `<div style="font-size:12px; margin-top:4px;">`;
+            if (genOk.length){
+              genSummary += `<div style="color:var(--sage-deep); font-weight:600;">✅ ${genOk.length} generated & republished</div>`;
+            }
+            if (genFailed.length){
+              genSummary += `<div style="color:var(--danger); font-weight:600; margin-top:4px;">❌ ${genFailed.length} still not fixed</div>`;
+              genSummary += genFailed.map(r => `<div style="margin-top:2px;">${escapeHtml(r.item.name || r.item.productCode || 'item')} — ${escapeHtml(r.message || r.publishError || 'unknown error')}</div>`).join('');
+            }
+            genSummary += `<div style="margin-top:6px; opacity:0.8;">Rerun the audit to confirm.</div></div>`;
+            genProgressEl.innerHTML = genSummary;
+          }
+          genBtn.disabled = false;
+        });
+      }
     });
   }
 }
