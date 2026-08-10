@@ -209,6 +209,15 @@ next minor bump:
   through this app or the modern API) — `inventory_item`/`getOffers`
   can't see those at all; would need eBay's legacy Trading API
   (`GetSellerList`) to find them, which is a bigger change not started.
+- **v3.13.19** — Added inline bulk-fix to the eBay listing audit: each
+  shipping-mismatch row now has a checkbox (checked by default), and a
+  "🔧 Fix selected now" button that republishes exactly those listings
+  (`publishItemToEbayCore(item, true)`, same function
+  `runBulkEbayPublish` in `ebay-api.js` already uses for the Catalog's
+  bulk "Update existing listing" flow) — so fixing what the audit found
+  no longer means leaving the audit screen to filter the Catalog by
+  "Listed on eBay" and reselecting everything by hand. Doesn't
+  auto-rerun the audit after fixing — she reruns it manually to confirm.
 
 ## Planned changes (backlog)
 

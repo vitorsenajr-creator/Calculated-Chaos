@@ -23,10 +23,14 @@
 // function wired via inline onclick instead.
 import { items } from './state.js';
 import { escapeHtml } from './format-utils.js';
-import { getValidEbayToken } from '../ebay-api.js';
+import { getValidEbayToken, publishItemToEbayCore } from '../ebay-api.js';
+
+function itemForSku(sku){
+  return items.find(i => (i.productCode || i.id) === sku) || null;
+}
 
 function itemNameForSku(sku){
-  const match = items.find(i => (i.productCode || i.id) === sku);
+  const match = itemForSku(sku);
   return match ? (match.name || sku) : sku;
 }
 
@@ -55,11 +59,13 @@ function renderAuditReport(data){
   if (shippingMismatches.length){
     html += `<div style="margin-top:8px; margin-bottom:10px;"><b style="color:var(--danger);">🚚 ${shippingMismatches.length} listing${shippingMismatches.length===1?'':'s'} with the WRONG shipping policy live</b>`;
     html += shippingMismatches.map(m => `
-      <div style="margin-top:6px; font-size:13px; line-height:1.4;">
-        ${escapeHtml(itemNameForSku(m.sku))} (SKU ${escapeHtml(m.sku)}) — should be ${m.expectedFreeShipping ? 'free/seller-paid' : 'buyer pays'}, currently isn't
-        ${listingUrl(m.listingId) ? ` · <a href="${listingUrl(m.listingId)}" target="_blank">View ↗</a>` : ''}
-      </div>`).join('');
-    html += `<div style="margin-top:6px; font-size:12px; opacity:0.8;">Fix: open each item in the app and click "Update existing listing" in its eBay panel.</div>`;
+      <label style="display:flex; align-items:flex-start; gap:8px; margin-top:6px; font-size:13px; line-height:1.4; cursor:pointer;">
+        <input type="checkbox" class="audit-fix-chk" data-sku="${escapeHtml(m.sku)}" checked style="margin-top:3px;">
+        <span>${escapeHtml(itemNameForSku(m.sku))} (SKU ${escapeHtml(m.sku)}) — should be ${m.expectedFreeShipping ? 'free/seller-paid' : 'buyer pays'}, currently isn't
+        ${listingUrl(m.listingId) ? ` · <a href="${listingUrl(m.listingId)}" target="_blank" onclick="event.stopPropagation()">View ↗</a>` : ''}</span>
+      </label>`).join('');
+    html += `<button id="auditFixSelectedBtn" style="margin-top:10px; background:var(--terracotta); color:white; border:none; border-radius:8px; padding:9px 14px; font-size:13px; font-weight:600; cursor:pointer;">🔧 Fix selected now (republishes with the correct policy)</button>`;
+    html += `<div id="auditFixProgress" style="margin-top:8px;"></div>`;
     html += `</div>`;
   }
 
@@ -76,6 +82,46 @@ function renderAuditReport(data){
 
   html += `</div></div>`;
   area.innerHTML = html;
+
+  const fixBtn = document.getElementById('auditFixSelectedBtn');
+  if (fixBtn){
+    fixBtn.addEventListener('click', async () => {
+      const checkedSkus = Array.from(document.querySelectorAll('.audit-fix-chk:checked')).map(el => el.dataset.sku);
+      const toFix = checkedSkus.map(itemForSku).filter(Boolean);
+      const progressEl = document.getElementById('auditFixProgress');
+      if (toFix.length === 0){
+        if (progressEl) progressEl.innerHTML = `<div style="font-size:12px; color:var(--danger);">Select at least one listing first.</div>`;
+        return;
+      }
+
+      fixBtn.disabled = true;
+      const results = [];
+      for (let i = 0; i < toFix.length; i++){
+        const item = toFix[i];
+        if (progressEl){
+          progressEl.innerHTML = `<div style="font-size:13px; opacity:0.8;">⏳ Fixing ${i+1} of ${toFix.length}: ${escapeHtml(item.name || item.productCode || 'item')}…</div>`;
+        }
+        const result = await publishItemToEbayCore(item, true);
+        results.push({ item, result });
+      }
+
+      const success = results.filter(r => r.result.success);
+      const failed = results.filter(r => !r.result.success);
+      if (progressEl){
+        let summary = `<div style="font-size:13px; margin-top:4px;">`;
+        if (success.length){
+          summary += `<div style="color:var(--sage-deep); font-weight:600;">✅ ${success.length} fixed</div>`;
+        }
+        if (failed.length){
+          summary += `<div style="color:var(--danger); font-weight:600; margin-top:4px;">❌ ${failed.length} failed</div>`;
+          summary += failed.map(r => `<div style="font-size:12px; margin-top:2px;">${escapeHtml(r.item.name || r.item.productCode || 'item')} — ${escapeHtml(r.result.error || 'unknown error')}</div>`).join('');
+        }
+        summary += `<div style="margin-top:6px; opacity:0.8;">Rerun the audit to confirm.</div></div>`;
+        progressEl.innerHTML = summary;
+      }
+      fixBtn.disabled = false;
+    });
+  }
 }
 
 export async function runEbayAudit(){
