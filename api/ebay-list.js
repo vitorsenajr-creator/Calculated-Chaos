@@ -414,6 +414,16 @@ function buildInventoryItem(item, extraRequiredAspects, imageUrls){
   // now that the cataloging form asks for these directly.
   if (extraRequiredAspects) fillMissingRequiredAspects(aspects, extraRequiredAspects);
 
+  // eBay rejects the inventory item outright (errorId 25020) without a
+  // valid package weight — same fallback defaults already used by
+  // estimateShipping() (modules/pricing.js) for her own shipping-cost math,
+  // so a never-measured item still gets a sane, non-zero value instead of
+  // failing to publish at all.
+  const weight = parseFloat(item.weight) || 0.5;
+  const length = parseFloat(item.length) || 10;
+  const width = parseFloat(item.width) || 8;
+  const height = parseFloat(item.height) || 2;
+
   return {
     availability: {
       shipToLocationAvailability: {
@@ -422,6 +432,10 @@ function buildInventoryItem(item, extraRequiredAspects, imageUrls){
     },
     condition: condition,
     conditionDescription,
+    packageWeightAndSize: {
+      weight: { value: weight, unit: 'POUND' },
+      dimensions: { length, width, height, unit: 'INCH' },
+    },
     product: {
       title: buildTitle(item),
       description: buildDescription(item),

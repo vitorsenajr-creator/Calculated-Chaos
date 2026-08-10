@@ -108,6 +108,14 @@ next minor bump:
   filled in, instead of hardcoding "Type" (or any other field) for one
   category — the same fix now protects against any other category
   eBay is similarly inconsistent about.
+- **v3.13.11** — Found publishing the very next item after the v3.13.10
+  fix: `errorId 25020` — eBay flat-out rejects the inventory item without
+  a `packageWeightAndSize`, which `buildInventoryItem()` in
+  `api/ebay-list.js` never sent at all. Added it, using the same
+  weight/length/width/height fallback defaults (0.5lb / 10×8×2in)
+  `estimateShipping()` already uses for her profit math, so an
+  un-measured item still gets a valid non-zero value instead of failing
+  to publish.
 
 ## Planned changes (backlog)
 
