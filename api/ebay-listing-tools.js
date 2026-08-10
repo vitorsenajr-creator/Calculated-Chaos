@@ -66,10 +66,14 @@
 //
 //   action: 'migrate_listing'  { listingId, sku }
 //     -> converts one legacy listing (found via legacy_scan) into an
-//        Inventory API item+offer under the given SKU, via eBay's
-//        bulk_migrate_listing. The listing itself is untouched on eBay
-//        (same ItemID/URL) — it just becomes visible to the Inventory API
-//        (and therefore to this app's tools and future audits) afterward.
+//        Inventory API item+offer under the given SKU. Two Trading-API-
+//        adjacent steps, both required: (1) ReviseItem assigns the SKU on
+//        the legacy listing — bulk_migrate_listing does NOT accept a sku
+//        to assign in its own request, it requires the listing to already
+//        have one (confirmed the hard way: every migration attempt came
+//        back HTTP 400 before this was added); (2) bulk_migrate_listing
+//        then brings that now-SKU'd listing into the Inventory API. The
+//        listing itself is untouched on eBay throughout (same ItemID/URL).
 //        Also fetches the listing's full photo set (GetItem, Trading API —
 //        legacy_scan's ActiveList only ever has the one gallery photo).
 //     Returns: { success, sku, listingId, photos: [...] | null } | { success: false, error, detail }
@@ -440,33 +444,71 @@ async function fetchListingPhotos(itemId, access_token){
   }
 }
 
+// Assigns a SKU directly on the legacy (Trading-API-side) listing, via
+// ReviseItem — added after discovering (100% of the first real import
+// batch came back HTTP 400) that bulk_migrate_listing does NOT accept a
+// sku to assign in its own request: per eBay's docs, it requires the
+// listing to ALREADY have a seller-defined SKU before migration can
+// succeed. ReviseItem is the legacy-side way to add one. A partial
+// ReviseItem (just ItemID + SKU) is enough — no need to resend the whole
+// item payload just to add this one field.
+async function reviseItemSku(access_token, itemId, sku){
+  const body = xmlBuilder.build({
+    '?xml': { '@_version': '1.0', '@_encoding': 'utf-8' },
+    ReviseItemRequest: {
+      '@_xmlns': 'urn:ebay:apis:eBLBaseComponents',
+      ErrorLanguage: 'en_US',
+      WarningLevel: 'High',
+      Item: { ItemID: itemId, SKU: sku },
+    },
+  });
+  const r = await fetch(TRADING_API_BASE, {
+    method: 'POST',
+    headers: tradingApiHeaders(access_token, 'ReviseItem'),
+    body,
+  });
+  const text = await r.text();
+  let parsed;
+  try{ parsed = xmlParser.parse(text); }catch(e){
+    return { ok: false, detail: text.slice(0, 2000) };
+  }
+  const response = parsed?.ReviseItemResponse;
+  if (!response) return { ok: false, detail: text.slice(0, 2000) };
+  if (response.Ack === 'Failure') return { ok: false, detail: response.Errors || text.slice(0, 2000) };
+  return { ok: true };
+}
+
 // ---------- Migrate a legacy (non-Inventory-API) listing ----------
 // Converts an already-live listing found by handleLegacyScan into an
-// Inventory API item + offer under a chosen SKU, via eBay's
-// bulk_migrate_listing endpoint — the listing itself keeps running on eBay
-// (same ItemID, same URL), it just gains an Inventory API record, which is
-// what closes the gap for future audits AND for this app's own tools (all
-// of which read/write by SKU). The caller assigns the SKU (the app's own
-// nextProductCode() sequence) rather than letting eBay generate one, so it
-// lines up with this catalog's numbering.
+// Inventory API item + offer under a chosen SKU. Two steps, both required
+// (see reviseItemSku above for why): first ReviseItem assigns the SKU on
+// the legacy listing, then bulk_migrate_listing (no sku field — it just
+// picks up whatever SKU ReviseItem set) brings it into the Inventory API.
+// The listing itself keeps running on eBay throughout (same ItemID, same
+// URL) — this only adds records, it never touches price/title/photos/etc.
 async function handleMigrateListing(req, res, access_token){
   const { listingId, sku } = req.body || {};
   if (!listingId) return res.status(400).json({ error: 'Missing listingId' });
   if (!sku) return res.status(400).json({ error: 'Missing sku' });
 
+  const revise = await reviseItemSku(access_token, listingId, sku);
+  if (!revise.ok){
+    return res.status(200).json({ success: false, error: 'Failed to assign SKU on the eBay listing (ReviseItem)', detail: revise.detail });
+  }
+
   const r = await fetch(`${API_BASE}/sell/inventory/v1/bulk_migrate_listing`, {
     method: 'POST',
     headers: ebayAuthHeaders(access_token),
-    body: JSON.stringify({ requests: [{ listingId: String(listingId), sku: String(sku) }] }),
+    body: JSON.stringify({ requests: [{ listingId: String(listingId) }] }),
   });
   const text = await r.text();
   let data;
   try{ data = JSON.parse(text); }catch(e){ data = { raw: text }; }
-  if (!r.ok) return res.status(r.status).json({ error: 'Failed to migrate listing', detail: data });
+  if (!r.ok) return res.status(r.status).json({ error: 'SKU was assigned on eBay, but the Inventory API migration itself failed', detail: data });
 
   const result = (data.responses || [])[0];
   if (!result || result.statusCode >= 300){
-    return res.status(200).json({ success: false, error: 'eBay rejected the migration', detail: result || data });
+    return res.status(200).json({ success: false, error: 'SKU was assigned on eBay, but eBay rejected the Inventory API migration itself', detail: result || data });
   }
 
   const photos = await fetchListingPhotos(listingId, access_token);

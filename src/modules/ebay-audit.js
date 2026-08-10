@@ -236,7 +236,7 @@ function renderAuditReport(data){
         try{
           const migrateData = await postAuditAction(token, { action: 'migrate_listing', listingId: itemId, sku });
           if (!migrateData.success){
-            results.push({ row, itemId, sku, ok: false, error: migrateData.error || 'eBay rejected the migration' });
+            results.push({ row, itemId, sku, ok: false, error: migrateData.error || 'eBay rejected the migration', detail: migrateData.detail });
             continue;
           }
           // Best-effort catalog entry — only the fields eBay actually gives
@@ -284,7 +284,8 @@ function renderAuditReport(data){
         }
         if (failed.length){
           summary += `<div style="color:var(--danger); font-weight:600; margin-top:4px;">❌ ${failed.length} failed</div>`;
-          summary += failed.map(r => `<div style="font-size:12px; margin-top:2px;">${escapeHtml(r.sku)} — ${escapeHtml(r.error)}</div>`).join('');
+          summary += failed.map(r => `<div style="font-size:12px; margin-top:4px;">${escapeHtml(r.sku)} — ${escapeHtml(r.error)}
+            ${r.detail ? `<div style="margin-top:2px; padding:6px; background:rgba(0,0,0,0.04); border-radius:6px; font-family:monospace; font-size:10.5px; white-space:pre-wrap;">${escapeHtml(JSON.stringify(r.detail, null, 2))}</div>` : ''}</div>`).join('');
         }
         summary += `<div style="margin-top:6px; opacity:0.8;">Rerun the audit to confirm.</div></div>`;
         progressEl.innerHTML = summary;

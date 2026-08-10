@@ -317,6 +317,28 @@ next minor bump:
   import still succeeds — it just falls back to the single photo already
   known from `legacy_scan`, same as before this change, rather than
   failing the whole import over a missing extra photo.
+- **v3.13.25** — First real-account test of the v3.13.23 "import invisible
+  listing" flow: all 21 imports attempted failed with a plain HTTP 400 and
+  no readable reason (`ebay-audit.js`'s failure summary only ever showed
+  the generic "Failed to migrate listing" text, never eBay's actual error
+  body). Two fixes: (1) the result summary now shows `detail` — eBay's
+  real error JSON — under each failed row, not just a canned message,
+  matching the pattern the top-level audit error box already used; (2)
+  root-caused the 400 itself by reading eBay's `bulk_migrate_listing`
+  docs properly: that endpoint does **not** accept a `sku` to assign in
+  its own request — it requires the listing to already have a
+  seller-defined SKU set via the Trading API before migration can
+  succeed, which is exactly why every one of these listings failed (they
+  had no SKU at all — that's why they were invisible in the first place).
+  `handleMigrateListing` now does two steps: `ReviseItem` (Trading API,
+  new `reviseItemSku()`) assigns the SKU on the legacy listing first,
+  then `bulk_migrate_listing` (now called with only `listingId`, no `sku`
+  field) brings the now-SKU'd listing into the Inventory API. **Still not
+  confirmed against a real account** — this fixes the specific 400 seen,
+  but the two-step flow itself hasn't been exercised live yet. Next
+  import attempt is the real test; if it still fails, the `detail` box
+  added in this same version is the place to read the actual eBay error
+  from.
 
 ## Planned changes (backlog)
 
