@@ -177,15 +177,24 @@ async function renderSessionList(){
 // Date defaults to today — she can still change it for a live logged after the fact.
 document.getElementById('lcNewSessionDate').valueAsDate = new Date();
 document.getElementById('lcCreateSessionBtn').addEventListener('click', async () => {
-  const name = document.getElementById('lcNewSessionName').value.trim() || `Live ${new Date().toLocaleDateString('en-US')}`;
-  const platform = document.getElementById('lcNewSessionPlatform').value || 'poshmark';
-  const date = document.getElementById('lcNewSessionDate').value || new Date().toISOString().slice(0,10);
-  const startNum = parseInt(document.getElementById('lcNewSessionStart').value, 10) || 1;
-  const { doc, setDoc } = fns();
-  const id = `live_${Date.now()}`;
-  const session = { name, platform, date, startNum, nextNum: startNum, itemCount: 0, createdAt: Date.now() };
-  await setDoc(doc(db(), 'liveSessions', id), session);
-  openSession({ id, ...session });
+  const btn = document.getElementById('lcCreateSessionBtn');
+  btn.disabled = true;
+  try{
+    const name = document.getElementById('lcNewSessionName').value.trim() || `Live ${new Date().toLocaleDateString('en-US')}`;
+    const platform = document.getElementById('lcNewSessionPlatform').value || 'poshmark';
+    const date = document.getElementById('lcNewSessionDate').value || new Date().toISOString().slice(0,10);
+    const startNum = parseInt(document.getElementById('lcNewSessionStart').value, 10) || 1;
+    const { doc, setDoc } = fns();
+    const id = `live_${Date.now()}`;
+    const session = { name, platform, date, startNum, nextNum: startNum, itemCount: 0, createdAt: Date.now() };
+    await setDoc(doc(db(), 'liveSessions', id), session);
+    openSession({ id, ...session });
+  }catch(e){
+    console.error('Failed to create live session:', e);
+    alert(`Couldn't start the live: ${e.message || e}`);
+  }finally{
+    btn.disabled = false;
+  }
 });
 
 async function openSession(session){
