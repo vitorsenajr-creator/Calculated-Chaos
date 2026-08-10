@@ -465,6 +465,15 @@ next minor bump:
   lines — title on its own truncated line, price + link always visible
   on the line below — so the link is never cut off regardless of title
   length.
+- **v3.13.35** — The shipping-mismatch "Fix selected now" flow's failure
+  summary only ever showed the generic top-level message ("Failed to
+  create eBay inventory item") with no way to see why — unlike the
+  invisible-listings import summary, which already got readable eBay
+  error detail in v3.13.33. Applied the same `ebayErrorShortMessages()` +
+  collapsed "Full eBay response" `<details>` treatment here too, reading
+  off `result.detail` (the REST Inventory API's `{errors: [...]}` shape,
+  which the same helper already handles via its `.message` fallback
+  alongside the Trading API's `ShortMessage` shape).
 
 ## Planned changes (backlog)
 
