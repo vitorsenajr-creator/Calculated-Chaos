@@ -121,6 +121,27 @@ export function initNarrationCapture(){
     };
     tick();
     timerInterval = setInterval(tick, 1000);
+
+    // Shown while she's actually talking, not before — this is the moment
+    // she needs the reminder, not a screen she has to read and dismiss
+    // first. Cleared automatically once processRecording() takes over
+    // the same area.
+    area.innerHTML = `
+      <div class="ai-analysis-box">
+        <div class="ai-tag">🎙️ Recording — you can mention:</div>
+        <ul style="margin:8px 0 0; padding-left:20px; font-size:13px; color:var(--plum); line-height:1.7;">
+          <li>Item name / what it is</li>
+          <li>Brand</li>
+          <li>Gender (women's, men's, kids'...)</li>
+          <li>Clothing type (jacket, dress, jeans...)</li>
+          <li>Color</li>
+          <li>Size</li>
+          <li>Category</li>
+          <li>Condition — new with tags, used, worn, etc.</li>
+          <li>Asking price, if you want one set</li>
+          <li>Anything else — fabric, measurements, flaws (goes into Notes)</li>
+        </ul>
+      </div>`;
   }
 
   async function startRecording(){
