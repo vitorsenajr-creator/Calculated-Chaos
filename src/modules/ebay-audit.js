@@ -90,7 +90,11 @@ export async function runEbayAudit(){
     });
     const data = await res.json();
     if (!data.success){
-      area.innerHTML = `<div class="ebay-status-box error">❌ Audit failed: ${escapeHtml(data.error || 'unknown error')}</div>`;
+      area.innerHTML = `
+        <div class="ebay-status-box error">
+          ❌ Audit failed: ${escapeHtml(data.error || 'unknown error')}
+          ${data.detail ? `<div style="margin-top:8px; padding:8px; background:rgba(0,0,0,0.04); border-radius:6px; font-family:monospace; font-size:11px; white-space:pre-wrap;">${escapeHtml(JSON.stringify(data.detail, null, 2))}</div>` : ''}
+        </div>`;
       return;
     }
 

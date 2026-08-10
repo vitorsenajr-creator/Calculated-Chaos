@@ -174,6 +174,10 @@ next minor bump:
   Fixed all four to `export default`, matching every other file in
   `api/`. **Lesson for future `api/` files**: always use `export
   default`, never `module.exports` — this repo's `package.json` is ESM.
+- **v3.13.15** — The eBay listing audit's failure message only ever
+  showed `data.error` ("Failed to fetch eBay offers"), never the actual
+  eBay error behind it — added `data.detail` to the error box so the
+  next failure is diagnosable without needing DevTools.
 
 ## Planned changes (backlog)
 
