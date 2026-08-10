@@ -253,10 +253,12 @@ function renderAuditReport(data){
           // Best-effort catalog entry — only the fields eBay actually gives
           // us (title/price/photos) are filled in; everything else (type,
           // brand, size, cost...) needs a manual pass in Catalog afterward,
-          // same as any freshly-cataloged item. freeShipping defaults to
-          // true (seller-paid) since there's no reliable way to infer the
-          // real policy from these calls alone — flagged in the result
-          // summary below for her to double-check.
+          // same as any freshly-cataloged item. freeShipping is always
+          // false (buyer pays) — Vitor's fixed default for these imports —
+          // and the server (correctOfferShipping, api/ebay-listing-tools.js)
+          // already corrected the live eBay offer to match this at
+          // migration time if it came in different, so this isn't a guess
+          // that needs manual review, unlike v3.13.23-25.
           // migrateData.photos is the FULL photo set (fetched via GetItem
           // at migration time); legacy_scan's ActiveList only ever had the
           // one gallery photo, kept here as a fallback if that fetch failed.
@@ -272,13 +274,13 @@ function renderAuditReport(data){
             listedPlatforms: ['ebay'],
             ebayListingId: itemId,
             status: 'anunciado',
-            freeShipping: true,
+            freeShipping: false,
             createdAt: Date.now(),
           };
           const { doc, setDoc } = window.firestoreFns;
           await setDoc(doc(window.db, 'items', newItem.id), newItem);
           items.push(newItem);
-          results.push({ row, itemId, sku, ok: true });
+          results.push({ row, itemId, sku, ok: true, shipping: migrateData.shipping });
         }catch(e){
           results.push({ row, itemId, sku, ok: false, error: String(e && e.message || e) });
         }
@@ -290,8 +292,14 @@ function renderAuditReport(data){
       if (progressEl){
         let summary = `<div style="font-size:13px; margin-top:4px;">`;
         if (ok.length){
+          const shippingFixed = ok.filter(r => r.shipping?.corrected).length;
+          const shippingFailed = ok.filter(r => r.shipping && !r.shipping.corrected && r.shipping.reason !== 'already_buyer_pays');
           summary += `<div style="color:var(--sage-deep); font-weight:600;">✅ ${ok.length} imported — SKU${ok.length===1?'':'s'} ${ok.map(r => escapeHtml(r.sku)).join(', ')}.</div>`;
-          summary += `<div style="font-size:12px; margin-top:2px; opacity:0.85;">Each was added with "Buyer pays" set to a guessed default (seller-paid) — open each in Catalog to fix the shipping toggle and fill in type/brand/size/cost.</div>`;
+          summary += `<div style="font-size:12px; margin-top:2px; opacity:0.85;">All set to "Buyer pays" (the fixed default)${shippingFixed ? ` — corrected on ${shippingFixed} live eBay listing${shippingFixed===1?'':'s'} that came in with something else` : ''}. Type/brand/size/cost still need a manual pass in Catalog.</div>`;
+          if (shippingFailed.length){
+            summary += `<div style="font-size:12px; margin-top:4px; color:var(--amber-deep);">⚠️ Couldn't confirm the live shipping policy is correct for ${shippingFailed.length} item${shippingFailed.length===1?'':'s'} — double-check these on eBay directly:</div>`;
+            summary += shippingFailed.map(r => `<div style="font-size:11.5px; margin-top:2px; opacity:0.85;">${escapeHtml(r.sku)} — ${escapeHtml(r.shipping.reason || 'unknown reason')}</div>`).join('');
+          }
         }
         if (failed.length){
           summary += `<div style="color:var(--danger); font-weight:600; margin-top:4px;">❌ ${failed.length} failed</div>`;

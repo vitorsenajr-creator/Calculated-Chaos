@@ -75,8 +75,15 @@
 //        then brings that now-SKU'd listing into the Inventory API. The
 //        listing itself is untouched on eBay throughout (same ItemID/URL).
 //        Also fetches the listing's full photo set (GetItem, Trading API —
-//        legacy_scan's ActiveList only ever has the one gallery photo).
-//     Returns: { success, sku, listingId, photos: [...] | null } | { success: false, error, detail }
+//        legacy_scan's ActiveList only ever has the one gallery photo), and
+//        corrects the migrated offer's shipping policy to buyer-pays
+//        (Vitor's fixed default for these imports — see
+//        correctOfferShipping) if eBay's auto-migrated offer came in with
+//        something else. Note: the buyer-pays policy's own placeholder
+//        shipping cost is used as-is here (no per-item shippingCostOverride)
+//        since a freshly-imported item has no weight/dimensions to estimate
+//        from yet — a manual pass in Catalog can refine it once measured.
+//     Returns: { success, sku, listingId, photos: [...] | null, shipping: {corrected, reason?, detail?} } | { success: false, error, detail }
 
 import { XMLParser, XMLBuilder } from 'fast-xml-parser';
 
@@ -512,7 +519,58 @@ async function handleMigrateListing(req, res, access_token){
   }
 
   const photos = await fetchListingPhotos(listingId, access_token);
-  return res.status(200).json({ success: true, sku: result.sku || sku, listingId, photos });
+  const shipping = result.offerId ? await correctOfferShipping(result.offerId, access_token) : { corrected: false, reason: 'no_offer_id' };
+  return res.status(200).json({ success: true, sku: result.sku || sku, listingId, photos, shipping });
+}
+
+// ---------- Correct shipping policy on a just-migrated offer ----------
+// Vitor's rule (2026-08-10): "buyer pays shipping" is ALWAYS the correct
+// default for these imports — never guess/leave it as free/seller-paid.
+// bulk_migrate_listing builds its offer from whatever policy the legacy
+// listing already had (almost certainly neither of this app's two managed
+// policies, since these listings never went through this app before), so
+// this always needs checking, not just when something looks off. Fetches
+// the offer eBay just created, and if its fulfillmentPolicyId isn't
+// already the buyer-pays policy, overwrites just that field (keeping
+// everything else — category, description, price, aspects — exactly as
+// eBay auto-populated it from the legacy listing) and republishes.
+// Best-effort: any failure here is reported but doesn't fail the import —
+// the item still exists in the Inventory API under the right SKU either
+// way, this only affects whether the shipping policy is provably correct.
+async function correctOfferShipping(offerId, access_token){
+  const fulfillmentPolicyIdBuyerPays = process.env.EBAY_FULFILLMENT_POLICY_ID_BUYER_PAYS || '';
+  if (!fulfillmentPolicyIdBuyerPays){
+    return { corrected: false, reason: 'EBAY_FULFILLMENT_POLICY_ID_BUYER_PAYS not configured on the server' };
+  }
+  try{
+    const headers = ebayAuthHeaders(access_token);
+    const getResult = await fetch(`${API_BASE}/sell/inventory/v1/offer/${offerId}`, { headers });
+    const offerBody = await getResult.json().catch(() => null);
+    if (!getResult.ok || !offerBody) return { corrected: false, reason: 'Could not fetch the newly migrated offer', detail: offerBody };
+
+    const currentPolicyId = offerBody.listingPolicies?.fulfillmentPolicyId || null;
+    if (currentPolicyId === fulfillmentPolicyIdBuyerPays){
+      return { corrected: false, reason: 'already_buyer_pays' };
+    }
+
+    offerBody.listingPolicies = { ...(offerBody.listingPolicies || {}), fulfillmentPolicyId: fulfillmentPolicyIdBuyerPays };
+
+    const putResult = await fetch(`${API_BASE}/sell/inventory/v1/offer/${offerId}`, {
+      method: 'PUT', headers, body: JSON.stringify(offerBody),
+    });
+    const putData = await putResult.json().catch(() => null);
+    if (!putResult.ok) return { corrected: false, reason: 'Failed to update the offer', detail: putData };
+
+    const publishResult = await fetch(`${API_BASE}/sell/inventory/v1/offer/${offerId}/publish`, {
+      method: 'POST', headers,
+    });
+    const publishData = await publishResult.json().catch(() => null);
+    if (!publishResult.ok) return { corrected: false, reason: 'Offer updated, but re-publishing it failed', detail: publishData };
+
+    return { corrected: true };
+  }catch(e){
+    return { corrected: false, reason: String(e && e.message || e) };
+  }
 }
 
 export default async (req, res) => {
