@@ -21,7 +21,7 @@ const DEFAULT_MEASURE_LABELS = [
   'Waist', 'Hip', 'Inseam', 'Rise', 'Width', 'Neck', 'Thigh', 'Length (insole)',
 ];
 
-let customOptions = { tipos: [], brands: [], sizes: [], measureLabels: [] };
+let customOptions = { tipos: [], brands: [], sizes: [], fabrics: [], measureLabels: [] };
 let currentSession = null; // { id, name, date, startNum, nextNum, itemCount }
 let liveItemsCache = [];   // items in the currently-open session
 let measureRowCount = 0;
@@ -94,7 +94,7 @@ async function initLiveCatalog(){
   try{
     const { doc, getDoc } = fns();
     const optSnap = await getDoc(doc(db(), 'live_catalog_options', 'main'));
-    if (optSnap.exists()) customOptions = { tipos:[], brands:[], sizes:[], measureLabels:[], ...optSnap.data() };
+    if (optSnap.exists()) customOptions = { tipos:[], brands:[], sizes:[], fabrics:[], measureLabels:[], ...optSnap.data() };
   }catch(e){ console.warn('Could not load saved Live Catalog options:', e); }
 
   renderMeasureLabelOptions();
@@ -135,6 +135,9 @@ function renderFieldOptions(){
   const currentTipo = document.getElementById('lcTipo').value.trim();
   const sizeAll = Array.from(new Set([...getSizeSuggestionsForType(items, currentTipo), ...customOptions.sizes]));
   document.getElementById('lcSizeOptions').innerHTML = sizeAll.map(s => `<option value="${escapeHtml(s)}">`).join('');
+  // No preset fabric list anywhere in the app (main catalog has no
+  // structured fabric field either) — just whatever's been typed before.
+  document.getElementById('lcFabricOptions').innerHTML = customOptions.fabrics.map(f => `<option value="${escapeHtml(f)}">`).join('');
 }
 document.getElementById('lcTipo').addEventListener('input', renderFieldOptions);
 
@@ -236,6 +239,7 @@ function resetForm(keepNum){
   document.getElementById('lcTipo').value = '';
   document.getElementById('lcBrand').value = '';
   document.getElementById('lcSize').value = '';
+  document.getElementById('lcFabric').value = '';
   document.getElementById('lcMeasureRows').innerHTML = '';
   measureRowCount = 0;
   // At least 5 rows available every time, per her spec — she can add more,
@@ -253,6 +257,7 @@ document.getElementById('lcAddItemBtn').addEventListener('click', async () => {
     const tipo = document.getElementById('lcTipo').value.trim();
     const brand = document.getElementById('lcBrand').value.trim();
     const size = document.getElementById('lcSize').value.trim();
+    const fabric = document.getElementById('lcFabric').value.trim();
     const measurements = Array.from(document.querySelectorAll('#lcMeasureRows .lc-measure-row')).map(row => ({
       label: row.querySelector('[data-measure-label]').value.trim(),
       value: row.querySelector('[data-measure-value]').value.trim(),
@@ -263,12 +268,13 @@ document.getElementById('lcAddItemBtn').addEventListener('click', async () => {
     rememberIfNew('tipos', tipo);
     rememberIfNew('brands', brand);
     rememberIfNew('sizes', size);
+    rememberIfNew('fabrics', fabric);
     measurements.forEach(m => rememberIfNew('measureLabels', m.label));
     renderMeasureLabelOptions();
 
     const { doc, setDoc, updateDoc } = fns();
     const itemId = `${currentSession.id}_${Date.now()}`;
-    const itemDoc = { sessionId: currentSession.id, num, tipo, brand, size, measurements, createdAt: Date.now() };
+    const itemDoc = { sessionId: currentSession.id, num, tipo, brand, size, fabric, measurements, createdAt: Date.now() };
     await setDoc(doc(db(), 'liveItems', itemId), itemDoc);
 
     // If she edited the number to something higher than the running
@@ -322,7 +328,7 @@ function saleFieldsHtml(item){
 function renderLiveItemsTableRows(){
   const body = document.getElementById('lcTableBody');
   if (!liveItemsCache.length){
-    body.innerHTML = `<tr><td colspan="8" class="lc-empty">No items yet — add your first one above.</td></tr>`;
+    body.innerHTML = `<tr><td colspan="9" class="lc-empty">No items yet — add your first one above.</td></tr>`;
     return;
   }
   const sorted = [...liveItemsCache].sort((a,b) => (a.num||0) - (b.num||0));
@@ -332,6 +338,7 @@ function renderLiveItemsTableRows(){
       <td><input type="text" data-field="tipo" value="${escapeHtml(item.tipo || '')}"></td>
       <td><input type="text" data-field="brand" value="${escapeHtml(item.brand || '')}"></td>
       <td><input type="text" data-field="size" value="${escapeHtml(item.size || '')}"></td>
+      <td><input type="text" data-field="fabric" value="${escapeHtml(item.fabric || '')}"></td>
       <td class="lc-measure-cell">${escapeHtml(measurementsSummary(item.measurements))}</td>
       <td><button class="lc-sold-btn${item.sold ? ' is-sold' : ''}" data-toggle-sold="${item.id}">${item.sold ? '✓ Sold' : 'Sold?'}</button></td>
       <td class="lc-sale-cell">${saleFieldsHtml(item)}</td>
@@ -350,8 +357,8 @@ function renderLiveItemsTableRows(){
         await updateDoc(doc(db(), 'liveItems', itemId), { [field]: value });
         const cached = liveItemsCache.find(i => i.id === itemId);
         if (cached) cached[field] = value;
-        if (field === 'tipo' || field === 'brand' || field === 'size'){
-          rememberIfNew(field === 'tipo' ? 'tipos' : field === 'brand' ? 'brands' : 'sizes', value);
+        if (field === 'tipo' || field === 'brand' || field === 'size' || field === 'fabric'){
+          rememberIfNew(field === 'tipo' ? 'tipos' : field === 'brand' ? 'brands' : field === 'size' ? 'sizes' : 'fabrics', value);
         }
       }catch(e){ console.error('Failed to update item:', e); }
     });

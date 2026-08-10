@@ -62,6 +62,12 @@ next minor bump:
   Poshmark) and Date (defaults to today) at creation. Each live item row
   also got a "Sold?" toggle that reveals sale price / buyer / notes
   fields, editable at any time afterward, not just when first marked.
+- **v3.13.7** — Fixed "Start live" failing silently on a Firestore
+  permission error (no try/catch around the write — now surfaces the
+  real error via `alert()`). Added a "Fabric" field to the Live Catalog
+  quick-add form and table (`item.fabric`), same free-text
+  datalist-with-memory pattern as Tipo/Brand/Size — no preset list since
+  the main catalog has no structured fabric field either.
 
 ## Planned changes (backlog)
 
