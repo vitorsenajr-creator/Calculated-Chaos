@@ -22,7 +22,8 @@
 // (runEbaySetup, checkEbaySalesNow, findEligibleOffers) is a window.*
 // function wired via inline onclick instead.
 import { items } from './state.js';
-import { escapeHtml } from './format-utils.js';
+import { escapeHtml, uid } from './format-utils.js';
+import { nextProductCode } from './catalog-lookups.js';
 import { getValidEbayToken, publishItemToEbayCore } from '../ebay-api.js';
 
 function itemForSku(sku){
@@ -37,7 +38,7 @@ function itemNameForSku(sku){
 function renderAuditReport(data){
   const area = document.getElementById('ebayAuditResult');
   if (!area) return;
-  const { orphans, shippingMismatches, checkedCount, totalSkus, lookupErrors } = data;
+  const { orphans, shippingMismatches, checkedCount, totalSkus, lookupErrors, invisibleListings, legacyScanError } = data;
   const listingUrl = (id) => id ? `https://www.ebay.com/itm/${id}` : null;
 
   let html = `<div class="ebay-connect-box"><div class="ec-title">Audit finished — ${checkedCount} live listing${checkedCount===1?'':'s'} checked</div><div class="ec-sub">`;
@@ -78,6 +79,26 @@ function renderAuditReport(data){
       </div>`).join('');
     html += `<div style="margin-top:6px; font-size:12px; opacity:0.8;">These aren't auto-imported — review each on eBay and decide whether to add it to the catalog manually, or if it's something stale that should be ended.</div>`;
     html += `</div>`;
+  }
+
+  if (legacyScanError){
+    html += `<div style="margin-top:10px; font-size:12px; color:var(--danger);">⚠️ Couldn't check for listings outside the Inventory API: ${escapeHtml(legacyScanError)}</div>`;
+  } else if (invisibleListings && invisibleListings.length){
+    html += `<div style="margin-top:12px; padding-top:10px; border-top:1px solid rgba(0,0,0,0.08);">
+      <b style="color:var(--danger);">🕳️ ${invisibleListings.length} listing${invisibleListings.length===1?'':'s'} completely invisible to this audit</b>
+      <div style="margin-top:4px; font-size:12px; opacity:0.85;">Live on eBay, but never registered through the Inventory API (created directly in Seller Hub, a bulk lister, or an older tool) — so the checks above can't see them at all, whether or not they have a SKU. Assign a SKU and import each one to bring it into the catalog and make it visible to future audits.</div>`;
+    html += invisibleListings.map(l => `
+      <div class="audit-invisible-row" data-item-id="${escapeHtml(l.itemId)}" style="display:flex; align-items:center; gap:8px; margin-top:8px; font-size:13px;">
+        <input type="checkbox" class="audit-invisible-chk" checked style="flex-shrink:0;">
+        <span style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(l.title || l.itemId)} · $${l.price || '?'}
+          ${listingUrl(l.itemId) ? ` · <a href="${listingUrl(l.itemId)}" target="_blank">View ↗</a>` : ''}</span>
+        <input type="text" class="audit-invisible-sku" value="${escapeHtml(l.suggestedSku)}" style="width:100px; flex-shrink:0; padding:5px 7px; border:1px solid var(--border-color, #ddd); border-radius:6px; font-size:12px;">
+      </div>`).join('');
+    html += `<button id="auditImportSelectedBtn" style="margin-top:10px; background:var(--danger); color:white; border:none; border-radius:8px; padding:9px 14px; font-size:13px; font-weight:600; cursor:pointer;">📥 Import selected into catalog</button>`;
+    html += `<div id="auditImportProgress" style="margin-top:8px;"></div>`;
+    html += `</div>`;
+  } else if (invisibleListings){
+    html += `<div style="margin-top:12px; padding-top:10px; border-top:1px solid rgba(0,0,0,0.08); color:var(--sage-deep); font-weight:600; font-size:13px;">✅ No listings outside the Inventory API found — everything active on eBay has a SKU record.</div>`;
   }
 
   html += `</div></div>`;
@@ -175,6 +196,96 @@ function renderAuditReport(data){
       }
     });
   }
+
+  const importBtn = document.getElementById('auditImportSelectedBtn');
+  if (importBtn){
+    importBtn.addEventListener('click', async () => {
+      const rows = Array.from(document.querySelectorAll('.audit-invisible-row'));
+      const selectedRows = rows.filter(r => r.querySelector('.audit-invisible-chk').checked);
+      const progressEl = document.getElementById('auditImportProgress');
+      if (selectedRows.length === 0){
+        if (progressEl) progressEl.innerHTML = `<div style="font-size:12px; color:var(--danger);">Select at least one listing first.</div>`;
+        return;
+      }
+
+      const selected = selectedRows.map(row => ({
+        row,
+        itemId: row.dataset.itemId,
+        sku: row.querySelector('.audit-invisible-sku').value.trim(),
+      }));
+      // Dedupe/blank check across rows BEFORE calling eBay — importing two
+      // rows under the same SKU would silently overwrite one item with the
+      // other once both are written to Firestore.
+      const skuCounts = {};
+      selected.forEach(s => { skuCounts[s.sku] = (skuCounts[s.sku] || 0) + 1; });
+      const badSkus = [...new Set(selected.filter(s => !s.sku || skuCounts[s.sku] > 1).map(s => s.sku || '(blank)'))];
+      if (badSkus.length){
+        if (progressEl) progressEl.innerHTML = `<div style="font-size:12px; color:var(--danger);">Fix duplicate or blank SKUs before importing: ${escapeHtml(badSkus.join(', '))}</div>`;
+        return;
+      }
+
+      importBtn.disabled = true;
+      const token = await getValidEbayToken();
+      const results = [];
+      for (let i = 0; i < selected.length; i++){
+        const { row, itemId, sku } = selected[i];
+        const listing = (data.invisibleListings || []).find(l => l.itemId === itemId);
+        if (progressEl){
+          progressEl.innerHTML = `<div style="font-size:13px; opacity:0.8;">⏳ Importing ${i+1} of ${selected.length}: ${escapeHtml(listing?.title || itemId)}…</div>`;
+        }
+        try{
+          const migrateData = await postAuditAction(token, { action: 'migrate_listing', listingId: itemId, sku });
+          if (!migrateData.success){
+            results.push({ row, itemId, sku, ok: false, error: migrateData.error || 'eBay rejected the migration' });
+            continue;
+          }
+          // Best-effort catalog entry — only the fields eBay's ActiveList
+          // actually gives us (title/price/one picture) are filled in;
+          // everything else (type, brand, size, cost...) needs a manual
+          // pass in Catalog afterward, same as any freshly-cataloged item.
+          // freeShipping defaults to true (seller-paid) since there's no
+          // reliable way to infer the real policy from ActiveList alone —
+          // flagged in the result summary below for her to double-check.
+          const newItem = {
+            id: uid(),
+            productCode: sku,
+            name: listing?.title || sku,
+            listPrice: listing?.price || '',
+            photos: listing?.pictureUrl ? [listing.pictureUrl] : [],
+            listedPlatforms: ['ebay'],
+            ebayListingId: itemId,
+            status: 'anunciado',
+            freeShipping: true,
+            createdAt: Date.now(),
+          };
+          const { doc, setDoc } = window.firestoreFns;
+          await setDoc(doc(window.db, 'items', newItem.id), newItem);
+          items.push(newItem);
+          results.push({ row, itemId, sku, ok: true });
+        }catch(e){
+          results.push({ row, itemId, sku, ok: false, error: String(e && e.message || e) });
+        }
+      }
+      importBtn.disabled = false;
+
+      const ok = results.filter(r => r.ok);
+      const failed = results.filter(r => !r.ok);
+      if (progressEl){
+        let summary = `<div style="font-size:13px; margin-top:4px;">`;
+        if (ok.length){
+          summary += `<div style="color:var(--sage-deep); font-weight:600;">✅ ${ok.length} imported — SKU${ok.length===1?'':'s'} ${ok.map(r => escapeHtml(r.sku)).join(', ')}.</div>`;
+          summary += `<div style="font-size:12px; margin-top:2px; opacity:0.85;">Each was added with "Buyer pays" set to a guessed default (seller-paid) — open each in Catalog to fix the shipping toggle and fill in type/brand/size/cost.</div>`;
+        }
+        if (failed.length){
+          summary += `<div style="color:var(--danger); font-weight:600; margin-top:4px;">❌ ${failed.length} failed</div>`;
+          summary += failed.map(r => `<div style="font-size:12px; margin-top:2px;">${escapeHtml(r.sku)} — ${escapeHtml(r.error)}</div>`).join('');
+        }
+        summary += `<div style="margin-top:6px; opacity:0.8;">Rerun the audit to confirm.</div></div>`;
+        progressEl.innerHTML = summary;
+      }
+      ok.forEach(r => r.row.remove());
+    });
+  }
 }
 
 async function postAuditAction(token, body){
@@ -220,7 +331,7 @@ export async function runEbayAudit(){
     const { skus, totalSkus } = listData;
     const knownItems = items.map(i => ({ sku: i.productCode || i.id, freeShipping: i.freeShipping === true }));
 
-    const merged = { orphans: [], shippingMismatches: [], lookupErrors: [], checkedCount: 0, totalSkus };
+    const merged = { orphans: [], shippingMismatches: [], lookupErrors: [], checkedCount: 0, totalSkus, checkedListingIds: [] };
     for (let i = 0; i < skus.length; i += CHUNK_SIZE){
       const chunk = skus.slice(i, i + CHUNK_SIZE);
       area.innerHTML = `<div class="ebay-status-box pending">⏳ Checking listings — ${Math.min(i + CHUNK_SIZE, skus.length)} of ${skus.length} SKUs…</div>`;
@@ -237,9 +348,39 @@ export async function runEbayAudit(){
       merged.shippingMismatches.push(...chunkData.shippingMismatches);
       merged.lookupErrors.push(...chunkData.lookupErrors);
       merged.checkedCount += chunkData.checkedCount;
+      merged.checkedListingIds.push(...(chunkData.checkedListingIds || []));
     }
 
-    renderAuditReport({ success: true, ...merged });
+    // Second pass: find listings live on eBay that never went through the
+    // Inventory API at all (no SKU record, so invisible to everything
+    // above) — via the legacy Trading API's GetMyeBaySelling. See
+    // handleLegacyScan in api/ebay-listing-tools.js for why this needs a
+    // separate API entirely.
+    area.innerHTML = `<div class="ebay-status-box pending">⏳ Checking for listings outside the Inventory API…</div>`;
+    const knownListingIds = new Set(merged.checkedListingIds.map(String));
+    let invisibleListings = [];
+    let legacyScanError = null;
+    try{
+      const legacyData = await postAuditAction(token, { action: 'legacy_scan' });
+      if (!legacyData.success){
+        legacyScanError = legacyData.error || 'unknown error';
+      }else{
+        const orphaned = (legacyData.items || []).filter(l => l.itemId && !knownListingIds.has(String(l.itemId)));
+        // Suggest SKUs up front (nextProductCode() reads the current catalog
+        // sequence) — assigned sequentially here, not per-row on render, so
+        // two suggested rows never collide with each other.
+        let nextCode = nextProductCode(items);
+        invisibleListings = orphaned.map(l => {
+          const suggestedSku = nextCode;
+          nextCode = nextProductCode([...items, { productCode: suggestedSku }]);
+          return { ...l, suggestedSku };
+        });
+      }
+    }catch(e){
+      legacyScanError = String(e && e.message || e);
+    }
+
+    renderAuditReport({ success: true, ...merged, invisibleListings, legacyScanError });
   }catch(e){
     area.innerHTML = `<div class="ebay-status-box error">❌ ${escapeHtml(String(e.message || e))}</div>`;
   }

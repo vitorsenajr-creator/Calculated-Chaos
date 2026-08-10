@@ -253,6 +253,37 @@ next minor bump:
   specifically — one click writes each missing description then
   immediately retries `publishItemToEbayCore`, chaining both steps that
   previously required leaving the audit screen.
+- **v3.13.23** — Found the actual cause of the eBay listing audit
+  undercount (104 Active on eBay vs 98 SKUs total found): the audit only
+  ever sees listings with an Inventory API record (`GET inventory_item`
+  requires a SKU assigned through that specific API) — a listing created
+  any other way (Seller Hub, a bulk lister, an older tool) is completely
+  invisible to it, whether or not it happens to have a SKU string set.
+  Added a second discovery pass to the eBay listing audit using the legacy
+  Trading API's `GetMyeBaySelling` (ActiveList) — new `action:
+  'legacy_scan'` in `api/ebay-listing-tools.js`, authenticated with the
+  same OAuth token via the `X-EBAY-API-IAF-TOKEN` header (Trading API's
+  documented bridge for OAuth tokens) instead of a Bearer header, parsed
+  with the new `fast-xml-parser` dependency. Results are diffed
+  client-side against every `listingId` the Inventory-API-based audit
+  already saw (`checkedListingIds`, new field on `audit_check_skus`'s
+  response) to isolate listings with zero Inventory API record. Each is
+  shown with a pre-filled suggested SKU (from the same `nextProductCode()`
+  sequence used everywhere else) and an "Import selected into catalog"
+  action: calls eBay's `bulk_migrate_listing` (new `action:
+  'migrate_listing'`) to give the listing a real Inventory API item+offer
+  under that SKU — the live eBay listing itself is untouched (same
+  ItemID/URL) — then writes a new catalog item in Firestore (title/price/
+  one photo from ActiveList; `freeShipping` defaults to a guessed `true`
+  since ActiveList doesn't expose the real shipping policy, flagged in
+  the result summary for manual review). Type, brand, size, cost, and the
+  rest still need a manual pass in Catalog afterward, same as any
+  freshly-cataloged item. **Unverified against eBay's live API** (no
+  sandbox/production credentials in this environment) — the XML request
+  shape and `bulk_migrate_listing` response shape follow eBay's
+  documentation but haven't been exercised against a real account; watch
+  the first real run closely, and if `legacy_scan` fails, the raw XML is
+  surfaced via the error's `detail` field to diagnose from.
 
 ## Planned changes (backlog)
 
