@@ -117,8 +117,10 @@ function renderAuditReport(data){
     html += invisibleListings.map(l => `
       <div class="audit-invisible-row" data-item-id="${escapeHtml(l.itemId)}" style="display:flex; align-items:center; gap:8px; margin-top:8px; font-size:13px;">
         <input type="checkbox" class="audit-invisible-chk" checked style="flex-shrink:0;">
-        <span style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(l.title || l.itemId)} · $${l.price || '?'}
-          ${listingUrl(l.itemId) ? ` · <a href="${listingUrl(l.itemId)}" target="_blank">View ↗</a>` : ''}</span>
+        <div style="flex:1; min-width:0;">
+          <div style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(l.title || l.itemId)}</div>
+          <div style="font-size:12px; opacity:0.85; margin-top:2px;">$${l.price || '?'}${listingUrl(l.itemId) ? ` · <a href="${listingUrl(l.itemId)}" target="_blank">View ↗</a>` : ''}</div>
+        </div>
         <input type="text" class="audit-invisible-sku" value="${escapeHtml(l.suggestedSku)}" style="width:100px; flex-shrink:0; padding:5px 7px; border:1px solid var(--border-color, #ddd); border-radius:6px; font-size:12px;">
       </div>`).join('');
     html += `<button id="auditImportSelectedBtn" style="margin-top:10px; background:var(--danger); color:white; border:none; border-radius:8px; padding:9px 14px; font-size:13px; font-weight:600; cursor:pointer;">📥 Import selected into catalog</button>`;
