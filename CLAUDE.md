@@ -403,6 +403,25 @@ next minor bump:
   account** — same caveat as v3.13.23-28, watch the next real import for
   whether `shipping.corrected` finally comes back `true` instead of
   `no_offer_id`.
+- **v3.13.30** — Vitor asked to skip AI-generated descriptions for eBay
+  listing audit imports entirely when the listing already has one — the
+  17-item batch from v3.13.29 all failed the "Generate missing
+  descriptions & retry publish" flow, and AI regeneration had already
+  mischaracterized at least one new item as used elsewhere. Root cause:
+  `migrate_listing` never captured the listing's existing description, so
+  every imported item started with a blank `listingDescription`, which is
+  exactly what routes `publishItemToEbayCore` into `reason:'no_description'`
+  and from there into the AI flow. Renamed `fetchListingPhotos()` to
+  `fetchListingDetails()` in `api/ebay-listing-tools.js` — same GetItem
+  call already used for the full photo set now also requests
+  `IncludeDescription: true` and returns the listing's original
+  `Description` field, which `modules/ebay-audit.js` now saves as
+  `item.listingDescription` on import. A freshly imported item is never
+  routed through AI generation anymore unless she explicitly replaces the
+  description herself. **Doesn't retroactively fix the 17 items from the
+  v3.13.29 batch** — those already exist with a blank description; she'll
+  need to paste each one's description in manually via Catalog, or ask for
+  a one-off backfill tool if that's worth building for this batch size.
 
 ## Planned changes (backlog)
 

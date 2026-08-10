@@ -265,11 +265,18 @@ function renderAuditReport(data){
           const photos = (migrateData.photos && migrateData.photos.length)
             ? migrateData.photos
             : (listing?.pictureUrl ? [listing.pictureUrl] : []);
+          // migrateData.description is the listing's ORIGINAL eBay
+          // description (also from that GetItem call) — carrying it over
+          // means publishItemToEbayCore never treats this item as
+          // no_description later, so it's never routed through the AI
+          // "generate description" flow unless she explicitly wants to
+          // replace what was already there.
           const newItem = {
             id: uid(),
             productCode: sku,
             name: listing?.title || sku,
             listPrice: listing?.price || '',
+            listingDescription: migrateData.description || '',
             photos,
             listedPlatforms: ['ebay'],
             ebayListingId: itemId,
