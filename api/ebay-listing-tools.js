@@ -96,6 +96,17 @@
 //        EBAY_FULFILLMENT_POLICY_ID_BUYER_PAYS on Vercel by hand, since
 //        that's a server-side env var this app can't set for itself.
 //     Returns: { success, policies: [{id, name}] }
+//
+//   action: 'backfill_descriptions'  { listingIds: [...] }
+//     -> added 2026-08-10: catches up items imported via migrate_listing
+//        BEFORE v3.13.30 added description capture, which all sit in the
+//        catalog with a blank listingDescription today. Takes a small batch
+//        of eBay ItemIDs (client drives this in chunks, same pattern as
+//        audit_check_skus) and fetches each one's real description via
+//        fetchListingDetails — same GetItem call migrate_listing itself now
+//        uses. Read-only on eBay's side; only the client decides whether/how
+//        to write the result back to a catalog item.
+//     Returns: { success, results: [{listingId, description}], errors: [{listingId, error}] }
 
 import { XMLParser, XMLBuilder } from 'fast-xml-parser';
 
@@ -490,6 +501,40 @@ async function fetchListingDetails(itemId, access_token){
   }
 }
 
+// Backfills the original eBay description for items imported BEFORE
+// v3.13.30 added description capture to migrate_listing — those already
+// sit in the catalog with a blank listingDescription, which pushed her
+// toward the AI "generate description" flow for items that already had a
+// perfectly good one on eBay. Batched concurrently (10 at a time, same
+// pattern as handleAuditCheckSkus) since this can cover a real batch of
+// already-imported items in one go, not just a single listing like
+// migrate_listing handles.
+async function handleBackfillDescriptions(req, res, access_token){
+  const { listingIds } = req.body || {};
+  const ids = Array.isArray(listingIds) ? listingIds : [];
+  const results = [];
+  const errors = [];
+
+  const BATCH_SIZE = 10;
+  for (let i = 0; i < ids.length; i += BATCH_SIZE){
+    const batch = ids.slice(i, i + BATCH_SIZE);
+    const batchResults = await Promise.all(batch.map(async listingId => {
+      try{
+        const { description } = await fetchListingDetails(listingId, access_token);
+        return { listingId, description };
+      }catch(e){
+        return { listingId, error: String(e && e.message || e) };
+      }
+    }));
+    batchResults.forEach(r => {
+      if (r.error) errors.push(r);
+      else results.push(r);
+    });
+  }
+
+  return res.status(200).json({ success: true, results, errors });
+}
+
 // Assigns a SKU directly on the legacy (Trading-API-side) listing, via
 // ReviseItem — added after discovering (100% of the first real import
 // batch came back HTTP 400) that bulk_migrate_listing does NOT accept a
@@ -645,6 +690,7 @@ export default async (req, res) => {
     if (action === 'legacy_scan') return await handleLegacyScan(req, res, access_token);
     if (action === 'migrate_listing') return await handleMigrateListing(req, res, access_token);
     if (action === 'list_fulfillment_policies') return await handleListFulfillmentPolicies(req, res, access_token);
+    if (action === 'backfill_descriptions') return await handleBackfillDescriptions(req, res, access_token);
 
     return res.status(400).json({ error: 'Unknown action' });
   }catch(err){
