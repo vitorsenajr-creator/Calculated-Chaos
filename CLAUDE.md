@@ -183,6 +183,17 @@ next minor bump:
   audit's `getOffers` call omitted `Content-Language`/`Accept-Language`
   entirely, unlike `ebay-setup.js`'s `ebayRequest()` helper, which
   always sends both. Added both headers (`en-US`) to the audit's fetch.
+- **v3.13.17** — Next audit attempt hit errorId 25707 ("invalid value
+  for a SKU") — turns out `GET /sell/inventory/v1/offer` (`getOffers`)
+  has no "list every offer on the account" mode at all, it REQUIRES a
+  `sku` filter. Rebuilt the audit as two passes: list every SKU on the
+  account via `GET /sell/inventory/v1/inventory_item` (which does
+  paginate with no filter), then fetch each SKU's offer individually
+  (batched 10-at-a-time via `Promise.all`, not fully sequential, to
+  stay well inside `ebay-listing-tools.js`'s 60s `maxDuration` even for
+  a larger catalog) to get its live status/price/`fulfillmentPolicyId`.
+  More requests than the original single-paginated-call design, but
+  it's the only way this API actually supports it.
 
 ## Planned changes (backlog)
 

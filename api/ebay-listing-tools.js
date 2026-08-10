@@ -141,32 +141,35 @@ async function handleAudit(req, res, access_token){
   const { knownItems } = req.body || {};
   const known = new Map((Array.isArray(knownItems) ? knownItems : []).map(k => [String(k.sku), k]));
 
-  // Paginate through every offer on the account (no sku filter = all of
-  // them). 100/page, hard-capped at 20 pages (2000 offers) as a sanity
-  // limit — comfortably above anything a resale operation this size would
-  // have live at once.
-  const offers = [];
+  const headers = {
+    'Authorization': `Bearer ${access_token}`,
+    'Content-Type': 'application/json',
+    'Content-Language': 'en-US',
+    'Accept-Language': 'en-US',
+  };
+
+  // eBay's getOffers (GET /sell/inventory/v1/offer) REQUIRES a sku filter
+  // — errorId 25707 if you try to call it without one, there's no
+  // "list every offer on the account" mode. So this happens in two
+  // passes: first list every SKU that exists at all (inventory_item DOES
+  // paginate with no filter), then fetch each SKU's offer individually to
+  // get its live status/price/fulfillmentPolicyId. More requests than a
+  // single paginated call, but it's the only way this API supports it.
+  const skus = [];
   let offset = 0;
   const pageSize = 100;
   for (let page = 0; page < 20; page++){
     const r = await fetch(
-      `${API_BASE}/sell/inventory/v1/offer?marketplace_id=${MARKETPLACE_ID}&limit=${pageSize}&offset=${offset}`,
-      {
-        headers: {
-          'Authorization': `Bearer ${access_token}`,
-          'Content-Type': 'application/json',
-          'Content-Language': 'en-US',
-          'Accept-Language': 'en-US',
-        },
-      }
+      `${API_BASE}/sell/inventory/v1/inventory_item?limit=${pageSize}&offset=${offset}`,
+      { headers }
     );
     const text = await r.text();
     let data;
     try{ data = JSON.parse(text); }catch(e){ data = { raw: text }; }
-    if (!r.ok) return res.status(r.status).json({ error: 'Failed to fetch eBay offers', detail: data });
+    if (!r.ok) return res.status(r.status).json({ error: 'Failed to fetch eBay inventory items', detail: data });
 
-    const batch = data.offers || [];
-    offers.push(...batch);
+    const batch = data.inventoryItems || [];
+    batch.forEach(it => { if (it.sku) skus.push(it.sku); });
     if (batch.length < pageSize) break;
     offset += pageSize;
   }
@@ -175,27 +178,48 @@ async function handleAudit(req, res, access_token){
   const shippingMismatches = [];
   const fulfillmentPolicyId = process.env.EBAY_FULFILLMENT_POLICY_ID || '';
   const fulfillmentPolicyIdBuyerPays = process.env.EBAY_FULFILLMENT_POLICY_ID_BUYER_PAYS || '';
+  let checkedCount = 0;
 
-  for (const offer of offers){
-    if (offer.status !== 'PUBLISHED') continue; // only care about listings actually live
-    const sku = offer.sku;
-    const listingId = offer.listing?.listingId || null;
-    const price = offer.pricingSummary?.price?.value || null;
-    const actualPolicyId = offer.listingPolicies?.fulfillmentPolicyId || null;
-    const entry = { sku, offerId: offer.offerId, listingId, price, actualPolicyId };
+  // One request per SKU is a lot of round-trips for a large catalog —
+  // batch them concurrently (10 at a time) to stay well inside this
+  // function's maxDuration instead of going fully sequential.
+  const BATCH_SIZE = 10;
+  for (let i = 0; i < skus.length; i += BATCH_SIZE){
+    const batch = skus.slice(i, i + BATCH_SIZE);
+    const results = await Promise.all(batch.map(async (sku) => {
+      try{
+        const r = await fetch(`${API_BASE}/sell/inventory/v1/offer?sku=${encodeURIComponent(sku)}`, { headers });
+        if (!r.ok) return null; // don't fail the whole audit over one bad SKU lookup
+        const data = await r.json().catch(() => null);
+        const offer = (data?.offers || []).find(o => o.status === 'PUBLISHED');
+        return offer ? { sku, offer } : null;
+      }catch(e){
+        return null;
+      }
+    }));
 
-    const match = known.get(String(sku));
-    if (!match){
-      orphans.push(entry);
-      continue;
-    }
-    const expectedPolicyId = match.freeShipping ? fulfillmentPolicyId : fulfillmentPolicyIdBuyerPays;
-    if (expectedPolicyId && actualPolicyId !== expectedPolicyId){
-      shippingMismatches.push({ ...entry, expectedFreeShipping: !!match.freeShipping, expectedPolicyId });
+    for (const result of results){
+      if (!result) continue; // not actually live right now, or lookup failed
+      const { sku, offer } = result;
+      checkedCount++;
+      const listingId = offer.listing?.listingId || null;
+      const price = offer.pricingSummary?.price?.value || null;
+      const actualPolicyId = offer.listingPolicies?.fulfillmentPolicyId || null;
+      const entry = { sku, offerId: offer.offerId, listingId, price, actualPolicyId };
+
+      const match = known.get(String(sku));
+      if (!match){
+        orphans.push(entry);
+        continue;
+      }
+      const expectedPolicyId = match.freeShipping ? fulfillmentPolicyId : fulfillmentPolicyIdBuyerPays;
+      if (expectedPolicyId && actualPolicyId !== expectedPolicyId){
+        shippingMismatches.push({ ...entry, expectedFreeShipping: !!match.freeShipping, expectedPolicyId });
+      }
     }
   }
 
-  return res.status(200).json({ success: true, orphans, shippingMismatches, checkedCount: offers.length });
+  return res.status(200).json({ success: true, orphans, shippingMismatches, checkedCount });
 }
 
 export default async (req, res) => {
