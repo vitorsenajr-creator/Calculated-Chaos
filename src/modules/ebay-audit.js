@@ -35,6 +35,25 @@ function itemNameForSku(sku){
   return match ? (match.name || sku) : sku;
 }
 
+// Trading API (ReviseItem, GetItem, ...) errors come back as an array of
+// {ShortMessage, SeverityCode, ...} — a raw JSON dump of that is technically
+// complete but not scannable at a glance. Pulls out just the Error-severity
+// ShortMessages (skips informational Warnings, like the standing "seller
+// has opted into business policies" notice eBay attaches to most Trading
+// API responses) so the actual problem reads as a sentence, not a blob.
+function ebayErrorShortMessages(detail){
+  const arr = Array.isArray(detail) ? detail
+    : Array.isArray(detail?.Errors) ? detail.Errors
+    : Array.isArray(detail?.errors) ? detail.errors
+    : null;
+  if (!arr) return null;
+  const msgs = arr
+    .filter(e => (e.SeverityCode || e.severity) !== 'Warning')
+    .map(e => e.ShortMessage || e.LongMessage || e.message)
+    .filter(Boolean);
+  return msgs.length ? msgs : null;
+}
+
 function renderAuditReport(data){
   const area = document.getElementById('ebayAuditResult');
   if (!area) return;
@@ -329,8 +348,12 @@ function renderAuditReport(data){
         }
         if (failed.length){
           summary += `<div style="color:var(--danger); font-weight:600; margin-top:4px;">❌ ${failed.length} failed</div>`;
-          summary += failed.map(r => `<div style="font-size:12px; margin-top:4px;">${escapeHtml(r.sku)} — ${escapeHtml(r.error)}
-            ${r.detail ? `<div style="margin-top:2px; padding:6px; background:rgba(0,0,0,0.04); border-radius:6px; font-family:monospace; font-size:10.5px; white-space:pre-wrap;">${escapeHtml(JSON.stringify(r.detail, null, 2))}</div>` : ''}</div>`).join('');
+          summary += failed.map(r => {
+            const shortMsgs = ebayErrorShortMessages(r.detail);
+            return `<div style="font-size:12px; margin-top:4px;">${escapeHtml(r.sku)} — ${escapeHtml(r.error)}
+              ${shortMsgs ? `<div style="margin-top:2px; color:var(--danger);">${shortMsgs.map(escapeHtml).join(' · ')}</div>` : ''}
+              ${r.detail ? `<details style="margin-top:2px;"><summary style="cursor:pointer; font-size:11px; opacity:0.7;">Full eBay response</summary><div style="margin-top:2px; padding:6px; background:rgba(0,0,0,0.04); border-radius:6px; font-family:monospace; font-size:10.5px; white-space:pre-wrap;">${escapeHtml(JSON.stringify(r.detail, null, 2))}</div></details>` : ''}</div>`;
+          }).join('');
         }
         summary += `<div style="margin-top:6px; opacity:0.8;">Rerun the audit to confirm.</div></div>`;
         progressEl.innerHTML = summary;
