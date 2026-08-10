@@ -391,18 +391,38 @@ reflect that conversation, not defaults picked unilaterally.
   `audio/mp4` first specifically for Safari (the primary target platform
   per Vitor — he's on Safari now, native app later), falling back through
   `audio/webm`/`audio/ogg` for other browsers.
-- **Pipeline**: record → `POST /api/transcribe-narration` (Deepgram
-  Nova-3, `language=en` — English only, no auto-detect, since the narrator
-  doesn't speak Portuguese) → `POST /api/extract-narration-fields` (Claude
-  Haiku 4.5 — plain structured extraction from a short transcript doesn't
-  need Sonnet's cost/latency) → review card → "Apply to form". Both
-  endpoints follow the existing `api/analyze-photo.js`/
-  `api/generate-listing.js` pattern: `requireApprovedUser` guard, API keys
-  server-side only, prompt built client-side and passed as `promptText` (so
-  prompt iteration doesn't need a backend redeploy).
+- **Pipeline**: record → `POST /api/narration` (`action:'transcribe'`,
+  Deepgram Nova-3, `language=en` — English only, no auto-detect, since the
+  narrator doesn't speak Portuguese) → `POST /api/narration`
+  (`action:'extract'`, Claude Haiku 4.5 — plain structured extraction from
+  a short transcript doesn't need Sonnet's cost/latency) → review card →
+  "Apply to form". `api/narration.js` follows the existing
+  `api/analyze-photo.js`/`api/generate-listing.js` pattern
+  (`requireApprovedUser` guard, API keys server-side only, prompt built
+  client-side and passed as `promptText`), but as a single
+  `action`-dispatched file rather than two separate ones — see the Vercel
+  function-limit note below for why.
 - **Audio is never persisted** — not in Firestore, not in Storage, not by
-  either serverless function. It's base64-encoded client-side, POSTed,
-  and discarded the moment the transcript comes back.
+  the serverless function. It's base64-encoded client-side, POSTed, and
+  discarded the moment the transcript comes back.
+- **Vercel Hobby plan's 12-serverless-function cap**: the project was
+  already at exactly 12 route handlers in `api/` before this feature (11
+  eBay endpoints + `analyze-photo.js`/`generate-listing.js`), so shipping
+  transcription and extraction as two separate files (the original plan)
+  broke the production build (`Build Failed: No more than 12 Serverless
+  Functions...`). Fixed two ways, both discussed with Vitor rather than
+  picked unilaterally — he chose consolidation over upgrading to Vercel
+  Pro: (1) the two narration endpoints became one `action`-dispatched
+  `api/narration.js`, and (2) `ebay-condition-policies.js` +
+  `ebay-negotiation.js` — both purely internal (only ever called by this
+  app's own frontend, unlike `ebay-account-deletion.js`/`ebay-auth.js`,
+  which have URLs registered in eBay's Developer Portal and must never
+  move) — merged into `ebay-listing-tools.js`, also `action`-dispatched.
+  Net: 12 files before, 12 after. `_requireApprovedUser.js` doesn't count
+  toward the cap — Vercel excludes underscore-prefixed files from being
+  treated as routes. **If a future feature needs another new endpoint,
+  this cap is already exhausted again** — either consolidate further or
+  revisit the Pro-plan question.
 - **Review card only shows fields the extraction actually found** (empty
   string / null fields are omitted entirely) — deliberately different from
   the photo-analysis card, which always shows its four fixed fields

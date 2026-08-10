@@ -1590,10 +1590,10 @@ export const app = (function(){
     try{
       const token = await getValidEbayToken();
       if (!token) return null;
-      const res = await fetch('/api/ebay-condition-policies', {
+      const res = await fetch('/api/ebay-listing-tools', {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ access_token: token, category_id: categoryId })
+        body: JSON.stringify({ access_token: token, action: 'condition_policies', category_id: categoryId })
       });
       const data = await res.json();
       if (data.success && Array.isArray(data.conditions) && data.conditions.length){
@@ -4937,7 +4937,7 @@ Be accurate and honest — never invent brand, material, or condition details th
         if (resultEl) resultEl.innerHTML = `<div class="ebay-status-box error">❌ Connect your eBay account first.</div>`;
         return;
       }
-      const res = await fetch('/api/ebay-negotiation', {
+      const res = await fetch('/api/ebay-listing-tools', {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
         body: JSON.stringify({ access_token: token, action: 'find_eligible' })
@@ -4975,7 +4975,7 @@ Be accurate and honest — never invent brand, material, or condition details th
     const row = document.querySelector(`[data-offer-item="${itemId}"]`);
     try{
       const token = await getValidEbayToken();
-      const res = await fetch('/api/ebay-negotiation', {
+      const res = await fetch('/api/ebay-listing-tools', {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
         body: JSON.stringify({ access_token: token, action: 'send_offer', listing_id: listingId, discount_percentage: pct })

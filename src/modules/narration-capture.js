@@ -7,9 +7,9 @@
 // of the IIFE now than to extract later.
 //
 // Design decisions (discussed 2026-08-10 with Vitor):
-// - Audio is never persisted anywhere — sent to /api/transcribe-narration,
-//   discarded client-side the moment the transcript comes back. Neither
-//   serverless endpoint writes it to disk/Storage either.
+// - Audio is never persisted anywhere — sent to /api/narration
+//   (action:'transcribe'), discarded client-side the moment the transcript
+//   comes back. The serverless function never writes it to disk/Storage.
 // - English only — Deepgram is called with language=en, no auto-detect,
 //   since the narrator doesn't speak Portuguese.
 // - The review card only shows fields the extraction actually found a
@@ -187,10 +187,10 @@ export function initNarrationCapture(){
       const audioBase64 = await blobToBase64(blob);
       const idToken = await window.auth.currentUser.getIdToken();
 
-      const transcribeRes = await fetch('/api/transcribe-narration', {
+      const transcribeRes = await fetch('/api/narration', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
-        body: JSON.stringify({ audioBase64, mimeType: blob.type }),
+        body: JSON.stringify({ action: 'transcribe', audioBase64, mimeType: blob.type }),
       });
       if (!transcribeRes.ok){
         area.innerHTML = `<div class="ai-error">Couldn't reach the transcription service. Please try again.</div>`;
@@ -225,10 +225,10 @@ Respond with ONLY a JSON object (no markdown fences, no preamble), with this exa
 }
 Respond with the JSON object only. Do not include any text, explanation, or markdown formatting before or after it. Your entire response must be parseable as JSON.`;
 
-      const extractRes = await fetch('/api/extract-narration-fields', {
+      const extractRes = await fetch('/api/narration', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
-        body: JSON.stringify({ promptText }),
+        body: JSON.stringify({ action: 'extract', promptText }),
       });
       if (!extractRes.ok){
         area.innerHTML = `<div class="ai-error">Couldn't reach the AI right now. Please check your connection and try again.</div>`;
