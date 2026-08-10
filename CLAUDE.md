@@ -438,6 +438,13 @@ next minor bump:
   already action-dispatched `ebay-listing-tools.js`, same as everything
   else added this session, so the Hobby-plan 12-function cap isn't
   touched.
+- **v3.13.32** — Added a "Select all" checkbox above the eBay listing
+  audit's shipping-mismatch list too (`#auditFixSelectAll` in
+  `modules/ebay-audit.js`), same pattern as the invisible-listings one
+  from v3.13.26 — a real run surfaced 102 shipping mismatches at once
+  (the "USPS Ground + Priority (Buyer Pays)" policy switch from v3.13.29
+  needed republishing every existing buyer-pays listing), so checking
+  each row individually wasn't practical there either.
 
 ## Planned changes (backlog)
 

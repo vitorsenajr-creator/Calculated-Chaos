@@ -58,7 +58,11 @@ function renderAuditReport(data){
   }
 
   if (shippingMismatches.length){
-    html += `<div style="margin-top:8px; margin-bottom:10px;"><b style="color:var(--danger);">🚚 ${shippingMismatches.length} listing${shippingMismatches.length===1?'':'s'} with the WRONG shipping policy live</b>`;
+    html += `<div style="margin-top:8px; margin-bottom:10px;"><b style="color:var(--danger);">🚚 ${shippingMismatches.length} listing${shippingMismatches.length===1?'':'s'} with the WRONG shipping policy live</b>
+      <label style="display:flex; align-items:center; gap:8px; margin-top:8px; font-size:12px; opacity:0.85; cursor:pointer;">
+        <input type="checkbox" id="auditFixSelectAll" checked>
+        <span>Select all</span>
+      </label>`;
     html += shippingMismatches.map(m => `
       <label style="display:flex; align-items:flex-start; gap:8px; margin-top:6px; font-size:13px; line-height:1.4; cursor:pointer;">
         <input type="checkbox" class="audit-fix-chk" data-sku="${escapeHtml(m.sku)}" checked style="margin-top:3px;">
@@ -107,6 +111,13 @@ function renderAuditReport(data){
 
   html += `</div></div>`;
   area.innerHTML = html;
+
+  const fixSelectAllChk = document.getElementById('auditFixSelectAll');
+  if (fixSelectAllChk){
+    fixSelectAllChk.addEventListener('change', () => {
+      document.querySelectorAll('.audit-fix-chk').forEach(chk => { chk.checked = fixSelectAllChk.checked; });
+    });
+  }
 
   const fixBtn = document.getElementById('auditFixSelectedBtn');
   if (fixBtn){
