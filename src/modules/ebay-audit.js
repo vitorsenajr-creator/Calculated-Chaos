@@ -182,7 +182,12 @@ function renderAuditReport(data){
         }
         if (failed.length){
           summary += `<div style="color:var(--danger); font-weight:600; margin-top:4px;">❌ ${failed.length} failed</div>`;
-          summary += failed.map(r => `<div style="font-size:12px; margin-top:2px;">${escapeHtml(r.item.name || r.item.productCode || 'item')} — ${escapeHtml(r.result.error || 'unknown error')}</div>`).join('');
+          summary += failed.map(r => {
+            const shortMsgs = ebayErrorShortMessages(r.result.detail);
+            return `<div style="font-size:12px; margin-top:4px;">${escapeHtml(r.item.name || r.item.productCode || 'item')} — ${escapeHtml(r.result.error || 'unknown error')}
+              ${shortMsgs ? `<div style="margin-top:2px; color:var(--danger);">${shortMsgs.map(escapeHtml).join(' · ')}</div>` : ''}
+              ${r.result.detail ? `<details style="margin-top:2px;"><summary style="cursor:pointer; font-size:11px; opacity:0.7;">Full eBay response</summary><div style="margin-top:2px; padding:6px; background:rgba(0,0,0,0.04); border-radius:6px; font-family:monospace; font-size:10.5px; white-space:pre-wrap;">${escapeHtml(JSON.stringify(r.result.detail, null, 2))}</div></details>` : ''}</div>`;
+          }).join('');
         }
         if (noDescSkipped.length){
           summary += `<button id="auditGenDescBtn" style="margin-top:10px; background:var(--gold); color:white; border:none; border-radius:8px; padding:9px 14px; font-size:13px; font-weight:600; cursor:pointer;">🪄 Generate ${noDescSkipped.length} missing description${noDescSkipped.length===1?'':'s'} & retry publish</button>`;
