@@ -105,12 +105,22 @@ function renderAuditReport(data){
         results.push({ item, result });
       }
 
+      const SKIP_REASON_LABEL = {
+        no_price: 'no list price set',
+        no_description: 'no listing description generated — use "🪄 Generate descriptions" in Catalog first, then retry',
+        already_listed: 'already listed (unexpected — should have force-updated)',
+      };
       const success = results.filter(r => r.result.success);
-      const failed = results.filter(r => !r.result.success);
+      const skipped = results.filter(r => r.result.skipped);
+      const failed = results.filter(r => !r.result.success && !r.result.skipped);
       if (progressEl){
         let summary = `<div style="font-size:13px; margin-top:4px;">`;
         if (success.length){
           summary += `<div style="color:var(--sage-deep); font-weight:600;">✅ ${success.length} fixed</div>`;
+        }
+        if (skipped.length){
+          summary += `<div style="color:var(--amber-deep); font-weight:600; margin-top:4px;">⏸️ ${skipped.length} skipped</div>`;
+          summary += skipped.map(r => `<div style="font-size:12px; margin-top:2px;">${escapeHtml(r.item.name || r.item.productCode || 'item')} — ${escapeHtml(SKIP_REASON_LABEL[r.result.reason] || r.result.reason || 'skipped')}</div>`).join('');
         }
         if (failed.length){
           summary += `<div style="color:var(--danger); font-weight:600; margin-top:4px;">❌ ${failed.length} failed</div>`;

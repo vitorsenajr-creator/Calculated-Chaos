@@ -218,6 +218,17 @@ next minor bump:
   no longer means leaving the audit screen to filter the Catalog by
   "Listed on eBay" and reselecting everything by hand. Doesn't
   auto-rerun the audit after fixing — she reruns it manually to confirm.
+- **v3.13.20** — The bulk-fix button's "35 failed / unknown error" report
+  was misleading: `publishItemToEbayCore` returns `{skipped:true,
+  reason:'no_price'|'no_description'|'already_listed'}` for those cases,
+  not `{success:false, error:...}` — my result-bucketing lumped skips in
+  with real failures and showed "unknown error" since skipped results
+  have no `.error` field. Fixed to bucket skipped separately with a
+  human-readable reason per item — most of the 35 are almost certainly
+  `no_description` (never had a listing description generated, likely
+  because they were published before that became a hard requirement),
+  fixable via Catalog's "🪄 Generate descriptions" bulk action first,
+  then rerunning the audit fix.
 
 ## Planned changes (backlog)
 
