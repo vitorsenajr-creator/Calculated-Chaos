@@ -382,6 +382,27 @@ next minor bump:
   the same way `generateListingDescriptionForItem` already is, so
   `modules/ebay-audit.js` (a separate module, no access to main.js's
   closure state) can trigger it without a new dependency between them.
+- **v3.13.29** — First real batch of the v3.13.27/28 import flow: 17 of 17
+  migrated successfully (SKU assignment works!) but shipping correction
+  failed on all 17 with `no_offer_id` — `bulk_migrate_listing`'s real
+  response didn't carry the `offerId` field the way eBay's docs implied.
+  Fixed `handleMigrateListing` to fall back to looking the offer up by
+  SKU (`GET /sell/inventory/v1/offer?sku=...`, the same reliable approach
+  `handleAuditCheckSkus` already uses) whenever the migration response
+  doesn't include one directly. Also, Vitor wants a specific existing eBay
+  policy ("USPS Ground + Priority (Buyer Pays)") to become the actual
+  buyer-pays default instead of the app-created `CC Buyer Pays Shipping`
+  placeholder — that's a Vercel env var change
+  (`EBAY_FULFILLMENT_POLICY_ID_BUYER_PAYS`), not something this app can
+  set for itself, so added a read-only "📋 List my eBay shipping
+  policies" button in Settings (new `action:'list_fulfillment_policies'`
+  in `api/ebay-listing-tools.js`, `runListFulfillmentPolicies()` in
+  `modules/ebay-audit.js`) that shows every policy's name next to its
+  real ID, so the right one can be copied straight into Vercel without
+  digging through Seller Hub. **Not yet confirmed against a real
+  account** — same caveat as v3.13.23-28, watch the next real import for
+  whether `shipping.corrected` finally comes back `true` instead of
+  `no_offer_id`.
 
 ## Planned changes (backlog)
 

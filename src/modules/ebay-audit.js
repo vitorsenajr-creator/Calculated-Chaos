@@ -422,3 +422,45 @@ export async function runEbayAudit(){
     area.innerHTML = `<div class="ebay-status-box error">❌ ${escapeHtml(String(e.message || e))}</div>`;
   }
 }
+
+// Lists every fulfillment (shipping) policy on the connected eBay account
+// with its real policy ID — added 2026-08-10 so a custom policy created
+// directly on eBay (e.g. "USPS Ground + Priority (Buyer Pays)") can be
+// found and copied into EBAY_FULFILLMENT_POLICY_ID_BUYER_PAYS on Vercel
+// without digging through Seller Hub. Read-only — doesn't change anything,
+// on eBay or in this app; switching which policy this app treats as the
+// buyer-pays default is a server env var change, done outside the app.
+export async function runListFulfillmentPolicies(){
+  const area = document.getElementById('ebayPoliciesResult');
+  if (!area) return;
+  area.innerHTML = `<div class="ebay-status-box pending">⏳ Checking eBay connection…</div>`;
+  try{
+    const token = await getValidEbayToken();
+    if (!token){
+      area.innerHTML = `<div class="ebay-status-box error">❌ Connect your eBay account first.</div>`;
+      return;
+    }
+    const data = await postAuditAction(token, { action: 'list_fulfillment_policies' });
+    if (!data.success){
+      area.innerHTML = `
+        <div class="ebay-status-box error">
+          ❌ Couldn't list shipping policies: ${escapeHtml(data.error || 'unknown error')}
+          ${data.detail ? `<div style="margin-top:8px; padding:8px; background:rgba(0,0,0,0.04); border-radius:6px; font-family:monospace; font-size:11px; white-space:pre-wrap;">${escapeHtml(JSON.stringify(data.detail, null, 2))}</div>` : ''}
+        </div>`;
+      return;
+    }
+    if (!data.policies.length){
+      area.innerHTML = `<div class="ebay-status-box">No shipping policies found on this account.</div>`;
+      return;
+    }
+    area.innerHTML = `<div class="ebay-connect-box"><div class="ec-title">${data.policies.length} shipping polic${data.policies.length===1?'y':'ies'} on this account</div><div class="ec-sub">` +
+      data.policies.map(p => `
+        <div style="display:flex; align-items:center; gap:8px; margin-top:6px; font-size:13px;">
+          <span style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(p.name)}</span>
+          <code style="flex-shrink:0; background:rgba(0,0,0,0.06); padding:3px 6px; border-radius:4px; font-size:11.5px; user-select:all;">${escapeHtml(p.id)}</code>
+        </div>`).join('') +
+      `<div style="margin-top:8px; font-size:12px; opacity:0.8;">To make one of these the default for "buyer pays" imports/publishing, copy its ID above into the <code>EBAY_FULFILLMENT_POLICY_ID_BUYER_PAYS</code> environment variable in Vercel, then redeploy.</div></div></div>`;
+  }catch(e){
+    area.innerHTML = `<div class="ebay-status-box error">❌ ${escapeHtml(String(e.message || e))}</div>`;
+  }
+}

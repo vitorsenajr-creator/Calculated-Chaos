@@ -84,6 +84,15 @@
 //        since a freshly-imported item has no weight/dimensions to estimate
 //        from yet — a manual pass in Catalog can refine it once measured.
 //     Returns: { success, sku, listingId, photos: [...] | null, shipping: {corrected, reason?, detail?} } | { success: false, error, detail }
+//
+//   action: 'list_fulfillment_policies'
+//     -> added 2026-08-10 so Vitor can find a shipping policy's real ID
+//        (e.g. a custom policy created directly on eBay, like "USPS
+//        Ground + Priority (Buyer Pays)") from inside the app instead of
+//        digging through Seller Hub — needed to set
+//        EBAY_FULFILLMENT_POLICY_ID_BUYER_PAYS on Vercel by hand, since
+//        that's a server-side env var this app can't set for itself.
+//     Returns: { success, policies: [{id, name}] }
 
 import { XMLParser, XMLBuilder } from 'fast-xml-parser';
 
@@ -145,6 +154,18 @@ async function handleFindEligible(req, res, access_token){
   if (!r.ok) return res.status(r.status).json({ error: 'Failed to find eligible items', detail: data });
   const listingIds = (data.eligibleItems || []).map(i => i.listingId).filter(Boolean);
   return res.status(200).json({ success: true, listingIds });
+}
+
+async function handleListFulfillmentPolicies(req, res, access_token){
+  const r = await fetch(`${API_BASE}/sell/account/v1/fulfillment_policy?marketplace_id=${MARKETPLACE_ID}`, {
+    headers: ebayAuthHeaders(access_token),
+  });
+  const text = await r.text();
+  let data;
+  try{ data = JSON.parse(text); }catch(e){ data = { raw: text }; }
+  if (!r.ok) return res.status(r.status).json({ error: 'Failed to list fulfillment policies', detail: data });
+  const policies = (data.fulfillmentPolicies || []).map(p => ({ id: p.fulfillmentPolicyId, name: p.name }));
+  return res.status(200).json({ success: true, policies });
 }
 
 async function handleSendOffer(req, res, access_token){
@@ -519,8 +540,24 @@ async function handleMigrateListing(req, res, access_token){
   }
 
   const photos = await fetchListingPhotos(listingId, access_token);
-  const shipping = result.offerId ? await correctOfferShipping(result.offerId, access_token) : { corrected: false, reason: 'no_offer_id' };
-  return res.status(200).json({ success: true, sku: result.sku || sku, listingId, photos, shipping });
+
+  // The real bulk_migrate_listing response didn't carry an offerId field
+  // the way eBay's docs implied (every real migration came back with
+  // shipping.reason:'no_offer_id') — fall back to looking the offer up by
+  // SKU, the same reliable approach handleAuditCheckSkus already uses,
+  // rather than trusting an undocumented response field.
+  const migratedSku = result.sku || sku;
+  let offerId = result.offerId || null;
+  if (!offerId){
+    const lookup = await fetch(`${API_BASE}/sell/inventory/v1/offer?sku=${encodeURIComponent(migratedSku)}`, {
+      headers: ebayAuthHeaders(access_token),
+    });
+    const lookupData = await lookup.json().catch(() => null);
+    offerId = lookupData?.offers?.find(o => o.status === 'PUBLISHED')?.offerId || lookupData?.offers?.[0]?.offerId || null;
+  }
+
+  const shipping = offerId ? await correctOfferShipping(offerId, access_token) : { corrected: false, reason: 'no_offer_id' };
+  return res.status(200).json({ success: true, sku: migratedSku, listingId, photos, shipping });
 }
 
 // ---------- Correct shipping policy on a just-migrated offer ----------
@@ -589,6 +626,7 @@ export default async (req, res) => {
     if (action === 'audit_check_skus') return await handleAuditCheckSkus(req, res, access_token);
     if (action === 'legacy_scan') return await handleLegacyScan(req, res, access_token);
     if (action === 'migrate_listing') return await handleMigrateListing(req, res, access_token);
+    if (action === 'list_fulfillment_policies') return await handleListFulfillmentPolicies(req, res, access_token);
 
     return res.status(400).json({ error: 'Unknown action' });
   }catch(err){
