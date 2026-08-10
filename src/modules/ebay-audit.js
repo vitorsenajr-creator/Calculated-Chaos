@@ -86,7 +86,11 @@ function renderAuditReport(data){
   } else if (invisibleListings && invisibleListings.length){
     html += `<div style="margin-top:12px; padding-top:10px; border-top:1px solid rgba(0,0,0,0.08);">
       <b style="color:var(--danger);">🕳️ ${invisibleListings.length} listing${invisibleListings.length===1?'':'s'} completely invisible to this audit</b>
-      <div style="margin-top:4px; font-size:12px; opacity:0.85;">Live on eBay, but never registered through the Inventory API (created directly in Seller Hub, a bulk lister, or an older tool) — so the checks above can't see them at all, whether or not they have a SKU. Assign a SKU and import each one to bring it into the catalog and make it visible to future audits.</div>`;
+      <div style="margin-top:4px; font-size:12px; opacity:0.85;">Live on eBay, but never registered through the Inventory API (created directly in Seller Hub, a bulk lister, or an older tool) — so the checks above can't see them at all, whether or not they have a SKU. Assign a SKU and import each one to bring it into the catalog and make it visible to future audits.</div>
+      <label style="display:flex; align-items:center; gap:8px; margin-top:8px; font-size:12px; opacity:0.85; cursor:pointer;">
+        <input type="checkbox" id="auditInvisibleSelectAll" checked>
+        <span>Select all</span>
+      </label>`;
     html += invisibleListings.map(l => `
       <div class="audit-invisible-row" data-item-id="${escapeHtml(l.itemId)}" style="display:flex; align-items:center; gap:8px; margin-top:8px; font-size:13px;">
         <input type="checkbox" class="audit-invisible-chk" checked style="flex-shrink:0;">
@@ -194,6 +198,13 @@ function renderAuditReport(data){
           genBtn.disabled = false;
         });
       }
+    });
+  }
+
+  const selectAllChk = document.getElementById('auditInvisibleSelectAll');
+  if (selectAllChk){
+    selectAllChk.addEventListener('change', () => {
+      document.querySelectorAll('.audit-invisible-chk').forEach(chk => { chk.checked = selectAllChk.checked; });
     });
   }
 

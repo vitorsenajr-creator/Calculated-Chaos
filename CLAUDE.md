@@ -339,6 +339,12 @@ next minor bump:
   import attempt is the real test; if it still fails, the `detail` box
   added in this same version is the place to read the actual eBay error
   from.
+- **v3.13.26** — The v3.13.25 ReviseItem fix worked — first real import
+  (1 listing) succeeded. Added a "Select all" checkbox above the eBay
+  listing audit's invisible-listings list (`#auditInvisibleSelectAll` in
+  `modules/ebay-audit.js`), toggling every `.audit-invisible-chk` at
+  once — with a batch of 21+ found on the real account, checking each
+  row individually before "Import selected" wasn't practical.
 
 ## Planned changes (backlog)
 
