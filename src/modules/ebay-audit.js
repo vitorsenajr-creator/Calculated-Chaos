@@ -280,7 +280,7 @@ function renderAuditReport(data){
           const { doc, setDoc } = window.firestoreFns;
           await setDoc(doc(window.db, 'items', newItem.id), newItem);
           items.push(newItem);
-          results.push({ row, itemId, sku, ok: true, shipping: migrateData.shipping });
+          results.push({ row, itemId, sku, ok: true, shipping: migrateData.shipping, newItemId: newItem.id, name: newItem.name });
         }catch(e){
           results.push({ row, itemId, sku, ok: false, error: String(e && e.message || e) });
         }
@@ -300,6 +300,14 @@ function renderAuditReport(data){
             summary += `<div style="font-size:12px; margin-top:4px; color:var(--amber-deep);">⚠️ Couldn't confirm the live shipping policy is correct for ${shippingFailed.length} item${shippingFailed.length===1?'':'s'} — double-check these on eBay directly:</div>`;
             summary += shippingFailed.map(r => `<div style="font-size:11.5px; margin-top:2px; opacity:0.85;">${escapeHtml(r.sku)} — ${escapeHtml(r.shipping.reason || 'unknown reason')}</div>`).join('');
           }
+          summary += ok.map(r => `
+            <div style="display:flex; align-items:center; gap:8px; margin-top:8px; padding:8px; background:rgba(0,0,0,0.03); border-radius:8px;">
+              <div style="flex:1; min-width:0;">
+                <div style="font-size:12px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(r.sku)} — ${escapeHtml(r.name || '')}</div>
+                <div style="font-size:11px; margin-top:2px; color:var(--amber-deep);">⚠️ Missing: weight/dimensions (shipping is using the $8 flat placeholder until measured), type, brand, size, cost.</div>
+              </div>
+              <button class="audit-open-item-btn" data-item-id="${escapeHtml(r.newItemId)}" style="flex-shrink:0; background:var(--terracotta); color:white; border:none; border-radius:8px; padding:7px 12px; font-size:12px; font-weight:600; cursor:pointer;">Open ↗</button>
+            </div>`).join('');
         }
         if (failed.length){
           summary += `<div style="color:var(--danger); font-weight:600; margin-top:4px;">❌ ${failed.length} failed</div>`;
@@ -308,6 +316,9 @@ function renderAuditReport(data){
         }
         summary += `<div style="margin-top:6px; opacity:0.8;">Rerun the audit to confirm.</div></div>`;
         progressEl.innerHTML = summary;
+        progressEl.querySelectorAll('.audit-open-item-btn').forEach(btn => {
+          btn.addEventListener('click', () => window.openItemModalById(btn.dataset.itemId));
+        });
       }
       ok.forEach(r => r.row.remove());
     });

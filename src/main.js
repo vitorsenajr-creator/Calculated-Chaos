@@ -65,7 +65,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.27';
+  const APP_VERSION = 'v3.13.28';
   const APP_VERSION_DATE = '2026-08-10';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -4114,6 +4114,14 @@ Be accurate and honest — never invent brand, material, or condition details th
     }
   }
   window.generateListingDescriptionForItem = generateListingDescriptionForItem;
+
+  // Cross-module "jump to this item" — used by modules/ebay-audit.js's
+  // import flow (Settings) to open a freshly-imported item's modal without
+  // that module needing access to main.js's closure state directly.
+  window.openItemModalById = function(id){
+    const item = items.find(i => i.id === id);
+    if (item){ switchToTab('catalog'); openModal(item); }
+  };
 
   async function runBulkGenerateDescriptions(toGenerate){
     const results = []; // { item, ok, message? }

@@ -365,6 +365,23 @@ next minor bump:
   flags anything the correction call itself failed on for manual
   double-checking on eBay directly. **Not yet verified against a real
   account** — same caveat as v3.13.23-26, watch the next real import.
+- **v3.13.28** — Vitor asked (1) how the $8 buyer-pays placeholder from
+  v3.13.27 actually works — documented here since it wasn't written down
+  anywhere: `api/ebay-setup.js` creates `CC Buyer Pays Shipping` with a
+  flat `$8.00` base cost; normal cataloging overrides that per-listing
+  with a real `estimateShipping()` figure once weight/dimensions are on
+  file, but imported items skip that (no weight data yet), so buyers see
+  the raw $8 until she measures the item and re-saves it. (2) Added a
+  "jump to this item" link to the import result summary — each
+  successfully imported item now shows an "Open ↗" button plus an
+  explicit warning listing what's still missing (weight/dimensions —
+  and therefore the $8 placeholder — type, brand, size, cost), instead
+  of a generic one-line disclaimer she'd have to go find each item for
+  herself. New `window.openItemModalById(id)` in `main.js` (switches to
+  the Catalog tab and opens that item's modal) — exposed on `window`
+  the same way `generateListingDescriptionForItem` already is, so
+  `modules/ebay-audit.js` (a separate module, no access to main.js's
+  closure state) can trigger it without a new dependency between them.
 
 ## Planned changes (backlog)
 
