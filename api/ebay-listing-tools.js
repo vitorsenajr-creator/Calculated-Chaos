@@ -74,16 +74,19 @@
 //        back HTTP 400 before this was added); (2) bulk_migrate_listing
 //        then brings that now-SKU'd listing into the Inventory API. The
 //        listing itself is untouched on eBay throughout (same ItemID/URL).
-//        Also fetches the listing's full photo set (GetItem, Trading API —
-//        legacy_scan's ActiveList only ever has the one gallery photo), and
-//        corrects the migrated offer's shipping policy to buyer-pays
+//        Also fetches the listing's full photo set AND its original
+//        description (GetItem, Trading API — legacy_scan's ActiveList only
+//        ever has the one gallery photo and no description at all) so an
+//        imported item never needs AI-generated description text just to
+//        be republishable — see fetchListingDetails for why that mattered.
+//        Also corrects the migrated offer's shipping policy to buyer-pays
 //        (Vitor's fixed default for these imports — see
 //        correctOfferShipping) if eBay's auto-migrated offer came in with
 //        something else. Note: the buyer-pays policy's own placeholder
 //        shipping cost is used as-is here (no per-item shippingCostOverride)
 //        since a freshly-imported item has no weight/dimensions to estimate
 //        from yet — a manual pass in Catalog can refine it once measured.
-//     Returns: { success, sku, listingId, photos: [...] | null, shipping: {corrected, reason?, detail?} } | { success: false, error, detail }
+//     Returns: { success, sku, listingId, photos: [...] | null, description: string | null, shipping: {corrected, reason?, detail?} } | { success: false, error, detail }
 //
 //   action: 'list_fulfillment_policies'
 //     -> added 2026-08-10 so Vitor can find a shipping policy's real ID
@@ -436,14 +439,27 @@ async function handleLegacyScan(req, res, access_token){
 }
 
 // GetMyeBaySelling's ActiveList only ever gives one picture per item (the
-// gallery/primary photo) — the full photo set for a listing requires a
-// separate Trading API call, GetItem, keyed by ItemID. Fetched only at
-// import time (one listing at a time, not for the whole legacy_scan list)
-// since it's an extra round-trip per item and most invisible listings never
-// get imported. Best-effort: a failure here doesn't fail the migration
-// itself, it just falls back to the single picture already known
-// client-side from legacy_scan.
-async function fetchListingPhotos(itemId, access_token){
+// gallery/primary photo) and no description at all — the full photo set AND
+// the listing's original description require a separate Trading API call,
+// GetItem, keyed by ItemID. Fetched only at import time (one listing at a
+// time, not for the whole legacy_scan list) since it's an extra round-trip
+// per item and most invisible listings never get imported.
+//
+// The description matters beyond just completeness: without it,
+// item.listingDescription stays blank, and this app's own
+// publishItemToEbayCore later skips republishing that item with
+// reason:'no_description' — silently pushing her toward the "🪄 Generate
+// missing descriptions" AI flow for an item that already HAD a perfectly
+// good description on eBay. Vitor hit exactly this (2026-08-10): AI
+// regeneration for already-described imported items failed repeatedly and,
+// worse, sometimes mischaracterized a new item as used. Capturing the real
+// description here means a freshly imported item is never routed through
+// AI generation at all unless she explicitly wants to replace it.
+//
+// Best-effort: a failure here doesn't fail the migration itself — photos
+// fall back to the single picture already known from legacy_scan, and
+// description falls back to empty (same as before this existed).
+async function fetchListingDetails(itemId, access_token){
   try{
     const body = xmlBuilder.build({
       '?xml': { '@_version': '1.0', '@_encoding': 'utf-8' },
@@ -453,6 +469,7 @@ async function fetchListingPhotos(itemId, access_token){
         WarningLevel: 'High',
         ItemID: itemId,
         DetailLevel: 'ReturnAll',
+        IncludeDescription: true,
       },
     });
     const r = await fetch(TRADING_API_BASE, {
@@ -463,12 +480,13 @@ async function fetchListingPhotos(itemId, access_token){
     const text = await r.text();
     const parsed = xmlParser.parse(text);
     const response = parsed?.GetItemResponse;
-    if (!response || response.Ack === 'Failure') return null;
-    const raw = response.Item?.PictureDetails?.PictureURL;
-    if (!raw) return null;
-    return Array.isArray(raw) ? raw : [raw];
+    if (!response || response.Ack === 'Failure') return { photos: null, description: null };
+    const rawPhotos = response.Item?.PictureDetails?.PictureURL;
+    const photos = rawPhotos ? (Array.isArray(rawPhotos) ? rawPhotos : [rawPhotos]) : null;
+    const description = response.Item?.Description || null;
+    return { photos, description };
   }catch(e){
-    return null;
+    return { photos: null, description: null };
   }
 }
 
@@ -539,7 +557,7 @@ async function handleMigrateListing(req, res, access_token){
     return res.status(200).json({ success: false, error: 'SKU was assigned on eBay, but eBay rejected the Inventory API migration itself', detail: result || data });
   }
 
-  const photos = await fetchListingPhotos(listingId, access_token);
+  const { photos, description } = await fetchListingDetails(listingId, access_token);
 
   // The real bulk_migrate_listing response didn't carry an offerId field
   // the way eBay's docs implied (every real migration came back with
@@ -557,7 +575,7 @@ async function handleMigrateListing(req, res, access_token){
   }
 
   const shipping = offerId ? await correctOfferShipping(offerId, access_token) : { corrected: false, reason: 'no_offer_id' };
-  return res.status(200).json({ success: true, sku: migratedSku, listingId, photos, shipping });
+  return res.status(200).json({ success: true, sku: migratedSku, listingId, photos, description, shipping });
 }
 
 // ---------- Correct shipping policy on a just-migrated offer ----------
