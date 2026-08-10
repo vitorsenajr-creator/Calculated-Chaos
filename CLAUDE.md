@@ -345,6 +345,26 @@ next minor bump:
   `modules/ebay-audit.js`), toggling every `.audit-invisible-chk` at
   once — with a batch of 21+ found on the real account, checking each
   row individually before "Import selected" wasn't practical.
+- **v3.13.27** — Vitor set a fixed rule: "buyer pays shipping" is ALWAYS
+  the correct default for eBay listing audit imports — not a guess to
+  leave for manual review like v3.13.23-25 did. Imported items now get
+  `freeShipping: false` unconditionally, and the migration itself
+  actively corrects it on the live eBay listing: new
+  `correctOfferShipping()` in `api/ebay-listing-tools.js` (called from
+  `action:'migrate_listing'`, after `bulk_migrate_listing` succeeds)
+  fetches the offer eBay just auto-created from the legacy listing's
+  existing policy, and if its `fulfillmentPolicyId` isn't already
+  `EBAY_FULFILLMENT_POLICY_ID_BUYER_PAYS`, overwrites just that field
+  (leaving category/description/price/aspects exactly as eBay
+  auto-populated them) and republishes the offer so the change goes
+  live. No per-item `shippingCostOverride` is set here (a freshly
+  imported item has no weight/dimensions yet to estimate a real number
+  from) — it uses the buyer-pays policy's own placeholder cost until a
+  manual pass in Catalog refines it. The import result summary reports
+  how many listings were actually corrected vs. already matched, and
+  flags anything the correction call itself failed on for manual
+  double-checking on eBay directly. **Not yet verified against a real
+  account** — same caveat as v3.13.23-26, watch the next real import.
 
 ## Planned changes (backlog)
 
