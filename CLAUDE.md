@@ -422,6 +422,22 @@ next minor bump:
   v3.13.29 batch** — those already exist with a blank description; she'll
   need to paste each one's description in manually via Catalog, or ask for
   a one-off backfill tool if that's worth building for this batch size.
+- **v3.13.31** — Built the backfill tool from v3.13.30's note: new "🩹
+  Backfill missing eBay descriptions" button in Settings
+  (`runBackfillDescriptions()` in `modules/ebay-audit.js`) finds every
+  catalog item with an `ebayListingId` but no `listingDescription`
+  (exactly the 17 items from the v3.13.29 batch, plus any future case of
+  the same gap), fetches each one's real description from eBay in chunks
+  of 10 (new `action:'backfill_descriptions'` in
+  `api/ebay-listing-tools.js`, reusing `fetchListingDetails()` —
+  migrate_listing's own description-capture call, just run retroactively
+  here) and writes it straight to Firestore. Reports how many were
+  backfilled, which items eBay had no description for at all, and which
+  lookups failed (safe to rerun — it only re-targets items still missing
+  a description). No new serverless function file — stays inside the
+  already action-dispatched `ebay-listing-tools.js`, same as everything
+  else added this session, so the Hobby-plan 12-function cap isn't
+  touched.
 
 ## Planned changes (backlog)
 

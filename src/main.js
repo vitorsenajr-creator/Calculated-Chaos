@@ -59,13 +59,13 @@ import {
   showBulkSoldConfirm as _showBulkSoldConfirm,
 } from './modules/sold-confirm.js';
 import { initNarrationCapture } from './modules/narration-capture.js';
-import { runEbayAudit, runListFulfillmentPolicies } from './modules/ebay-audit.js';
+import { runEbayAudit, runListFulfillmentPolicies, runBackfillDescriptions } from './modules/ebay-audit.js';
 
 export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.30';
+  const APP_VERSION = 'v3.13.31';
   const APP_VERSION_DATE = '2026-08-10';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -4766,6 +4766,8 @@ Be accurate and honest — never invent brand, material, or condition details th
         <div id="ebayAuditResult" style="margin-top:10px;"></div>
         <button class="settings-save-btn" style="margin-top:10px; background:var(--sage);" onclick="runListFulfillmentPolicies()">📋 List my eBay shipping policies (find a policy's ID)</button>
         <div id="ebayPoliciesResult" style="margin-top:10px;"></div>
+        <button class="settings-save-btn" style="margin-top:10px; background:var(--gold);" onclick="runBackfillDescriptions()">🩹 Backfill missing eBay descriptions</button>
+        <div id="ebayBackfillResult" style="margin-top:10px;"></div>
       </div>
 
       <!-- EBAY SALE CHECK -->
@@ -5109,6 +5111,7 @@ EBAY_MERCHANT_LOCATION_KEY=${escapeHtml(data.results.merchantLocationKey)}</div>
   // tears down and rebuilds this HTML on every render).
   window.runEbayAudit = runEbayAudit;
   window.runListFulfillmentPolicies = runListFulfillmentPolicies;
+  window.runBackfillDescriptions = runBackfillDescriptions;
 
   // ---------- PLATFORMS SETTINGS (Settings → Platforms) ----------
   // Which platform's tiered-fee editor is expanded — survives re-renders

@@ -471,3 +471,86 @@ export async function runListFulfillmentPolicies(){
     area.innerHTML = `<div class="ebay-status-box error">❌ ${escapeHtml(String(e.message || e))}</div>`;
   }
 }
+
+const BACKFILL_CHUNK_SIZE = 10;
+
+// One-off catch-up for items imported via the audit's "invisible listings"
+// flow BEFORE v3.13.30 added description capture to migrate_listing — those
+// sit in the catalog today with a blank listingDescription, which is
+// exactly what routes publishItemToEbayCore into the AI "generate
+// description" flow (unnecessary, and not always accurate) whenever she
+// tries to republish/fix one of them. Finds every catalog item with an
+// ebayListingId but no listingDescription, fetches each one's real
+// description from eBay (action:'backfill_descriptions'), and writes it
+// straight to Firestore — same fetchListingDetails() call migrate_listing
+// itself now uses going forward, just run retroactively here.
+export async function runBackfillDescriptions(){
+  const area = document.getElementById('ebayBackfillResult');
+  if (!area) return;
+
+  const targets = items.filter(i => i.ebayListingId && !(i.listingDescription && i.listingDescription.trim()));
+  if (targets.length === 0){
+    area.innerHTML = `<div class="ebay-status-box">✅ Every item with an eBay listing already has a description saved — nothing to backfill.</div>`;
+    return;
+  }
+
+  area.innerHTML = `<div class="ebay-status-box pending">⏳ Checking eBay connection…</div>`;
+  try{
+    const token = await getValidEbayToken();
+    if (!token){
+      area.innerHTML = `<div class="ebay-status-box error">❌ Connect your eBay account first.</div>`;
+      return;
+    }
+
+    const byListingId = new Map(targets.map(i => [String(i.ebayListingId), i]));
+    const listingIds = [...byListingId.keys()];
+    const fetched = [];
+    const errors = [];
+
+    for (let i = 0; i < listingIds.length; i += BACKFILL_CHUNK_SIZE){
+      const chunk = listingIds.slice(i, i + BACKFILL_CHUNK_SIZE);
+      area.innerHTML = `<div class="ebay-status-box pending">⏳ Fetching descriptions — ${Math.min(i + BACKFILL_CHUNK_SIZE, listingIds.length)} of ${listingIds.length}…</div>`;
+      const data = await postAuditAction(token, { action: 'backfill_descriptions', listingIds: chunk });
+      if (!data.success){
+        area.innerHTML = `
+          <div class="ebay-status-box error">
+            ❌ Backfill failed partway through (${fetched.length} of ${listingIds.length} done): ${escapeHtml(data.error || 'unknown error')}
+            ${data.detail ? `<div style="margin-top:8px; padding:8px; background:rgba(0,0,0,0.04); border-radius:6px; font-family:monospace; font-size:11px; white-space:pre-wrap;">${escapeHtml(JSON.stringify(data.detail, null, 2))}</div>` : ''}
+          </div>`;
+        return;
+      }
+      fetched.push(...data.results);
+      errors.push(...data.errors);
+    }
+
+    const { doc, setDoc } = window.firestoreFns;
+    let saved = 0;
+    const stillEmpty = [];
+    for (const { listingId, description } of fetched){
+      const item = byListingId.get(String(listingId));
+      if (!item) continue;
+      if (!description){
+        stillEmpty.push(item);
+        continue;
+      }
+      item.listingDescription = description;
+      await setDoc(doc(window.db, 'items', item.id), item);
+      saved++;
+    }
+
+    let summary = `<div style="font-size:13px;">`;
+    if (saved){
+      summary += `<div style="color:var(--sage-deep); font-weight:600;">✅ ${saved} description${saved===1?'':'s'} backfilled from eBay.</div>`;
+    }
+    if (stillEmpty.length){
+      summary += `<div style="margin-top:4px; color:var(--amber-deep);">⚠️ ${stillEmpty.length} item${stillEmpty.length===1?'':'s'} — eBay didn't return a description (listing may have none set): ${stillEmpty.map(i => escapeHtml(i.productCode || i.name || i.id)).join(', ')}</div>`;
+    }
+    if (errors.length){
+      summary += `<div style="margin-top:4px; color:var(--danger); font-weight:600;">❌ ${errors.length} lookup${errors.length===1?'':'s'} failed — rerun to retry: ${errors.map(e => escapeHtml(e.listingId)).join(', ')}</div>`;
+    }
+    summary += `</div>`;
+    area.innerHTML = summary;
+  }catch(e){
+    area.innerHTML = `<div class="ebay-status-box error">❌ ${escapeHtml(String(e.message || e))}</div>`;
+  }
+}
