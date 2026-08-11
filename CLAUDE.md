@@ -544,6 +544,18 @@ next minor bump:
   next failure is diagnosable without DevTools. Root cause of this
   particular failure not yet identified — waiting on the improved error
   text from a retry.
+- **v3.13.41** — Root cause of v3.13.40's failure was simply a missing
+  `DEEPGRAM_API_KEY` in Vercel (never got set, or a redeploy was
+  needed) — confirmed once the real error message could actually be
+  seen. Narration works now. Vitor then asked for a real behavior
+  change: narrating a second time (e.g. adding measurements after an
+  earlier pass already set brand/size/etc.) was overwriting `Notes`
+  entirely instead of adding to it. `notes` now appends onto whatever
+  is already in the field (`existing + '\n' + new`) instead of
+  replacing it, and is excluded from the overwrite-confirmation check
+  entirely — appending is never destructive, so there's nothing to
+  confirm. Every other field keeps the existing confirm-before-
+  overwrite behavior unchanged.
 
 ## Planned changes (backlog)
 

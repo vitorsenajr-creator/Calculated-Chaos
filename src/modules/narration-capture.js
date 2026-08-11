@@ -366,7 +366,12 @@ Respond with the JSON object only. Do not include any text, explanation, or mark
 
       // Always ask before overwriting a field that already has a different
       // value — most relevant when photo analysis already filled the form.
+      // Notes is excluded: a second narration (e.g. adding measurements
+      // after the first pass already set brand/size/etc.) APPENDS onto
+      // whatever's already there instead of replacing it, so nothing is
+      // ever lost and there's nothing destructive to confirm.
       const conflicts = Object.keys(pending).filter(key => {
+        if (key === 'notes') return false;
         const existing = currentFieldValue(key);
         return existing && existing !== pending[key];
       });
@@ -380,7 +385,12 @@ Respond with the JSON object only. Do not include any text, explanation, or mark
           case 'name': document.getElementById('fName').value = value; break;
           case 'brand': document.getElementById('fBrand').value = value; break;
           case 'size': document.getElementById('fSize').value = value; break;
-          case 'notes': document.getElementById('fNotes').value = value; break;
+          case 'notes': {
+            const notesEl = document.getElementById('fNotes');
+            const existingNotes = (notesEl.value || '').trim();
+            notesEl.value = existingNotes ? `${existingNotes}\n${value}` : value;
+            break;
+          }
           case 'price': document.getElementById('fListPrice').value = (parseFloat(value) || 0).toFixed(2); break;
           case 'gender': document.getElementById('fGender').value = value; break;
           case 'condition':
