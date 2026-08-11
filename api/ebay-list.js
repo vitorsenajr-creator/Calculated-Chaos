@@ -433,6 +433,14 @@ function buildInventoryItem(item, extraRequiredAspects, imageUrls){
     condition: condition,
     conditionDescription,
     packageWeightAndSize: {
+      // eBay rejects some listings ("A user error has occurred. Please
+      // provide a valid Shipping Package type.") without this — apparel
+      // categories seem to trigger it more often, since a garment could
+      // plausibly ship as either an envelope or a box and eBay won't
+      // guess. This app has no per-item package-type field, so default to
+      // a generic box, same fallback-over-failure philosophy as the
+      // weight/dimensions defaults right above.
+      packageType: 'MAILING_BOX',
       weight: { value: weight, unit: 'POUND' },
       dimensions: { length, width, height, unit: 'INCH' },
     },
