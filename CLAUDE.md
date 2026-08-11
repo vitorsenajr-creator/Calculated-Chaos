@@ -514,6 +514,25 @@ next minor bump:
   either, and the one confirmed case that genuinely requires it
   ("Express - Blouse") is still covered by the unconditional default on
   the first attempt.
+- **v3.13.39** — Next item after the v3.13.38 fix hit a third distinct
+  publish-retry class: errorId 25021 ("the provided condition id is
+  invalid for the selected primary category id") on "Disney Pixar
+  Monsters University 4 Pencils" (Toys/Collectibles) — despite
+  `getValidConditionsForCategory` + `resolveCondition` already existing
+  specifically to prevent this, meaning either that Metadata API lookup
+  didn't return the category's true accepted list, or `resolveCondition`'s
+  first pick from it (`validList[0]` when no `CONDITION_PREFERENCE` entry
+  matched) wasn't actually valid — same Metadata/Taxonomy-vs-Inventory
+  disagreement `extractMissingAspectName` already documents for aspects.
+  Learned from v3.13.38's mistake not to guess a single replacement value —
+  added `isInvalidConditionError()` + a retry that walks forward through
+  the category's own valid-conditions list (or a small universal fallback
+  list — NEW/NEW_OTHER/LIKE_NEW/USED_EXCELLENT/USED_VERY_GOOD/
+  USED_ACCEPTABLE — if that list came back empty) one untried candidate at
+  a time via a new `conditionOverride` param on `buildInventoryItem`,
+  folded into the same retry loop as the aspect/packageType fixes (now
+  handles all three error shapes per attempt, bumped to 4 retries to give
+  the added condition search room).
 
 ## Planned changes (backlog)
 
