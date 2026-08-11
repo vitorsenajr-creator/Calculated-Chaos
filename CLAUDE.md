@@ -487,6 +487,18 @@ next minor bump:
   `'MAILING_BOX'` unconditionally, same fallback-over-failure philosophy
   as the weight/dimensions defaults already sitting right above it in
   the same function.
+- **v3.13.37** — `'MAILING_BOX'` (v3.13.36's fix) wasn't actually
+  accepted everywhere either: republishing "Superdown Blazer Dress" hit
+  errorId 25101 ("Invalid `<ShippingPackage>`.") — same class of
+  category/marketplace-dependent inconsistency `extractMissingAspectName`
+  already works around for item aspects, just for `packageType` instead.
+  eBay's own error handed back what it actually wants in its
+  `parameters` (format `"err:<code>|<value>"`, e.g.
+  `"err:216305|MailingBoxes"`) — added `extractSuggestedPackageType()`
+  in `api/ebay-list.js` to read that value and retry with it instead of
+  the hardcoded default, folded into the same retry loop that already
+  handles missing aspects (now checks both error shapes per attempt, up
+  to 3 retries).
 
 ## Planned changes (backlog)
 
