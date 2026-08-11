@@ -402,11 +402,28 @@ function isInvalidPackageTypeError(errorData){
   return !!err && err.errorId === 25101;
 }
 
-function buildInventoryItem(item, extraRequiredAspects, imageUrls, packageTypeOverride){
+// errorId 25021 — "the provided condition id is invalid for the selected
+// primary category id". This is exactly what getValidConditionsForCategory
+// + resolveCondition already exist to prevent, but a real listing hit it
+// anyway (Disney Pixar pencils, Toys/Collectibles) — either the Metadata
+// API's condition-policy list for that leaf category didn't actually match
+// what the Inventory API enforces at publish time (same class of
+// Taxonomy/Metadata-vs-Inventory disagreement extractMissingAspectName
+// already documents for aspects), or resolveCondition's first pick from
+// that list just wasn't the right one. Rather than trust index 0 blindly,
+// the retry below walks forward through the category's own valid-conditions
+// list (or a small universal fallback list if that lookup came back empty)
+// until eBay accepts one.
+function isInvalidConditionError(errorData){
+  const err = Array.isArray(errorData) ? errorData[0] : errorData?.errors?.[0];
+  return !!err && err.errorId === 25021;
+}
+
+function buildInventoryItem(item, extraRequiredAspects, imageUrls, packageTypeOverride, conditionOverride){
   // Compress photos: eBay accepts up to 12 image URLs, but we're using base64 data URLs
   // eBay requires hosted URLs — we send a placeholder note about this in the description
   // (In production, photos should be hosted; for now we include all available from item.photos)
-  const condition = resolveCondition(item);
+  const condition = conditionOverride || resolveCondition(item);
   const conditionDescription = {
     novo_etiqueta:     'New with tags. Never worn or used.',
     novo_sem_etiqueta: 'New without tags. Never worn or used.',
@@ -591,26 +608,44 @@ export default async function handler(req, res){
 
     // Step 1: Create or update inventory item
     let packageTypeOverride = null;
-    let inventoryBody = buildInventoryItem(itemForBuild, requiredAspects, imageUrls, packageTypeOverride);
+    let conditionOverride = null;
+    // Fallback candidate list for when the category's own valid-conditions
+    // lookup came back empty/null — broad enums that work across most
+    // categories, same universal set CONDITION_ID_MAP already leans on.
+    const UNIVERSAL_CONDITION_FALLBACKS = ['NEW', 'NEW_OTHER', 'LIKE_NEW', 'USED_EXCELLENT', 'USED_VERY_GOOD', 'USED_ACCEPTABLE'];
+    const triedConditions = new Set();
+    let inventoryBody = buildInventoryItem(itemForBuild, requiredAspects, imageUrls, packageTypeOverride, conditionOverride);
     let invResult = await ebayRequest('PUT', `/sell/inventory/v1/inventory_item/${encodedSku}`, access_token, inventoryBody);
 
     // Retry with whatever eBay's own error says is wrong, up to a few times —
-    // covers two known-inconsistent fields: a missing item specific
-    // (extractMissingAspectName) and an unsupported packageType
+    // covers three known-inconsistent fields: a missing item specific
+    // (extractMissingAspectName), an unsupported packageType
     // (isInvalidPackageTypeError, see its comment for why this drops the
-    // field on retry instead of guessing a replacement value). Same
-    // "adapt to whatever eBay actually rejected" approach for both, since
-    // neither is predictable ahead of time per category/listing.
+    // field on retry instead of guessing a replacement value), and an
+    // unsupported condition (isInvalidConditionError — walks forward
+    // through the category's own valid-conditions list). Same "adapt to
+    // whatever eBay actually rejected" approach for all three, since none
+    // is predictable ahead of time per category/listing.
     let retries = 0;
-    while (!invResult.ok && invResult.status !== 204 && retries < 3){
+    while (!invResult.ok && invResult.status !== 204 && retries < 4){
       const missingName = extractMissingAspectName(invResult.data);
       const badPackageType = packageTypeOverride !== 'OMIT' && isInvalidPackageTypeError(invResult.data);
-      if (!missingName && !badPackageType) break;
+      const badCondition = isInvalidConditionError(invResult.data);
+      if (!missingName && !badPackageType && !badCondition) break;
       if (missingName){
         itemForBuild.ebayAspects = { ...(itemForBuild.ebayAspects || {}), [missingName]: 'Does not apply' };
       }
       if (badPackageType) packageTypeOverride = 'OMIT';
-      inventoryBody = buildInventoryItem(itemForBuild, requiredAspects, imageUrls, packageTypeOverride);
+      if (badCondition){
+        const currentCondition = conditionOverride || resolveCondition(itemForBuild);
+        triedConditions.add(currentCondition);
+        const candidates = (Array.isArray(itemForBuild.ebayValidConditions) && itemForBuild.ebayValidConditions.length)
+          ? itemForBuild.ebayValidConditions
+          : UNIVERSAL_CONDITION_FALLBACKS;
+        const nextCandidate = candidates.find(c => !triedConditions.has(c));
+        if (nextCandidate) conditionOverride = nextCandidate;
+      }
+      inventoryBody = buildInventoryItem(itemForBuild, requiredAspects, imageUrls, packageTypeOverride, conditionOverride);
       invResult = await ebayRequest('PUT', `/sell/inventory/v1/inventory_item/${encodedSku}`, access_token, inventoryBody);
       retries++;
     }
