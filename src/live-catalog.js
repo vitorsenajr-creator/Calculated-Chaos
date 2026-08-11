@@ -65,7 +65,11 @@ function db(){ return window.db; }
 function fns(){ return window.firestoreFns; }
 
 // ---------- AUTH ----------
-function showAuthForm(){ document.getElementById('authOverlay').style.display = 'flex'; }
+function showAuthForm(){
+  document.getElementById('authOverlay').style.display = 'flex';
+  document.getElementById('authCheckingState').style.display = 'none';
+  document.getElementById('authFormState').style.display = 'block';
+}
 function showApp(){
   document.getElementById('authOverlay').style.display = 'none';
   document.body.classList.remove('auth-locked');
@@ -114,6 +118,7 @@ waitForFirebaseReady().then(() => {
     }catch(e){
       console.error('Auth check failed:', e);
       setAuthError('Could not verify your account. Try again.');
+      showAuthForm();
     }
   });
 });
@@ -130,6 +135,7 @@ async function initLiveCatalog(){
     const { doc, getDoc } = fns();
     const optSnap = await getDoc(doc(db(), 'live_catalog_options', 'main'));
     if (optSnap.exists()) customOptions = { tipos:[], brands:[], sizes:[], colors:[], fabrics:[], measureLabels:[], ...optSnap.data() };
+    if (customOptions.labelConfig) labelConfig = customOptions.labelConfig;
   }catch(e){ console.warn('Could not load saved Live Catalog options:', e); }
 
   renderMeasureLabelOptions();
@@ -283,12 +289,14 @@ document.getElementById('lcAddMeasureRowBtn').addEventListener('click', () => ad
 // never sit as base64 inside the Firestore document itself) but scoped to
 // its own live-item-photos/ Storage path, fully separate from the real
 // catalog's item-photos/.
+const MAX_LIVE_PHOTOS = 6;
+
 function initPhotoWidget(){
   const input = document.getElementById('lcPhotoInput');
   const addBtn = document.getElementById('lcPhotoAddBtn');
   addBtn.addEventListener('click', () => input.click());
   input.addEventListener('change', async () => {
-    const files = Array.from(input.files || []);
+    const files = Array.from(input.files || []).slice(0, Math.max(0, MAX_LIVE_PHOTOS - currentPhotos.length));
     input.value = '';
     for (const file of files){
       try{
@@ -313,6 +321,7 @@ function renderPhotoThumbs(){
     });
     wrap.insertBefore(thumb, addBtn);
   });
+  addBtn.style.display = currentPhotos.length >= MAX_LIVE_PHOTOS ? 'none' : '';
 }
 async function uploadLivePhotos(itemId, photosArray){
   if (!photosArray.length) return [];
@@ -526,32 +535,61 @@ function renderLiveItemsTableRows(){
   if (selectAllChk) selectAllChk.checked = false;
 }
 
-// ---------- LABEL PRINTING (Avery 5260 — 1" x 2-5/8", 3 x 10 = 30/sheet) ----
-// Coordinates match Avery's own published 5260 template: 0.1875in left
-// margin, 0.5in top margin, 2.75in horizontal pitch (2.625in label width +
-// 0.125in gutter), 1in vertical pitch (label height, no row gap). "Start at
-// label #" lets her resume partway down a sheet that already has some
-// labels used, instead of always starting at the top-left.
+// ---------- LABEL PRINTING ----------
+// Two sheet types:
+//  - "sheet": Avery 5260 fixed grid (1" x 2-5/8", 3x10 = 30/sheet). Coordinates
+//    match Avery's own published template: 0.1875in left margin, 0.5in top
+//    margin, 2.75in horizontal pitch (2.625in label width + 0.125in gutter),
+//    1in vertical pitch (label height, no row gap).
+//  - "thermal": a continuous strip sized to a chosen label width, one label
+//    per item stacked vertically with a dashed cut-guide line between each
+//    — for a thermal-roll printer, or a normal printer set to a matching
+//    label-roll paper size. Page height is left to the browser/@page "auto"
+//    instead of a fixed sheet height.
+// Which fields print (SKU/#/Tipo/Brand/Size/Color) and the sheet type/label
+// size are all configured in the #lcLabelConfigOverlay modal, with a live
+// on-screen preview — no more guessing what the physical sheet will look
+// like before committing paper to it.
 const LABEL_COLS = 3, LABEL_ROWS = 10, LABELS_PER_SHEET = LABEL_COLS * LABEL_ROWS;
 const LABEL_LEFT_IN = 0.1875, LABEL_TOP_IN = 0.5, LABEL_PITCH_X_IN = 2.75, LABEL_PITCH_Y_IN = 1.0;
+const THERMAL_PRESETS = {
+  '4x6': { w: 4, h: 6 },
+  '4x3': { w: 4, h: 3 },
+  '2.25x1.25': { w: 2.25, h: 1.25 },
+};
 
-function labelCellHtml(item, posIndex){
+let labelConfig = {
+  fields: { sku: true, num: true, tipo: true, brand: true, size: true, color: false },
+  mode: 'sheet',
+  thermalPreset: '4x6',
+  thermalW: 4,
+  thermalH: 6,
+};
+
+function labelContentHtml(item, fields){
+  if (!item) return '';
+  const metaParts = [];
+  if (fields.tipo && item.tipo) metaParts.push(item.tipo);
+  if (fields.size && item.size) metaParts.push(item.size);
+  const metaLine = metaParts.join(' · ');
+  return `
+    ${fields.sku ? `<div class="lc-label-sku">${escapeHtml(item.sku || '')}</div>` : ''}
+    ${metaLine ? `<div class="lc-label-meta">${escapeHtml(metaLine)}</div>` : ''}
+    ${fields.brand && item.brand ? `<div class="lc-label-meta">${escapeHtml(item.brand)}</div>` : ''}
+    ${fields.color && item.color ? `<div class="lc-label-meta">${escapeHtml(item.color)}</div>` : ''}
+    ${fields.num ? `<div class="lc-label-num">Live #${item.num ?? ''}</div>` : ''}
+  `;
+}
+
+function labelCellHtml(item, posIndex, fields){
   const col = posIndex % LABEL_COLS;
   const row = Math.floor(posIndex / LABEL_COLS) % LABEL_ROWS;
   const left = (LABEL_LEFT_IN + col * LABEL_PITCH_X_IN).toFixed(4);
   const top = (LABEL_TOP_IN + row * LABEL_PITCH_Y_IN).toFixed(4);
-  if (!item) return `<div class="lc-label" style="left:${left}in; top:${top}in;"></div>`;
-  const metaLine = [item.tipo, item.size].filter(Boolean).join(' · ');
-  return `
-    <div class="lc-label" style="left:${left}in; top:${top}in;">
-      <div class="lc-label-sku">${escapeHtml(item.sku || '')}</div>
-      ${metaLine ? `<div class="lc-label-meta">${escapeHtml(metaLine)}</div>` : ''}
-      ${item.brand ? `<div class="lc-label-meta">${escapeHtml(item.brand)}</div>` : ''}
-      <div class="lc-label-num">Live #${item.num ?? ''}</div>
-    </div>`;
+  return `<div class="lc-label" style="left:${left}in; top:${top}in;">${labelContentHtml(item, fields)}</div>`;
 }
 
-function buildLabelSheets(itemsToPrint, startPos){
+function buildSheetLabelsHtml(itemsToPrint, startPos, fields){
   // startPos is 1-based (label #1 = top-left) — pad with blank cells up to
   // startPos-1 on the first sheet only.
   const slots = [];
@@ -562,27 +600,157 @@ function buildLabelSheets(itemsToPrint, startPos){
   for (let s = 0; s < sheetCount; s++){
     html += `<div class="lc-label-sheet">`;
     for (let i = 0; i < LABELS_PER_SHEET; i++){
-      html += labelCellHtml(slots[s * LABELS_PER_SHEET + i], i);
+      html += labelCellHtml(slots[s * LABELS_PER_SHEET + i], i, fields);
     }
     html += `</div>`;
   }
   return html;
 }
 
+function buildThermalStripHtml(itemsToPrint, w, h, fields){
+  const labels = itemsToPrint.map(item => `<div class="lc-thermal-label" style="width:${w}in; height:${h}in;">${labelContentHtml(item, fields)}</div>`);
+  return `
+    <style>@page{ size:${w}in auto; margin:0; }</style>
+    <div class="lc-thermal-strip" style="width:${w}in;">${labels.join('<div class="lc-thermal-cut"></div>')}</div>`;
+}
+
+function readLabelFieldsFromUI(){
+  return {
+    sku: document.getElementById('lcLblSku').checked,
+    num: document.getElementById('lcLblNum').checked,
+    tipo: document.getElementById('lcLblTipo').checked,
+    brand: document.getElementById('lcLblBrand').checked,
+    size: document.getElementById('lcLblSize').checked,
+    color: document.getElementById('lcLblColor').checked,
+  };
+}
+
+function currentThermalSize(){
+  const preset = document.getElementById('lcThermalSizePreset').value;
+  if (preset === 'custom'){
+    return {
+      w: parseFloat(document.getElementById('lcThermalW').value) || 4,
+      h: parseFloat(document.getElementById('lcThermalH').value) || 6,
+    };
+  }
+  return THERMAL_PRESETS[preset] || THERMAL_PRESETS['4x6'];
+}
+
+function selectedLabelItems(){
+  const checked = Array.from(document.querySelectorAll('.lc-print-chk:checked')).map(chk => chk.dataset.printChk);
+  const items = checked.length
+    ? liveItemsCache.filter(i => checked.includes(i.id))
+    : [...liveItemsCache];
+  return items.sort((a,b) => (a.num||0) - (b.num||0));
+}
+
+function renderLabelPreview(){
+  const area = document.getElementById('lcLabelPreviewArea');
+  const fields = readLabelFieldsFromUI();
+  const mode = document.getElementById('lcLabelMode').value;
+  const items = selectedLabelItems();
+  const previewItems = items.slice(0, 6);
+
+  if (!previewItems.length){
+    area.innerHTML = `<div class="lc-label-preview-more">No items selected — check rows in the table, or leave none checked to print all.</div>`;
+    return;
+  }
+
+  if (mode === 'thermal'){
+    const { w, h } = currentThermalSize();
+    area.innerHTML = previewItems.map(item =>
+      `<div class="lc-thermal-label" style="width:${Math.min(w, 3)}in; height:${Math.min(h, 2)}in;">${labelContentHtml(item, fields)}</div>`
+    ).join('') + (items.length > previewItems.length ? `<div class="lc-label-preview-more">+${items.length - previewItems.length} more</div>` : '');
+  } else {
+    area.innerHTML = previewItems.map(item =>
+      `<div class="lc-label" style="position:static; width:2.625in; height:1in;">${labelContentHtml(item, fields)}</div>`
+    ).join('') + (items.length > previewItems.length ? `<div class="lc-label-preview-more">+${items.length - previewItems.length} more</div>` : '');
+  }
+}
+
+function updateLabelConfigCount(){
+  const count = selectedLabelItems().length;
+  const checked = document.querySelectorAll('.lc-print-chk:checked').length;
+  document.getElementById('lcLabelConfigCount').textContent = checked
+    ? `${count} item(s) selected for printing.`
+    : `No rows checked — this will print all ${count} item(s) in this live.`;
+}
+
+function openLabelConfigModal(){
+  // Restore last-used settings so repeat print runs don't require reconfiguring.
+  document.getElementById('lcLblSku').checked = labelConfig.fields.sku;
+  document.getElementById('lcLblNum').checked = labelConfig.fields.num;
+  document.getElementById('lcLblTipo').checked = labelConfig.fields.tipo;
+  document.getElementById('lcLblBrand').checked = labelConfig.fields.brand;
+  document.getElementById('lcLblSize').checked = labelConfig.fields.size;
+  document.getElementById('lcLblColor').checked = labelConfig.fields.color;
+  document.getElementById('lcLabelMode').value = labelConfig.mode;
+  document.getElementById('lcThermalSizePreset').value = labelConfig.thermalPreset;
+  document.getElementById('lcThermalW').value = labelConfig.thermalW;
+  document.getElementById('lcThermalH').value = labelConfig.thermalH;
+  toggleLabelModeSections();
+  updateLabelConfigCount();
+  renderLabelPreview();
+  document.getElementById('lcLabelConfigOverlay').style.display = 'flex';
+}
+function closeLabelConfigModal(){
+  document.getElementById('lcLabelConfigOverlay').style.display = 'none';
+}
+function toggleLabelModeSections(){
+  const mode = document.getElementById('lcLabelMode').value;
+  document.getElementById('lcSheetOptions').style.display = mode === 'sheet' ? 'block' : 'none';
+  document.getElementById('lcThermalOptions').style.display = mode === 'thermal' ? 'block' : 'none';
+  const isCustom = document.getElementById('lcThermalSizePreset').value === 'custom';
+  document.getElementById('lcThermalCustomSize').style.display = (mode === 'thermal' && isCustom) ? 'flex' : 'none';
+}
+
 document.getElementById('lcPrintSelectAll').addEventListener('change', (e) => {
   document.querySelectorAll('.lc-print-chk').forEach(chk => { chk.checked = e.target.checked; });
 });
 
-document.getElementById('lcPrintLabelsBtn').addEventListener('click', () => {
-  const checked = Array.from(document.querySelectorAll('.lc-print-chk:checked')).map(chk => chk.dataset.printChk);
-  const toPrint = checked.length
-    ? liveItemsCache.filter(i => checked.includes(i.id))
-    : [...liveItemsCache].sort((a,b) => (a.num||0) - (b.num||0));
-  if (!toPrint.length){ alert('No items to print labels for.'); return; }
-  if (!checked.length && !confirm(`No rows selected — print labels for all ${toPrint.length} item(s) in this live?`)) return;
+document.getElementById('lcOpenLabelConfigBtn').addEventListener('click', openLabelConfigModal);
+document.getElementById('lcLabelConfigCancelBtn').addEventListener('click', closeLabelConfigModal);
+document.getElementById('lcLabelConfigOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'lcLabelConfigOverlay') closeLabelConfigModal();
+});
+['lcLblSku','lcLblNum','lcLblTipo','lcLblBrand','lcLblSize','lcLblColor'].forEach(id => {
+  document.getElementById(id).addEventListener('change', renderLabelPreview);
+});
+document.getElementById('lcLabelMode').addEventListener('change', () => { toggleLabelModeSections(); renderLabelPreview(); });
+document.getElementById('lcThermalSizePreset').addEventListener('change', () => { toggleLabelModeSections(); renderLabelPreview(); });
+document.getElementById('lcThermalW').addEventListener('input', renderLabelPreview);
+document.getElementById('lcThermalH').addEventListener('input', renderLabelPreview);
 
-  const startPos = Math.min(30, Math.max(1, parseInt(document.getElementById('lcPrintStartPos').value, 10) || 1));
-  const sorted = [...toPrint].sort((a,b) => (a.num||0) - (b.num||0));
-  document.getElementById('lcPrintOverlay').innerHTML = buildLabelSheets(sorted, startPos);
+// Print is triggered directly inside this click handler with no intervening
+// confirm()/await — on mobile Safari, a window.print() call that happens
+// after a blocking confirm() dialog or an async gap can lose the "user
+// activation" the browser requires and silently no-op (this matched a real
+// report: printing worked on desktop but did nothing on a phone). Selection
+// ambiguity (no rows checked) is now resolved as visible modal text instead
+// of a confirm() dialog, specifically to avoid that gap.
+document.getElementById('lcLabelConfigPrintBtn').addEventListener('click', () => {
+  const items = selectedLabelItems();
+  if (!items.length){ alert('No items to print labels for.'); return; }
+
+  const fields = readLabelFieldsFromUI();
+  const mode = document.getElementById('lcLabelMode').value;
+  labelConfig = {
+    fields,
+    mode,
+    thermalPreset: document.getElementById('lcThermalSizePreset').value,
+    thermalW: parseFloat(document.getElementById('lcThermalW').value) || 4,
+    thermalH: parseFloat(document.getElementById('lcThermalH').value) || 6,
+  };
+  customOptions.labelConfig = labelConfig;
+  saveCustomOptions();
+
+  if (mode === 'thermal'){
+    const { w, h } = currentThermalSize();
+    document.getElementById('lcPrintOverlay').innerHTML = buildThermalStripHtml(items, w, h, fields);
+  } else {
+    const startPos = Math.min(30, Math.max(1, parseInt(document.getElementById('lcPrintStartPos').value, 10) || 1));
+    document.getElementById('lcPrintOverlay').innerHTML = buildSheetLabelsHtml(items, startPos, fields);
+  }
+  closeLabelConfigModal();
   window.print();
 });
