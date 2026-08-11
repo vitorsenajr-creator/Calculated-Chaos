@@ -567,6 +567,24 @@ next minor bump:
   Poshmark-optimized listing…" with no indication this same description
   also becomes the eBay listing description — now says "…this same
   description is reused on eBay too" so that's not a surprise.
+- **v3.13.43** — Two follow-ups from Vitor testing bulk eBay edits: (1)
+  simplified the "Generate listing description with AI" loading text
+  further, to just "Creating a special listing…" — the longer
+  eBay-reuse explanation from v3.13.42 was more than he wanted there.
+  (2) Real bug: a pencil (non-clothing item) got a generated description
+  ending in "check my closet!" from a bulk description-generation run —
+  the standard closing blurb (her configured `listingStandardText`, or
+  the hardcoded closet fallback) was always appended regardless of
+  category. Added a "Include my standard closing line" checkbox (checked
+  by default, so clothing behavior is unchanged) next to both listing
+  generator buttons in the item modal — unchecking it makes both
+  `buildListingDescription()` (instant template) and
+  `requestAiListingDescription()` (AI) skip the closet/bundle blurb
+  entirely (the AI path asks for a neutral, item-appropriate closing
+  line instead). For the bulk/automated generation path
+  (`generateListingDescriptionForItem()`, no live checkbox to read),
+  this is decided automatically from `item.category === 'Clothing'`
+  instead — the exact fix for what actually happened to the pencil.
 
 ## Planned changes (backlog)
 

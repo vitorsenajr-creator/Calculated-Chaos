@@ -65,7 +65,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.42';
+  const APP_VERSION = 'v3.13.43';
   const APP_VERSION_DATE = '2026-08-10';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -3765,7 +3765,7 @@ Respond with the JSON object only. Do not include any text, explanation, or mark
   // in priority order (most important first) and lower-priority lines are
   // dropped first if space runs out — mirrors the "never cut your first/last
   // 10 words" SEO guidance by keeping brand/type/size at the very top.
-  function buildListingDescription({ name, brand, clothingType, size, condition, notes, measurements, keywords }){
+  function buildListingDescription({ name, brand, clothingType, size, condition, notes, measurements, keywords, useStandardClosing }){
     const intro = `${name}${brand ? ' by ' + brand : ''}${clothingType ? ' — ' + clothingType : ''}`;
 
     const detailLines = [];
@@ -3774,13 +3774,17 @@ Respond with the JSON object only. Do not include any text, explanation, or mark
     if (measurements) detailLines.push(`* Measurements: ${measurements}`);
     if (notes) detailLines.push(`* ${notes}`);
 
-    const closing = (appSettings.listingStandardText || '').trim() || `Bundle discount available — check my closet! 📦`;
-
     const sections = [
       intro,
       `Details:\n\n${detailLines.join('\n')}`,
-      closing,
     ];
+    // The closet/bundle blurb only makes sense for clothing — she can
+    // uncheck "Include my standard closing line" for anything else
+    // (e.g. a pencil got "check my closet!" tacked on before this).
+    if (useStandardClosing !== false){
+      const closing = (appSettings.listingStandardText || '').trim() || `Bundle discount available — check my closet! 📦`;
+      sections.push(closing);
+    }
     if (keywords.length) sections.push(`Keywords: ${keywords.join(', ')}`);
 
     let text = '';
@@ -3858,7 +3862,8 @@ Respond with the JSON object only. Do not include any text, explanation, or mark
       ? Object.entries(currentMeasurements.values).map(([k,v]) => `${k}: ${v.toFixed(1)}"`).join(', ')
       : '';
     const price = document.getElementById('fListPrice').value;
-    return { name, category, clothingType, brand, gender, size, condition, notes, color, measurements, price };
+    const useStandardClosing = document.getElementById('fUseStandardClosing')?.checked !== false;
+    return { name, category, clothingType, brand, gender, size, condition, notes, color, measurements, price, useStandardClosing };
   }
 
   function generateListingDescription(){
@@ -3881,9 +3886,14 @@ Respond with the JSON object only. Do not include any text, explanation, or mark
   async function requestAiListingDescription(f){
     const standardText = (appSettings.listingStandardText || '').trim();
     const includeStandardText = !!standardText;
-    const closingLineInstruction = includeStandardText
-      ? `a closing line that is EXACTLY this seller-provided text, verbatim, only trimmed at the end if needed to fit the 500-character limit: "${standardText}"`
-      : `a line saying 'Bundle discount available — check my closet!'`;
+    // The closet/bundle blurb only makes sense for clothing — she can
+    // uncheck "Include my standard closing line" for anything else (e.g. a
+    // pencil got "check my closet!" tacked on before this existed).
+    const closingLineInstruction = f.useStandardClosing === false
+      ? `one short, factual closing line appropriate for this specific item — do NOT reference a "closet" or wardrobe, and do NOT mention bundling clothing, since this item may not be clothing`
+      : includeStandardText
+        ? `a closing line that is EXACTLY this seller-provided text, verbatim, only trimmed at the end if needed to fit the 500-character limit: "${standardText}"`
+        : `a line saying 'Bundle discount available — check my closet!'`;
 
     const promptText = `You are an expert Poshmark reseller writing an SEO-optimized listing for this item, following Poshmark's own best practices. You have been given up to 5 photos of the item — look at ALL of them carefully, not just the first. Sellers commonly include a close-up photo of the clothing tag/label showing fabric content (e.g. "100% cotton", "95% polyester 5% spandex"), care instructions, and sometimes country of origin or a style/RN number. If any such tag or label is visible in any photo, read it and use that real information — this is the single biggest thing that makes a description feel complete instead of generic. Never guess or invent fabric content or care instructions that you can't actually read; if no tag is visible or legible, just omit that detail rather than making it up.
 
@@ -3971,7 +3981,7 @@ Be accurate and honest — never invent brand, material, or condition details th
 
     btn.disabled = true;
     btn.textContent = '🪄 Writing…';
-    area.innerHTML = `<div class="ai-loading">Writing a Poshmark-style listing (this same description is reused on eBay too)…</div>`;
+    area.innerHTML = `<div class="ai-loading">Creating a special listing…</div>`;
 
     try{
       // Send several photos, not just the cover shot — tag/label close-ups
@@ -4097,6 +4107,11 @@ Be accurate and honest — never invent brand, material, or condition details th
           ? Object.entries(item.measurements.values).map(([k,v]) => `${k}: ${v.toFixed(1)}"`).join(', ')
           : '',
         price: item.listPrice || '',
+        // No live checkbox to ask in a bulk/automated flow — the closet/
+        // bundle blurb only makes sense for clothing, so decide from the
+        // item's own category instead (this is what produced a "check my
+        // closet!" line on a pencil before).
+        useStandardClosing: item.category === 'Clothing',
         imageBlocks: (item.photos || []).slice(0, 5).map(photoToImageBlock).filter(Boolean),
       };
       const result = await requestAiListingDescription(f);
