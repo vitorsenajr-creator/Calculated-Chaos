@@ -732,6 +732,19 @@ next minor bump:
   documentation — the HTML tokenizer doesn't parse CSS/JS comment syntax
   before scanning for the closing tag sequence.
 
+- **v3.13.49** — Vitor pointed out a real gap: every other field in the
+  Live Catalog items table is inline-editable after save (tipo, brand,
+  size, color, fabric, prep notes), but photos were view-only —
+  documented as a known limitation when photos shipped (v3.13.44) and now
+  actually fixed. Photo cell got a "✎ Edit" button opening a small modal
+  (`#lcPhotoEditOverlay`) that shows the item's current photos with
+  remove (✕) buttons and an "add photo" tile — same compress/upload
+  pipeline as the quick-add form (`compressImage()` → Firebase Storage
+  under `live-item-photos/{itemId}/...`), capped at the same
+  `MAX_LIVE_PHOTOS` (6), each add/remove written straight to Firestore
+  immediately (same pattern the rest of the table already uses, no
+  separate "save" step).
+
 ## Planned changes (backlog)
 
 Not implemented yet — captured here so they survive between sessions.

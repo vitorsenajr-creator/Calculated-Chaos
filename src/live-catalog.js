@@ -141,6 +141,7 @@ async function initLiveCatalog(){
   renderMeasureLabelOptions();
   initLiveNarration({ rememberIfNew, addMeasureRow });
   initPhotoWidget();
+  initPhotoEditWidget();
   await renderSessionList();
 }
 
@@ -336,6 +337,95 @@ async function uploadLivePhotos(itemId, photosArray){
   return hosted;
 }
 
+// ---------- EDIT PHOTOS ON AN ALREADY-SAVED ITEM ----------
+// Every other field in the items table is inline-editable after save
+// (tipo/brand/size/color/fabric/prep notes) — photos were the one
+// exception, view-only via the thumbnail. This modal closes that gap:
+// add more (up to MAX_LIVE_PHOTOS total) or remove existing ones, each
+// change written straight to Firestore, same immediate-save pattern the
+// rest of the table already uses.
+let photoEditItemId = null;
+
+function openPhotoEditModal(itemId){
+  const item = liveItemsCache.find(i => i.id === itemId);
+  if (!item) return;
+  photoEditItemId = itemId;
+  renderPhotoEditThumbs();
+  document.getElementById('lcPhotoEditOverlay').style.display = 'flex';
+}
+function closePhotoEditModal(){
+  document.getElementById('lcPhotoEditOverlay').style.display = 'none';
+  photoEditItemId = null;
+}
+function renderPhotoEditThumbs(){
+  const item = liveItemsCache.find(i => i.id === photoEditItemId);
+  const wrap = document.getElementById('lcPhotoEditThumbs');
+  const addBtn = document.getElementById('lcPhotoEditAddBtn');
+  if (!item) return;
+  const photos = item.photos || [];
+  wrap.querySelectorAll('.lc-photo-thumb').forEach(el => el.remove());
+  photos.forEach((src, idx) => {
+    const thumb = document.createElement('div');
+    thumb.className = 'lc-photo-thumb';
+    thumb.innerHTML = `<img src="${src}"><button type="button" class="lc-photo-rm" title="Remove">✕</button>`;
+    thumb.querySelector('.lc-photo-rm').addEventListener('click', () => removeLivePhoto(idx));
+    wrap.insertBefore(thumb, addBtn);
+  });
+  addBtn.style.display = photos.length >= MAX_LIVE_PHOTOS ? 'none' : '';
+  document.getElementById('lcPhotoEditCount').textContent = `${photos.length} / ${MAX_LIVE_PHOTOS} photos`;
+}
+async function removeLivePhoto(idx){
+  const item = liveItemsCache.find(i => i.id === photoEditItemId);
+  if (!item) return;
+  const photos = [...(item.photos || [])];
+  photos.splice(idx, 1);
+  try{
+    const { doc, updateDoc } = fns();
+    await updateDoc(doc(db(), 'liveItems', photoEditItemId), { photos });
+    item.photos = photos;
+    renderPhotoEditThumbs();
+    renderLiveItemsTableRows();
+  }catch(e){ console.error('Failed to remove photo:', e); alert("Couldn't remove that photo — check your connection and try again."); }
+}
+function initPhotoEditWidget(){
+  const input = document.getElementById('lcPhotoEditInput');
+  const addBtn = document.getElementById('lcPhotoEditAddBtn');
+  addBtn.addEventListener('click', () => input.click());
+  input.addEventListener('change', async () => {
+    const item = liveItemsCache.find(i => i.id === photoEditItemId);
+    if (!item) return;
+    const existing = item.photos || [];
+    const files = Array.from(input.files || []).slice(0, Math.max(0, MAX_LIVE_PHOTOS - existing.length));
+    input.value = '';
+    if (!files.length) return;
+    addBtn.disabled = true;
+    addBtn.textContent = 'Uploading…';
+    try{
+      const compressed = [];
+      for (const file of files){
+        try{ compressed.push(await compressImage(file)); }catch(e){ console.error('Photo compression failed:', e); }
+      }
+      const newUrls = await uploadLivePhotos(photoEditItemId, compressed);
+      const photos = [...existing, ...newUrls];
+      const { doc, updateDoc } = fns();
+      await updateDoc(doc(db(), 'liveItems', photoEditItemId), { photos });
+      item.photos = photos;
+      renderPhotoEditThumbs();
+      renderLiveItemsTableRows();
+    }catch(e){
+      console.error('Failed to add photo:', e);
+      alert("Couldn't upload that photo — check your connection and try again.");
+    }finally{
+      addBtn.disabled = false;
+      addBtn.textContent = '+';
+    }
+  });
+}
+document.getElementById('lcPhotoEditCloseBtn').addEventListener('click', closePhotoEditModal);
+document.getElementById('lcPhotoEditOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'lcPhotoEditOverlay') closePhotoEditModal();
+});
+
 function resetForm(keepNum){
   document.getElementById('lcNum').value = keepNum ?? (currentSession ? currentSession.nextNum : 1);
   document.getElementById('lcTipo').value = '';
@@ -446,10 +536,14 @@ function saleFieldsHtml(item){
 
 function photoCellHtml(item){
   const photos = item.photos || [];
-  if (!photos.length) return `<span class="lc-sale-empty">—</span>`;
   return `
-    <img class="lc-table-photo" src="${photos[0]}" data-view-photos="${item.id}">
-    ${photos.length > 1 ? `<div class="lc-table-photo-count">+${photos.length - 1} more</div>` : ''}
+    <div class="lc-photo-cell">
+      ${photos.length
+        ? `<img class="lc-table-photo" src="${photos[0]}" data-view-photos="${item.id}">
+           ${photos.length > 1 ? `<div class="lc-table-photo-count">+${photos.length - 1} more</div>` : ''}`
+        : `<span class="lc-sale-empty">—</span>`}
+      <button type="button" class="lc-photo-edit-btn" data-edit-photos="${item.id}" title="Add/remove photos">✎ Edit</button>
+    </div>
   `;
 }
 
@@ -501,6 +595,9 @@ function renderLiveItemsTableRows(){
       const item = liveItemsCache.find(i => i.id === img.dataset.viewPhotos);
       if (item && item.photos && item.photos.length) window.open(item.photos[0], '_blank');
     });
+  });
+  body.querySelectorAll('[data-edit-photos]').forEach(btn => {
+    btn.addEventListener('click', () => openPhotoEditModal(btn.dataset.editPhotos));
   });
   body.querySelectorAll('[data-toggle-sold]').forEach(btn => {
     btn.addEventListener('click', async () => {

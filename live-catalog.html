@@ -58,7 +58,7 @@
       position:absolute; top:2px; right:2px; width:18px; height:18px; border-radius:50%; border:none;
       background:rgba(0,0,0,0.6); color:white; font-size:11px; line-height:18px; text-align:center; cursor:pointer; padding:0;
     }
-    #lcPhotoAddBtn{
+    .lc-photo-add-btn{
       width:64px; height:64px; border-radius:8px; border:1px dashed var(--line); background:transparent;
       color:var(--plum-soft); font-size:20px; cursor:pointer;
     }
@@ -72,8 +72,13 @@
     #lcNarrateBtn.recording{ background:var(--danger); border-color:var(--danger); color:white; }
     #lcNarrationArea{ flex:1; min-width:220px; }
     .lc-sku-cell{ font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--plum-soft); white-space:nowrap; }
+    .lc-photo-cell{ display:flex; flex-direction:column; align-items:flex-start; gap:4px; min-width:60px; }
     .lc-table-photo{ width:36px; height:36px; border-radius:6px; object-fit:cover; display:block; cursor:zoom-in; }
-    .lc-table-photo-count{ font-size:10px; color:var(--plum-soft); margin-top:2px; }
+    .lc-table-photo-count{ font-size:10px; color:var(--plum-soft); }
+    .lc-photo-edit-btn{
+      background:transparent; border:1px solid var(--line); border-radius:6px; padding:2px 7px;
+      font-size:10px; color:var(--plum-soft); cursor:pointer; white-space:nowrap;
+    }
     .lc-notes-cell textarea{
       border:1px solid var(--line); background:var(--white); font-size:12px; padding:5px 7px; border-radius:6px;
       width:100%; min-height:36px; font-family:inherit; resize:vertical;
@@ -165,7 +170,7 @@
     .lc-label-preview-more{ font-size:11.5px; color:var(--plum-soft); align-self:center; }
     .lc-modal-actions{ display:flex; justify-content:flex-end; gap:10px; margin-top:18px; }
     .lc-modal-actions button{ padding:10px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; }
-    #lcLabelConfigCancelBtn{ background:transparent; border:1px solid var(--line); color:var(--plum-soft); }
+    #lcLabelConfigCancelBtn, #lcPhotoEditCloseBtn{ background:transparent; border:1px solid var(--line); color:var(--plum-soft); }
     #lcLabelConfigPrintBtn{ background:var(--terracotta); border:none; color:white; }
 
     /* Mobile (added — narration is mainly used from the phone during prep,
@@ -326,7 +331,7 @@
       <div class="lc-photo-row">
         <label style="display:block; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; color:var(--plum-soft); margin-bottom:7px;">Photos (optional, up to 6)</label>
         <div class="lc-photo-thumbs" id="lcPhotoThumbs">
-          <button type="button" id="lcPhotoAddBtn" title="Add photo">+</button>
+          <button type="button" id="lcPhotoAddBtn" class="lc-photo-add-btn" title="Add photo">+</button>
         </div>
         <input type="file" id="lcPhotoInput" accept="image/*" multiple style="display:none;">
       </div>
@@ -416,6 +421,20 @@
     <div class="lc-modal-actions">
       <button type="button" id="lcLabelConfigCancelBtn">Cancel</button>
       <button type="button" id="lcLabelConfigPrintBtn">🖨️ Print</button>
+    </div>
+  </div>
+</div>
+
+<div class="lc-modal-overlay" id="lcPhotoEditOverlay">
+  <div class="lc-modal-card">
+    <h3>Photos</h3>
+    <div class="lc-modal-sub" id="lcPhotoEditCount"></div>
+    <div class="lc-photo-thumbs" id="lcPhotoEditThumbs">
+      <button type="button" id="lcPhotoEditAddBtn" class="lc-photo-add-btn" title="Add photo">+</button>
+    </div>
+    <input type="file" id="lcPhotoEditInput" accept="image/*" multiple style="display:none;">
+    <div class="lc-modal-actions">
+      <button type="button" id="lcPhotoEditCloseBtn">Done</button>
     </div>
   </div>
 </div>
