@@ -214,7 +214,12 @@ export function initNarrationCapture(){
         body: JSON.stringify({ action: 'transcribe', audioBase64, mimeType: blob.type }),
       });
       if (!transcribeRes.ok){
-        area.innerHTML = `<div class="ai-error">Couldn't reach the transcription service. Please try again.</div>`;
+        const errData = await transcribeRes.json().catch(() => null);
+        area.innerHTML = `
+          <div class="ai-error">
+            Couldn't reach the transcription service: ${escapeHtml(errData?.error || `HTTP ${transcribeRes.status}`)}
+            ${errData?.detail ? `<div style="margin-top:8px; padding:8px; background:rgba(0,0,0,0.04); border-radius:6px; font-family:monospace; font-size:11px; white-space:pre-wrap;">${escapeHtml(JSON.stringify(errData.detail, null, 2))}</div>` : ''}
+          </div>`;
         setIdleUI();
         return;
       }
@@ -252,7 +257,12 @@ Respond with the JSON object only. Do not include any text, explanation, or mark
         body: JSON.stringify({ action: 'extract', promptText }),
       });
       if (!extractRes.ok){
-        area.innerHTML = `<div class="ai-error">Couldn't reach the AI right now. Please check your connection and try again.</div>`;
+        const errData = await extractRes.json().catch(() => null);
+        area.innerHTML = `
+          <div class="ai-error">
+            Couldn't reach the AI: ${escapeHtml(errData?.error || `HTTP ${extractRes.status}`)}
+            ${errData?.detail ? `<div style="margin-top:8px; padding:8px; background:rgba(0,0,0,0.04); border-radius:6px; font-family:monospace; font-size:11px; white-space:pre-wrap;">${escapeHtml(JSON.stringify(errData.detail, null, 2))}</div>` : ''}
+          </div>`;
         setIdleUI();
         return;
       }

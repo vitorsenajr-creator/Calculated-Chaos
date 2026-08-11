@@ -533,6 +533,17 @@ next minor bump:
   folded into the same retry loop as the aspect/packageType fixes (now
   handles all three error shapes per attempt, bumped to 4 retries to give
   the added condition search room).
+- **v3.13.40** — Vitor came back to test voice narration (unrelated to
+  the eBay work above — he wants it working for tomorrow) and hit
+  "Couldn't reach the transcription service" with no way to see why: the
+  narration UI's error paths (`!transcribeRes.ok`/`!extractRes.ok` in
+  `modules/narration-capture.js`) only ever showed a fixed generic
+  string, never the actual `error`/`detail` the server returned — same
+  gap the eBay audit tool already had fixed for itself. Both now surface
+  the real message and detail from `/api/narration`'s response, so the
+  next failure is diagnosable without DevTools. Root cause of this
+  particular failure not yet identified — waiting on the improved error
+  text from a retry.
 
 ## Planned changes (backlog)
 
