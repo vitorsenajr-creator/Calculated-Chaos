@@ -715,6 +715,23 @@ next minor bump:
   (`#authCheckingState`) shown by default instead — the real login form
   only appears if the check actually determines she's logged out.
 
+- **v3.13.48** — First real regression from this whole Live Catalog thread:
+  the entire page broke right after v3.13.47 shipped — raw CSS text
+  dumped visibly onto the page instead of being applied as styles. Cause:
+  a CSS comment in `live-catalog.html` explaining the thermal-mode
+  `@page` override literally contained the string `</style>` (documenting
+  that thermal mode injects its own `<style>@page{...}</style>` tag) —
+  the HTML parser closes a `<style>` element on the first `</style>`
+  byte-sequence it sees, with **zero regard for CSS comment syntax**,
+  since `<style>` content is parsed as raw text, not CSS. That closed the
+  real stylesheet block early, and every rule after it (the rest of the
+  file's CSS) became literal visible page text instead of being parsed as
+  CSS. Fixed by rewording the comment to avoid the literal sequence.
+  **Lesson**: never write a literal `</style>` (or `</script>`) inside a
+  `<style>`/`<script>` block for ANY reason, including comments and
+  documentation — the HTML tokenizer doesn't parse CSS/JS comment syntax
+  before scanning for the closing tag sequence.
+
 ## Planned changes (backlog)
 
 Not implemented yet — captured here so they survive between sessions.

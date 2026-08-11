@@ -100,7 +100,7 @@
       body > *:not(#lcPrintOverlay){ display:none !important; }
       #lcPrintOverlay{ display:block !important; }
       /* Default page size for sheet mode (Avery 5260, letter-size). Thermal
-         mode overrides this with its own injected <style>@page{...}</style>
+         mode overrides this with its own injected page-size style tag
          inside #lcPrintOverlay — later in source order, so it wins. */
       @page{ size:8.5in 11in; margin:0; }
     }
