@@ -662,6 +662,17 @@ next minor bump:
   slightly by printer/browser, so the first real sheet should be checked
   against actual peel-off label alignment before printing a full batch.
 
+- **v3.13.46** — Found the actual reason Vitor couldn't find the Live
+  Catalog link on mobile: the "🔴 Live" link only ever existed in
+  `#sidebarNav` (`index.html`), which is hidden below the 900px desktop
+  breakpoint — mobile uses the separate `.tabs` bar instead, which never
+  got the same link when Live Catalog shipped (v3.13.6). Added a matching
+  `<a class="tab-btn" href="/live-catalog.html">🔴 Live</a>` to `.tabs`.
+  Needed one CSS fix to look right there: `.tab-btn` never set
+  `text-decoration:none` (only `.sidebar-link` did), so as a bare `<a>`
+  it would've rendered underlined unlike its sibling `<button>` tabs —
+  added `text-decoration:none; display:inline-block;` to `.tab-btn`.
+
 ## Planned changes (backlog)
 
 Not implemented yet — captured here so they survive between sessions.

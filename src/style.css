@@ -105,6 +105,7 @@
     font-size:13px; font-weight:600; white-space:nowrap;
     padding:9px 16px; border:1px solid var(--line); background:var(--white);
     border-radius:20px; cursor:pointer; color:var(--plum-soft);
+    text-decoration:none; display:inline-block;
   }
   .tab-btn.active{background:var(--terracotta); color:var(--white); border-color:var(--terracotta);}
 
