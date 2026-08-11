@@ -90,8 +90,7 @@
       background:var(--white); border:1px solid var(--line); border-radius:12px; padding:12px 14px;
     }
     .lc-print-toolbar label{ font-size:12px; color:var(--plum-soft); font-weight:600; }
-    .lc-print-toolbar input[type=number]{ width:64px; padding:6px 8px; border:1px solid var(--line); border-radius:6px; }
-    #lcPrintLabelsBtn{
+    #lcOpenLabelConfigBtn{
       background:var(--terracotta); color:white; border:none; border-radius:8px;
       padding:9px 14px; font-size:12.5px; font-weight:700; cursor:pointer;
     }
@@ -100,16 +99,74 @@
     @media print{
       body > *:not(#lcPrintOverlay){ display:none !important; }
       #lcPrintOverlay{ display:block !important; }
+      /* Default page size for sheet mode (Avery 5260, letter-size). Thermal
+         mode overrides this with its own injected <style>@page{...}</style>
+         inside #lcPrintOverlay — later in source order, so it wins. */
       @page{ size:8.5in 11in; margin:0; }
     }
     .lc-label-sheet{ width:8.5in; height:11in; position:relative; page-break-after:always; }
     .lc-label{
+      font-family:Arial, sans-serif;
       position:absolute; width:2.625in; height:1in; box-sizing:border-box; padding:0.08in 0.14in;
       overflow:hidden; display:flex; flex-direction:column; justify-content:center;
     }
     .lc-label .lc-label-sku{ font-family:'JetBrains Mono',monospace; font-size:15px; font-weight:800; letter-spacing:0.02em; }
-    .lc-label .lc-label-meta{ font-family:Arial, sans-serif; font-size:11px; margin-top:3px; color:#222; }
-    .lc-label .lc-label-num{ font-family:Arial, sans-serif; font-size:9px; margin-top:3px; color:#666; }
+    .lc-label .lc-label-meta{ font-size:11px; margin-top:3px; color:#222; }
+    .lc-label .lc-label-num{ font-size:9px; margin-top:3px; color:#666; }
+
+    /* Thermal / continuous-roll mode — items stacked one after another down
+       a strip sized to the chosen label width, with a dashed cut-guide line
+       between each one. Unlike the fixed Avery grid, page height is "auto"
+       so a real continuous-feed thermal printer (or a normal printer set to
+       a custom label-roll paper size) prints the whole strip as one long
+       page instead of forcing a fixed-height cut. */
+    .lc-thermal-strip{ display:flex; flex-direction:column; }
+    .lc-thermal-label{
+      font-family:Arial, sans-serif; box-sizing:border-box; padding:0.1in 0.16in;
+      display:flex; flex-direction:column; justify-content:center; overflow:hidden;
+    }
+    .lc-thermal-label .lc-label-sku{ font-family:'JetBrains Mono',monospace; font-weight:800; letter-spacing:0.02em; }
+    .lc-thermal-label .lc-label-meta{ margin-top:4px; color:#222; }
+    .lc-thermal-label .lc-label-num{ margin-top:4px; color:#666; }
+    .lc-thermal-cut{ border-top:1px dashed #999; height:0; margin:0 0.06in; position:relative; }
+    .lc-thermal-cut::after{
+      content:'✂ cut here'; position:absolute; left:2px; top:-7px; font-size:6px; color:#999;
+      background:white; padding:0 3px; font-family:Arial, sans-serif;
+    }
+
+    /* ---------- Label settings modal (fields, sheet/thermal mode, preview) ---------- */
+    .lc-modal-overlay{
+      display:none; position:fixed; inset:0; background:rgba(43,36,30,0.45); z-index:100;
+      align-items:flex-start; justify-content:center; overflow-y:auto; padding:24px 16px;
+    }
+    .lc-modal-card{
+      background:var(--white); border-radius:16px; padding:22px; max-width:520px; width:100%;
+      box-shadow:0 12px 40px rgba(0,0,0,0.2);
+    }
+    .lc-modal-card h3{ font-family:'Fraunces',serif; font-style:italic; font-size:19px; color:var(--plum); margin:0 0 4px; }
+    .lc-modal-sub{ font-size:12px; color:var(--plum-soft); margin-bottom:16px; }
+    .lc-config-section{ margin-bottom:16px; }
+    .lc-config-section > label.lc-config-label{
+      display:block; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em;
+      color:var(--plum-soft); margin-bottom:8px;
+    }
+    .lc-field-toggles{ display:flex; flex-wrap:wrap; gap:10px 16px; }
+    .lc-field-toggles label{ font-size:13px; color:var(--plum); display:flex; align-items:center; gap:6px; cursor:pointer; }
+    #lcLabelMode{ width:100%; padding:9px 11px; border:1px solid var(--line); border-radius:8px; font-size:13px; }
+    .lc-inline-field{ display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--plum-soft); font-weight:600; margin-top:10px; }
+    .lc-inline-field input[type=number]{ width:70px; padding:6px 8px; border:1px solid var(--line); border-radius:6px; }
+    .lc-thermal-custom-row{ display:flex; gap:12px; margin-top:10px; }
+    .lc-label-preview-area{
+      display:flex; flex-wrap:wrap; gap:10px; padding:14px; background:var(--cream-soft);
+      border-radius:10px; max-height:260px; overflow:auto;
+    }
+    .lc-label-preview-area .lc-label{ position:static; border:1px dashed var(--line); background:white; }
+    .lc-label-preview-area .lc-thermal-label{ border:1px dashed var(--line); background:white; }
+    .lc-label-preview-more{ font-size:11.5px; color:var(--plum-soft); align-self:center; }
+    .lc-modal-actions{ display:flex; justify-content:flex-end; gap:10px; margin-top:18px; }
+    .lc-modal-actions button{ padding:10px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; }
+    #lcLabelConfigCancelBtn{ background:transparent; border:1px solid var(--line); color:var(--plum-soft); }
+    #lcLabelConfigPrintBtn{ background:var(--terracotta); border:none; color:white; }
 
     /* Mobile (added — narration is mainly used from the phone during prep,
        so the quick-add form needs to actually be usable one-handed, not
@@ -179,6 +236,8 @@
 
 <div id="authOverlay" style="display:flex;">
   <div class="auth-card">
+    <div id="authCheckingState" style="text-align:center; padding:20px 0; color:var(--plum-soft); font-size:13px;">Checking your session…</div>
+    <div id="authFormState" style="display:none;">
     <h2>Live Catalog</h2>
     <p class="auth-sub">Sign in with your Calculated Chaos account.</p>
     <form id="authForm">
@@ -189,6 +248,7 @@
       <button type="submit" class="auth-submit" id="authSubmitBtn">Sign in</button>
     </form>
     <div class="auth-error" id="authError" style="display:none;"></div>
+    </div>
   </div>
 </div>
 
@@ -264,7 +324,7 @@
       <button type="button" class="lc-add-measure-btn" id="lcAddMeasureRowBtn">+ Add measurement</button>
 
       <div class="lc-photo-row">
-        <label style="display:block; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; color:var(--plum-soft); margin-bottom:7px;">Photos (optional)</label>
+        <label style="display:block; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; color:var(--plum-soft); margin-bottom:7px;">Photos (optional, up to 6)</label>
         <div class="lc-photo-thumbs" id="lcPhotoThumbs">
           <button type="button" id="lcPhotoAddBtn" title="Add photo">+</button>
         </div>
@@ -281,9 +341,8 @@
 
     <div class="lc-print-toolbar">
       <label><input type="checkbox" id="lcPrintSelectAll"> Select all</label>
-      <label>Start at label # <input type="number" id="lcPrintStartPos" min="1" max="30" value="1"></label>
-      <span style="font-size:11px; color:var(--plum-soft);">(1–30, for a sheet with some labels already used)</span>
-      <button type="button" id="lcPrintLabelsBtn">🖨️ Print labels</button>
+      <span style="font-size:11px; color:var(--plum-soft);">Check rows below, then configure & print their labels.</span>
+      <button type="button" id="lcOpenLabelConfigBtn">⚙️ Label settings & print</button>
     </div>
 
     <div class="lc-table-wrap">
@@ -298,6 +357,68 @@
 
   <datalist id="lcMeasureLabelOptions"></datalist>
 </main>
+
+<div class="lc-modal-overlay" id="lcLabelConfigOverlay">
+  <div class="lc-modal-card">
+    <h3>Label settings</h3>
+    <div class="lc-modal-sub" id="lcLabelConfigCount"></div>
+
+    <div class="lc-config-section">
+      <label class="lc-config-label">Fields to include</label>
+      <div class="lc-field-toggles">
+        <label><input type="checkbox" id="lcLblSku" checked> SKU</label>
+        <label><input type="checkbox" id="lcLblNum" checked> Live #</label>
+        <label><input type="checkbox" id="lcLblTipo" checked> Tipo</label>
+        <label><input type="checkbox" id="lcLblBrand" checked> Brand</label>
+        <label><input type="checkbox" id="lcLblSize" checked> Size</label>
+        <label><input type="checkbox" id="lcLblColor"> Color</label>
+      </div>
+    </div>
+
+    <div class="lc-config-section">
+      <label class="lc-config-label">Label sheet type</label>
+      <select id="lcLabelMode">
+        <option value="sheet">Adhesive sheet — Avery 5260 (1" × 2⅝", 30/sheet)</option>
+        <option value="thermal">Thermal / continuous roll</option>
+      </select>
+
+      <div id="lcSheetOptions">
+        <div class="lc-inline-field">
+          Start at label # <input type="number" id="lcPrintStartPos" min="1" max="30" value="1">
+          <span style="font-weight:400;">(1–30, for a sheet with some labels already used)</span>
+        </div>
+      </div>
+
+      <div id="lcThermalOptions" style="display:none;">
+        <div class="lc-inline-field" style="margin-top:10px;">
+          <span style="width:100%;">
+            Label size
+            <select id="lcThermalSizePreset" style="width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:6px; margin-top:6px;">
+              <option value="4x6">Shipping label — 4" × 6" (default)</option>
+              <option value="4x3">Shipping label — 4" × 3"</option>
+              <option value="2.25x1.25">Small thermal — 2.25" × 1.25"</option>
+              <option value="custom">Custom size…</option>
+            </select>
+          </span>
+        </div>
+        <div class="lc-thermal-custom-row" id="lcThermalCustomSize" style="display:none;">
+          <label class="lc-inline-field">W (in) <input type="number" id="lcThermalW" step="0.1" min="0.5" value="4"></label>
+          <label class="lc-inline-field">H (in) <input type="number" id="lcThermalH" step="0.1" min="0.5" value="6"></label>
+        </div>
+      </div>
+    </div>
+
+    <div class="lc-config-section">
+      <label class="lc-config-label">Preview</label>
+      <div class="lc-label-preview-area" id="lcLabelPreviewArea"></div>
+    </div>
+
+    <div class="lc-modal-actions">
+      <button type="button" id="lcLabelConfigCancelBtn">Cancel</button>
+      <button type="button" id="lcLabelConfigPrintBtn">🖨️ Print</button>
+    </div>
+  </div>
+</div>
 
 <div id="lcPrintOverlay"></div>
 

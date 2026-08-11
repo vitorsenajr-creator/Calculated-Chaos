@@ -673,6 +673,48 @@ next minor bump:
   it would've rendered underlined unlike its sibling `<button>` tabs —
   added `text-decoration:none; display:inline-block;` to `.tab-btn`.
 
+- **v3.13.47** — Feedback from the first real test pass on Live Catalog
+  (2026-08-11): (1) **Likely fixed** the "print labels does nothing on
+  phone, works fine on PC" report — the print button's handler called
+  `confirm()` when no rows were checked, then `window.print()` afterward;
+  iOS Safari can silently drop a `window.print()` call if it happens after
+  a blocking dialog or any gap since the click, because that breaks the
+  "direct user activation" requirement (desktop browsers are looser about
+  this, which is why it worked there). Replaced the confirm() with plain
+  modal text ("No rows checked — this will print all N items") so
+  `window.print()` now fires synchronously inside the click handler with
+  nothing in between. **Not yet confirmed on a real phone** — the
+  mechanism matches the symptom exactly, but should be tested for real
+  before assuming it's fully resolved. (2) Replaced the old
+  straight-to-print flow with a "⚙️ Label settings & print" modal
+  (`#lcLabelConfigOverlay`) — lets her choose which fields print (SKU,
+  Live #, Tipo, Brand, Size, Color — all optional now, previously
+  hardcoded) with a live on-screen preview of up to 6 real labels before
+  committing paper, addressing "não tem como saber como vai ficar antes
+  de imprimir." Last-used field/mode choices persist to
+  `live_catalog_options/main` (`labelConfig`) so she doesn't reconfigure
+  every time. (3) Added a second label type alongside the existing Avery
+  5260 sheet: "Thermal / continuous roll" — a vertical strip of labels
+  (one per item) sized to a chosen dimension (dropdown presets: 4"×6"
+  shipping label — the default, per her request — 4"×3", or the existing
+  2.25"×1.25" small-thermal size already used by the main catalog's own
+  label printer; "Custom size…" reveals width/height inputs), with a
+  dashed "✂ cut here" guide line between each label and `@page{size:Win
+  auto}` (via an injected `<style>` tag, later in source order than the
+  sheet mode's default `@page` rule so it wins when active) so a
+  continuous-feed printer isn't forced into a fixed page height. (4)
+  Capped optional item photos at 6 (`MAX_LIVE_PHOTOS`) — the "+" button
+  hides once the limit is hit; adding was already on-demand per photo
+  before this, just uncapped. (5) Fixed the login screen flashing on
+  every navigation to/from Live Catalog (and on every hard reload of the
+  main app too — same root cause, both fixed together): `#authOverlay`
+  was visible with the actual login FORM shown by default in the HTML,
+  so even an already-signed-in user saw it flash for the ~1 frame+ it
+  takes Firebase's async `onAuthStateChanged` to confirm they're logged
+  in. Added a neutral "Checking your session…" placeholder
+  (`#authCheckingState`) shown by default instead — the real login form
+  only appears if the check actually determines she's logged out.
+
 ## Planned changes (backlog)
 
 Not implemented yet — captured here so they survive between sessions.

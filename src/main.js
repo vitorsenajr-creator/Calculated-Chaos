@@ -65,7 +65,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.46';
+  const APP_VERSION = 'v3.13.47';
   const APP_VERSION_DATE = '2026-08-11';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -5443,14 +5443,23 @@ EBAY_MERCHANT_LOCATION_KEY=${escapeHtml(data.results.merchantLocationKey)}</div>
   // "Awaiting approval" screen until the admin approves them in Settings.
   let isSignupMode = false;
 
+  // A returning, already-signed-in user still has to wait for Firebase's
+  // async onAuthStateChanged callback to fire before showApp() can run —
+  // showing the actual login FORM by default during that gap meant every
+  // page load flashed the login screen even for someone who never needed
+  // to type anything. #authCheckingState is a neutral "Checking your
+  // session…" placeholder shown by default instead; showAuthForm()/
+  // showAuthPending() only swap it out once we know it's actually needed.
   function showAuthForm(){
     document.getElementById('authOverlay').style.display = 'flex';
+    document.getElementById('authCheckingState').style.display = 'none';
     document.getElementById('authFormState').style.display = 'block';
     document.getElementById('authPendingState').style.display = 'none';
     document.body.classList.add('auth-locked');
   }
   function showAuthPending(){
     document.getElementById('authOverlay').style.display = 'flex';
+    document.getElementById('authCheckingState').style.display = 'none';
     document.getElementById('authFormState').style.display = 'none';
     document.getElementById('authPendingState').style.display = 'block';
     document.body.classList.add('auth-locked');
