@@ -8,8 +8,10 @@ import { items, setItems } from './modules/state.js';
 import {
   getAllClothingTypes, getAllBrands, getSizeSuggestionsForType,
 } from './modules/catalog-lookups.js';
-import { PRESET_CLOTHING_TYPES, PLATFORM_LABEL } from './modules/constants.js';
+import { PRESET_CLOTHING_TYPES, PRESET_COLORS, PLATFORM_LABEL } from './modules/constants.js';
 import { escapeHtml } from './modules/format-utils.js';
+import { compressImage } from './modules/image-compression.js';
+import { initLiveNarration } from './modules/live-narration.js';
 
 // Common garment measurement labels — same vocabulary the main app's
 // measure tool already uses (Top/Pants/Dress/Outerwear categories,
@@ -21,10 +23,43 @@ const DEFAULT_MEASURE_LABELS = [
   'Waist', 'Hip', 'Inseam', 'Rise', 'Width', 'Neck', 'Thigh', 'Length (insole)',
 ];
 
-let customOptions = { tipos: [], brands: [], sizes: [], fabrics: [], measureLabels: [] };
+let customOptions = { tipos: [], brands: [], sizes: [], colors: [], fabrics: [], measureLabels: [] };
 let currentSession = null; // { id, name, date, startNum, nextNum, itemCount }
 let liveItemsCache = [];   // items in the currently-open session
 let measureRowCount = 0;
+let currentPhotos = [];    // compressed data-URLs pending upload for the item being built in the form
+
+// ---------- SKU (added for Live Show — a stock number distinct from both
+// the session's own #-Live sequence and the main catalog's productCode) ----
+// LV-0001-K: "LV-" prefix + its own global counter (live_catalog_options/
+// skuCounter, incremented via a transaction so concurrent adds never
+// collide) + a check-letter computed from the number, for quick manual
+// typo-catching when reading it off a printed label. Deliberately always
+// ends in a LETTER, never a digit — the main catalog's nextProductCode()
+// matches trailing digits to find where ITS sequence should resume
+// (see catalog-lookups.js), so a Live SKU that happened to end in a raw
+// number would risk being misread as a main-catalog code if these two
+// systems ever cross paths (e.g. a future "promote to real catalog" flow).
+function skuCheckLetter(numStr){
+  let sum = 0;
+  for (let i = 0; i < numStr.length; i++) sum += parseInt(numStr[i], 10) * (i + 1);
+  return String.fromCharCode(65 + (sum % 26));
+}
+function formatLiveSku(n){
+  const numStr = String(n).padStart(4, '0');
+  return `LV-${numStr}-${skuCheckLetter(numStr)}`;
+}
+async function nextLiveSku(){
+  const { doc, runTransaction } = fns();
+  const counterRef = doc(db(), 'live_catalog_options', 'skuCounter');
+  const n = await runTransaction(db(), async (tx) => {
+    const snap = await tx.get(counterRef);
+    const current = snap.exists() ? (snap.data().next || 1) : 1;
+    tx.set(counterRef, { next: current + 1 }, { merge: true });
+    return current;
+  });
+  return formatLiveSku(n);
+}
 
 function db(){ return window.db; }
 function fns(){ return window.firestoreFns; }
@@ -94,10 +129,12 @@ async function initLiveCatalog(){
   try{
     const { doc, getDoc } = fns();
     const optSnap = await getDoc(doc(db(), 'live_catalog_options', 'main'));
-    if (optSnap.exists()) customOptions = { tipos:[], brands:[], sizes:[], fabrics:[], measureLabels:[], ...optSnap.data() };
+    if (optSnap.exists()) customOptions = { tipos:[], brands:[], sizes:[], colors:[], fabrics:[], measureLabels:[], ...optSnap.data() };
   }catch(e){ console.warn('Could not load saved Live Catalog options:', e); }
 
   renderMeasureLabelOptions();
+  initLiveNarration({ rememberIfNew, addMeasureRow });
+  initPhotoWidget();
   await renderSessionList();
 }
 
@@ -114,7 +151,10 @@ async function saveCustomOptions(){
 function rememberIfNew(listKey, value){
   if (!value || !value.trim()) return;
   const v = value.trim();
-  const existing = new Set([...(listKey === 'tipos' ? PRESET_CLOTHING_TYPES : []), ...customOptions[listKey]]);
+  const existing = new Set([
+    ...(listKey === 'tipos' ? PRESET_CLOTHING_TYPES : listKey === 'colors' ? PRESET_COLORS : []),
+    ...customOptions[listKey],
+  ]);
   if (!existing.has(v)){
     customOptions[listKey] = [...customOptions[listKey], v];
     saveCustomOptions();
@@ -135,6 +175,8 @@ function renderFieldOptions(){
   const currentTipo = document.getElementById('lcTipo').value.trim();
   const sizeAll = Array.from(new Set([...getSizeSuggestionsForType(items, currentTipo), ...customOptions.sizes]));
   document.getElementById('lcSizeOptions').innerHTML = sizeAll.map(s => `<option value="${escapeHtml(s)}">`).join('');
+  const colorAll = Array.from(new Set([...PRESET_COLORS, ...customOptions.colors]));
+  document.getElementById('lcColorOptions').innerHTML = colorAll.map(c => `<option value="${escapeHtml(c)}">`).join('');
   // No preset fabric list anywhere in the app (main catalog has no
   // structured fabric field either) — just whatever's been typed before.
   document.getElementById('lcFabricOptions').innerHTML = customOptions.fabrics.map(f => `<option value="${escapeHtml(f)}">`).join('');
@@ -234,17 +276,73 @@ function addMeasureRow(label, value){
 }
 document.getElementById('lcAddMeasureRowBtn').addEventListener('click', () => addMeasureRow());
 
+// ---------- PHOTOS (optional, multiple per item) ----------
+// Compressed client-side (same compressImage() the main catalog uses) and
+// held as pending data-URLs until "Add item" actually uploads them to
+// Storage — mirrors main.js's ensurePhotosHostedForSave pattern (photos
+// never sit as base64 inside the Firestore document itself) but scoped to
+// its own live-item-photos/ Storage path, fully separate from the real
+// catalog's item-photos/.
+function initPhotoWidget(){
+  const input = document.getElementById('lcPhotoInput');
+  const addBtn = document.getElementById('lcPhotoAddBtn');
+  addBtn.addEventListener('click', () => input.click());
+  input.addEventListener('change', async () => {
+    const files = Array.from(input.files || []);
+    input.value = '';
+    for (const file of files){
+      try{
+        const dataUrl = await compressImage(file);
+        currentPhotos.push(dataUrl);
+      }catch(e){ console.error('Photo compression failed:', e); }
+    }
+    renderPhotoThumbs();
+  });
+}
+function renderPhotoThumbs(){
+  const wrap = document.getElementById('lcPhotoThumbs');
+  const addBtn = document.getElementById('lcPhotoAddBtn');
+  wrap.querySelectorAll('.lc-photo-thumb').forEach(el => el.remove());
+  currentPhotos.forEach((src, idx) => {
+    const thumb = document.createElement('div');
+    thumb.className = 'lc-photo-thumb';
+    thumb.innerHTML = `<img src="${src}"><button type="button" class="lc-photo-rm" title="Remove">✕</button>`;
+    thumb.querySelector('.lc-photo-rm').addEventListener('click', () => {
+      currentPhotos.splice(idx, 1);
+      renderPhotoThumbs();
+    });
+    wrap.insertBefore(thumb, addBtn);
+  });
+}
+async function uploadLivePhotos(itemId, photosArray){
+  if (!photosArray.length) return [];
+  const { ref, uploadString, getDownloadURL } = window.storageFns;
+  const hosted = [];
+  for (let i = 0; i < photosArray.length; i++){
+    const path = `live-item-photos/${itemId}/${i}_${Date.now()}.jpg`;
+    const fileRef = ref(window.storage, path);
+    await uploadString(fileRef, photosArray[i], 'data_url');
+    hosted.push(await getDownloadURL(fileRef));
+  }
+  return hosted;
+}
+
 function resetForm(keepNum){
   document.getElementById('lcNum').value = keepNum ?? (currentSession ? currentSession.nextNum : 1);
   document.getElementById('lcTipo').value = '';
   document.getElementById('lcBrand').value = '';
   document.getElementById('lcSize').value = '';
+  document.getElementById('lcColor').value = '';
   document.getElementById('lcFabric').value = '';
+  document.getElementById('lcNotes').value = '';
   document.getElementById('lcMeasureRows').innerHTML = '';
   measureRowCount = 0;
   // At least 5 rows available every time, per her spec — she can add more,
   // never fewer, so there's always room without an extra click.
   for (let i = 0; i < 5; i++) addMeasureRow();
+  currentPhotos = [];
+  renderPhotoThumbs();
+  document.getElementById('lcNarrationArea').innerHTML = '';
   document.getElementById('lcTipo').focus();
 }
 
@@ -252,29 +350,40 @@ document.getElementById('lcAddItemBtn').addEventListener('click', async () => {
   if (!currentSession) return;
   const btn = document.getElementById('lcAddItemBtn');
   btn.disabled = true;
+  const originalLabel = btn.textContent;
   try{
     const num = parseInt(document.getElementById('lcNum').value, 10) || currentSession.nextNum;
     const tipo = document.getElementById('lcTipo').value.trim();
     const brand = document.getElementById('lcBrand').value.trim();
     const size = document.getElementById('lcSize').value.trim();
+    const color = document.getElementById('lcColor').value.trim();
     const fabric = document.getElementById('lcFabric').value.trim();
+    const prepNotes = document.getElementById('lcNotes').value.trim();
     const measurements = Array.from(document.querySelectorAll('#lcMeasureRows .lc-measure-row')).map(row => ({
       label: row.querySelector('[data-measure-label]').value.trim(),
       value: row.querySelector('[data-measure-value]').value.trim(),
     })).filter(m => m.label || m.value);
+    const photosToUpload = [...currentPhotos];
 
     // Nothing is required to save (moving fast during a live) — even a
     // totally blank row still gets a number reserved, editable later.
     rememberIfNew('tipos', tipo);
     rememberIfNew('brands', brand);
     rememberIfNew('sizes', size);
+    rememberIfNew('colors', color);
     rememberIfNew('fabrics', fabric);
     measurements.forEach(m => rememberIfNew('measureLabels', m.label));
     renderMeasureLabelOptions();
 
     const { doc, setDoc, updateDoc } = fns();
     const itemId = `${currentSession.id}_${Date.now()}`;
-    const itemDoc = { sessionId: currentSession.id, num, tipo, brand, size, fabric, measurements, createdAt: Date.now() };
+
+    if (photosToUpload.length){ btn.textContent = `Uploading photos… (0/${photosToUpload.length})`; }
+    const photos = await uploadLivePhotos(itemId, photosToUpload);
+    btn.textContent = 'Saving…';
+    const sku = await nextLiveSku();
+
+    const itemDoc = { sessionId: currentSession.id, num, sku, tipo, brand, size, color, fabric, prepNotes, measurements, photos, createdAt: Date.now() };
     await setDoc(doc(db(), 'liveItems', itemId), itemDoc);
 
     // If she edited the number to something higher than the running
@@ -292,6 +401,7 @@ document.getElementById('lcAddItemBtn').addEventListener('click', async () => {
     alert("Couldn't save that item — check your connection and try again.");
   }finally{
     btn.disabled = false;
+    btn.textContent = originalLabel;
   }
 });
 
@@ -325,21 +435,34 @@ function saleFieldsHtml(item){
     </div>`;
 }
 
+function photoCellHtml(item){
+  const photos = item.photos || [];
+  if (!photos.length) return `<span class="lc-sale-empty">—</span>`;
+  return `
+    <img class="lc-table-photo" src="${photos[0]}" data-view-photos="${item.id}">
+    ${photos.length > 1 ? `<div class="lc-table-photo-count">+${photos.length - 1} more</div>` : ''}
+  `;
+}
+
 function renderLiveItemsTableRows(){
   const body = document.getElementById('lcTableBody');
   if (!liveItemsCache.length){
-    body.innerHTML = `<tr><td colspan="9" class="lc-empty">No items yet — add your first one above.</td></tr>`;
+    body.innerHTML = `<tr><td colspan="13" class="lc-empty">No items yet — add your first one above.</td></tr>`;
     return;
   }
   const sorted = [...liveItemsCache].sort((a,b) => (a.num||0) - (b.num||0));
   body.innerHTML = sorted.map(item => `
     <tr data-item-row="${item.id}">
       <td class="lc-num-cell"><input type="number" data-field="num" value="${item.num ?? ''}"></td>
+      <td class="lc-sku-cell">${escapeHtml(item.sku || '—')}</td>
       <td><input type="text" data-field="tipo" value="${escapeHtml(item.tipo || '')}"></td>
       <td><input type="text" data-field="brand" value="${escapeHtml(item.brand || '')}"></td>
       <td><input type="text" data-field="size" value="${escapeHtml(item.size || '')}"></td>
+      <td><input type="text" data-field="color" value="${escapeHtml(item.color || '')}"></td>
       <td><input type="text" data-field="fabric" value="${escapeHtml(item.fabric || '')}"></td>
+      <td>${photoCellHtml(item)}</td>
       <td class="lc-measure-cell">${escapeHtml(measurementsSummary(item.measurements))}</td>
+      <td class="lc-notes-cell"><textarea data-field="prepNotes" placeholder="—">${escapeHtml(item.prepNotes || '')}</textarea></td>
       <td><button class="lc-sold-btn${item.sold ? ' is-sold' : ''}" data-toggle-sold="${item.id}">${item.sold ? '✓ Sold' : 'Sold?'}</button></td>
       <td class="lc-sale-cell">${saleFieldsHtml(item)}</td>
       <td><button class="lc-del-btn" data-delete-item="${item.id}" title="Delete">🗑</button></td>
@@ -357,10 +480,16 @@ function renderLiveItemsTableRows(){
         await updateDoc(doc(db(), 'liveItems', itemId), { [field]: value });
         const cached = liveItemsCache.find(i => i.id === itemId);
         if (cached) cached[field] = value;
-        if (field === 'tipo' || field === 'brand' || field === 'size' || field === 'fabric'){
-          rememberIfNew(field === 'tipo' ? 'tipos' : field === 'brand' ? 'brands' : field === 'size' ? 'sizes' : 'fabrics', value);
+        if (field === 'tipo' || field === 'brand' || field === 'size' || field === 'color' || field === 'fabric'){
+          rememberIfNew(field === 'tipo' ? 'tipos' : field === 'brand' ? 'brands' : field === 'size' ? 'sizes' : field === 'color' ? 'colors' : 'fabrics', value);
         }
       }catch(e){ console.error('Failed to update item:', e); }
+    });
+  });
+  body.querySelectorAll('[data-view-photos]').forEach(img => {
+    img.addEventListener('click', () => {
+      const item = liveItemsCache.find(i => i.id === img.dataset.viewPhotos);
+      if (item && item.photos && item.photos.length) window.open(item.photos[0], '_blank');
     });
   });
   body.querySelectorAll('[data-toggle-sold]').forEach(btn => {

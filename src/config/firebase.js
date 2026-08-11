@@ -1,6 +1,7 @@
 import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
   import {
-    getFirestore, collection, doc, getDocs, getDoc, setDoc, deleteDoc
+    getFirestore, collection, doc, getDocs, getDoc, setDoc, updateDoc, deleteDoc,
+    query, where, runTransaction
   } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
   import {
     getStorage, ref, uploadString, getDownloadURL
@@ -21,7 +22,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
 
   const app = initializeApp(firebaseConfig);
   window.db = getFirestore(app);
-  window.firestoreFns = { collection, doc, getDocs, getDoc, setDoc, deleteDoc };
+  window.firestoreFns = { collection, doc, getDocs, getDoc, setDoc, updateDoc, deleteDoc, query, where, runTransaction };
   window.storage = getStorage(app);
   window.storageFns = { ref, uploadString, getDownloadURL };
 

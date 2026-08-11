@@ -586,6 +586,57 @@ next minor bump:
   this is decided automatically from `item.category === 'Clothing'`
   instead — the exact fix for what actually happened to the pencil.
 
+- **v3.13.44** — Started building out the Live Catalog ("Live Show") per
+  Vitor's spec (2026-08-11): narration, color, photos, and a dedicated stock
+  SKU. Design decisions confirmed with him first (prep-before-live
+  narration, extended extraction fields, multi-photo, SKU format), then:
+  (1) **Fixed a real pre-existing bug found along the way**: `live-catalog.js`
+  already called `updateDoc`/`query`/`where` (toggling "Sold?", editing table
+  fields, loading a session's item list) but `config/firebase.js` never
+  imported or exported them — those calls were `undefined()`, meaning
+  opening any live session with saved items, or editing/toggling anything
+  in the table, threw immediately. Likely never caught because the feature
+  hadn't been used with a populated session yet. Added `updateDoc`, `query`,
+  `where`, `runTransaction` to `window.firestoreFns`. (2) Added voice
+  narration to the Live Catalog quick-add form — new `modules/
+  live-narration.js`, same record/transcribe/extract pipeline as the main
+  modal's narration (`modules/narration-capture.js`, reuses `/api/
+  narration.js` untouched), but its own extraction prompt/field set (tipo,
+  brand, size, color, fabric, an array of measurements, and a new "Prep
+  notes" field — kept separate from the existing per-item SALE notes field
+  to avoid a naming collision). Fills existing blank measurement rows
+  before adding new ones. (3) Added a Color field (form + table, same
+  datalist-with-memory pattern as Tipo/Brand/Size/Fabric, seeded from the
+  main catalog's `PRESET_COLORS`). (4) Added optional multi-photo capture —
+  `compressImage()` (already used by the main catalog) client-side, then
+  uploaded to Firebase Storage at `live-item-photos/{itemId}/...` on save
+  (own path, fully separate from the real catalog's `item-photos/`), same
+  "never store raw base64 in the Firestore doc" reasoning as
+  `ensurePhotosHostedForSave` in `main.js`. Table shows a read-only
+  thumbnail (click to open full-size) — not yet editable/removable after
+  save, unlike every other field in the table; revisit if that gap matters
+  in practice. (5) Added a Live-specific stock SKU, confirmed format
+  `LV-0001-K`: `LV-` prefix + its own global counter (`live_catalog_options/
+  skuCounter`, incremented via a Firestore transaction so concurrent adds
+  during a live never collide) + a check letter computed from the number
+  (weighted digit sum mod 26 → A-Z). Deliberately always ends in a LETTER,
+  never a digit — the main catalog's `nextProductCode()` resumes its own
+  sequence by matching a TRAILING digit run on `productCode` (see
+  `catalog-lookups.js`), so a Live SKU ending in a raw number would risk
+  being misread as a main-catalog code if the two systems ever cross paths
+  (e.g. a future "promote to real catalog" flow) — ending in a letter
+  structurally rules that out. (6) Added a mobile breakpoint (`@media
+  (max-width: 720px)`) to `live-catalog.html` — Vitor confirmed narration
+  will mainly happen from his phone during prep, and the form was desktop-
+  grid-only before this. The items table still scrolls horizontally on
+  mobile rather than reflowing into cards — revisit if that's the actual
+  bottleneck once used for real. **Not yet tested against a real live
+  session or real audio** — verified via `node --check` and a clean `vite
+  build` only, same caveat as every other narration/Dashboard feature
+  shipped this way. **Label printing (25-per-sheet inkjet sheet labels,
+  he has a PDF/Word template to share) is a separate next step, not started
+  yet** — waiting on that template file before designing the print layout.
+
 ## Planned changes (backlog)
 
 Not implemented yet — captured here so they survive between sessions.
