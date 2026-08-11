@@ -556,6 +556,17 @@ next minor bump:
   entirely — appending is never destructive, so there's nothing to
   confirm. Every other field keeps the existing confirm-before-
   overwrite behavior unchanged.
+- **v3.13.42** — Vitor asked whether narration-dictated details with no
+  dedicated field (fabric composition, shoulder-to-shoulder, length,
+  etc. — everything that lands in Notes) actually reach the AI listing
+  description generator. Confirmed yes: `requestAiListingDescription()`
+  in `main.js` already sends `item.notes` verbatim as "Seller notes /
+  flaws" in its prompt — nothing further needed there. Separately fixed
+  the loading text on "Generate listing description with AI"
+  (`generateListingDescriptionAI()`), which said "Writing a
+  Poshmark-optimized listing…" with no indication this same description
+  also becomes the eBay listing description — now says "…this same
+  description is reused on eBay too" so that's not a surprise.
 
 ## Planned changes (backlog)
 
