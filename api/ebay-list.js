@@ -381,17 +381,25 @@ function resolveCondition(item){
 // valid PackageTypeEnum value, but eBay rejected it on a real listing
 // (errorId 25101, "Invalid <ShippingPackage>.") anyway, apparently
 // category/marketplace-dependent same as the aspect inconsistency
-// extractMissingAspectName already works around. eBay's own error handed
-// back what it actually wants in its parameters (format
-// "err:<code>|<value>", e.g. "err:216305|MailingBoxes") — same
-// "eBay's own error tells us the fix" approach, just for this field.
-function extractSuggestedPackageType(errorData){
+// extractMissingAspectName already works around.
+//
+// v3.13.37 tried retrying with the value from that error's own parameters
+// (format "err:<code>|<value>", e.g. "err:216305|MailingBoxes") on the
+// theory eBay was suggesting a replacement — WRONG, confirmed by a second
+// real failure: retrying with "MailingBoxes" got a completely different
+// error (errorId 2004, "Could not serialize field
+// [packageWeightAndSize.packageType]") — that string was never a valid
+// REST enum literal at all, just some internal/legacy label eBay echoed
+// back. There's no reliable way to derive a correct replacement value from
+// this error, so instead of guessing again, the retry now just OMITS
+// packageType entirely — safe since it wasn't sent before v3.13.36 either
+// (whatever category rejects 'MAILING_BOX' most likely doesn't require the
+// field at all; the one confirmed case that DOES require it, "Express -
+// Blouse", is still covered by the unconditional default on the first
+// attempt).
+function isInvalidPackageTypeError(errorData){
   const err = Array.isArray(errorData) ? errorData[0] : errorData?.errors?.[0];
-  if (!err || err.errorId !== 25101) return null;
-  const param = (err.parameters || [])[0];
-  if (!param || !param.value) return null;
-  const parts = String(param.value).split('|');
-  return parts.length > 1 ? parts[1].trim() : null;
+  return !!err && err.errorId === 25101;
 }
 
 function buildInventoryItem(item, extraRequiredAspects, imageUrls, packageTypeOverride){
@@ -456,8 +464,11 @@ function buildInventoryItem(item, extraRequiredAspects, imageUrls, packageTypeOv
       // plausibly ship as either an envelope or a box and eBay won't
       // guess. This app has no per-item package-type field, so default to
       // a generic box, same fallback-over-failure philosophy as the
-      // weight/dimensions defaults right above.
-      packageType: packageTypeOverride || 'MAILING_BOX',
+      // weight/dimensions defaults right above. packageTypeOverride ===
+      // 'OMIT' drops the field entirely — the retry path for categories
+      // that reject 'MAILING_BOX' outright (errorId 25101) instead of
+      // guessing another literal value (see isInvalidPackageTypeError).
+      ...(packageTypeOverride === 'OMIT' ? {} : { packageType: packageTypeOverride || 'MAILING_BOX' }),
       weight: { value: weight, unit: 'POUND' },
       dimensions: { length, width, height, unit: 'INCH' },
     },
@@ -586,18 +597,19 @@ export default async function handler(req, res){
     // Retry with whatever eBay's own error says is wrong, up to a few times —
     // covers two known-inconsistent fields: a missing item specific
     // (extractMissingAspectName) and an unsupported packageType
-    // (extractSuggestedPackageType, see its comment for why 'MAILING_BOX'
-    // isn't always accepted). Same "let eBay tell us the fix" approach for
-    // both, since neither is predictable ahead of time per category/listing.
+    // (isInvalidPackageTypeError, see its comment for why this drops the
+    // field on retry instead of guessing a replacement value). Same
+    // "adapt to whatever eBay actually rejected" approach for both, since
+    // neither is predictable ahead of time per category/listing.
     let retries = 0;
     while (!invResult.ok && invResult.status !== 204 && retries < 3){
       const missingName = extractMissingAspectName(invResult.data);
-      const suggestedPackageType = extractSuggestedPackageType(invResult.data);
-      if (!missingName && !suggestedPackageType) break;
+      const badPackageType = packageTypeOverride !== 'OMIT' && isInvalidPackageTypeError(invResult.data);
+      if (!missingName && !badPackageType) break;
       if (missingName){
         itemForBuild.ebayAspects = { ...(itemForBuild.ebayAspects || {}), [missingName]: 'Does not apply' };
       }
-      if (suggestedPackageType) packageTypeOverride = suggestedPackageType;
+      if (badPackageType) packageTypeOverride = 'OMIT';
       inventoryBody = buildInventoryItem(itemForBuild, requiredAspects, imageUrls, packageTypeOverride);
       invResult = await ebayRequest('PUT', `/sell/inventory/v1/inventory_item/${encodedSku}`, access_token, inventoryBody);
       retries++;
