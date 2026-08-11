@@ -474,6 +474,19 @@ next minor bump:
   off `result.detail` (the REST Inventory API's `{errors: [...]}` shape,
   which the same helper already handles via its `.message` fallback
   alongside the Trading API's `ShortMessage` shape).
+- **v3.13.36** — The v3.13.35 error-detail fix immediately paid off:
+  republishing "Express - Blouse" via "Fix selected now" failed with "A
+  user error has occurred. Please provide a valid Shipping Package
+  type." `buildInventoryItem()` in `api/ebay-list.js` never sent a
+  `packageType` on `packageWeightAndSize` — apparel categories seem to
+  trigger this requirement more than others, since a garment could
+  plausibly ship as either an envelope or a box and eBay won't guess.
+  Discussed with Vitor: rather than adding a real per-item package-type
+  field (bigger scope — new form field, new stored value, a default for
+  every already-cataloged item), defaulted `packageType` to
+  `'MAILING_BOX'` unconditionally, same fallback-over-failure philosophy
+  as the weight/dimensions defaults already sitting right above it in
+  the same function.
 
 ## Planned changes (backlog)
 
