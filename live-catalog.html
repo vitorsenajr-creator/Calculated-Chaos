@@ -41,8 +41,91 @@
       background:var(--white); border:1px solid var(--line); border-radius:16px; padding:16px; margin-bottom:20px;
       box-shadow:0 2px 10px rgba(61,44,50,0.05);
     }
-    .lc-form-grid{ display:grid; grid-template-columns:90px 1fr 1fr 1fr 1fr; gap:10px; margin-bottom:14px; }
+    .lc-form-grid{ display:grid; grid-template-columns:80px 1fr 1fr 1fr 1fr 1fr; gap:10px; margin-bottom:14px; }
     .lc-form-grid .field{ margin-bottom:0; }
+    .lc-notes-row{ margin-bottom:14px; }
+    .lc-notes-row textarea{
+      width:100%; min-height:44px; padding:9px 11px; border:1px solid var(--line); border-radius:8px;
+      font-size:13px; font-family:inherit; resize:vertical;
+    }
+
+    /* Photos (added for Live Show narration/photo prep) */
+    .lc-photo-row{ margin-bottom:14px; }
+    .lc-photo-thumbs{ display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+    .lc-photo-thumb{ position:relative; width:64px; height:64px; border-radius:8px; overflow:hidden; border:1px solid var(--line); }
+    .lc-photo-thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
+    .lc-photo-thumb .lc-photo-rm{
+      position:absolute; top:2px; right:2px; width:18px; height:18px; border-radius:50%; border:none;
+      background:rgba(0,0,0,0.6); color:white; font-size:11px; line-height:18px; text-align:center; cursor:pointer; padding:0;
+    }
+    #lcPhotoAddBtn{
+      width:64px; height:64px; border-radius:8px; border:1px dashed var(--line); background:transparent;
+      color:var(--plum-soft); font-size:20px; cursor:pointer;
+    }
+
+    /* Narration (added for Live Show — reuses the main app's ai-analysis-box styling) */
+    .lc-narrate-row{ margin-bottom:14px; display:flex; align-items:flex-start; gap:12px; flex-wrap:wrap; }
+    #lcNarrateBtn{
+      background:var(--white); border:1px solid var(--terracotta); color:var(--terracotta-deep);
+      border-radius:10px; padding:10px 16px; font-size:13px; font-weight:700; cursor:pointer; white-space:nowrap;
+    }
+    #lcNarrateBtn.recording{ background:var(--danger); border-color:var(--danger); color:white; }
+    #lcNarrationArea{ flex:1; min-width:220px; }
+    .lc-sku-cell{ font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--plum-soft); white-space:nowrap; }
+    .lc-table-photo{ width:36px; height:36px; border-radius:6px; object-fit:cover; display:block; cursor:zoom-in; }
+    .lc-table-photo-count{ font-size:10px; color:var(--plum-soft); margin-top:2px; }
+    .lc-notes-cell textarea{
+      border:1px solid var(--line); background:var(--white); font-size:12px; padding:5px 7px; border-radius:6px;
+      width:100%; min-height:36px; font-family:inherit; resize:vertical;
+    }
+
+    /* ---------- Label printing (added — Avery 5260: 1" x 2-5/8", 3 cols x
+       10 rows = 30 labels/sheet, standard letter-size inkjet sheet). Grid
+       coordinates below match Avery's own published template for 5260:
+       0.1875in left margin, 0.5in top margin, 2.75in horizontal pitch
+       (label width 2.625in + 0.125in gutter), 1in vertical pitch (no gap
+       between rows — pitch equals label height). ---------- */
+    .lc-print-toolbar{
+      display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:14px 0;
+      background:var(--white); border:1px solid var(--line); border-radius:12px; padding:12px 14px;
+    }
+    .lc-print-toolbar label{ font-size:12px; color:var(--plum-soft); font-weight:600; }
+    .lc-print-toolbar input[type=number]{ width:64px; padding:6px 8px; border:1px solid var(--line); border-radius:6px; }
+    #lcPrintLabelsBtn{
+      background:var(--terracotta); color:white; border:none; border-radius:8px;
+      padding:9px 14px; font-size:12.5px; font-weight:700; cursor:pointer;
+    }
+    .lc-print-col{ width:34px; text-align:center; }
+    #lcPrintOverlay{ display:none; }
+    @media print{
+      body > *:not(#lcPrintOverlay){ display:none !important; }
+      #lcPrintOverlay{ display:block !important; }
+      @page{ size:8.5in 11in; margin:0; }
+    }
+    .lc-label-sheet{ width:8.5in; height:11in; position:relative; page-break-after:always; }
+    .lc-label{
+      position:absolute; width:2.625in; height:1in; box-sizing:border-box; padding:0.08in 0.14in;
+      overflow:hidden; display:flex; flex-direction:column; justify-content:center;
+    }
+    .lc-label .lc-label-sku{ font-family:'JetBrains Mono',monospace; font-size:15px; font-weight:800; letter-spacing:0.02em; }
+    .lc-label .lc-label-meta{ font-family:Arial, sans-serif; font-size:11px; margin-top:3px; color:#222; }
+    .lc-label .lc-label-num{ font-family:Arial, sans-serif; font-size:9px; margin-top:3px; color:#666; }
+
+    /* Mobile (added — narration is mainly used from the phone during prep,
+       so the quick-add form needs to actually be usable one-handed, not
+       just technically viewable). The items table stays a horizontally-
+       scrolling grid either way — reworking it into cards is a bigger
+       change, revisit if the table itself becomes the bottleneck on
+       mobile too. */
+    @media (max-width: 720px){
+      main.lc-main{ padding:14px 12px 50px; }
+      .lc-header{ padding:16px 14px 12px; }
+      .lc-form-grid{ grid-template-columns:1fr 1fr; }
+      .lc-form-grid .field:first-child{ grid-column:1 / -1; }
+      .lc-narrate-row{ flex-direction:column; }
+      #lcNarrateBtn{ width:100%; }
+      .lc-new-session-box .field-row{ display:flex; flex-direction:column; gap:10px; }
+    }
     .lc-measure-row{ display:grid; grid-template-columns:1fr 1fr auto; gap:8px; margin-bottom:8px; align-items:center; }
     .lc-measure-row input{ padding:9px 11px; border:1px solid var(--line); border-radius:8px; font-size:13px; }
     .lc-measure-row .rm-btn{ background:transparent; border:none; color:var(--danger); cursor:pointer; font-size:16px; padding:4px 8px; }
@@ -142,6 +225,11 @@
     </div>
 
     <div class="lc-form">
+      <div class="lc-narrate-row">
+        <button type="button" id="lcNarrateBtn">🎙️ Narrate item</button>
+        <div id="lcNarrationArea"></div>
+      </div>
+
       <div class="lc-form-grid">
         <div class="field"><label># Live</label><input type="number" id="lcNum" min="1"></div>
         <div class="field">
@@ -160,6 +248,11 @@
           <datalist id="lcSizeOptions"></datalist>
         </div>
         <div class="field">
+          <label>Color</label>
+          <input type="text" id="lcColor" list="lcColorOptions" placeholder="e.g. Blue" autocomplete="off">
+          <datalist id="lcColorOptions"></datalist>
+        </div>
+        <div class="field">
           <label>Fabric</label>
           <input type="text" id="lcFabric" list="lcFabricOptions" placeholder="e.g. 100% cotton" autocomplete="off">
           <datalist id="lcFabricOptions"></datalist>
@@ -170,13 +263,33 @@
       <div id="lcMeasureRows"></div>
       <button type="button" class="lc-add-measure-btn" id="lcAddMeasureRowBtn">+ Add measurement</button>
 
+      <div class="lc-photo-row">
+        <label style="display:block; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; color:var(--plum-soft); margin-bottom:7px;">Photos (optional)</label>
+        <div class="lc-photo-thumbs" id="lcPhotoThumbs">
+          <button type="button" id="lcPhotoAddBtn" title="Add photo">+</button>
+        </div>
+        <input type="file" id="lcPhotoInput" accept="image/*" multiple style="display:none;">
+      </div>
+
+      <div class="lc-notes-row">
+        <label style="display:block; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; color:var(--plum-soft); margin-bottom:7px;">Prep notes (optional)</label>
+        <textarea id="lcNotes" placeholder="Anything else — flaws, styling notes, condition..."></textarea>
+      </div>
+
       <button type="button" id="lcAddItemBtn">✓ Add item</button>
+    </div>
+
+    <div class="lc-print-toolbar">
+      <label><input type="checkbox" id="lcPrintSelectAll"> Select all</label>
+      <label>Start at label # <input type="number" id="lcPrintStartPos" min="1" max="30" value="1"></label>
+      <span style="font-size:11px; color:var(--plum-soft);">(1–30, for a sheet with some labels already used)</span>
+      <button type="button" id="lcPrintLabelsBtn">🖨️ Print labels</button>
     </div>
 
     <div class="lc-table-wrap">
       <table class="lc-table" id="lcTable">
         <thead>
-          <tr><th>#</th><th>Tipo</th><th>Brand</th><th>Size</th><th>Fabric</th><th>Measurements</th><th>Sold?</th><th>Sale info</th><th></th></tr>
+          <tr><th class="lc-print-col"></th><th>#</th><th>SKU</th><th>Tipo</th><th>Brand</th><th>Size</th><th>Color</th><th>Fabric</th><th>Photo</th><th>Measurements</th><th>Prep notes</th><th>Sold?</th><th>Sale info</th><th></th></tr>
         </thead>
         <tbody id="lcTableBody"></tbody>
       </table>
@@ -185,6 +298,8 @@
 
   <datalist id="lcMeasureLabelOptions"></datalist>
 </main>
+
+<div id="lcPrintOverlay"></div>
 
 <script type="module" src="/src/live-catalog.js"></script>
 </body>

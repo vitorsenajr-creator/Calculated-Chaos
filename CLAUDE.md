@@ -586,6 +586,93 @@ next minor bump:
   this is decided automatically from `item.category === 'Clothing'`
   instead — the exact fix for what actually happened to the pencil.
 
+- **v3.13.44** — Started building out the Live Catalog ("Live Show") per
+  Vitor's spec (2026-08-11): narration, color, photos, and a dedicated stock
+  SKU. Design decisions confirmed with him first (prep-before-live
+  narration, extended extraction fields, multi-photo, SKU format), then:
+  (1) **Fixed a real pre-existing bug found along the way**: `live-catalog.js`
+  already called `updateDoc`/`query`/`where` (toggling "Sold?", editing table
+  fields, loading a session's item list) but `config/firebase.js` never
+  imported or exported them — those calls were `undefined()`, meaning
+  opening any live session with saved items, or editing/toggling anything
+  in the table, threw immediately. Likely never caught because the feature
+  hadn't been used with a populated session yet. Added `updateDoc`, `query`,
+  `where`, `runTransaction` to `window.firestoreFns`. (2) Added voice
+  narration to the Live Catalog quick-add form — new `modules/
+  live-narration.js`, same record/transcribe/extract pipeline as the main
+  modal's narration (`modules/narration-capture.js`, reuses `/api/
+  narration.js` untouched), but its own extraction prompt/field set (tipo,
+  brand, size, color, fabric, an array of measurements, and a new "Prep
+  notes" field — kept separate from the existing per-item SALE notes field
+  to avoid a naming collision). Fills existing blank measurement rows
+  before adding new ones. (3) Added a Color field (form + table, same
+  datalist-with-memory pattern as Tipo/Brand/Size/Fabric, seeded from the
+  main catalog's `PRESET_COLORS`). (4) Added optional multi-photo capture —
+  `compressImage()` (already used by the main catalog) client-side, then
+  uploaded to Firebase Storage at `live-item-photos/{itemId}/...` on save
+  (own path, fully separate from the real catalog's `item-photos/`), same
+  "never store raw base64 in the Firestore doc" reasoning as
+  `ensurePhotosHostedForSave` in `main.js`. Table shows a read-only
+  thumbnail (click to open full-size) — not yet editable/removable after
+  save, unlike every other field in the table; revisit if that gap matters
+  in practice. (5) Added a Live-specific stock SKU, confirmed format
+  `LV-0001-K`: `LV-` prefix + its own global counter (`live_catalog_options/
+  skuCounter`, incremented via a Firestore transaction so concurrent adds
+  during a live never collide) + a check letter computed from the number
+  (weighted digit sum mod 26 → A-Z). Deliberately always ends in a LETTER,
+  never a digit — the main catalog's `nextProductCode()` resumes its own
+  sequence by matching a TRAILING digit run on `productCode` (see
+  `catalog-lookups.js`), so a Live SKU ending in a raw number would risk
+  being misread as a main-catalog code if the two systems ever cross paths
+  (e.g. a future "promote to real catalog" flow) — ending in a letter
+  structurally rules that out. (6) Added a mobile breakpoint (`@media
+  (max-width: 720px)`) to `live-catalog.html` — Vitor confirmed narration
+  will mainly happen from his phone during prep, and the form was desktop-
+  grid-only before this. The items table still scrolls horizontally on
+  mobile rather than reflowing into cards — revisit if that's the actual
+  bottleneck once used for real. **Not yet tested against a real live
+  session or real audio** — verified via `node --check` and a clean `vite
+  build` only, same caveat as every other narration/Dashboard feature
+  shipped this way. **Label printing (25-per-sheet inkjet sheet labels,
+  he has a PDF/Word template to share) is a separate next step, not started
+  yet** — waiting on that template file before designing the print layout.
+
+- **v3.13.45** — Added label printing to the Live Catalog, per the Avery
+  5260 template Vitor shared (1" x 2-5/8", 3 columns x 10 rows = 30 labels
+  per sheet, standard letter-size inkjet sheet — he'd said "25 per sheet"
+  going in, but the actual template is 30). Grid coordinates
+  (`LABEL_LEFT_IN`/`LABEL_TOP_IN`/`LABEL_PITCH_X_IN`/`LABEL_PITCH_Y_IN` in
+  `live-catalog.js`) match Avery's own published spec for this template:
+  0.1875in left margin, 0.5in top margin, 2.75in horizontal pitch (label
+  width + gutter), 1in vertical pitch (no row gap). Each row in the items
+  table got a "Print?" checkbox (+ a "Select all" toggle) and a toolbar
+  above the table with a "Start at label #" field (1-30, so a sheet with
+  some labels already used elsewhere can be resumed instead of always
+  starting top-left) and a "🖨️ Print labels" button. Printing builds a
+  `#lcPrintOverlay` sheet (one `.lc-label-sheet` div per 30 labels, using
+  `@media print` to hide the rest of the page and blank `.lc-label` cells
+  to pad up to the chosen start position) and calls `window.print()` —
+  each browser's native print dialog handles the actual paper-size/margin
+  confirmation. Each label shows SKU (large, monospace), Tipo · Size,
+  Brand, and the live "#" — no price (not tracked pre-sale in this tool)
+  and no photo/measurements (label is physically too small; those stay in
+  the app). **Not yet tested against a real printer/real Avery 5260
+  sheet** — verified via `node --check` and a clean `vite build` only; the
+  coordinate math follows Avery's published spec but print margins vary
+  slightly by printer/browser, so the first real sheet should be checked
+  against actual peel-off label alignment before printing a full batch.
+
+- **v3.13.46** — Found the actual reason Vitor couldn't find the Live
+  Catalog link on mobile: the "🔴 Live" link only ever existed in
+  `#sidebarNav` (`index.html`), which is hidden below the 900px desktop
+  breakpoint — mobile uses the separate `.tabs` bar instead, which never
+  got the same link when Live Catalog shipped (v3.13.6). Added a matching
+  `<a class="tab-btn" href="/live-catalog.html">🔴 Live</a>` to `.tabs`.
+  Needed one CSS fix to look right there: `.tab-btn` never set
+  `text-decoration:none` (only `.sidebar-link` did), so as a bare `<a>`
+  it would've rendered underlined unlike its sibling `<button>` tabs —
+  added `text-decoration:none; display:inline-block;` to `.tab-btn`.
+
 ## Planned changes (backlog)
 
 Not implemented yet — captured here so they survive between sessions.
