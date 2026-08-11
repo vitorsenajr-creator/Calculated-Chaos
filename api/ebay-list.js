@@ -377,7 +377,24 @@ function resolveCondition(item){
   return CONDITION_ID_MAP[item.condition] || 'USED_VERY_GOOD';
 }
 
-function buildInventoryItem(item, extraRequiredAspects, imageUrls){
+// v3.13.36 defaulted packageType to 'MAILING_BOX' — REST-documented as a
+// valid PackageTypeEnum value, but eBay rejected it on a real listing
+// (errorId 25101, "Invalid <ShippingPackage>.") anyway, apparently
+// category/marketplace-dependent same as the aspect inconsistency
+// extractMissingAspectName already works around. eBay's own error handed
+// back what it actually wants in its parameters (format
+// "err:<code>|<value>", e.g. "err:216305|MailingBoxes") — same
+// "eBay's own error tells us the fix" approach, just for this field.
+function extractSuggestedPackageType(errorData){
+  const err = Array.isArray(errorData) ? errorData[0] : errorData?.errors?.[0];
+  if (!err || err.errorId !== 25101) return null;
+  const param = (err.parameters || [])[0];
+  if (!param || !param.value) return null;
+  const parts = String(param.value).split('|');
+  return parts.length > 1 ? parts[1].trim() : null;
+}
+
+function buildInventoryItem(item, extraRequiredAspects, imageUrls, packageTypeOverride){
   // Compress photos: eBay accepts up to 12 image URLs, but we're using base64 data URLs
   // eBay requires hosted URLs — we send a placeholder note about this in the description
   // (In production, photos should be hosted; for now we include all available from item.photos)
@@ -440,7 +457,7 @@ function buildInventoryItem(item, extraRequiredAspects, imageUrls){
       // guess. This app has no per-item package-type field, so default to
       // a generic box, same fallback-over-failure philosophy as the
       // weight/dimensions defaults right above.
-      packageType: 'MAILING_BOX',
+      packageType: packageTypeOverride || 'MAILING_BOX',
       weight: { value: weight, unit: 'POUND' },
       dimensions: { length, width, height, unit: 'INCH' },
     },
@@ -562,20 +579,28 @@ export default async function handler(req, res){
     const itemForBuild = { ...item, ebayValidConditions: validConditions };
 
     // Step 1: Create or update inventory item
-    let inventoryBody = buildInventoryItem(itemForBuild, requiredAspects, imageUrls);
+    let packageTypeOverride = null;
+    let inventoryBody = buildInventoryItem(itemForBuild, requiredAspects, imageUrls, packageTypeOverride);
     let invResult = await ebayRequest('PUT', `/sell/inventory/v1/inventory_item/${encodedSku}`, access_token, inventoryBody);
 
-    // Retry with whatever specific item-specific eBay says is missing, up to
-    // a few times — see extractMissingAspectName's comment for why this is
-    // needed instead of a fixed per-category field list.
-    let missingAspectRetries = 0;
-    while (!invResult.ok && invResult.status !== 204 && missingAspectRetries < 3){
+    // Retry with whatever eBay's own error says is wrong, up to a few times —
+    // covers two known-inconsistent fields: a missing item specific
+    // (extractMissingAspectName) and an unsupported packageType
+    // (extractSuggestedPackageType, see its comment for why 'MAILING_BOX'
+    // isn't always accepted). Same "let eBay tell us the fix" approach for
+    // both, since neither is predictable ahead of time per category/listing.
+    let retries = 0;
+    while (!invResult.ok && invResult.status !== 204 && retries < 3){
       const missingName = extractMissingAspectName(invResult.data);
-      if (!missingName) break;
-      itemForBuild.ebayAspects = { ...(itemForBuild.ebayAspects || {}), [missingName]: 'Does not apply' };
-      inventoryBody = buildInventoryItem(itemForBuild, requiredAspects, imageUrls);
+      const suggestedPackageType = extractSuggestedPackageType(invResult.data);
+      if (!missingName && !suggestedPackageType) break;
+      if (missingName){
+        itemForBuild.ebayAspects = { ...(itemForBuild.ebayAspects || {}), [missingName]: 'Does not apply' };
+      }
+      if (suggestedPackageType) packageTypeOverride = suggestedPackageType;
+      inventoryBody = buildInventoryItem(itemForBuild, requiredAspects, imageUrls, packageTypeOverride);
       invResult = await ebayRequest('PUT', `/sell/inventory/v1/inventory_item/${encodedSku}`, access_token, inventoryBody);
-      missingAspectRetries++;
+      retries++;
     }
 
     if (!invResult.ok && invResult.status !== 204){
