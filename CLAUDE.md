@@ -499,6 +499,21 @@ next minor bump:
   the hardcoded default, folded into the same retry loop that already
   handles missing aspects (now checks both error shapes per attempt, up
   to 3 retries).
+- **v3.13.38** — v3.13.37's "retry with eBay's suggested value" theory
+  was wrong: retrying "Superdown Blazer Dress" with `"MailingBoxes"`
+  (the value pulled from errorId 25101's parameters) hit a completely
+  different error — `errorId 2004`, "Could not serialize field
+  [packageWeightAndSize.packageType]" — meaning that string was never a
+  valid REST enum literal at all, just some internal/legacy label eBay
+  happened to echo back, not a usable replacement. There's no reliable
+  way to derive a correct package type from this error, so
+  `extractSuggestedPackageType()` was replaced with
+  `isInvalidPackageTypeError()`, and the retry now just **omits**
+  `packageType` entirely on errorId 25101 instead of guessing a second
+  value — safe since the field wasn't sent at all before v3.13.36
+  either, and the one confirmed case that genuinely requires it
+  ("Express - Blouse") is still covered by the unconditional default on
+  the first attempt.
 
 ## Planned changes (backlog)
 
