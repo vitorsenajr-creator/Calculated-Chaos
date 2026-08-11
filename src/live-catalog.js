@@ -31,23 +31,19 @@ let currentPhotos = [];    // compressed data-URLs pending upload for the item b
 
 // ---------- SKU (added for Live Show — a stock number distinct from both
 // the session's own #-Live sequence and the main catalog's productCode) ----
-// LV-0001-K: "LV-" prefix + its own global counter (live_catalog_options/
+// LV-0001: "LV-" prefix + its own global counter (live_catalog_options/
 // skuCounter, incremented via a transaction so concurrent adds never
-// collide) + a check-letter computed from the number, for quick manual
-// typo-catching when reading it off a printed label. Deliberately always
-// ends in a LETTER, never a digit — the main catalog's nextProductCode()
-// matches trailing digits to find where ITS sequence should resume
-// (see catalog-lookups.js), so a Live SKU that happened to end in a raw
-// number would risk being misread as a main-catalog code if these two
-// systems ever cross paths (e.g. a future "promote to real catalog" flow).
-function skuCheckLetter(numStr){
-  let sum = 0;
-  for (let i = 0; i < numStr.length; i++) sum += parseInt(numStr[i], 10) * (i + 1);
-  return String.fromCharCode(65 + (sum % 26));
-}
+// collide). Originally also had a check-letter suffix (LV-0001-K) for
+// typo-catching, but Vitor found that confusing on a printed label — "LV-"
+// alone is enough of a differentiator from the main catalog's plain
+// #0001-style productCode. Live items live in their own `liveItems`
+// Firestore collection, never inside the main catalog's `items` array, so
+// there's no actual collision risk with nextProductCode() (catalog-
+// lookups.js) today — that would only matter if a future "promote to real
+// catalog" flow ever fed a Live SKU straight into the main sequence, which
+// doesn't exist yet.
 function formatLiveSku(n){
-  const numStr = String(n).padStart(4, '0');
-  return `LV-${numStr}-${skuCheckLetter(numStr)}`;
+  return `LV-${String(n).padStart(4, '0')}`;
 }
 async function nextLiveSku(){
   const { doc, runTransaction } = fns();

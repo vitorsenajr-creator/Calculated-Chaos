@@ -745,6 +745,16 @@ next minor bump:
   immediately (same pattern the rest of the table already uses, no
   separate "save" step).
 
+- **v3.13.50** — Vitor found the SKU's check-letter suffix (`LV-0001-K`)
+  confusing on a printed label — asked to keep only the `LV-` prefix as
+  the differentiator from the main catalog. Simplified `formatLiveSku()`
+  to just `LV-0001` (dropped `skuCheckLetter()` entirely). Live items live
+  in their own `liveItems` Firestore collection, never inside the main
+  catalog's `items` array, so there's no actual collision risk with
+  `nextProductCode()` today regardless of whether the SKU ends in a
+  letter or a digit — that concern only mattered for a hypothetical future
+  "promote to real catalog" flow, which doesn't exist yet.
+
 ## Planned changes (backlog)
 
 Not implemented yet — captured here so they survive between sessions.
