@@ -20,6 +20,11 @@ did. Clarifying so it doesn't come up as a surprise again:
   itself (no branch-protection rules or required-reviews setting live
   here) — it's controlled by whatever spins up the session, outside this
   codebase.
+- **Merging (2026-08-11)**: Vitor said "sempre" (always) when asked
+  whether to merge each PR from this session — standing instruction to
+  merge PRs in this repo without asking each time, rather than confirming
+  per PR. Still open a PR per change (branch+PR pattern above stays), just
+  don't block on a merge confirmation once it's open and green.
 
 ## Versioning & CHANGELOG.md
 
