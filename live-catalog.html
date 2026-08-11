@@ -79,6 +79,38 @@
       width:100%; min-height:36px; font-family:inherit; resize:vertical;
     }
 
+    /* ---------- Label printing (added — Avery 5260: 1" x 2-5/8", 3 cols x
+       10 rows = 30 labels/sheet, standard letter-size inkjet sheet). Grid
+       coordinates below match Avery's own published template for 5260:
+       0.1875in left margin, 0.5in top margin, 2.75in horizontal pitch
+       (label width 2.625in + 0.125in gutter), 1in vertical pitch (no gap
+       between rows — pitch equals label height). ---------- */
+    .lc-print-toolbar{
+      display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:14px 0;
+      background:var(--white); border:1px solid var(--line); border-radius:12px; padding:12px 14px;
+    }
+    .lc-print-toolbar label{ font-size:12px; color:var(--plum-soft); font-weight:600; }
+    .lc-print-toolbar input[type=number]{ width:64px; padding:6px 8px; border:1px solid var(--line); border-radius:6px; }
+    #lcPrintLabelsBtn{
+      background:var(--terracotta); color:white; border:none; border-radius:8px;
+      padding:9px 14px; font-size:12.5px; font-weight:700; cursor:pointer;
+    }
+    .lc-print-col{ width:34px; text-align:center; }
+    #lcPrintOverlay{ display:none; }
+    @media print{
+      body > *:not(#lcPrintOverlay){ display:none !important; }
+      #lcPrintOverlay{ display:block !important; }
+      @page{ size:8.5in 11in; margin:0; }
+    }
+    .lc-label-sheet{ width:8.5in; height:11in; position:relative; page-break-after:always; }
+    .lc-label{
+      position:absolute; width:2.625in; height:1in; box-sizing:border-box; padding:0.08in 0.14in;
+      overflow:hidden; display:flex; flex-direction:column; justify-content:center;
+    }
+    .lc-label .lc-label-sku{ font-family:'JetBrains Mono',monospace; font-size:15px; font-weight:800; letter-spacing:0.02em; }
+    .lc-label .lc-label-meta{ font-family:Arial, sans-serif; font-size:11px; margin-top:3px; color:#222; }
+    .lc-label .lc-label-num{ font-family:Arial, sans-serif; font-size:9px; margin-top:3px; color:#666; }
+
     /* Mobile (added — narration is mainly used from the phone during prep,
        so the quick-add form needs to actually be usable one-handed, not
        just technically viewable). The items table stays a horizontally-
@@ -247,10 +279,17 @@
       <button type="button" id="lcAddItemBtn">✓ Add item</button>
     </div>
 
+    <div class="lc-print-toolbar">
+      <label><input type="checkbox" id="lcPrintSelectAll"> Select all</label>
+      <label>Start at label # <input type="number" id="lcPrintStartPos" min="1" max="30" value="1"></label>
+      <span style="font-size:11px; color:var(--plum-soft);">(1–30, for a sheet with some labels already used)</span>
+      <button type="button" id="lcPrintLabelsBtn">🖨️ Print labels</button>
+    </div>
+
     <div class="lc-table-wrap">
       <table class="lc-table" id="lcTable">
         <thead>
-          <tr><th>#</th><th>SKU</th><th>Tipo</th><th>Brand</th><th>Size</th><th>Color</th><th>Fabric</th><th>Photo</th><th>Measurements</th><th>Prep notes</th><th>Sold?</th><th>Sale info</th><th></th></tr>
+          <tr><th class="lc-print-col"></th><th>#</th><th>SKU</th><th>Tipo</th><th>Brand</th><th>Size</th><th>Color</th><th>Fabric</th><th>Photo</th><th>Measurements</th><th>Prep notes</th><th>Sold?</th><th>Sale info</th><th></th></tr>
         </thead>
         <tbody id="lcTableBody"></tbody>
       </table>
@@ -259,6 +298,8 @@
 
   <datalist id="lcMeasureLabelOptions"></datalist>
 </main>
+
+<div id="lcPrintOverlay"></div>
 
 <script type="module" src="/src/live-catalog.js"></script>
 </body>

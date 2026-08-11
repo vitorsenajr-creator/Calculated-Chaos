@@ -447,12 +447,13 @@ function photoCellHtml(item){
 function renderLiveItemsTableRows(){
   const body = document.getElementById('lcTableBody');
   if (!liveItemsCache.length){
-    body.innerHTML = `<tr><td colspan="13" class="lc-empty">No items yet — add your first one above.</td></tr>`;
+    body.innerHTML = `<tr><td colspan="14" class="lc-empty">No items yet — add your first one above.</td></tr>`;
     return;
   }
   const sorted = [...liveItemsCache].sort((a,b) => (a.num||0) - (b.num||0));
   body.innerHTML = sorted.map(item => `
     <tr data-item-row="${item.id}">
+      <td class="lc-print-col"><input type="checkbox" class="lc-print-chk" data-print-chk="${item.id}"></td>
       <td class="lc-num-cell"><input type="number" data-field="num" value="${item.num ?? ''}"></td>
       <td class="lc-sku-cell">${escapeHtml(item.sku || '—')}</td>
       <td><input type="text" data-field="tipo" value="${escapeHtml(item.tipo || '')}"></td>
@@ -520,4 +521,68 @@ function renderLiveItemsTableRows(){
       }catch(e){ console.error('Failed to delete item:', e); }
     });
   });
+
+  const selectAllChk = document.getElementById('lcPrintSelectAll');
+  if (selectAllChk) selectAllChk.checked = false;
 }
+
+// ---------- LABEL PRINTING (Avery 5260 — 1" x 2-5/8", 3 x 10 = 30/sheet) ----
+// Coordinates match Avery's own published 5260 template: 0.1875in left
+// margin, 0.5in top margin, 2.75in horizontal pitch (2.625in label width +
+// 0.125in gutter), 1in vertical pitch (label height, no row gap). "Start at
+// label #" lets her resume partway down a sheet that already has some
+// labels used, instead of always starting at the top-left.
+const LABEL_COLS = 3, LABEL_ROWS = 10, LABELS_PER_SHEET = LABEL_COLS * LABEL_ROWS;
+const LABEL_LEFT_IN = 0.1875, LABEL_TOP_IN = 0.5, LABEL_PITCH_X_IN = 2.75, LABEL_PITCH_Y_IN = 1.0;
+
+function labelCellHtml(item, posIndex){
+  const col = posIndex % LABEL_COLS;
+  const row = Math.floor(posIndex / LABEL_COLS) % LABEL_ROWS;
+  const left = (LABEL_LEFT_IN + col * LABEL_PITCH_X_IN).toFixed(4);
+  const top = (LABEL_TOP_IN + row * LABEL_PITCH_Y_IN).toFixed(4);
+  if (!item) return `<div class="lc-label" style="left:${left}in; top:${top}in;"></div>`;
+  const metaLine = [item.tipo, item.size].filter(Boolean).join(' · ');
+  return `
+    <div class="lc-label" style="left:${left}in; top:${top}in;">
+      <div class="lc-label-sku">${escapeHtml(item.sku || '')}</div>
+      ${metaLine ? `<div class="lc-label-meta">${escapeHtml(metaLine)}</div>` : ''}
+      ${item.brand ? `<div class="lc-label-meta">${escapeHtml(item.brand)}</div>` : ''}
+      <div class="lc-label-num">Live #${item.num ?? ''}</div>
+    </div>`;
+}
+
+function buildLabelSheets(itemsToPrint, startPos){
+  // startPos is 1-based (label #1 = top-left) — pad with blank cells up to
+  // startPos-1 on the first sheet only.
+  const slots = [];
+  for (let i = 0; i < Math.max(0, startPos - 1); i++) slots.push(null);
+  slots.push(...itemsToPrint);
+  const sheetCount = Math.ceil(slots.length / LABELS_PER_SHEET);
+  let html = '';
+  for (let s = 0; s < sheetCount; s++){
+    html += `<div class="lc-label-sheet">`;
+    for (let i = 0; i < LABELS_PER_SHEET; i++){
+      html += labelCellHtml(slots[s * LABELS_PER_SHEET + i], i);
+    }
+    html += `</div>`;
+  }
+  return html;
+}
+
+document.getElementById('lcPrintSelectAll').addEventListener('change', (e) => {
+  document.querySelectorAll('.lc-print-chk').forEach(chk => { chk.checked = e.target.checked; });
+});
+
+document.getElementById('lcPrintLabelsBtn').addEventListener('click', () => {
+  const checked = Array.from(document.querySelectorAll('.lc-print-chk:checked')).map(chk => chk.dataset.printChk);
+  const toPrint = checked.length
+    ? liveItemsCache.filter(i => checked.includes(i.id))
+    : [...liveItemsCache].sort((a,b) => (a.num||0) - (b.num||0));
+  if (!toPrint.length){ alert('No items to print labels for.'); return; }
+  if (!checked.length && !confirm(`No rows selected — print labels for all ${toPrint.length} item(s) in this live?`)) return;
+
+  const startPos = Math.min(30, Math.max(1, parseInt(document.getElementById('lcPrintStartPos').value, 10) || 1));
+  const sorted = [...toPrint].sort((a,b) => (a.num||0) - (b.num||0));
+  document.getElementById('lcPrintOverlay').innerHTML = buildLabelSheets(sorted, startPos);
+  window.print();
+});

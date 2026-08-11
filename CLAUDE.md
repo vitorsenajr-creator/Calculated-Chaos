@@ -637,6 +637,31 @@ next minor bump:
   he has a PDF/Word template to share) is a separate next step, not started
   yet** — waiting on that template file before designing the print layout.
 
+- **v3.13.45** — Added label printing to the Live Catalog, per the Avery
+  5260 template Vitor shared (1" x 2-5/8", 3 columns x 10 rows = 30 labels
+  per sheet, standard letter-size inkjet sheet — he'd said "25 per sheet"
+  going in, but the actual template is 30). Grid coordinates
+  (`LABEL_LEFT_IN`/`LABEL_TOP_IN`/`LABEL_PITCH_X_IN`/`LABEL_PITCH_Y_IN` in
+  `live-catalog.js`) match Avery's own published spec for this template:
+  0.1875in left margin, 0.5in top margin, 2.75in horizontal pitch (label
+  width + gutter), 1in vertical pitch (no row gap). Each row in the items
+  table got a "Print?" checkbox (+ a "Select all" toggle) and a toolbar
+  above the table with a "Start at label #" field (1-30, so a sheet with
+  some labels already used elsewhere can be resumed instead of always
+  starting top-left) and a "🖨️ Print labels" button. Printing builds a
+  `#lcPrintOverlay` sheet (one `.lc-label-sheet` div per 30 labels, using
+  `@media print` to hide the rest of the page and blank `.lc-label` cells
+  to pad up to the chosen start position) and calls `window.print()` —
+  each browser's native print dialog handles the actual paper-size/margin
+  confirmation. Each label shows SKU (large, monospace), Tipo · Size,
+  Brand, and the live "#" — no price (not tracked pre-sale in this tool)
+  and no photo/measurements (label is physically too small; those stay in
+  the app). **Not yet tested against a real printer/real Avery 5260
+  sheet** — verified via `node --check` and a clean `vite build` only; the
+  coordinate math follows Avery's published spec but print margins vary
+  slightly by printer/browser, so the first real sheet should be checked
+  against actual peel-off label alignment before printing a full batch.
+
 ## Planned changes (backlog)
 
 Not implemented yet — captured here so they survive between sessions.
