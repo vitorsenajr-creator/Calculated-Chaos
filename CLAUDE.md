@@ -760,6 +760,22 @@ next minor bump:
   letter or a digit — that concern only mattered for a hypothetical future
   "promote to real catalog" flow, which doesn't exist yet.
 
+- **v3.13.51** — Real "List on eBay" failure on a Universal Thread Goods
+  Co. skirt: errorId 25101 ("Invalid `<ShippingPackage>`.") at the
+  **publish** step, not the inventory-item step — the adapt-and-retry
+  loop that v3.13.36-39 built for exactly this error (drop `packageType`,
+  walk conditions, fill missing aspects) only ever wrapped the step 1
+  inventory-item `PUT`, because every prior failure of this class had
+  surfaced there. Turns out eBay doesn't fully validate `packageType`/
+  aspects/condition until the offer is actually published — a bad value
+  can sail through step 1 with no error and only fail at step 3. Wrapped
+  the publish call in the identical retry loop (same three detectors,
+  same override variables): on a fixable publish error, adjust the
+  override, re-PUT the inventory item with it, then retry publish, up to
+  4 attempts. **Not yet re-tested against a real account** — same
+  unverified caveat as the rest of this eBay-retry thread; watch the next
+  publish attempt on a similar category to confirm this closes the gap.
+
 ## Planned changes (backlog)
 
 Not implemented yet — captured here so they survive between sessions.
