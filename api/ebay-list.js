@@ -749,7 +749,48 @@ export default async function handler(req, res){
     }
 
     // Step 3: Publish the offer (makes it live on eBay)
-    const publishResult = await ebayRequest('POST', `/sell/inventory/v1/offer/${offerId}/publish`, access_token);
+    //
+    // eBay doesn't fully validate packageType/aspects/condition until this
+    // publish call — a bad value here can sail through the inventory item
+    // PUT in step 1 with no error, then fail here instead (confirmed on a
+    // real listing: errorId 25101 "Invalid <ShippingPackage>" surfaced only
+    // at publish, even though the same retry logic above already existed
+    // for the inventory item step). So this needs the identical
+    // adapt-and-retry loop as step 1 — on a fixable error, adjust the
+    // override, re-PUT the inventory item with it, then retry publish.
+    let publishResult = await ebayRequest('POST', `/sell/inventory/v1/offer/${offerId}/publish`, access_token);
+    let publishRetries = 0;
+    while (!publishResult.ok && publishRetries < 4){
+      const missingName = extractMissingAspectName(publishResult.data);
+      const badPackageType = packageTypeOverride !== 'OMIT' && isInvalidPackageTypeError(publishResult.data);
+      const badCondition = isInvalidConditionError(publishResult.data);
+      if (!missingName && !badPackageType && !badCondition) break;
+      if (missingName){
+        itemForBuild.ebayAspects = { ...(itemForBuild.ebayAspects || {}), [missingName]: 'Does not apply' };
+      }
+      if (badPackageType) packageTypeOverride = 'OMIT';
+      if (badCondition){
+        const currentCondition = conditionOverride || resolveCondition(itemForBuild);
+        triedConditions.add(currentCondition);
+        const candidates = (Array.isArray(itemForBuild.ebayValidConditions) && itemForBuild.ebayValidConditions.length)
+          ? itemForBuild.ebayValidConditions
+          : UNIVERSAL_CONDITION_FALLBACKS;
+        const nextCandidate = candidates.find(c => !triedConditions.has(c));
+        if (nextCandidate) conditionOverride = nextCandidate;
+      }
+      inventoryBody = buildInventoryItem(itemForBuild, requiredAspects, imageUrls, packageTypeOverride, conditionOverride);
+      const retryInvResult = await ebayRequest('PUT', `/sell/inventory/v1/inventory_item/${encodedSku}`, access_token, inventoryBody);
+      if (!retryInvResult.ok && retryInvResult.status !== 204){
+        console.error('Inventory item error on publish-retry:', retryInvResult.data);
+        return res.status(500).json({
+          error: 'Failed to create eBay inventory item',
+          detail: retryInvResult.data,
+          step: 'inventory',
+        });
+      }
+      publishResult = await ebayRequest('POST', `/sell/inventory/v1/offer/${offerId}/publish`, access_token);
+      publishRetries++;
+    }
 
     if (!publishResult.ok){
       console.error('Publish error:', publishResult.data);
