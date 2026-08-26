@@ -855,6 +855,18 @@ next minor bump:
   4 photos or fewer closes exactly as before — cheap to redo, not worth a
   silent save.
 
+- **v3.13.57** — The Catalog's "⚠ Missing info" pill now shows exactly
+  what's missing on click, instead of requiring a trip into the item
+  modal to find out. New `showMissingInfoPopover()` in `src/main.js`
+  renders a small floating popover (positioned under the tapped chip,
+  dismissed on outside click or Escape) listing whichever of
+  Photos/Cost/Weight/Dimensions `missingFields()` (already in
+  `catalog-filters.js`, unchanged) flags — no new completeness logic,
+  just surfacing what already existed. Wired into the same card-click
+  handler that already special-cases the print-label button and photo
+  gallery, so tapping the chip shows the popover instead of opening the
+  item.
+
 ## Planned changes (backlog)
 
 Not implemented yet — captured here so they survive between sessions.
