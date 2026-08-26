@@ -65,8 +65,8 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.51';
-  const APP_VERSION_DATE = '2026-08-20';
+  const APP_VERSION = 'v3.13.52';
+  const APP_VERSION_DATE = '2026-08-26';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
   let itemsLoaded = false; // true once the initial Firestore fetch in loadItems() resolves
@@ -1536,6 +1536,7 @@ export const app = (function(){
   // confusing duplicate of Brand/Color/Size/Gender above.
   const EBAY_ASPECTS_AUTO_COVERED = ['Department', 'Brand', 'Color', 'Size'];
   let currentEbayAspects = {}; // { "Pattern": "Floral", "Material": "Cotton", ... } — her real answers, saved on the item
+  let currentAiAnalysis = null; // raw AI photo-analysis result for this item, saved on the item so it survives closing/reopening the modal
 
   async function loadEbayAspectsForCategory(categoryId){
     const container = document.getElementById('ebayAspectsContainer');
@@ -1850,7 +1851,15 @@ export const app = (function(){
     } else {
       document.getElementById('listingOutputArea').innerHTML = '';
     }
-    document.getElementById('aiAnalysisArea').innerHTML = '';
+    // Same idea as the listing description above — a previously generated AI
+    // photo analysis belongs to this item, so show it again instead of
+    // making her regenerate it just to see it.
+    currentAiAnalysis = (item && !isDuplicate && item.aiAnalysis) ? item.aiAnalysis : null;
+    if (currentAiAnalysis){
+      renderAiAnalysis(currentAiAnalysis);
+    } else {
+      document.getElementById('aiAnalysisArea').innerHTML = '';
+    }
     document.getElementById('ebayStatusArea').innerHTML = '';
     setSaveProgress(null);
     document.getElementById('deleteItemBtn').style.display = (item && !isDuplicate) ? 'block' : 'none';
@@ -3508,6 +3517,7 @@ Respond with the JSON object only. Do not include any text, explanation, or mark
         return;
       }
 
+      currentAiAnalysis = result;
       renderAiAnalysis(result);
       // Increment AI usage counter
       await incrementAiUsage();
@@ -3672,6 +3682,7 @@ Respond with the JSON object only. Do not include any text, explanation, or mark
     });
 
     document.getElementById('aiDismissBtn').addEventListener('click', () => {
+      currentAiAnalysis = null;
       document.getElementById('aiAnalysisArea').innerHTML = '';
     });
   }
@@ -4309,6 +4320,11 @@ Be accurate and honest — never invent brand, material, or condition details th
         || items.find(i => i.id === currentEditId)?.listingTitle || '',
       listingDescription: document.getElementById('listDescText')?.value
         || items.find(i => i.id === currentEditId)?.listingDescription || '',
+      // Persists the last-generated AI photo analysis (identification, price
+      // guess, reasoning, etc.) the same way listingDescription is persisted
+      // above — kept in sync with the on-screen card via currentAiAnalysis,
+      // including being cleared when she dismisses the card.
+      aiAnalysis: currentAiAnalysis || null,
       brand: document.getElementById('fBrand').value.trim(),
       gender: document.getElementById('fGender').value,
       size: document.getElementById('fSize').value.trim(),
