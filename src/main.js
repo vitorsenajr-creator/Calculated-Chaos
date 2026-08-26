@@ -65,7 +65,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.56';
+  const APP_VERSION = 'v3.13.57';
   const APP_VERSION_DATE = '2026-08-26';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -641,6 +641,53 @@ export const app = (function(){
   function filtersActiveCount(){ return _filtersActiveCount(activeFilters); }
   function applyFilters(list){ return _applyFilters(list, activeFilters, searchQuery); }
 
+  // ---------- MISSING INFO POPOVER ----------
+  // Human-readable labels for whatever missingFields() (catalog-filters.js)
+  // returns — kept here rather than in that module since it's presentation,
+  // not completeness logic.
+  const MISSING_FIELD_LABEL = {
+    photos: 'Photos',
+    cost: 'Cost',
+    weight: 'Weight',
+    dimensions: 'Dimensions (length & width)',
+  };
+  function showMissingInfoPopover(anchorEl, item){
+    let pop = document.getElementById('missingInfoPopover');
+    if (pop) pop.remove();
+    const missing = missingFields(item);
+    if (!missing.length) return;
+    pop = document.createElement('div');
+    pop.id = 'missingInfoPopover';
+    pop.style.cssText = 'position:fixed; z-index:10000; background:var(--white); color:var(--plum); border:1px solid var(--line); border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,0.18); padding:10px 14px; font-size:13px; max-width:220px;';
+    pop.innerHTML = `
+      <div style="font-weight:700; font-size:11px; text-transform:uppercase; letter-spacing:0.04em; color:var(--terracotta-deep); margin-bottom:6px;">Missing on this item</div>
+      <ul style="margin:0; padding-left:18px; line-height:1.6;">
+        ${missing.map(f => `<li>${escapeHtml(MISSING_FIELD_LABEL[f] || f)}</li>`).join('')}
+      </ul>
+    `;
+    document.body.appendChild(pop);
+    const rect = anchorEl.getBoundingClientRect();
+    const popRect = pop.getBoundingClientRect();
+    let left = rect.left;
+    if (left + popRect.width > window.innerWidth - 8) left = window.innerWidth - popRect.width - 8;
+    pop.style.left = `${Math.max(8, left)}px`;
+    pop.style.top = `${rect.bottom + 6}px`;
+    // Closes on the next click anywhere (including re-tapping the same
+    // chip, which just removes it above and lets this listener no-op) or
+    // on Escape — same lightweight dismiss pattern as other popovers here.
+    const dismiss = (ev) => {
+      if (ev.type === 'keydown' && ev.key !== 'Escape') return;
+      if (ev.type === 'click' && pop.contains(ev.target)) return;
+      pop.remove();
+      document.removeEventListener('click', dismiss, true);
+      document.removeEventListener('keydown', dismiss, true);
+    };
+    setTimeout(() => {
+      document.addEventListener('click', dismiss, true);
+      document.addEventListener('keydown', dismiss, true);
+    }, 0);
+  }
+
   // ---------- RENDER: CATALOG ----------
 
   function renderCatalog(){
@@ -734,7 +781,7 @@ export const app = (function(){
                 const label = favicon ? (PLATFORM_NAME[p] || p) : getPlatformLabel(p);
                 return `<span class="platform-badge" style="background:${getPlatformColor(p)};">${faviconImg}${escapeHtml(label)}</span>`;
               }).join('')}
-              ${incomplete ? `<div class="warn-chip">⚠ ${noPhoto ? 'No photo' : 'Missing info'}</div>` : ''}
+              ${incomplete ? `<div class="warn-chip" data-action="missing-info" data-id="${item.id}" style="cursor:pointer;">⚠ ${noPhoto ? 'No photo' : 'Missing info'}</div>` : ''}
             </div>
           </div>
           <div class="item-meta-row">
@@ -856,6 +903,15 @@ export const app = (function(){
         if (printBtn){
           const item = items.find(i => i.id === printBtn.dataset.id);
           if (item) openPrintLabelModal(item);
+          return;
+        }
+        // If tapped on the "Missing info" chip, show what's missing instead
+        // of opening the item — she can already see something's wrong from
+        // the chip, this just answers "what" without a trip into the modal.
+        const missingChip = e.target.closest('[data-action="missing-info"]');
+        if (missingChip){
+          const item = items.find(i => i.id === missingChip.dataset.id);
+          if (item) showMissingInfoPopover(missingChip, item);
           return;
         }
         // If tapped on the photo area with gallery data, open lightbox
