@@ -829,6 +829,32 @@ next minor bump:
   Juniors), "Apply to form" overrides the Regular default with the AI's
   finding instead of leaving it wrong.
 
+- **v3.13.56** — Two autosave requests from Vitor: (1) Clicking "Generate
+  listing description" (either the instant template or the AI writer) on
+  a never-saved item used to trigger the normal Save button's validation
+  once the description came back, which alerts "Choose an eBay category
+  before saving" and blocks the autosave — jarring right after watching
+  the AI write something. Extracted the manual Save button's click
+  handler into a named `saveItemFlow({ skipValidation, suppressReopen })`
+  function: `skipValidation` skips the name-required (defaults to "Item",
+  same fallback the listing generators already use) and eBay-category-
+  required checks — the eBay category only actually matters once she
+  tries to list on eBay, which already checks for it independently, so
+  gating a listing-description save behind it was never load-bearing, just
+  in the way. `autosaveGeneratedListingText()` (already called after both
+  generators) now calls `saveItemFlow({ skipValidation: true })` instead
+  of `.click()`-ing the button, and the instant-template generator
+  (`generateListingDescription()`) now calls it too — previously it never
+  autosaved at all, unlike the AI version. (2) Closing the item modal (✕
+  or Cancel) with more than 4 photos already added now autosaves first
+  instead of silently discarding them — new
+  `closeModalWithAutosaveIfNeeded()`, calls `saveItemFlow({
+  skipValidation: true, suppressReopen: true })` (the new `suppressReopen`
+  flag skips the normal post-save reopen-the-modal step, since the whole
+  point here is that the modal is about to close) before actually closing.
+  4 photos or fewer closes exactly as before — cheap to redo, not worth a
+  silent save.
+
 ## Planned changes (backlog)
 
 Not implemented yet — captured here so they survive between sessions.
