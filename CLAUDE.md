@@ -787,6 +787,20 @@ next minor bump:
   cleared when she taps "Dismiss" on the card. Saved alongside
   `listingDescription` in the same item-save payload.
 
+- **v3.13.53** — Fixed style tags sometimes coming back empty on "Generate
+  listing description with AI." Root cause: the JSON template in the
+  prompt showed `title`/`description` as string fields with the
+  instructions embedded directly as their value (fine for strings), but
+  `style_tags` is an array and its "example" was a single giant
+  instruction string as the one array element instead of an actual array
+  example — an ambiguous shape that sometimes led the model to return
+  `style_tags` as a plain string or omit it, which `Array.isArray(...)`
+  then silently turned into `[]` with no error shown. Moved the
+  instruction out of the JSON template into its own paragraph (now shows
+  a clean `["tag1", "tag2", "tag3"]` example) and made parsing tolerant
+  of a comma-separated string as a fallback shape, in
+  `requestAiListingDescription()` (`src/main.js`).
+
 ## Planned changes (backlog)
 
 Not implemented yet — captured here so they survive between sessions.

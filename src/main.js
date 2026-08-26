@@ -65,7 +65,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.52';
+  const APP_VERSION = 'v3.13.53';
   const APP_VERSION_DATE = '2026-08-26';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -3914,8 +3914,9 @@ Respond with ONLY a JSON object (no markdown fences, no preamble), with this exa
 {
   "title": "Poshmark title, HARD LIMIT 80 characters. Formula: Brand + Item Type + a key style/color detail + Size. Never omit Brand or Item Type if they are provided below. Keyword-first, no filler words, no ALL CAPS.",
   "description": "Poshmark description, HARD LIMIT ${LISTING_DESC_LIMIT} characters, formatted in EXACTLY this structure:\n(1) A short, direct opening — 1 sentence, at most 2 only if truly needed. State what the item is and its most notable visual features (color/pattern, fabric texture, fit) in plain, factual language. NO marketing filler, NO phrases like 'the kind of piece that earns its keep', 'reach for this on...', 'effortlessly', 'elevate your wardrobe', or similar generic copywriting — just describe what it actually is and looks like.\n(2) A blank line, then the word 'Details:' alone on its own line.\n(3) A bullet list where every single line starts with '* ' (asterisk + space), in this order:\n  * Brand: <from item data>\n  * Style: <a specific, descriptive style phrase for this exact item — e.g. 'Oversized color block pullover sweater', not just the raw item type>\n  * Size: <from item data>\n  * Color: <from item data, described richly if it's multi-color or patterned>\n  * Condition: <the EXACT condition wording given below, never altered>\n  followed by 3-6 more '* Label: detail' lines covering whichever garment-construction attributes are actually visible AND relevant to this specific item type (a sweater and a dress need different attributes) — choose from things like Neckline, Sleeve length, Hem & cuffs, Fabric/knit texture, Closures, Pockets, Lining, Silhouette/fit, or fabric content/care instructions if a tag was legible.\n  then one final bullet noting which angles the photos show and confirming there's no visible flaw beyond what's noted in seller notes below (e.g. 'Front and back views shown — no visible wear or pilling'). Only state 'no visible flaws' if that's consistent with the seller notes; if seller notes mention a flaw, reflect that honestly instead.\n(4) A blank line, then one short, factual closing line (not flowery) — a genuine, concrete reason this specific piece is useful (e.g. what to pair it with), one sentence only.\n(5) A blank line, then ${closingLineInstruction}.\nDo not add anything after that — no keywords line, no hashtags, nothing else.",
-  "style_tags": ["up to 3 tags chosen ONLY from this exact list (copy the spelling exactly, do not invent new ones or alter wording): ${POSHMARK_STYLE_TAGS.join(', ')}. Pick whichever 1-3 best match this item's era/material/silhouette/aesthetic — it's fine to return fewer than 3 if nothing else fits well."]
+  "style_tags": ["tag1", "tag2", "tag3"]
 }
+For "style_tags": choose up to 3 tags ONLY from this exact list (copy the spelling exactly, do not invent new ones or alter wording): ${POSHMARK_STYLE_TAGS.join(', ')}. Pick whichever 1-3 best match this item's era/material/silhouette/aesthetic — an empty array is fine if nothing fits well.
 Item data:
 Brand: ${f.brand || '(unknown)'}
 Item type: ${f.clothingType || f.category || '(unknown)'}
@@ -3975,7 +3976,12 @@ Be accurate and honest — never invent brand, material, or condition details th
 
     const title = String(result.title || '').slice(0, 80);
     const description = String(result.description || '').slice(0, LISTING_DESC_LIMIT);
-    const styleTagGuesses = Array.isArray(result.style_tags) ? result.style_tags.slice(0, 3).map(String) : [];
+    // The model occasionally returns style_tags as a comma-separated string
+    // instead of a real JSON array — accept that shape too rather than
+    // silently dropping the tags.
+    let rawStyleTags = result.style_tags;
+    if (typeof rawStyleTags === 'string') rawStyleTags = rawStyleTags.split(',').map(s => s.trim());
+    const styleTagGuesses = Array.isArray(rawStyleTags) ? rawStyleTags.filter(Boolean).slice(0, 3).map(String) : [];
     return { ok:true, title, description, styleTagGuesses };
   }
 
