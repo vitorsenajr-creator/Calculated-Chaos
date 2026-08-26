@@ -801,6 +801,19 @@ next minor bump:
   of a comma-separated string as a fallback shape, in
   `requestAiListingDescription()` (`src/main.js`).
 
+- **v3.13.54** — Fixed Gender and Size never getting filled in by "Apply
+  to form" after an AI photo analysis, even when the field is available
+  from voice narration (`narration-capture.js` already extracts and
+  applies both). Root cause: the photo-analysis JSON schema in
+  `analyzeItemPhoto()` (`src/main.js`) never asked for `likely_gender`/
+  `likely_size` at all — the fields simply weren't part of what the AI
+  was asked to return, not a bug in applying an existing value. Added
+  both fields to the prompt (size from a legible tag/label only, never
+  guessed; gender inferred from cut/styling/tag when confident), added
+  matching Gender (dropdown, same options as the form) and Size (text)
+  inputs to the review card, and wired them into "Apply to form" the
+  same way Brand/Color/Clothing type already work.
+
 ## Planned changes (backlog)
 
 Not implemented yet — captured here so they survive between sessions.

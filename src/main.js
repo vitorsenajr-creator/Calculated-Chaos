@@ -65,7 +65,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.53';
+  const APP_VERSION = 'v3.13.54';
   const APP_VERSION_DATE = '2026-08-26';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -3466,6 +3466,8 @@ export const app = (function(){
   "likely_brand": "brand name if visible/identifiable, or empty string if unknown",
   "likely_color": "one of: ${PRESET_COLORS.join(', ')}, or another specific color name if none of those fit — pick the single most dominant color of the item",
   "likely_clothing_type": "if this is a clothing/shoe/bag/accessory item, one of: ${PRESET_CLOTHING_TYPES.join(', ')}, or another specific clothing type name if none of those fit. If the item is not clothing/footwear/accessories, use an empty string.",
+  "likely_gender": "if this is a clothing/shoe/accessory item, one of: Women's, Men's, Girls', Boys', Unisex — inferred from cut/styling/tag if visible. Empty string if not applicable or not confident.",
+  "likely_size": "size exactly as shown on a visible tag/label (e.g. 'M', '32x30', '8.5') — empty string if no size is legible in any photo. Never guess a size that isn't actually visible.",
   "category": "a short, specific category name for this item. Reuse one of these if it genuinely fits: ${CATEGORY_OPTIONS.join(', ')} — otherwise suggest a new, concise category name that fits better (e.g. 'Appliances', 'Antiques', 'Board Games')",
   "ebay_search_term": "a short, specific eBay listing category search term for this exact item, e.g. 'women's skirt', 'hardcover book', 'antique table lamp', 'microwave oven' — specific enough to find the right eBay category, not a broad bucket like 'Clothing'",
   "visible_flaws": "short description of visible wear, stains, damage, or empty string if none seen",
@@ -3574,6 +3576,23 @@ Respond with the JSON object only. Do not include any text, explanation, or mark
             <input type="text" id="aiClothingTypeEdit" value="${escapeHtml(result.likely_clothing_type || '')}" list="clothingTypeList"
               style="width:100%; padding:8px 11px; border:1px solid var(--line); border-radius:8px; font-size:13px; color:var(--plum); background:var(--white);">
           </div>
+          <div style="flex:1; min-width:120px;">
+            <div style="font-size:10px; text-transform:uppercase; letter-spacing:0.04em; color:var(--plum-soft); font-weight:700; margin-bottom:4px;">Gender</div>
+            <select id="aiGenderEdit"
+              style="width:100%; padding:8px 11px; border:1px solid var(--line); border-radius:8px; font-size:13px; color:var(--plum); background:var(--white);">
+              <option value="">—</option>
+              <option value="Women's" ${result.likely_gender === "Women's" ? 'selected' : ''}>Women's</option>
+              <option value="Men's" ${result.likely_gender === "Men's" ? 'selected' : ''}>Men's</option>
+              <option value="Girls'" ${result.likely_gender === "Girls'" ? 'selected' : ''}>Girls'</option>
+              <option value="Boys'" ${result.likely_gender === "Boys'" ? 'selected' : ''}>Boys'</option>
+              <option value="Unisex" ${result.likely_gender === 'Unisex' ? 'selected' : ''}>Unisex</option>
+            </select>
+          </div>
+          <div style="flex:1; min-width:120px;">
+            <div style="font-size:10px; text-transform:uppercase; letter-spacing:0.04em; color:var(--plum-soft); font-weight:700; margin-bottom:4px;">Size</div>
+            <input type="text" id="aiSizeEdit" value="${escapeHtml(result.likely_size || '')}"
+              style="width:100%; padding:8px 11px; border:1px solid var(--line); border-radius:8px; font-size:13px; color:var(--plum); background:var(--white);">
+          </div>
         </div>
 
         <div style="font-size:12px; color:var(--plum-soft); margin-bottom:4px;">
@@ -3649,6 +3668,16 @@ Respond with the JSON object only. Do not include any text, explanation, or mark
           typeOther.value = editedClothingType;
           typeOther.style.display = 'block';
         }
+      }
+      // Gender
+      const editedGender = document.getElementById('aiGenderEdit').value;
+      if (editedGender){
+        document.getElementById('fGender').value = editedGender;
+      }
+      // Size
+      const editedSize = document.getElementById('aiSizeEdit').value.trim();
+      if (editedSize){
+        document.getElementById('fSize').value = editedSize;
       }
       // If the item turned out to be Clothing and shipping dims are still
       // empty, fill in the standard box size now too.
