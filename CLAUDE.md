@@ -776,6 +776,17 @@ next minor bump:
   unverified caveat as the rest of this eBay-retry thread; watch the next
   publish attempt on a similar category to confirm this closes the gap.
 
+- **v3.13.52** — AI photo analysis (the "🔮 Analyze with AI" card in the
+  item modal) now persists on the item the same way the generated listing
+  description already did — previously it only ever lived in the DOM for
+  that modal session, so closing and reopening an item wiped it and made
+  her regenerate it just to see it again (and burn another AI-usage credit
+  in the process). New `item.aiAnalysis` field, kept in sync via a
+  `currentAiAnalysis` variable set whenever a new analysis is generated,
+  restored (`renderAiAnalysis`) when reopening an item that has one, and
+  cleared when she taps "Dismiss" on the card. Saved alongside
+  `listingDescription` in the same item-save payload.
+
 ## Planned changes (backlog)
 
 Not implemented yet — captured here so they survive between sessions.
