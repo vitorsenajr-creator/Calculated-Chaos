@@ -65,7 +65,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.55';
+  const APP_VERSION = 'v3.13.56';
   const APP_VERSION_DATE = '2026-08-26';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -2237,8 +2237,22 @@ export const app = (function(){
     quickCatalogMode = true;
     openModal(null);
   });
-  document.getElementById('cancelItemBtn').addEventListener('click', () => { quickCatalogMode = false; currentDraftId = null; closeModal(); });
-  document.getElementById('modalCloseX').addEventListener('click', () => { quickCatalogMode = false; currentDraftId = null; closeModal(); });
+  // Closing with several photos already added risks losing real work (she's
+  // usually mid-cataloging by the time that many photos are in) — autosave
+  // first rather than silently discarding them. A handful of photos with
+  // nothing else filled in is cheap to redo, so the threshold only kicks in
+  // once there's enough at stake to be worth the silent save.
+  const AUTOSAVE_ON_CLOSE_PHOTO_THRESHOLD = 4;
+  async function closeModalWithAutosaveIfNeeded(){
+    if (currentPhotos.length > AUTOSAVE_ON_CLOSE_PHOTO_THRESHOLD){
+      await saveItemFlow({ skipValidation: true, suppressReopen: true });
+    }
+    quickCatalogMode = false;
+    currentDraftId = null;
+    closeModal();
+  }
+  document.getElementById('cancelItemBtn').addEventListener('click', closeModalWithAutosaveIfNeeded);
+  document.getElementById('modalCloseX').addEventListener('click', closeModalWithAutosaveIfNeeded);
 
   // Keyboard shortcuts for the item form — mainly for Quick Catalog, where
   // the whole point is speed and hands ideally never leave the keyboard.
@@ -3937,7 +3951,7 @@ Respond with the JSON object only. Do not include any text, explanation, or mark
     return { name, category, clothingType, brand, gender, size, condition, notes, color, measurements, price, useStandardClosing };
   }
 
-  function generateListingDescription(){
+  async function generateListingDescription(){
     const f = gatherListingFormFields();
     const keywords = Array.from(new Set([f.clothingType, f.category, f.color, f.gender].filter(Boolean))).slice(0, 5);
     const title = buildListingTitle(f);
@@ -3946,6 +3960,10 @@ Respond with the JSON object only. Do not include any text, explanation, or mark
     // freely edit these before copying, this just saves typing from scratch.
     const styleTagGuesses = Array.from(new Set([f.clothingType, f.color, f.gender ? `${f.gender} Style` : ''].filter(Boolean))).slice(0, 3);
     renderListingOutput(title, description, styleTagGuesses, null);
+    // Same autosave the AI generator already does — previously this instant
+    // template only ever lived on screen until a separate manual Save,
+    // including erroring out on a never-saved item.
+    await autosaveGeneratedListingText();
   }
 
   // Shared by the single-item generator below and the bulk "generate
@@ -4100,9 +4118,12 @@ Be accurate and honest — never invent brand, material, or condition details th
   //    place, without re-running the full save flow or its side effects
   //    (photo upload, re-opening the modal, eBay relist prompt, etc.).
   async function autosaveGeneratedListingText(){
-    if (!document.getElementById('fName').value.trim()) return;
     if (!currentEditId){
-      document.getElementById('saveItemBtn').click();
+      // skipValidation: generating a description shouldn't be blocked by the
+      // "choose an eBay category first" gate the manual Save button
+      // enforces — that only matters once she actually tries to list on
+      // eBay, which checks for it independently.
+      await saveItemFlow({ skipValidation: true });
       return;
     }
     const idx = items.findIndex(i => i.id === currentEditId);
@@ -4286,13 +4307,23 @@ Be accurate and honest — never invent brand, material, or condition details th
   }
 
   // ---------- SAVE / DELETE ----------
-  document.getElementById('saveItemBtn').addEventListener('click', async () => {
+  // `skipValidation` lets an autosave (triggered by generating a listing
+  // description, or by closing the modal with several photos already
+  // added — see below) persist the item without the two checks that only
+  // make sense for a deliberate manual Save: a real name (defaults to
+  // "Item", same fallback the listing generators already use) and a
+  // chosen eBay category (irrelevant until she actually tries to list on
+  // eBay — that action checks for it independently).
+  async function saveItemFlow({ skipValidation = false, suppressReopen = false } = {}){
     let name = document.getElementById('fName').value.trim();
     if (!name){
-      alert('Give your item a name before saving.');
-      return;
+      if (skipValidation) name = 'Item';
+      else{
+        alert('Give your item a name before saving.');
+        return;
+      }
     }
-    if (!chosenEbayCategory){
+    if (!chosenEbayCategory && !skipValidation){
       alert('Choose an eBay category before saving — tap the eBay Category field and search for it.');
       return;
     }
@@ -4483,7 +4514,12 @@ Be accurate and honest — never invent brand, material, or condition details th
     setSaveProgress(100, 'Saved!');
     renderAll();
     const lastSaved = itemsToSave[itemsToSave.length - 1];
-    if (quickCatalogMode){
+    // suppressReopen: an autosave that's about to close the modal itself
+    // (or that already has its own follow-up, like generating a listing
+    // description) doesn't want the normal post-save reopen/relist dance.
+    if (suppressReopen){
+      // no-op — caller decides what happens next
+    } else if (quickCatalogMode){
       // The whole point of quick catalog mode is never stopping to close and
       // reopen the form between items — go straight to a blank one, ready
       // for the next photo.
@@ -4513,7 +4549,9 @@ Be accurate and honest — never invent brand, material, or condition details th
     saveBtn.textContent = originalBtnText;
     setSaveProgress(null);
     showSavedToast();
-  });
+    return lastSaved;
+  }
+  document.getElementById('saveItemBtn').addEventListener('click', () => saveItemFlow());
 
   document.getElementById('deleteItemBtn').addEventListener('click', async () => {
     if (!currentEditId) return;
