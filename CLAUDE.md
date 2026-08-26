@@ -814,6 +814,21 @@ next minor bump:
   inputs to the review card, and wired them into "Apply to form" the
   same way Brand/Color/Clothing type already work.
 
+- **v3.13.55** — eBay's "Size Type" item aspect (Regular/Plus/Petite/Tall/
+  Big & Tall/...) now defaults to "Regular" for Clothing, per Vitor's
+  request — it's the overwhelming common case, so she shouldn't have to
+  set it by hand on every single garment. New `applyDefaultSizeTypeIfEmpty()`
+  in `src/main.js`, hooked into the same trigger points
+  `applyDefaultClothingShippingIfEmpty()` already uses (Category dropdown
+  change, typing "Clothing" into the custom-category field, and opening
+  the modal for a new/duplicated item) — never overwrites a value already
+  set, same "only fill if empty" rule as the shipping default. Also added
+  `likely_size_type` to the AI photo-analysis prompt (`analyzeItemPhoto()`)
+  so if the tag/label or the garment's visible cut clearly indicates
+  something other than Regular (Plus, Petite, Tall, Big & Tall, Maternity,
+  Juniors), "Apply to form" overrides the Regular default with the AI's
+  finding instead of leaving it wrong.
+
 ## Planned changes (backlog)
 
 Not implemented yet — captured here so they survive between sessions.

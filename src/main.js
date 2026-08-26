@@ -65,7 +65,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.54';
+  const APP_VERSION = 'v3.13.55';
   const APP_VERSION_DATE = '2026-08-26';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -447,6 +447,20 @@ export const app = (function(){
     lEl.value = DEFAULT_CLOTHING_SHIPPING.length;
     wiEl.value = DEFAULT_CLOTHING_SHIPPING.width;
     hEl.value = DEFAULT_CLOTHING_SHIPPING.height;
+  }
+
+  // eBay's "Size Type" item aspect (Regular/Plus/Petite/Tall/Big & Tall/...)
+  // defaults to "Regular" for clothing — the overwhelming common case — so
+  // she isn't stuck typing it on every single garment. Only fills it when
+  // nothing is set yet, so it never clobbers a value she (or the AI
+  // analysis) already chose. Also nudges the aspect's own <select> if it's
+  // already rendered on screen, so the default shows up immediately instead
+  // of only taking effect on next render.
+  function applyDefaultSizeTypeIfEmpty(){
+    if (currentEbayAspects['Size Type']) return;
+    currentEbayAspects['Size Type'] = 'Regular';
+    const sizeTypeEl = document.querySelector('[data-aspect="Size Type"]');
+    if (sizeTypeEl) sizeTypeEl.value = 'Regular';
   }
 
   // ---------- IMAGE COMPRESSION ----------
@@ -1835,6 +1849,7 @@ export const app = (function(){
     document.getElementById('fHei').value = item?.height || '';
     if ((!item || isDuplicate) && getCategoryValue() === 'Clothing'){
       applyDefaultClothingShippingIfEmpty();
+      applyDefaultSizeTypeIfEmpty();
     }
     document.getElementById('fNotes').value = item?.notes || '';
     document.getElementById('fListPrice').value = isDuplicate ? '' : (item?.listPrice || '');
@@ -2431,12 +2446,18 @@ export const app = (function(){
     }
     // Picking "Clothing" also fills the default shipping box, since Category
     // defaults to "Clothing" but she can change it before dimensions are entered.
-    if (e.target.value === 'Clothing') applyDefaultClothingShippingIfEmpty();
+    if (e.target.value === 'Clothing'){
+      applyDefaultClothingShippingIfEmpty();
+      applyDefaultSizeTypeIfEmpty();
+    }
   });
   // Typing a custom category also gets the chance to trigger the default
   // shipping fill if she types "Clothing" manually via "Add new…" (edge case).
   document.getElementById('fCategoryOther').addEventListener('blur', (e) => {
-    if (e.target.value.trim() === 'Clothing') applyDefaultClothingShippingIfEmpty();
+    if (e.target.value.trim() === 'Clothing'){
+      applyDefaultClothingShippingIfEmpty();
+      applyDefaultSizeTypeIfEmpty();
+    }
   });
 
   document.getElementById('fName').addEventListener('blur', (e) => {
@@ -3468,6 +3489,7 @@ export const app = (function(){
   "likely_clothing_type": "if this is a clothing/shoe/bag/accessory item, one of: ${PRESET_CLOTHING_TYPES.join(', ')}, or another specific clothing type name if none of those fit. If the item is not clothing/footwear/accessories, use an empty string.",
   "likely_gender": "if this is a clothing/shoe/accessory item, one of: Women's, Men's, Girls', Boys', Unisex — inferred from cut/styling/tag if visible. Empty string if not applicable or not confident.",
   "likely_size": "size exactly as shown on a visible tag/label (e.g. 'M', '32x30', '8.5') — empty string if no size is legible in any photo. Never guess a size that isn't actually visible.",
+  "likely_size_type": "if this is clothing, eBay's Size Type aspect — 'Regular' unless the tag/label or the garment's visible cut clearly indicates otherwise (e.g. 'Plus', 'Petite', 'Tall', 'Big & Tall', 'Maternity', 'Juniors'). Empty string if not clothing.",
   "category": "a short, specific category name for this item. Reuse one of these if it genuinely fits: ${CATEGORY_OPTIONS.join(', ')} — otherwise suggest a new, concise category name that fits better (e.g. 'Appliances', 'Antiques', 'Board Games')",
   "ebay_search_term": "a short, specific eBay listing category search term for this exact item, e.g. 'women's skirt', 'hardcover book', 'antique table lamp', 'microwave oven' — specific enough to find the right eBay category, not a broad bucket like 'Clothing'",
   "visible_flaws": "short description of visible wear, stains, damage, or empty string if none seen",
@@ -3683,6 +3705,15 @@ Respond with the JSON object only. Do not include any text, explanation, or mark
       // empty, fill in the standard box size now too.
       if (getCategoryValue() === 'Clothing'){
         applyDefaultClothingShippingIfEmpty();
+        applyDefaultSizeTypeIfEmpty();
+      }
+      // Size Type (eBay aspect) defaults to "Regular" for clothing above —
+      // override it here if the AI actually spotted something else (Plus,
+      // Petite, Tall, etc.) from the tag or the garment's visible cut.
+      if (result.likely_size_type && result.likely_size_type.trim()){
+        currentEbayAspects['Size Type'] = result.likely_size_type.trim();
+        const sizeTypeEl = document.querySelector('[data-aspect="Size Type"]');
+        if (sizeTypeEl) sizeTypeEl.value = currentEbayAspects['Size Type'];
       }
       // Condition is intentionally NOT auto-applied from the AI's guess — it
       // always stays at whatever the form already has (defaults to "Used -
