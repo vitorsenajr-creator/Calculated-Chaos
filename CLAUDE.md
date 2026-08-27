@@ -916,6 +916,21 @@ next minor bump:
   `node --check`, a clean `vite build`, and the wrap algorithm exercised
   standalone with a mock text-measurer; watch the next real print for
   actual line-break behavior and icon placement.
+- **v3.13.60** — Moved the printed block from the top third of the label
+  to the **bottom third** per Vitor's request, and wrapped the code/
+  secondary/box/flag content in a thin top+bottom rule
+  (`.label-content-block` in CSS) that doubles as a cut guide — same idea
+  as the top-third pin from v3.13.58, just flipped and now with a visible
+  boundary instead of an implicit one. `.label-sheet` changed from
+  `justify-content:flex-start` to `flex-end`; `drawLabelToCanvas()` (the
+  Save-image path) now draws two horizontal rules bounding the block and
+  positions it against the bottom margin instead of the top. The ⚠️
+  inspection flag icon moved with the block, from the label's top-right
+  corner to the top-right corner of the (now bottom-positioned) content
+  block. **Not yet tested against a real printed label** — no headless
+  browser available in this environment to render a visual preview, so
+  verified via `node --check` and a clean `vite build` only; watch the
+  next real print for the line/positioning to look right.
 
 ## Planned changes (backlog)
 

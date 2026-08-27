@@ -65,7 +65,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.59';
+  const APP_VERSION = 'v3.13.60';
   const APP_VERSION_DATE = '2026-08-27';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -2003,11 +2003,16 @@ export const app = (function(){
     // box — matches how important each detail is when scanning the label.
     // The name/color line wraps (never truncates) so the full item name
     // always prints, shrinking font size first via shrinkWrappedToFit.
+    // The whole block sits in the bottom third of the label (see
+    // .label-sheet's justify-content:flex-end in style.css), bounded by a
+    // thin top/bottom rule that doubles as a cut guide.
     return `
-      ${item.shipInspectionFlag ? `<div class="label-flag" style="font-size:${flagSizeIn}in;" title="Inspect before shipping">⚠️</div>` : ''}
-      <div class="label-code">${escapeHtml(item.productCode || '')}</div>
-      ${secondary ? `<div class="label-secondary">${escapeHtml(secondary)}</div>` : ''}
-      ${fields.box !== false && item.storageBox ? `<div class="label-box">📦 ${escapeHtml(item.storageBox)}</div>` : ''}
+      <div class="label-content-block">
+        ${item.shipInspectionFlag ? `<div class="label-flag" style="font-size:${flagSizeIn}in;" title="Inspect before shipping">⚠️</div>` : ''}
+        <div class="label-code">${escapeHtml(item.productCode || '')}</div>
+        ${secondary ? `<div class="label-secondary">${escapeHtml(secondary)}</div>` : ''}
+        ${fields.box !== false && item.storageBox ? `<div class="label-box">📦 ${escapeHtml(item.storageBox)}</div>` : ''}
+      </div>
     `;
   }
 
@@ -2151,8 +2156,9 @@ export const app = (function(){
     // Priority order top-to-bottom: SKU code (largest, but kept modest —
     // "big but can be discreet"), name/color (2nd priority, wraps onto more
     // lines rather than truncating so the full name always prints), storage
-    // box (3rd) — the whole block is pinned to the top third of the label
-    // with minimal margins so the rest of a larger sheet can be trimmed away.
+    // box (3rd) — the whole block sits in the bottom third of the label,
+    // bounded above and below by a thin rule (also a cut guide on a larger
+    // sheet meant for trimming).
     let codeFontIn = fitFontIn(code, "'JetBrains Mono', monospace", 700, Math.min(0.6, h * 0.24), 0.14);
     let secFontIn = 0, secLines = [];
     if (secondary){
@@ -2175,8 +2181,29 @@ export const app = (function(){
       boxFontIn = boxText ? Math.max(0.08, boxFontIn * scale) : 0;
     }
 
-    const topMarginIn = Math.min(0.08, h * 0.04);
-    let curY = (topMarginIn + codeFontIn / 2) * dpi;
+    // Two thin horizontal rules bound the block — matches the
+    // .label-content-block border-top/border-bottom in the browser
+    // preview/print path.
+    const marginXIn = 0.08;
+    const innerPadIn = 0.05;
+    const bottomMarginIn = Math.min(0.08, h * 0.04);
+    const lineThicknessIn = 0.012;
+    const blockOuterIn = totalIn + innerPadIn * 2;
+    const bottomLineY = (h - bottomMarginIn) * dpi;
+    const topLineY = bottomLineY - blockOuterIn * dpi;
+
+    ctx.strokeStyle = '#6E5F4E';
+    ctx.lineWidth = lineThicknessIn * dpi;
+    ctx.beginPath();
+    ctx.moveTo(marginXIn * dpi, topLineY);
+    ctx.lineTo(canvas.width - marginXIn * dpi, topLineY);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(marginXIn * dpi, bottomLineY);
+    ctx.lineTo(canvas.width - marginXIn * dpi, bottomLineY);
+    ctx.stroke();
+
+    let curY = topLineY + (innerPadIn + codeFontIn / 2) * dpi;
 
     ctx.fillStyle = '#2B241E';
     ctx.font = `700 ${codeFontIn * dpi}px 'JetBrains Mono', monospace`;
@@ -2205,7 +2232,7 @@ export const app = (function(){
       ctx.font = `${flagSizeIn * dpi}px sans-serif`;
       ctx.textAlign = 'right';
       ctx.textBaseline = 'top';
-      ctx.fillText('⚠️', canvas.width - (0.05 * dpi), 0.04 * dpi);
+      ctx.fillText('⚠️', canvas.width - (marginXIn + 0.02) * dpi, topLineY + 0.02 * dpi);
     }
 
     return canvas;
