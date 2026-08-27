@@ -435,6 +435,10 @@
     <h3 class="serif" style="margin:0 0 4px; font-size:19px;">Print label</h3>
     <div class="ss-desc" style="margin-bottom:16px;">Opens your browser's print dialog — pick the Y43BT (or your paired thermal printer) there.</div>
     <div id="labelPreviewWrap" style="display:flex; justify-content:center; margin-bottom:18px;"></div>
+    <div id="printLabelFlagRow" style="display:flex; align-items:center; gap:8px; margin-bottom:16px;">
+      <input type="checkbox" id="printLabelShipFlagCheck" style="width:20px; height:20px; flex-shrink:0;">
+      <label for="printLabelShipFlagCheck" style="font-size:13px; color:var(--plum-soft); cursor:pointer;">⚠️ Flag for extra outbound inspection</label>
+    </div>
     <div class="modal-actions">
       <button class="settings-save-btn" id="labelPrintBtn" style="margin:0; width:auto; flex:1;">🖨️ Print</button>
       <button class="settings-save-btn" id="labelSaveImgBtn" style="margin:0; width:auto; flex:1; background:var(--sage);">💾 Save image</button>

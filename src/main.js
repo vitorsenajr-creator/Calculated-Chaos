@@ -65,7 +65,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.58';
+  const APP_VERSION = 'v3.13.59';
   const APP_VERSION_DATE = '2026-08-27';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -1989,16 +1989,22 @@ export const app = (function(){
   // inch when printed — no separate scale math needed).
   function buildLabelInnerHtml(item){
     const fields = appSettings.labelFields || {};
+    const w = appSettings.labelWidthIn || 2.25;
+    const h = appSettings.labelHeightIn || 1.25;
     const secondaryParts = [];
     if (fields.name !== false && item.name) secondaryParts.push(item.name);
     if (fields.color !== false && item.color) secondaryParts.push(item.color);
     if (fields.category && item.category) secondaryParts.push(item.category);
     if (fields.brand && item.brand) secondaryParts.push(item.brand);
     const secondary = secondaryParts.join(' · ');
+    const flagSizeIn = Math.min(0.32, h * 0.14, w * 0.14);
 
     // Priority order top-to-bottom: SKU code, then name/color, then storage
     // box — matches how important each detail is when scanning the label.
+    // The name/color line wraps (never truncates) so the full item name
+    // always prints, shrinking font size first via shrinkWrappedToFit.
     return `
+      ${item.shipInspectionFlag ? `<div class="label-flag" style="font-size:${flagSizeIn}in;" title="Inspect before shipping">⚠️</div>` : ''}
       <div class="label-code">${escapeHtml(item.productCode || '')}</div>
       ${secondary ? `<div class="label-secondary">${escapeHtml(secondary)}</div>` : ''}
       ${fields.box !== false && item.storageBox ? `<div class="label-box">📦 ${escapeHtml(item.storageBox)}</div>` : ''}
@@ -2096,6 +2102,42 @@ export const app = (function(){
       return fontIn;
     }
 
+    // Word-wraps text to fit maxWidth — never truncates, just breaks onto
+    // more lines (assumes ctx.font is already set to the size being measured).
+    function wrapCanvasText(text, maxW){
+      const words = text.split(' ');
+      const lines = [];
+      let current = '';
+      for (const word of words){
+        const test = current ? current + ' ' + word : word;
+        if (!current || ctx.measureText(test).width <= maxW){
+          current = test;
+        } else {
+          lines.push(current);
+          current = word;
+        }
+      }
+      if (current) lines.push(current);
+      return lines;
+    }
+
+    // Shrinks font size until the wrapped text fits within targetLines lines
+    // (or bottoms out at minFontIn and just wraps onto however many it needs —
+    // the full text always prints, it's never cut off with an ellipsis).
+    function fitWrappedFontIn(text, family, weight, maxFontIn, minFontIn, targetLines){
+      let fontIn = maxFontIn;
+      let lines;
+      while (fontIn > minFontIn){
+        ctx.font = `${weight} ${fontIn * dpi}px ${family}`;
+        lines = wrapCanvasText(text, maxWidth);
+        if (lines.length <= targetLines) break;
+        fontIn -= 0.02;
+      }
+      ctx.font = `${weight} ${fontIn * dpi}px ${family}`;
+      lines = wrapCanvasText(text, maxWidth);
+      return { fontIn, lines };
+    }
+
     const fields = appSettings.labelFields || {};
     const code = item.productCode || '';
     const secondaryParts = [];
@@ -2107,20 +2149,29 @@ export const app = (function(){
     const boxText = (fields.box !== false && item.storageBox) ? ('📦 ' + item.storageBox) : '';
 
     // Priority order top-to-bottom: SKU code (largest, but kept modest —
-    // "big but can be discreet"), name/color (2nd priority), storage box
-    // (3rd) — the whole block is pinned to the top third of the label with
-    // minimal margins so the rest of a larger sheet can be trimmed away.
+    // "big but can be discreet"), name/color (2nd priority, wraps onto more
+    // lines rather than truncating so the full name always prints), storage
+    // box (3rd) — the whole block is pinned to the top third of the label
+    // with minimal margins so the rest of a larger sheet can be trimmed away.
     let codeFontIn = fitFontIn(code, "'JetBrains Mono', monospace", 700, Math.min(0.6, h * 0.24), 0.14);
-    let secFontIn = secondary ? fitFontIn(secondary, "'Inter', sans-serif", 700, Math.min(0.3, h * 0.13), 0.1) : 0;
+    let secFontIn = 0, secLines = [];
+    if (secondary){
+      const res = fitWrappedFontIn(secondary, "'Inter', sans-serif", 700, Math.min(0.3, h * 0.13), 0.08, 2);
+      secFontIn = res.fontIn;
+      secLines = res.lines;
+    }
     let boxFontIn = boxText ? fitFontIn(boxText, "'Inter', sans-serif", 600, Math.min(0.2, h * 0.09), 0.08) : 0;
     const gapIn = 0.035;
+    const lineHeightMult = 1.15;
 
-    let totalIn = codeFontIn + (secondary ? gapIn + secFontIn : 0) + (boxText ? gapIn + boxFontIn : 0);
+    let secBlockIn = secLines.length ? secFontIn * lineHeightMult * secLines.length : 0;
+    let totalIn = codeFontIn + (secLines.length ? gapIn + secBlockIn : 0) + (boxText ? gapIn + boxFontIn : 0);
     const maxBlockIn = h / 3;
     if (totalIn > maxBlockIn){
       const scale = maxBlockIn / totalIn;
       codeFontIn = Math.max(0.14, codeFontIn * scale);
-      secFontIn = secondary ? Math.max(0.1, secFontIn * scale) : 0;
+      secFontIn = secLines.length ? Math.max(0.08, secFontIn * scale) : 0;
+      secBlockIn = secLines.length ? secFontIn * lineHeightMult * secLines.length : 0;
       boxFontIn = boxText ? Math.max(0.08, boxFontIn * scale) : 0;
     }
 
@@ -2132,17 +2183,14 @@ export const app = (function(){
     ctx.fillText(code, canvas.width / 2, curY);
     curY += (codeFontIn / 2) * dpi;
 
-    if (secondary){
-      curY += (gapIn + secFontIn / 2) * dpi;
+    if (secLines.length){
+      curY += (gapIn + secFontIn * lineHeightMult / 2) * dpi;
       ctx.font = `700 ${secFontIn * dpi}px 'Inter', sans-serif`;
       ctx.fillStyle = '#2B241E';
-      let text = secondary;
-      while (ctx.measureText(text).width > maxWidth && text.length > 1){
-        text = text.slice(0, -1);
+      for (let i = 0; i < secLines.length; i++){
+        ctx.fillText(secLines[i], canvas.width / 2, curY + i * secFontIn * lineHeightMult * dpi);
       }
-      if (text !== secondary) text = text.slice(0, -1) + '…';
-      ctx.fillText(text, canvas.width / 2, curY);
-      curY += (secFontIn / 2) * dpi;
+      curY += (secLines.length - 0.5) * secFontIn * lineHeightMult * dpi;
     }
 
     if (boxText){
@@ -2150,6 +2198,14 @@ export const app = (function(){
       ctx.font = `600 ${boxFontIn * dpi}px 'Inter', sans-serif`;
       ctx.fillStyle = '#6E5F4E';
       ctx.fillText(boxText, canvas.width / 2, curY);
+    }
+
+    if (item.shipInspectionFlag){
+      const flagSizeIn = Math.min(0.32, h * 0.14, w * 0.14);
+      ctx.font = `${flagSizeIn * dpi}px sans-serif`;
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'top';
+      ctx.fillText('⚠️', canvas.width - (0.05 * dpi), 0.04 * dpi);
     }
 
     return canvas;
@@ -2170,12 +2226,29 @@ export const app = (function(){
     }
   }
 
+  // Like shrinkToFit, but for text allowed to wrap onto multiple lines
+  // (the CSS already allows wrapping) — shrinks the font until the wrapped
+  // block's height fits within targetLines lines at that font size, or
+  // bottoms out at minFontIn and just wraps onto however many lines it
+  // needs. Text is never truncated with an ellipsis.
+  function shrinkWrappedToFit(el, maxFontIn, minFontIn, targetLines){
+    if (!el) return;
+    let fontIn = maxFontIn;
+    let guard = 0;
+    while (fontIn > minFontIn && guard < 60){
+      el.style.fontSize = fontIn.toFixed(3) + 'in';
+      const maxHeightPx = fontIn * 1.15 * targetLines * 96 + 1;
+      if (el.scrollHeight <= maxHeightPx) break;
+      fontIn -= 0.01;
+      guard++;
+    }
+    el.style.fontSize = fontIn.toFixed(3) + 'in';
+  }
+
   let printLabelItem = null;
   let printMode = 'item'; // 'item' | 'marker'
 
-  function openPrintLabelModal(item){
-    printMode = 'item';
-    printLabelItem = item;
+  function renderItemLabelPreview(item){
     const w = appSettings.labelWidthIn || 2.25;
     const h = appSettings.labelHeightIn || 1.25;
     const wrap = document.getElementById('labelPreviewWrap');
@@ -2186,12 +2259,34 @@ export const app = (function(){
     const secEl = sheet.querySelector('.label-secondary');
     const boxEl = sheet.querySelector('.label-box');
     shrinkToFit(codeEl, Math.min(0.6, h * 0.24), 0.14);
-    shrinkToFit(secEl, Math.min(0.3, h * 0.13), 0.1);
+    shrinkWrappedToFit(secEl, Math.min(0.3, h * 0.13), 0.08, 2);
     shrinkToFit(boxEl, Math.min(0.2, h * 0.09), 0.08);
+  }
+
+  function openPrintLabelModal(item){
+    printMode = 'item';
+    printLabelItem = item;
+    renderItemLabelPreview(item);
+
+    const flagRow = document.getElementById('printLabelFlagRow');
+    const flagCheck = document.getElementById('printLabelShipFlagCheck');
+    if (flagRow) flagRow.style.display = '';
+    if (flagCheck) flagCheck.checked = !!item.shipInspectionFlag;
 
     document.querySelector('#printLabelOverlay h3').textContent = 'Print label';
     document.getElementById('printLabelOverlay').classList.remove('hidden');
   }
+
+  document.getElementById('printLabelShipFlagCheck').addEventListener('change', async (e) => {
+    if (printMode !== 'item' || !printLabelItem) return;
+    const checked = e.target.checked;
+    const updated = { ...printLabelItem, shipInspectionFlag: checked };
+    printLabelItem = updated;
+    const idx = items.findIndex(i => i.id === updated.id);
+    if (idx >= 0) items[idx] = updated;
+    renderItemLabelPreview(updated);
+    try{ await saveItem(updated); }catch(err){ /* saveItem already alerts */ }
+  });
 
   window.openMarkerPrintModal = function(){
     printMode = 'marker';
@@ -2200,6 +2295,9 @@ export const app = (function(){
     const h = appSettings.labelHeightIn || 1.25;
     const wrap = document.getElementById('labelPreviewWrap');
     wrap.innerHTML = `<div class="label-sheet" style="width:${w}in; height:${h}in; border:none;">${buildMarkerInnerHtml(w, h)}</div>`;
+
+    const flagRow = document.getElementById('printLabelFlagRow');
+    if (flagRow) flagRow.style.display = 'none';
 
     document.querySelector('#printLabelOverlay h3').textContent = 'Print wall marker';
     document.getElementById('printLabelOverlay').classList.remove('hidden');
