@@ -892,6 +892,30 @@ next minor bump:
   consistency but doesn't enforce that exact third-height clamp, since
   that path prints straight to a driver at the label's exact configured
   size rather than onto a larger sheet meant for trimming.
+- **v3.13.59** — Two follow-ups from Vitor testing v3.13.58 on a real
+  label: (1) the item-name line was still getting cut off with "…" on a
+  long name (e.g. "Socialite Black Quilted ...") — he wants the FULL name
+  to always print, never truncated. Changed `.label-secondary` from
+  single-line + ellipsis to wrapping (`white-space:normal;
+  word-break:break-word`), and replaced the ellipsis-truncation logic in
+  both `buildLabelInnerHtml`'s live preview (new `shrinkWrappedToFit()`,
+  shrinks font until the wrapped block fits ~2 lines, or however many
+  lines it actually needs — never cuts text) and `drawLabelToCanvas()`
+  (new `wrapCanvasText()`/`fitWrappedFontIn()` — same idea, word-wrapped
+  manually since canvas has no native text-wrap). (2) Added a "⚠️ Flag for
+  extra outbound inspection" checkbox to the print-label modal
+  (`#printLabelFlagRow`, item mode only — hidden for the wall-marker print
+  mode) — his use case: items checked here should get an extra QC pass
+  before shipping. Persists as `item.shipInspectionFlag`, saved
+  immediately via `saveItem()` on toggle (same pattern as other quick
+  single-field item updates like the bulk box-move), and renders as a ⚠️
+  icon in the label's top-right corner (`.label-flag` in CSS, drawn
+  directly on the canvas for the Save-image path) whenever set — visible
+  as a distinct "sign," not mixed into the text hierarchy from v3.13.58.
+  **Not yet tested against a real printed label** — verified via
+  `node --check`, a clean `vite build`, and the wrap algorithm exercised
+  standalone with a mock text-measurer; watch the next real print for
+  actual line-break behavior and icon placement.
 
 ## Planned changes (backlog)
 
