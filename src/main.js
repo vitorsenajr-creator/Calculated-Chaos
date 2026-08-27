@@ -65,7 +65,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.60';
+  const APP_VERSION = 'v3.13.61';
   const APP_VERSION_DATE = '2026-08-27';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -3661,6 +3661,45 @@ export const app = (function(){
     return null;
   }
 
+  // A freshly-added photo (not yet uploaded to Storage) is still a local
+  // data: URL at the size compressImage() leaves it (up to 1600px, quality
+  // 0.85) — fine for one photo, but 5 of those base64-encoded together can
+  // exceed Vercel's ~4.5MB request body limit and come back as a flat
+  // HTTP 413 before the AI ever sees them. Already-hosted https:// photos
+  // (a saved item) aren't affected — those are sent as a URL reference, not
+  // embedded — so this only re-encodes local data: URLs, smaller and at a
+  // lower quality, purely for this request; the stored photo is untouched.
+  const AI_PAYLOAD_MAX_DIM = 1000;
+  const AI_PAYLOAD_QUALITY = 0.7;
+  function shrinkDataUrlForAiPayload(dataUrl){
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > height && width > AI_PAYLOAD_MAX_DIM){
+          height = Math.round(height * (AI_PAYLOAD_MAX_DIM / width));
+          width = AI_PAYLOAD_MAX_DIM;
+        } else if (height > AI_PAYLOAD_MAX_DIM){
+          width = Math.round(width * (AI_PAYLOAD_MAX_DIM / height));
+          height = AI_PAYLOAD_MAX_DIM;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', AI_PAYLOAD_QUALITY));
+      };
+      img.onerror = () => resolve(dataUrl); // fall back to the original rather than dropping the photo
+      img.src = dataUrl;
+    });
+  }
+  async function buildAiImageBlocks(photos, maxCount){
+    const selected = (photos || []).slice(0, maxCount);
+    const forPayload = await Promise.all(selected.map(src =>
+      (src && src.startsWith('data:')) ? shrinkDataUrlForAiPayload(src) : src
+    ));
+    return forPayload.map(photoToImageBlock).filter(Boolean);
+  }
+
   async function analyzeItemPhoto(){
     const btn = document.getElementById('analyzePhotoBtn');
     const area = document.getElementById('aiAnalysisArea');
@@ -3681,8 +3720,7 @@ export const app = (function(){
     area.innerHTML = `<div class="ai-loading">Looking closely at your item — this takes a few seconds…</div>`;
 
     try{
-      const photosToSend = currentPhotos.slice(0, 3); // up to 3 photos for context
-      const imageBlocks = photosToSend.map(photoToImageBlock).filter(Boolean);
+      const imageBlocks = await buildAiImageBlocks(currentPhotos, 3); // up to 3 photos for context
       if (imageBlocks.length === 0){
         area.innerHTML = `<div class="ai-error">Couldn't read the photo(s) for analysis. Please try again.</div>`;
         btn.disabled = false;
@@ -4260,7 +4298,15 @@ Be accurate and honest — never invent brand, material, or condition details th
     // silently dropping the tags.
     let rawStyleTags = result.style_tags;
     if (typeof rawStyleTags === 'string') rawStyleTags = rawStyleTags.split(',').map(s => s.trim());
-    const styleTagGuesses = Array.isArray(rawStyleTags) ? rawStyleTags.filter(Boolean).slice(0, 3).map(String) : [];
+    let styleTagGuesses = Array.isArray(rawStyleTags) ? rawStyleTags.filter(Boolean).slice(0, 3).map(String) : [];
+    // The model is explicitly told an empty array is fine "if nothing fits
+    // well," but in practice it comes back empty far more often than that
+    // should happen for ordinary clothing — fall back to the same
+    // best-effort heuristic the instant template uses rather than leaving
+    // her with three blank tag fields to fill by hand.
+    if (styleTagGuesses.length === 0){
+      styleTagGuesses = Array.from(new Set([f.clothingType, f.color, f.gender ? `${f.gender} Style` : ''].filter(Boolean))).slice(0, 3);
+    }
     return { ok:true, title, description, styleTagGuesses };
   }
 
@@ -4284,7 +4330,7 @@ Be accurate and honest — never invent brand, material, or condition details th
       // (fabric content, size, care instructions) are usually a few photos
       // in, and reading them is what makes the AI's description as detailed
       // as a description written by hand from the actual garment tag.
-      const imageBlocks = currentPhotos.slice(0, 5).map(photoToImageBlock).filter(Boolean);
+      const imageBlocks = await buildAiImageBlocks(currentPhotos, 5);
 
       const result = await requestAiListingDescription({ ...f, imageBlocks });
       if (!result.ok){
@@ -4411,7 +4457,7 @@ Be accurate and honest — never invent brand, material, or condition details th
         // item's own category instead (this is what produced a "check my
         // closet!" line on a pencil before).
         useStandardClosing: item.category === 'Clothing',
-        imageBlocks: (item.photos || []).slice(0, 5).map(photoToImageBlock).filter(Boolean),
+        imageBlocks: await buildAiImageBlocks(item.photos, 5),
       };
       const result = await requestAiListingDescription(f);
       if (!result.ok) return { ok:false, message: result.message };

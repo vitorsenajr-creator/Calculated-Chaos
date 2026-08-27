@@ -932,6 +932,34 @@ next minor bump:
   verified via `node --check` and a clean `vite build` only; watch the
   next real print for the line/positioning to look right.
 
+- **v3.13.61** — Two follow-up reports from testing the v3.13.56/53
+  autosave/tags fixes: (1) **Found the actual reason listing generation
+  kept failing to save**: it wasn't the autosave logic at all — the AI
+  listing-description request was outright failing with a raw HTTP 413
+  ("Payload Too Large") before any description or autosave ever
+  happened. `currentPhotos` are freshly-compressed local `data:` URLs
+  (up to 1600px, quality 0.85) until actually saved/hosted; sending 5 of
+  those base64-encoded together in one request could exceed Vercel's
+  ~4.5MB serverless request body limit — a hard platform cap, not
+  something `vercel.json` can raise. Added `buildAiImageBlocks()` in
+  `src/main.js`: for any `data:` URL photo (not yet hosted), it
+  re-compresses down to 1000px/quality 0.7 *just for this request*
+  (`shrinkDataUrlForAiPayload()`) before building the image block —
+  the stored photo itself is untouched. An already-hosted `https://`
+  photo (a saved item) is sent as a URL reference either way, so it
+  never contributed to this in the first place. Applied to all three
+  call sites that build AI image blocks: `analyzeItemPhoto()`,
+  `generateListingDescriptionAI()`, and the bulk/shared
+  `generateListingDescriptionForItem()`. (2) Style tags still coming
+  back empty sometimes even after v3.13.53's prompt fix — the model
+  genuinely does return `style_tags: []` sometimes for ordinary
+  clothing despite the curated list being broad (Casual, Cozy, Knit,
+  Chunky, etc.), more often than "nothing fits well" should actually
+  happen. `requestAiListingDescription()` now falls back to the same
+  clothingType/color/gender heuristic the instant template already uses
+  whenever the AI's own list comes back empty, so the three tag fields
+  aren't left blank when a reasonable guess is available from the form.
+
 ## Planned changes (backlog)
 
 Not implemented yet — captured here so they survive between sessions.
