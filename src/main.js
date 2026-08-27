@@ -65,8 +65,8 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.57';
-  const APP_VERSION_DATE = '2026-08-26';
+  const APP_VERSION = 'v3.13.58';
+  const APP_VERSION_DATE = '2026-08-27';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
   let itemsLoaded = false; // true once the initial Firestore fetch in loadItems() resolves
@@ -1991,14 +1991,17 @@ export const app = (function(){
     const fields = appSettings.labelFields || {};
     const secondaryParts = [];
     if (fields.name !== false && item.name) secondaryParts.push(item.name);
+    if (fields.color !== false && item.color) secondaryParts.push(item.color);
     if (fields.category && item.category) secondaryParts.push(item.category);
     if (fields.brand && item.brand) secondaryParts.push(item.brand);
     const secondary = secondaryParts.join(' · ');
 
+    // Priority order top-to-bottom: SKU code, then name/color, then storage
+    // box — matches how important each detail is when scanning the label.
     return `
       <div class="label-code">${escapeHtml(item.productCode || '')}</div>
-      ${fields.box !== false && item.storageBox ? `<div class="label-box">📦 ${escapeHtml(item.storageBox)}</div>` : ''}
       ${secondary ? `<div class="label-secondary">${escapeHtml(secondary)}</div>` : ''}
+      ${fields.box !== false && item.storageBox ? `<div class="label-box">📦 ${escapeHtml(item.storageBox)}</div>` : ''}
     `;
   }
 
@@ -2095,43 +2098,58 @@ export const app = (function(){
 
     const fields = appSettings.labelFields || {};
     const code = item.productCode || '';
-    const boxText = (fields.box !== false && item.storageBox) ? ('📦 ' + item.storageBox) : '';
     const secondaryParts = [];
     if (fields.name !== false && item.name) secondaryParts.push(item.name);
+    if (fields.color !== false && item.color) secondaryParts.push(item.color);
     if (fields.category && item.category) secondaryParts.push(item.category);
     if (fields.brand && item.brand) secondaryParts.push(item.brand);
     const secondary = secondaryParts.join(' · ');
+    const boxText = (fields.box !== false && item.storageBox) ? ('📦 ' + item.storageBox) : '';
 
-    const codeFontIn = fitFontIn(code, "'JetBrains Mono', monospace", 700, Math.min(1.1, h * 0.4), 0.14);
-    const boxFontIn = boxText ? fitFontIn(boxText, "'Inter', sans-serif", 700, Math.min(0.55, h * 0.22), 0.1) : 0;
-    const secFontIn = 0.11;
-    const gapIn = 0.03;
+    // Priority order top-to-bottom: SKU code (largest, but kept modest —
+    // "big but can be discreet"), name/color (2nd priority), storage box
+    // (3rd) — the whole block is pinned to the top third of the label with
+    // minimal margins so the rest of a larger sheet can be trimmed away.
+    let codeFontIn = fitFontIn(code, "'JetBrains Mono', monospace", 700, Math.min(0.6, h * 0.24), 0.14);
+    let secFontIn = secondary ? fitFontIn(secondary, "'Inter', sans-serif", 700, Math.min(0.3, h * 0.13), 0.1) : 0;
+    let boxFontIn = boxText ? fitFontIn(boxText, "'Inter', sans-serif", 600, Math.min(0.2, h * 0.09), 0.08) : 0;
+    const gapIn = 0.035;
 
-    const totalIn = codeFontIn + (boxText ? gapIn + boxFontIn : 0) + (secondary ? gapIn + secFontIn : 0);
-    let curY = ((h - totalIn) / 2 + codeFontIn / 2) * dpi;
+    let totalIn = codeFontIn + (secondary ? gapIn + secFontIn : 0) + (boxText ? gapIn + boxFontIn : 0);
+    const maxBlockIn = h / 3;
+    if (totalIn > maxBlockIn){
+      const scale = maxBlockIn / totalIn;
+      codeFontIn = Math.max(0.14, codeFontIn * scale);
+      secFontIn = secondary ? Math.max(0.1, secFontIn * scale) : 0;
+      boxFontIn = boxText ? Math.max(0.08, boxFontIn * scale) : 0;
+    }
+
+    const topMarginIn = Math.min(0.08, h * 0.04);
+    let curY = (topMarginIn + codeFontIn / 2) * dpi;
 
     ctx.fillStyle = '#2B241E';
     ctx.font = `700 ${codeFontIn * dpi}px 'JetBrains Mono', monospace`;
     ctx.fillText(code, canvas.width / 2, curY);
     curY += (codeFontIn / 2) * dpi;
 
-    if (boxText){
-      curY += (gapIn + boxFontIn / 2) * dpi;
-      ctx.font = `700 ${boxFontIn * dpi}px 'Inter', sans-serif`;
-      ctx.fillText(boxText, canvas.width / 2, curY);
-      curY += (boxFontIn / 2) * dpi;
-    }
-
     if (secondary){
       curY += (gapIn + secFontIn / 2) * dpi;
-      ctx.font = `500 ${secFontIn * dpi}px 'Inter', sans-serif`;
-      ctx.fillStyle = '#6E5F4E';
+      ctx.font = `700 ${secFontIn * dpi}px 'Inter', sans-serif`;
+      ctx.fillStyle = '#2B241E';
       let text = secondary;
       while (ctx.measureText(text).width > maxWidth && text.length > 1){
         text = text.slice(0, -1);
       }
       if (text !== secondary) text = text.slice(0, -1) + '…';
       ctx.fillText(text, canvas.width / 2, curY);
+      curY += (secFontIn / 2) * dpi;
+    }
+
+    if (boxText){
+      curY += (gapIn + boxFontIn / 2) * dpi;
+      ctx.font = `600 ${boxFontIn * dpi}px 'Inter', sans-serif`;
+      ctx.fillStyle = '#6E5F4E';
+      ctx.fillText(boxText, canvas.width / 2, curY);
     }
 
     return canvas;
@@ -2165,9 +2183,11 @@ export const app = (function(){
 
     const sheet = wrap.querySelector('.label-sheet');
     const codeEl = sheet.querySelector('.label-code');
+    const secEl = sheet.querySelector('.label-secondary');
     const boxEl = sheet.querySelector('.label-box');
-    shrinkToFit(codeEl, Math.min(1.1, h * 0.4), 0.14);
-    shrinkToFit(boxEl, Math.min(0.55, h * 0.22), 0.1);
+    shrinkToFit(codeEl, Math.min(0.6, h * 0.24), 0.14);
+    shrinkToFit(secEl, Math.min(0.3, h * 0.13), 0.1);
+    shrinkToFit(boxEl, Math.min(0.2, h * 0.09), 0.08);
 
     document.querySelector('#printLabelOverlay h3').textContent = 'Print label';
     document.getElementById('printLabelOverlay').classList.remove('hidden');
@@ -4883,7 +4903,7 @@ Be accurate and honest — never invent brand, material, or condition details th
       <!-- THERMAL LABEL PRINTING -->
       <div class="settings-section">
         <h3>Label printing</h3>
-        <div class="ss-desc">Sets the size of the labels loaded in your thermal printer and which details print on them. This is used by the 🖨️ button on each item.</div>
+        <div class="ss-desc">Sets the size of the labels loaded in your thermal printer and which details print on them. This is used by the 🖨️ button on each item. Printed top-to-bottom by priority: product code, then name/color, then storage box — pinned to the top of the label with minimal margins so a larger sheet can be trimmed below it.</div>
         <div class="settings-row">
           <div><div class="sr-label">Label width</div><div class="sr-sub">Inches</div></div>
           <input type="number" id="sLabelWidth" value="${appSettings.labelWidthIn || 2.25}" min="1" max="6" step="0.05">
@@ -4897,12 +4917,16 @@ Be accurate and honest — never invent brand, material, or condition details th
           <input type="checkbox" checked disabled style="width:20px; height:20px;">
         </div>
         <div class="settings-row">
-          <div><div class="sr-label">Storage box</div></div>
-          <input type="checkbox" id="sLabelFieldBox" ${appSettings.labelFields?.box !== false ? 'checked' : ''} style="width:20px; height:20px;">
-        </div>
-        <div class="settings-row">
           <div><div class="sr-label">Item name</div></div>
           <input type="checkbox" id="sLabelFieldName" ${appSettings.labelFields?.name !== false ? 'checked' : ''} style="width:20px; height:20px;">
+        </div>
+        <div class="settings-row">
+          <div><div class="sr-label">Color</div></div>
+          <input type="checkbox" id="sLabelFieldColor" ${appSettings.labelFields?.color !== false ? 'checked' : ''} style="width:20px; height:20px;">
+        </div>
+        <div class="settings-row">
+          <div><div class="sr-label">Storage box</div></div>
+          <input type="checkbox" id="sLabelFieldBox" ${appSettings.labelFields?.box !== false ? 'checked' : ''} style="width:20px; height:20px;">
         </div>
         <div class="settings-row">
           <div><div class="sr-label">Category / type</div></div>
@@ -5510,6 +5534,7 @@ EBAY_MERCHANT_LOCATION_KEY=${escapeHtml(data.results.merchantLocationKey)}</div>
     appSettings.labelFields = {
       box: document.getElementById('sLabelFieldBox').checked,
       name: document.getElementById('sLabelFieldName').checked,
+      color: document.getElementById('sLabelFieldColor').checked,
       category: document.getElementById('sLabelFieldCategory').checked,
       brand: document.getElementById('sLabelFieldBrand').checked,
     };
