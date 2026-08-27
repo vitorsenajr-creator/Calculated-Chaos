@@ -733,21 +733,24 @@
   /* ---------- THERMAL LABEL ---------- */
   .label-sheet{
     background:var(--white); border:1px dashed var(--line); border-radius:2px;
-    display:flex; flex-direction:column; align-items:center; justify-content:center;
-    overflow:hidden; padding:0.06in 0.08in; box-sizing:border-box;
+    display:flex; flex-direction:column; align-items:center; justify-content:flex-start;
+    overflow:hidden; padding:0.05in 0.08in 0.08in; box-sizing:border-box;
   }
+  /* Priority order top-to-bottom: code (biggest, but kept modest), then
+     name/color, then storage box — pinned to the top with minimal margins
+     so a larger sheet can be trimmed below the printed content. */
   .label-sheet .label-code{
     font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--plum);
     line-height:1.05; white-space:nowrap; text-align:center;
   }
-  .label-sheet .label-box{
-    font-family:'Inter',sans-serif; font-weight:700; color:var(--plum);
-    line-height:1.15; white-space:nowrap; text-align:center; margin-top:0.03in;
-  }
   .label-sheet .label-secondary{
-    font-family:'Inter',sans-serif; font-weight:500; color:var(--plum-soft);
-    font-size:0.11in; line-height:1.2; text-align:center; margin-top:0.03in;
+    font-family:'Inter',sans-serif; font-weight:700; color:var(--plum);
+    line-height:1.15; text-align:center; margin-top:0.035in;
     max-width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .label-sheet .label-box{
+    font-family:'Inter',sans-serif; font-weight:600; color:var(--plum-soft);
+    line-height:1.15; white-space:nowrap; text-align:center; margin-top:0.035in;
   }
 
   /* Printing: show only the label sheet, sized to the configured @page.

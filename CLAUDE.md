@@ -866,6 +866,32 @@ next minor bump:
   handler that already special-cases the print-label button and photo
   gallery, so tapping the chip shows the popover instead of opening the
   item.
+- **v3.13.58** — Reworked the thermal label layout per Vitor's feedback
+  after testing on a real 100×150mm label via the Save-image → FlashLabel
+  Pro flow (the phone can't reach the Y43BT's OS print driver directly,
+  so that canvas render — `drawLabelToCanvas()` — is what he's actually
+  seeing on paper). Old layout centered the whole block vertically in the
+  label with SKU code, then box, then name/category/brand, and the code
+  filled a huge portion of the label. New priority order top-to-bottom:
+  (1) SKU code — still the biggest element but capped smaller (was up to
+  1.1in/40% of height, now capped at 0.6in/24%) so it reads as prominent
+  without dominating, (2) item name + **color** (new — `item.color` was
+  already on every item but never appeared on a label), (3) storage box,
+  now last since it matters least when scanning a label. Added a "Color"
+  checkbox in Settings → Label printing (default on, same "only shows if
+  the item has it" pattern as the other optional fields). The whole block
+  is now pinned to the **top** of the label (`.label-sheet` changed from
+  `justify-content:center` to `flex-start`, minimal top padding) instead
+  of centered — his stated plan is to trim/cut the label after printing
+  and reuse the rest of the sheet, so wasted white space below the text is
+  intentional, not a bug. `drawLabelToCanvas()` also explicitly clamps the
+  combined block height to the top third of the label (`h / 3`), scaling
+  all three font sizes down proportionally if they'd overflow that budget
+  on an unusually short label — the on-screen preview/browser-print path
+  (`openPrintLabelModal()`) uses the same per-field size caps for
+  consistency but doesn't enforce that exact third-height clamp, since
+  that path prints straight to a driver at the label's exact configured
+  size rather than onto a larger sheet meant for trimming.
 
 ## Planned changes (backlog)
 
