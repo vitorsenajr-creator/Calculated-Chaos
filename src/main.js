@@ -65,7 +65,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.63';
+  const APP_VERSION = 'v3.13.64';
   const APP_VERSION_DATE = '2026-09-03';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -352,21 +352,6 @@ export const app = (function(){
     const fromItems = _getAllStorageBoxes(items);
     const registered = (appSettings.storageBoxes || []).map(b => b.name);
     return Array.from(new Set([...fromItems, ...registered])).sort((a,b)=> a.localeCompare(b, undefined, {numeric:true}));
-  }
-
-  // Fixed per-item label height used only in batch printing — defaults to
-  // a third of the configured (single-item) label height, e.g. a 6in
-  // "paper" divides into 3 stacked 2in labels, but it's its own setting so
-  // it stays fixed even if the paper size configured above changes later.
-  function getBatchLabelHeightIn(){
-    return appSettings.batchLabelHeightIn || (appSettings.labelHeightIn || 6) / 3;
-  }
-  // How many labels fit on the configured paper at that fixed per-item
-  // height — recalculates automatically if either setting changes.
-  function getMaxBatchLabels(){
-    const paperH = appSettings.labelHeightIn || 6;
-    const itemH = getBatchLabelHeightIn();
-    return Math.max(1, Math.floor(paperH / itemH));
   }
   function getAllSizes(clothingType){ return _getAllSizes(items, clothingType); }
   function getSizeSuggestionsForType(clothingType){ return _getSizeSuggestionsForType(items, clothingType); }
@@ -844,7 +829,7 @@ export const app = (function(){
           <button id="bulkDeleteBtn" style="background:var(--danger); color:white; border:none; border-radius:8px; padding:8px 14px; font-size:13px; cursor:pointer;" ${bulkSelectedIds.size===0?'disabled':''}>Delete</button>
           <button id="bulkPublishEbayBtn" style="background:#E53238; color:white; border:none; border-radius:8px; padding:8px 14px; font-size:13px; font-weight:600; cursor:pointer;" ${bulkSelectedIds.size===0?'disabled':''}>🛒 Publish on eBay</button>
           <button id="bulkGenerateDescBtn" style="background:var(--gold); color:white; border:none; border-radius:8px; padding:8px 14px; font-size:13px; font-weight:600; cursor:pointer;" ${bulkSelectedIds.size===0?'disabled':''}>🪄 Generate descriptions</button>
-          <button id="bulkPrintLabelsBtn" title="${bulkSelectedIds.size > getMaxBatchLabels() ? `Max ${getMaxBatchLabels()} labels per sheet — deselect some items` : ''}" style="background:var(--plum); color:white; border:none; border-radius:8px; padding:8px 14px; font-size:13px; font-weight:600; cursor:pointer;" ${(bulkSelectedIds.size===0 || bulkSelectedIds.size>getMaxBatchLabels())?'disabled':''}>🖨️ Imprimir etiquetas (${bulkSelectedIds.size}/${getMaxBatchLabels()})</button>
+          <button id="bulkPrintLabelsBtn" style="background:var(--plum); color:white; border:none; border-radius:8px; padding:8px 14px; font-size:13px; font-weight:600; cursor:pointer;" ${bulkSelectedIds.size===0?'disabled':''}>🖨️ Imprimir etiquetas (${bulkSelectedIds.size})</button>
           <button id="bulkSelectAllBtn" style="background:transparent; border:1px solid var(--line); border-radius:8px; padding:8px 14px; font-size:13px; cursor:pointer;">Select all (${filtered.length})</button>
         </div>
         <div id="bulkActionStatus" style="margin-top:8px; font-size:12px;"></div>
@@ -1101,7 +1086,7 @@ export const app = (function(){
       bulkPrintLabelsBtn.addEventListener('click', () => {
         const ids = Array.from(bulkSelectedIds);
         const selectedItems = ids.map(id => items.find(i => i.id === id)).filter(Boolean);
-        if (selectedItems.length === 0 || selectedItems.length > getMaxBatchLabels()) return;
+        if (selectedItems.length === 0) return;
         openBatchLabelModal(selectedItems);
       });
     }
@@ -2058,15 +2043,13 @@ export const app = (function(){
     `;
   }
 
-  // One sheet made of up to getMaxBatchLabels() stacked strips, each at
-  // the fixed standard per-item height (getBatchLabelHeightIn) — a
-  // complete individual item label, own rule-bounded content block. No
-  // unfilled strips: the sheet is exactly as tall as the items printed.
+  // One sheet, one strip per selected item, each sized to exactly what its
+  // own content needs (no fixed slot, no wasted space) — a single shared
+  // cut line sits between consecutive strips (see .label-sheet-batch CSS),
+  // not a rule pair around every item.
   function buildBatchLabelInnerHtml(itemsArr){
-    const stripH = getBatchLabelHeightIn();
-    const n = Math.min(itemsArr.length, getMaxBatchLabels());
-    return itemsArr.slice(0, n).map(item =>
-      `<div class="label-batch-strip" style="height:${stripH}in;">${buildLabelInnerHtml(item)}</div>`
+    return itemsArr.map(item =>
+      `<div class="label-batch-strip">${buildLabelInnerHtml(item)}</div>`
     ).join('');
   }
 
@@ -2138,7 +2121,15 @@ export const app = (function(){
   // canvas (yOffsetIn 0, h = full label height) and each stacked strip of
   // the batch sheet (h = stripH, yOffsetIn = strip index × stripH). Strips
   // are always full sheet width, so there's no x-offset to parameterize.
-  function drawItemLabelOnto(ctx, item, w, h, dpi, yOffsetIn, blockFraction = 1/3){
+  // sizingH drives the font-size caps and the blockFraction target (defaults
+  // to h, i.e. "size relative to my own slot" — single-item behavior,
+  // unchanged); pass a fixed sizingH separately from a tight-fitted h when
+  // you want consistent font sizes across items whose actual slot height
+  // varies (batch mode: same visual scale as a single label, but each
+  // item's block is only as tall as its own content needs).
+  // Returns the block's rendered height in inches (content + padding),
+  // regardless of drawRules — callers use it to stack multiple blocks.
+  function drawItemLabelOnto(ctx, item, w, h, dpi, yOffsetIn, blockFraction = 1/3, sizingH = h, drawRules = true){
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     const canvasWidthPx = w * dpi;
@@ -2206,20 +2197,20 @@ export const app = (function(){
     // box (3rd) — the whole block sits in the bottom third of the label,
     // bounded above and below by a thin rule (also a cut guide on a larger
     // sheet meant for trimming).
-    let codeFontIn = fitFontIn(code, "'JetBrains Mono', monospace", 700, Math.min(0.6, h * 0.24), 0.14);
+    let codeFontIn = fitFontIn(code, "'JetBrains Mono', monospace", 700, Math.min(0.6, sizingH * 0.24), 0.14);
     let secFontIn = 0, secLines = [];
     if (secondary){
-      const res = fitWrappedFontIn(secondary, "'Inter', sans-serif", 700, Math.min(0.3, h * 0.13), 0.08, 2);
+      const res = fitWrappedFontIn(secondary, "'Inter', sans-serif", 700, Math.min(0.3, sizingH * 0.13), 0.08, 2);
       secFontIn = res.fontIn;
       secLines = res.lines;
     }
-    let boxFontIn = boxText ? fitFontIn(boxText, "'Inter', sans-serif", 600, Math.min(0.2, h * 0.09), 0.08) : 0;
+    let boxFontIn = boxText ? fitFontIn(boxText, "'Inter', sans-serif", 600, Math.min(0.2, sizingH * 0.09), 0.08) : 0;
     const gapIn = 0.035;
     const lineHeightMult = 1.15;
 
     let secBlockIn = secLines.length ? secFontIn * lineHeightMult * secLines.length : 0;
     let totalIn = codeFontIn + (secLines.length ? gapIn + secBlockIn : 0) + (boxText ? gapIn + boxFontIn : 0);
-    const maxBlockIn = h * blockFraction;
+    const maxBlockIn = sizingH * blockFraction;
     if (totalIn > maxBlockIn){
       const scale = maxBlockIn / totalIn;
       codeFontIn = Math.max(0.14, codeFontIn * scale);
@@ -2230,25 +2221,28 @@ export const app = (function(){
 
     // Two thin horizontal rules bound the block — matches the
     // .label-content-block border-top/border-bottom in the browser
-    // preview/print path.
+    // preview/print path. Batch mode draws its own single shared
+    // separator between items instead (drawRules=false here).
     const marginXIn = 0.08;
     const innerPadIn = 0.05;
-    const bottomMarginIn = Math.min(0.08, h * 0.04);
+    const bottomMarginIn = Math.min(0.08, sizingH * 0.04);
     const lineThicknessIn = 0.012;
-    const blockOuterIn = totalIn + innerPadIn * 2;
+    const blockOuterIn = totalIn + innerPadIn * 2 + bottomMarginIn;
     const bottomLineY = (yOffsetIn + h - bottomMarginIn) * dpi;
-    const topLineY = bottomLineY - blockOuterIn * dpi;
+    const topLineY = bottomLineY - (blockOuterIn - bottomMarginIn) * dpi;
 
-    ctx.strokeStyle = '#6E5F4E';
-    ctx.lineWidth = lineThicknessIn * dpi;
-    ctx.beginPath();
-    ctx.moveTo(marginXIn * dpi, topLineY);
-    ctx.lineTo(canvasWidthPx - marginXIn * dpi, topLineY);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(marginXIn * dpi, bottomLineY);
-    ctx.lineTo(canvasWidthPx - marginXIn * dpi, bottomLineY);
-    ctx.stroke();
+    if (drawRules){
+      ctx.strokeStyle = '#6E5F4E';
+      ctx.lineWidth = lineThicknessIn * dpi;
+      ctx.beginPath();
+      ctx.moveTo(marginXIn * dpi, topLineY);
+      ctx.lineTo(canvasWidthPx - marginXIn * dpi, topLineY);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(marginXIn * dpi, bottomLineY);
+      ctx.lineTo(canvasWidthPx - marginXIn * dpi, bottomLineY);
+      ctx.stroke();
+    }
 
     let curY = topLineY + (innerPadIn + codeFontIn / 2) * dpi;
 
@@ -2281,6 +2275,8 @@ export const app = (function(){
       ctx.textBaseline = 'top';
       ctx.fillText('⚠️', canvasWidthPx - (marginXIn + 0.02) * dpi, topLineY + 0.02 * dpi);
     }
+
+    return blockOuterIn;
   }
 
   // Renders the same label content to a canvas (plain fillText/fillRect only —
@@ -2367,25 +2363,51 @@ export const app = (function(){
     return canvas;
   }
 
-  // Up to getMaxBatchLabels() items' labels stacked at the fixed per-item
-  // batch height (see getBatchLabelHeightIn) on one sheet — each strip is
-  // a complete individual label (own rules, text filling ~its full slot
-  // via the wide blockFraction) at the label's real standard size, not a
-  // further-subdivided fraction of the paper. The sheet is only as tall
-  // as the items actually printed — no wasted blank space below.
+  // No cap, no fixed slot — every selected item gets exactly the height
+  // its own content needs (same font-size scale as a single label, via
+  // sizingH), stacked with a single shared cut line between consecutive
+  // items (not a rule pair around each one). The sheet is only ever as
+  // tall as the sum of what's actually printed.
   function drawBatchLabelToCanvas(itemsArr){
     const w = appSettings.labelWidthIn || 2.25;
-    const stripH = getBatchLabelHeightIn();
+    const sizingH = appSettings.labelHeightIn || 6;
     const dpi = 300;
-    const n = Math.min(itemsArr.length, getMaxBatchLabels());
+
+    // Pass 1: measure each item's natural block height on a scratch canvas
+    // (drawRules=false — text still renders but is discarded, only the
+    // returned height is used).
+    const scratch = document.createElement('canvas');
+    scratch.width = Math.round(w * dpi);
+    scratch.height = Math.round(sizingH * dpi);
+    const scratchCtx = scratch.getContext('2d');
+    const heightsIn = itemsArr.map(item =>
+      drawItemLabelOnto(scratchCtx, item, w, sizingH, dpi, 0, 1/3, sizingH, false)
+    );
+    const totalHeightIn = heightsIn.reduce((s, h) => s + h, 0);
+
+    // Pass 2: draw each item into its own tight slot (h = its measured
+    // height, so it fills that slot completely) on the real, correctly-
+    // sized canvas, plus one separator line between consecutive items.
     const canvas = document.createElement('canvas');
     canvas.width = Math.round(w * dpi);
-    canvas.height = Math.round(stripH * n * dpi);
+    canvas.height = Math.round(totalHeightIn * dpi);
     const ctx = canvas.getContext('2d');
     ctx.fillStyle = '#FFFDF9';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    itemsArr.slice(0, n).forEach((item, i) => {
-      drawItemLabelOnto(ctx, item, w, stripH, dpi, i * stripH, 0.92);
+
+    let yIn = 0;
+    itemsArr.forEach((item, i) => {
+      const blockH = heightsIn[i];
+      drawItemLabelOnto(ctx, item, w, blockH, dpi, yIn, 1/3, sizingH, false);
+      yIn += blockH;
+      if (i < itemsArr.length - 1){
+        ctx.strokeStyle = '#6E5F4E';
+        ctx.lineWidth = 0.012 * dpi;
+        ctx.beginPath();
+        ctx.moveTo(0.08 * dpi, yIn * dpi);
+        ctx.lineTo(canvas.width - 0.08 * dpi, yIn * dpi);
+        ctx.stroke();
+      }
     });
     return canvas;
   }
@@ -2524,17 +2546,18 @@ export const app = (function(){
   function openBatchLabelModal(itemsArr){
     printMode = 'batch';
     printLabelItem = null;
-    printBatchItems = itemsArr.slice(0, getMaxBatchLabels());
+    printBatchItems = itemsArr;
     const w = appSettings.labelWidthIn || 2.25;
-    const stripH = getBatchLabelHeightIn();
-    const sheetH = stripH * printBatchItems.length;
+    // Same font-size scale as a single label (sizingH), but each strip is
+    // left to size itself to its own content — no fixed slot.
+    const sizingH = appSettings.labelHeightIn || 6;
     const wrap = document.getElementById('labelPreviewWrap');
-    wrap.innerHTML = `<div class="label-sheet label-sheet-batch" style="width:${w}in; height:${sheetH}in;">${buildBatchLabelInnerHtml(printBatchItems)}</div>`;
+    wrap.innerHTML = `<div class="label-sheet label-sheet-batch" style="width:${w}in; height:auto;">${buildBatchLabelInnerHtml(printBatchItems)}</div>`;
 
     wrap.querySelectorAll('.label-batch-strip').forEach(strip => {
-      shrinkToFit(strip.querySelector('.label-code'), Math.min(0.6, stripH * 0.24), 0.14);
-      shrinkWrappedToFit(strip.querySelector('.label-secondary'), Math.min(0.3, stripH * 0.13), 0.08, 2);
-      shrinkToFit(strip.querySelector('.label-box'), Math.min(0.2, stripH * 0.09), 0.08);
+      shrinkToFit(strip.querySelector('.label-code'), Math.min(0.6, sizingH * 0.24), 0.14);
+      shrinkWrappedToFit(strip.querySelector('.label-secondary'), Math.min(0.3, sizingH * 0.13), 0.08, 2);
+      shrinkToFit(strip.querySelector('.label-box'), Math.min(0.2, sizingH * 0.09), 0.08);
     });
 
     const flagRow = document.getElementById('printLabelFlagRow');
@@ -2586,7 +2609,11 @@ export const app = (function(){
     if (printMode === 'batch' && printBatchItems.length === 0) return;
     if (printMode === 'box' && !printBoxData) return;
     const w = appSettings.labelWidthIn || 2.25;
-    const h = printMode === 'batch' ? getBatchLabelHeightIn() * printBatchItems.length : (appSettings.labelHeightIn || 1.25);
+    const previewSheet = document.querySelector('#labelPreviewWrap .label-sheet');
+    // Batch mode's height is content-driven (no fixed slot), so read the
+    // actual rendered size (1in == 96px in this app's convention) instead
+    // of computing it from a formula.
+    const h = printMode === 'batch' ? previewSheet.getBoundingClientRect().height / 96 : (appSettings.labelHeightIn || 1.25);
 
     // Set the physical page size to match the configured label so the
     // thermal printer doesn't get sent a full-sheet page.
@@ -2601,7 +2628,6 @@ export const app = (function(){
     // Reuse the already-fitted markup from the preview so the printed
     // label matches exactly what was just shown — including any modifier
     // classes (e.g. label-sheet-batch's stacked-strip layout).
-    const previewSheet = document.querySelector('#labelPreviewWrap .label-sheet');
     const printContent = document.getElementById('labelPrintContent');
     printContent.innerHTML = `<div class="${previewSheet.className}" style="width:${w}in; height:${h}in;">${previewSheet.innerHTML}</div>`;
 
@@ -5322,10 +5348,6 @@ Be accurate and honest — never invent brand, material, or condition details th
           <input type="number" id="sLabelHeight" value="${appSettings.labelHeightIn || 1.25}" min="0.5" max="6" step="0.05">
         </div>
         <div class="settings-row">
-          <div><div class="sr-label">Batch label height</div><div class="sr-sub">Inches — size of each individual label when printing several at once (e.g. cutting a taller sheet into equal pieces). Defaults to Label height ÷ 3.</div></div>
-          <input type="number" id="sBatchLabelHeight" value="${(appSettings.batchLabelHeightIn || (appSettings.labelHeightIn || 6) / 3).toFixed(2)}" min="0.3" max="6" step="0.05">
-        </div>
-        <div class="settings-row">
           <div><div class="sr-label">Product code</div><div class="sr-sub">Always printed</div></div>
           <input type="checkbox" checked disabled style="width:20px; height:20px;">
         </div>
@@ -5964,7 +5986,6 @@ EBAY_MERCHANT_LOCATION_KEY=${escapeHtml(data.results.merchantLocationKey)}</div>
   window.saveLabelSettings = async function(){
     appSettings.labelWidthIn = parseFloat(document.getElementById('sLabelWidth').value) || 2.25;
     appSettings.labelHeightIn = parseFloat(document.getElementById('sLabelHeight').value) || 1.25;
-    appSettings.batchLabelHeightIn = parseFloat(document.getElementById('sBatchLabelHeight').value) || (appSettings.labelHeightIn / 3);
     appSettings.labelFields = {
       box: document.getElementById('sLabelFieldBox').checked,
       name: document.getElementById('sLabelFieldName').checked,

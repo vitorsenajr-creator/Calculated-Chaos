@@ -768,16 +768,22 @@
     position:absolute; top:0.02in; right:0.02in; line-height:1;
   }
 
-  /* Batch sheet: 3 fixed-height stacked strips instead of one bottom-
-     anchored block — each strip is its own complete mini label-sheet
-     (its .label-content-block already draws its own top/bottom rules,
-     so no extra divider is needed between strips). */
+  /* Batch sheet: one strip per item, each sized to its own content (no
+     fixed slot) instead of one bottom-anchored block. Each strip's own
+     .label-content-block rules are suppressed — a single shared line sits
+     between consecutive strips instead of a rule pair around every one. */
   .label-sheet-batch{
     justify-content:flex-start; padding:0;
   }
   .label-sheet-batch .label-batch-strip{
     width:100%; box-sizing:border-box; overflow:hidden;
-    display:flex; flex-direction:column; align-items:center; justify-content:flex-end;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+  }
+  .label-sheet-batch .label-batch-strip .label-content-block{
+    border-top:none; border-bottom:none;
+  }
+  .label-sheet-batch .label-batch-strip:not(:last-child){
+    border-bottom:1px solid var(--plum-soft);
   }
 
   /* Printing: show only the label sheet, sized to the configured @page.
