@@ -65,8 +65,8 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.61';
-  const APP_VERSION_DATE = '2026-08-27';
+  const APP_VERSION = 'v3.13.62';
+  const APP_VERSION_DATE = '2026-09-02';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
   let itemsLoaded = false; // true once the initial Firestore fetch in loadItems() resolves
@@ -348,7 +348,11 @@ export const app = (function(){
     setTimeout(waitAndFill, 100);
   }
 
-  function getAllStorageBoxes(){ return _getAllStorageBoxes(items); }
+  function getAllStorageBoxes(){
+    const fromItems = _getAllStorageBoxes(items);
+    const registered = (appSettings.storageBoxes || []).map(b => b.name);
+    return Array.from(new Set([...fromItems, ...registered])).sort((a,b)=> a.localeCompare(b, undefined, {numeric:true}));
+  }
   function getAllSizes(clothingType){ return _getAllSizes(items, clothingType); }
   function getSizeSuggestionsForType(clothingType){ return _getSizeSuggestionsForType(items, clothingType); }
   function getAllSources(){ return _getAllSources(items); }
@@ -825,6 +829,7 @@ export const app = (function(){
           <button id="bulkDeleteBtn" style="background:var(--danger); color:white; border:none; border-radius:8px; padding:8px 14px; font-size:13px; cursor:pointer;" ${bulkSelectedIds.size===0?'disabled':''}>Delete</button>
           <button id="bulkPublishEbayBtn" style="background:#E53238; color:white; border:none; border-radius:8px; padding:8px 14px; font-size:13px; font-weight:600; cursor:pointer;" ${bulkSelectedIds.size===0?'disabled':''}>🛒 Publish on eBay</button>
           <button id="bulkGenerateDescBtn" style="background:var(--gold); color:white; border:none; border-radius:8px; padding:8px 14px; font-size:13px; font-weight:600; cursor:pointer;" ${bulkSelectedIds.size===0?'disabled':''}>🪄 Generate descriptions</button>
+          <button id="bulkPrintLabelsBtn" title="${bulkSelectedIds.size > 3 ? 'Max 3 labels per sheet — deselect some items' : ''}" style="background:var(--plum); color:white; border:none; border-radius:8px; padding:8px 14px; font-size:13px; font-weight:600; cursor:pointer;" ${(bulkSelectedIds.size===0 || bulkSelectedIds.size>3)?'disabled':''}>🖨️ Imprimir etiquetas (${bulkSelectedIds.size})</button>
           <button id="bulkSelectAllBtn" style="background:transparent; border:1px solid var(--line); border-radius:8px; padding:8px 14px; font-size:13px; cursor:pointer;">Select all (${filtered.length})</button>
         </div>
         <div id="bulkActionStatus" style="margin-top:8px; font-size:12px;"></div>
@@ -1074,6 +1079,16 @@ export const app = (function(){
     const bulkGenerateDescBtn = document.getElementById('bulkGenerateDescBtn');
     if (bulkGenerateDescBtn){
       bulkGenerateDescBtn.addEventListener('click', () => showBulkGenerateDescPreflight());
+    }
+
+    const bulkPrintLabelsBtn = document.getElementById('bulkPrintLabelsBtn');
+    if (bulkPrintLabelsBtn){
+      bulkPrintLabelsBtn.addEventListener('click', () => {
+        const ids = Array.from(bulkSelectedIds);
+        const selectedItems = ids.map(id => items.find(i => i.id === id)).filter(Boolean);
+        if (selectedItems.length === 0 || selectedItems.length > 3) return;
+        openBatchLabelModal(selectedItems);
+      });
     }
   }
 
@@ -2016,6 +2031,32 @@ export const app = (function(){
     `;
   }
 
+  // Storage box label — same bottom-anchored/rule-bounded block as an item
+  // label, but the box name fills the "code" slot and the registration
+  // date is the only secondary line (no item fields apply to a box).
+  function buildBoxLabelInnerHtml(box){
+    return `
+      <div class="label-content-block">
+        <div class="label-code">📦 ${escapeHtml(box.name)}</div>
+        <div class="label-secondary">${escapeHtml(new Date(box.createdAt).toLocaleDateString('en-US'))}</div>
+      </div>
+    `;
+  }
+
+  // One sheet divided into up to 3 equal fixed-height stacked strips, each
+  // a complete individual item label (own rule-bounded content block,
+  // bottom-anchored within its own strip) — prints 3 items in one job
+  // instead of one job per item. Unfilled strips (fewer than 3 selected)
+  // are simply left blank, never stretched — same scale every time.
+  function buildBatchLabelInnerHtml(itemsArr, h){
+    const stripH = h / 3;
+    const strips = [0, 1, 2].map(i => {
+      const item = itemsArr[i];
+      return `<div class="label-batch-strip" style="height:${stripH}in;">${item ? buildLabelInnerHtml(item) : ''}</div>`;
+    });
+    return strips.join('');
+  }
+
   // Wall marker: a crosshair with a small empty gap at the center (so the
   // ideal tap point is the gap's geometric center, not a blurry printed
   // intersection) plus an alignment tick above the top arm for mounting the
@@ -2078,24 +2119,17 @@ export const app = (function(){
     return canvas;
   }
 
-  // Renders the same label content to a canvas (plain fillText/fillRect only —
-  // no roundRect) so it can be saved as a PNG. Needed for phones, where this
-  // printer has no OS print driver and can only be used through its own app
-  // (FlashLabel Pro) — she opens the saved image there to print it.
-  function drawLabelToCanvas(item){
-    const w = appSettings.labelWidthIn || 2.25;
-    const h = appSettings.labelHeightIn || 1.25;
-    const dpi = 300;
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.round(w * dpi);
-    canvas.height = Math.round(h * dpi);
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#FFFDF9';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  // Draws one item's full label content (rules + code + name/color + box +
+  // inspection flag) into a w-wide × h-tall region of ctx, starting
+  // yOffsetIn from the top of the canvas — shared by the single-item
+  // canvas (yOffsetIn 0, h = full label height) and each stacked strip of
+  // the batch sheet (h = stripH, yOffsetIn = strip index × stripH). Strips
+  // are always full sheet width, so there's no x-offset to parameterize.
+  function drawItemLabelOnto(ctx, item, w, h, dpi, yOffsetIn){
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-
-    const maxWidth = canvas.width - (w * 0.16 * dpi);
+    const canvasWidthPx = w * dpi;
+    const maxWidth = canvasWidthPx - (w * 0.16 * dpi);
 
     function fitFontIn(text, family, weight, maxFontIn, minFontIn){
       let fontIn = maxFontIn;
@@ -2189,6 +2223,110 @@ export const app = (function(){
     const bottomMarginIn = Math.min(0.08, h * 0.04);
     const lineThicknessIn = 0.012;
     const blockOuterIn = totalIn + innerPadIn * 2;
+    const bottomLineY = (yOffsetIn + h - bottomMarginIn) * dpi;
+    const topLineY = bottomLineY - blockOuterIn * dpi;
+
+    ctx.strokeStyle = '#6E5F4E';
+    ctx.lineWidth = lineThicknessIn * dpi;
+    ctx.beginPath();
+    ctx.moveTo(marginXIn * dpi, topLineY);
+    ctx.lineTo(canvasWidthPx - marginXIn * dpi, topLineY);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(marginXIn * dpi, bottomLineY);
+    ctx.lineTo(canvasWidthPx - marginXIn * dpi, bottomLineY);
+    ctx.stroke();
+
+    let curY = topLineY + (innerPadIn + codeFontIn / 2) * dpi;
+
+    ctx.fillStyle = '#2B241E';
+    ctx.font = `700 ${codeFontIn * dpi}px 'JetBrains Mono', monospace`;
+    ctx.fillText(code, canvasWidthPx / 2, curY);
+    curY += (codeFontIn / 2) * dpi;
+
+    if (secLines.length){
+      curY += (gapIn + secFontIn * lineHeightMult / 2) * dpi;
+      ctx.font = `700 ${secFontIn * dpi}px 'Inter', sans-serif`;
+      ctx.fillStyle = '#2B241E';
+      for (let i = 0; i < secLines.length; i++){
+        ctx.fillText(secLines[i], canvasWidthPx / 2, curY + i * secFontIn * lineHeightMult * dpi);
+      }
+      curY += (secLines.length - 0.5) * secFontIn * lineHeightMult * dpi;
+    }
+
+    if (boxText){
+      curY += (gapIn + boxFontIn / 2) * dpi;
+      ctx.font = `600 ${boxFontIn * dpi}px 'Inter', sans-serif`;
+      ctx.fillStyle = '#6E5F4E';
+      ctx.fillText(boxText, canvasWidthPx / 2, curY);
+    }
+
+    if (item.shipInspectionFlag){
+      const flagSizeIn = Math.min(0.32, h * 0.14, w * 0.14);
+      ctx.font = `${flagSizeIn * dpi}px sans-serif`;
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'top';
+      ctx.fillText('⚠️', canvasWidthPx - (marginXIn + 0.02) * dpi, topLineY + 0.02 * dpi);
+    }
+  }
+
+  // Renders the same label content to a canvas (plain fillText/fillRect only —
+  // no roundRect) so it can be saved as a PNG. Needed for phones, where this
+  // printer has no OS print driver and can only be used through its own app
+  // (FlashLabel Pro) — she opens the saved image there to print it.
+  function drawLabelToCanvas(item){
+    const w = appSettings.labelWidthIn || 2.25;
+    const h = appSettings.labelHeightIn || 1.25;
+    const dpi = 300;
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(w * dpi);
+    canvas.height = Math.round(h * dpi);
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#FFFDF9';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    drawItemLabelOnto(ctx, item, w, h, dpi, 0);
+    return canvas;
+  }
+
+  // Storage box label — box name fills the "code" slot, registration date
+  // is the only secondary line. Same bottom-anchored/rule-bounded visual
+  // language as an item label, drawn directly (no item fields apply).
+  function drawBoxLabelToCanvas(box){
+    const w = appSettings.labelWidthIn || 2.25;
+    const h = appSettings.labelHeightIn || 1.25;
+    const dpi = 300;
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(w * dpi);
+    canvas.height = Math.round(h * dpi);
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#FFFDF9';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    const maxWidth = canvas.width - (w * 0.16 * dpi);
+    function fitFontIn(text, family, weight, maxFontIn, minFontIn){
+      let fontIn = maxFontIn;
+      while (fontIn > minFontIn){
+        ctx.font = `${weight} ${fontIn * dpi}px ${family}`;
+        if (ctx.measureText(text).width <= maxWidth) break;
+        fontIn -= 0.02;
+      }
+      return fontIn;
+    }
+
+    const nameText = '📦 ' + box.name;
+    const dateText = new Date(box.createdAt).toLocaleDateString('en-US');
+    const nameFontIn = fitFontIn(nameText, "'Inter', sans-serif", 700, Math.min(0.6, h * 0.24), 0.14);
+    const dateFontIn = 0.13;
+    const gapIn = 0.035;
+    const totalIn = nameFontIn + gapIn + dateFontIn;
+
+    const marginXIn = 0.08;
+    const innerPadIn = 0.05;
+    const bottomMarginIn = Math.min(0.08, h * 0.04);
+    const lineThicknessIn = 0.012;
+    const blockOuterIn = totalIn + innerPadIn * 2;
     const bottomLineY = (h - bottomMarginIn) * dpi;
     const topLineY = bottomLineY - blockOuterIn * dpi;
 
@@ -2203,38 +2341,37 @@ export const app = (function(){
     ctx.lineTo(canvas.width - marginXIn * dpi, bottomLineY);
     ctx.stroke();
 
-    let curY = topLineY + (innerPadIn + codeFontIn / 2) * dpi;
-
+    let curY = topLineY + (innerPadIn + nameFontIn / 2) * dpi;
     ctx.fillStyle = '#2B241E';
-    ctx.font = `700 ${codeFontIn * dpi}px 'JetBrains Mono', monospace`;
-    ctx.fillText(code, canvas.width / 2, curY);
-    curY += (codeFontIn / 2) * dpi;
+    ctx.font = `700 ${nameFontIn * dpi}px 'Inter', sans-serif`;
+    ctx.fillText(nameText, canvas.width / 2, curY);
+    curY += (nameFontIn / 2) * dpi + (gapIn + dateFontIn / 2) * dpi;
 
-    if (secLines.length){
-      curY += (gapIn + secFontIn * lineHeightMult / 2) * dpi;
-      ctx.font = `700 ${secFontIn * dpi}px 'Inter', sans-serif`;
-      ctx.fillStyle = '#2B241E';
-      for (let i = 0; i < secLines.length; i++){
-        ctx.fillText(secLines[i], canvas.width / 2, curY + i * secFontIn * lineHeightMult * dpi);
-      }
-      curY += (secLines.length - 0.5) * secFontIn * lineHeightMult * dpi;
-    }
+    ctx.font = `600 ${dateFontIn * dpi}px 'Inter', sans-serif`;
+    ctx.fillStyle = '#6E5F4E';
+    ctx.fillText(dateText, canvas.width / 2, curY);
 
-    if (boxText){
-      curY += (gapIn + boxFontIn / 2) * dpi;
-      ctx.font = `600 ${boxFontIn * dpi}px 'Inter', sans-serif`;
-      ctx.fillStyle = '#6E5F4E';
-      ctx.fillText(boxText, canvas.width / 2, curY);
-    }
+    return canvas;
+  }
 
-    if (item.shipInspectionFlag){
-      const flagSizeIn = Math.min(0.32, h * 0.14, w * 0.14);
-      ctx.font = `${flagSizeIn * dpi}px sans-serif`;
-      ctx.textAlign = 'right';
-      ctx.textBaseline = 'top';
-      ctx.fillText('⚠️', canvas.width - (marginXIn + 0.02) * dpi, topLineY + 0.02 * dpi);
-    }
-
+  // Up to 3 items' labels stacked in equal fixed-height strips on one
+  // sheet — each strip is a complete individual label (own rules, own
+  // bottom-anchoring), always the same per-label scale regardless of how
+  // many are printed.
+  function drawBatchLabelToCanvas(itemsArr){
+    const w = appSettings.labelWidthIn || 2.25;
+    const h = appSettings.labelHeightIn || 1.25;
+    const dpi = 300;
+    const stripH = h / 3;
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(w * dpi);
+    canvas.height = Math.round(h * dpi);
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#FFFDF9';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    itemsArr.slice(0, 3).forEach((item, i) => {
+      drawItemLabelOnto(ctx, item, w, stripH, dpi, i * stripH);
+    });
     return canvas;
   }
 
@@ -2273,7 +2410,9 @@ export const app = (function(){
   }
 
   let printLabelItem = null;
-  let printMode = 'item'; // 'item' | 'marker'
+  let printBoxData = null;
+  let printBatchItems = [];
+  let printMode = 'item'; // 'item' | 'marker' | 'box' | 'batch'
 
   function renderItemLabelPreview(item){
     const w = appSettings.labelWidthIn || 2.25;
@@ -2315,6 +2454,81 @@ export const app = (function(){
     try{ await saveItem(updated); }catch(err){ /* saveItem already alerts */ }
   });
 
+  function openBoxLabelModal(box){
+    printMode = 'box';
+    printLabelItem = null;
+    printBoxData = box;
+    const w = appSettings.labelWidthIn || 2.25;
+    const h = appSettings.labelHeightIn || 1.25;
+    const wrap = document.getElementById('labelPreviewWrap');
+    wrap.innerHTML = `<div class="label-sheet" style="width:${w}in; height:${h}in;">${buildBoxLabelInnerHtml(box)}</div>`;
+
+    const sheet = wrap.querySelector('.label-sheet');
+    shrinkToFit(sheet.querySelector('.label-code'), Math.min(0.6, h * 0.24), 0.14);
+    shrinkWrappedToFit(sheet.querySelector('.label-secondary'), Math.min(0.3, h * 0.13), 0.08, 2);
+
+    const flagRow = document.getElementById('printLabelFlagRow');
+    if (flagRow) flagRow.style.display = 'none';
+
+    document.querySelector('#printLabelOverlay h3').textContent = 'Print box label';
+    document.getElementById('printLabelOverlay').classList.remove('hidden');
+  }
+
+  window.registerAndPrintBox = async function(){
+    const input = document.getElementById('sNewBoxName');
+    const name = input.value.trim();
+    if (!name){ alert('Enter a box name/number.'); return; }
+    if ((appSettings.storageBoxes || []).some(b => b.name.toLowerCase() === name.toLowerCase())){
+      alert('A box with that name is already registered.');
+      return;
+    }
+    const box = { name, createdAt: Date.now() };
+    appSettings.storageBoxes = [...(appSettings.storageBoxes || []), box];
+    await saveSettings();
+    input.value = '';
+    renderSettings();
+    openBoxLabelModal(box);
+  };
+
+  window.reprintStorageBox = function(index){
+    const box = (appSettings.storageBoxes || [])[index];
+    if (box) openBoxLabelModal(box);
+  };
+
+  window.removeStorageBox = async function(index){
+    const box = (appSettings.storageBoxes || [])[index];
+    if (!box) return;
+    if (!confirm(`Remove "${box.name}" from the registered boxes list? This doesn't touch any item already assigned to it.`)) return;
+    appSettings.storageBoxes = appSettings.storageBoxes.filter((_, i) => i !== index);
+    await saveSettings();
+    renderSettings();
+  };
+
+  // Up to 3 items on one sheet, divided into equal stacked strips — see
+  // drawBatchLabelToCanvas for the print-image side of this.
+  function openBatchLabelModal(itemsArr){
+    printMode = 'batch';
+    printLabelItem = null;
+    printBatchItems = itemsArr.slice(0, 3);
+    const w = appSettings.labelWidthIn || 2.25;
+    const h = appSettings.labelHeightIn || 1.25;
+    const stripH = h / 3;
+    const wrap = document.getElementById('labelPreviewWrap');
+    wrap.innerHTML = `<div class="label-sheet label-sheet-batch" style="width:${w}in; height:${h}in;">${buildBatchLabelInnerHtml(printBatchItems, h)}</div>`;
+
+    wrap.querySelectorAll('.label-batch-strip').forEach(strip => {
+      shrinkToFit(strip.querySelector('.label-code'), Math.min(0.6, stripH * 0.24), 0.14);
+      shrinkWrappedToFit(strip.querySelector('.label-secondary'), Math.min(0.3, stripH * 0.13), 0.08, 2);
+      shrinkToFit(strip.querySelector('.label-box'), Math.min(0.2, stripH * 0.09), 0.08);
+    });
+
+    const flagRow = document.getElementById('printLabelFlagRow');
+    if (flagRow) flagRow.style.display = 'none';
+
+    document.querySelector('#printLabelOverlay h3').textContent = `Print label sheet (${printBatchItems.length} item${printBatchItems.length===1?'':'s'})`;
+    document.getElementById('printLabelOverlay').classList.remove('hidden');
+  }
+
   window.openMarkerPrintModal = function(){
     printMode = 'marker';
     printLabelItem = null;
@@ -2343,6 +2557,8 @@ export const app = (function(){
   function closePrintLabelModal(){
     document.getElementById('printLabelOverlay').classList.add('hidden');
     printLabelItem = null;
+    printBoxData = null;
+    printBatchItems = [];
   }
 
   document.getElementById('labelPrintCancelBtn').addEventListener('click', closePrintLabelModal);
@@ -2352,6 +2568,8 @@ export const app = (function(){
 
   document.getElementById('labelPrintBtn').addEventListener('click', () => {
     if (printMode === 'item' && !printLabelItem) return;
+    if (printMode === 'batch' && printBatchItems.length === 0) return;
+    if (printMode === 'box' && !printBoxData) return;
     const w = appSettings.labelWidthIn || 2.25;
     const h = appSettings.labelHeightIn || 1.25;
 
@@ -2366,10 +2584,11 @@ export const app = (function(){
     pageStyle.textContent = `@page{ size: ${w}in ${h}in; margin: 0; }`;
 
     // Reuse the already-fitted markup from the preview so the printed
-    // label matches exactly what was just shown.
+    // label matches exactly what was just shown — including any modifier
+    // classes (e.g. label-sheet-batch's stacked-strip layout).
     const previewSheet = document.querySelector('#labelPreviewWrap .label-sheet');
     const printContent = document.getElementById('labelPrintContent');
-    printContent.innerHTML = `<div class="label-sheet" style="width:${w}in; height:${h}in;">${previewSheet.innerHTML}</div>`;
+    printContent.innerHTML = `<div class="${previewSheet.className}" style="width:${w}in; height:${h}in;">${previewSheet.innerHTML}</div>`;
 
     closePrintLabelModal();
     document.body.classList.add('printing-label');
@@ -2378,14 +2597,18 @@ export const app = (function(){
 
   document.getElementById('labelSaveImgBtn').addEventListener('click', async () => {
     if (printMode === 'item' && !printLabelItem) return;
+    if (printMode === 'batch' && printBatchItems.length === 0) return;
+    if (printMode === 'box' && !printBoxData) return;
     try{ await document.fonts.ready; }catch(e){}
     const w = appSettings.labelWidthIn || 2.25;
     const h = appSettings.labelHeightIn || 1.25;
-    const canvas = printMode === 'marker'
-      ? drawMarkerToCanvas(w, h)
+    const canvas = printMode === 'marker' ? drawMarkerToCanvas(w, h)
+      : printMode === 'box' ? drawBoxLabelToCanvas(printBoxData)
+      : printMode === 'batch' ? drawBatchLabelToCanvas(printBatchItems)
       : drawLabelToCanvas(printLabelItem);
-    const filename = printMode === 'marker'
-      ? 'wall-marker.png'
+    const filename = printMode === 'marker' ? 'wall-marker.png'
+      : printMode === 'box' ? `box-${(printBoxData.name || 'label').replace(/[^a-z0-9-_]/gi, '_')}.png`
+      : printMode === 'batch' ? `labels-batch-${Date.now()}.png`
       : `${(printLabelItem.productCode || 'label').replace(/[^a-z0-9-_]/gi, '_')}.png`;
 
     canvas.toBlob(async (blob) => {
@@ -5109,6 +5332,26 @@ Be accurate and honest — never invent brand, material, or condition details th
         </div>
         <button class="settings-save-btn" onclick="saveLabelSettings()">Save label settings</button>
         <div class="settings-success" id="labelSaveMsg">✓ Saved!</div>
+      </div>
+
+      <!-- STORAGE BOX LABELS -->
+      <div class="settings-section">
+        <h3>Cadastrar / Imprimir Etiqueta de Estoque</h3>
+        <div class="ss-desc">Register a storage box by name and print its label right away — before any item is assigned to it. Uses the label size configured above.</div>
+        ${(appSettings.storageBoxes || []).length === 0 ? `<div class="ss-desc" style="font-style:italic;">No boxes registered yet.</div>` : ''}
+        ${(appSettings.storageBoxes || []).map((b, i) => `
+          <div class="settings-row">
+            <div><div class="sr-label">📦 ${escapeHtml(b.name)}</div><div class="sr-sub">Registered ${new Date(b.createdAt).toLocaleDateString('en-US')}</div></div>
+            <div style="display:flex; gap:6px;">
+              <button onclick="reprintStorageBox(${i})" style="background:var(--sage); color:white; border:none; border-radius:8px; padding:6px 12px; font-size:12px; cursor:pointer;">🖨️ Reimprimir</button>
+              <button onclick="removeStorageBox(${i})" style="background:var(--terracotta); color:white; border:none; border-radius:8px; padding:6px 12px; font-size:12px; cursor:pointer;">🗑️ Remover</button>
+            </div>
+          </div>
+        `).join('')}
+        <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; align-items:center;">
+          <input type="text" id="sNewBoxName" placeholder="Nome/número da caixa" style="flex:1; min-width:140px; padding:8px 10px; border:1px solid var(--line); border-radius:8px; font-size:13px;">
+          <button class="settings-save-btn" style="width:auto; margin:0;" onclick="registerAndPrintBox()">📦 Registrar e Imprimir</button>
+        </div>
       </div>
 
       <!-- WALL MEASUREMENT MARKERS -->

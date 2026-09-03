@@ -768,6 +768,18 @@
     position:absolute; top:0.02in; right:0.02in; line-height:1;
   }
 
+  /* Batch sheet: 3 fixed-height stacked strips instead of one bottom-
+     anchored block — each strip is its own complete mini label-sheet
+     (its .label-content-block already draws its own top/bottom rules,
+     so no extra divider is needed between strips). */
+  .label-sheet-batch{
+    justify-content:flex-start; padding:0;
+  }
+  .label-sheet-batch .label-batch-strip{
+    width:100%; box-sizing:border-box; overflow:hidden;
+    display:flex; flex-direction:column; align-items:center; justify-content:flex-end;
+  }
+
   /* Printing: show only the label sheet, sized to the configured @page.
      labelPrintExitBar is a manual recovery affordance — some mobile
      browsers never fire 'afterprint' (or don't open a real print dialog
