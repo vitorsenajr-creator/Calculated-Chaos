@@ -65,7 +65,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.65';
+  const APP_VERSION = 'v3.13.66';
   const APP_VERSION_DATE = '2026-09-03';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -4698,9 +4698,27 @@ Be accurate and honest — never invent brand, material, or condition details th
     let styleTagGuesses = Array.isArray(rawStyleTags) ? rawStyleTags.filter(Boolean).slice(0, 3).map(String) : [];
     // The model is explicitly told an empty array is fine "if nothing fits
     // well," but in practice it comes back empty far more often than that
-    // should happen for ordinary clothing — fall back to the same
-    // best-effort heuristic the instant template uses rather than leaving
-    // her with three blank tag fields to fill by hand.
+    // should happen for ordinary clothing. The v3.13.61 fallback (guessing
+    // from f.clothingType/f.color/f.gender) still came back empty in
+    // practice whenever those specific form fields weren't filled in —
+    // which happens even when the title/description above are detailed,
+    // since the AI can describe what it sees in the photos (a garment tag,
+    // a printed color name) independent of what's typed into the form.
+    // Scan the AI's own generated title+description for real matches
+    // against the actual Poshmark style-tag vocabulary first — this is
+    // strictly more reliable, since it only ever offers tags that are
+    // valid on Poshmark AND is grounded in whatever the AI already wrote,
+    // not just whatever happens to be filled in on the form.
+    if (styleTagGuesses.length === 0){
+      const haystack = `${title} ${description}`.toLowerCase();
+      styleTagGuesses = POSHMARK_STYLE_TAGS.filter(tag => {
+        const re = new RegExp(`\\b${tag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+        return re.test(haystack);
+      }).slice(0, 3);
+    }
+    // Still nothing (a plain basic-tee type description with no vocabulary
+    // hits) — fall back to the old form-field heuristic so she's never left
+    // with three blank tag fields to fill from scratch.
     if (styleTagGuesses.length === 0){
       styleTagGuesses = Array.from(new Set([f.clothingType, f.color, f.gender ? `${f.gender} Style` : ''].filter(Boolean))).slice(0, 3);
     }

@@ -960,6 +960,27 @@ next minor bump:
   whenever the AI's own list comes back empty, so the three tag fields
   aren't left blank when a reasonable guess is available from the form.
 
+- **v3.13.66** — Vitor reported style tags still coming back blank after
+  v3.13.61's fix. Root cause: that fallback only ever guessed from the
+  `fClothingType`/`fColor`/`fGender` form fields — but the AI's title and
+  description can describe a specific clothing type or color it read
+  straight off a photo (a tag, a printed label) even when those exact form
+  fields were never filled in or don't match a preset option, so the
+  fallback's inputs were themselves often blank, producing a second empty
+  result. `requestAiListingDescription()` (`src/main.js`) now tries a more
+  reliable step first when the AI returns no tags: scan its own generated
+  title + description for literal matches against the real
+  `POSHMARK_STYLE_TAGS` vocabulary (word-boundary, case-insensitive) — this
+  is grounded in what the AI actually wrote about the item rather than
+  whatever happens to be set in the form, and only ever offers tags that
+  are genuinely valid on Poshmark (the old form-field guesses like "Polo
+  Shirt" or "Academy Blue" aren't real Poshmark style tags at all). Falls
+  through to the old form-field heuristic only if that vocabulary scan
+  also finds nothing, so tag fields are essentially never all blank now.
+  **Not yet re-tested against a real generation** — verified via
+  `node --check` and a clean `vite build` only; watch the next "Generate
+  listing description with AI" run to confirm real tags show up.
+
 ## Planned changes (backlog)
 
 Not implemented yet — captured here so they survive between sessions.
