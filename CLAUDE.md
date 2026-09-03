@@ -981,6 +981,26 @@ next minor bump:
   `node --check` and a clean `vite build` only; watch the next "Generate
   listing description with AI" run to confirm real tags show up.
 
+- **v3.13.67** — Vitor tested v3.13.66 immediately after: tags now
+  generate correctly (e.g. "Casual", "Cozy", "Knit"), but reopening the
+  saved item showed them blank again. Root cause: Style Tags were never
+  actually persisted anywhere — `item.listingTitle`/`item.listingDescription`
+  were saved in three places (`autosaveGeneratedListingText()`,
+  `generateListingDescriptionForItem()`, and the manual Save button's
+  payload in `saveItemFlow()`), but none of them ever read or stored the
+  three `#poshTag0/1/2` inputs. So the tags only ever lived in the DOM
+  for that one screen — the moment the item was saved and the modal
+  reopened, `renderListingOutput(item.listingTitle, item.listingDescription,
+  [], ...)` at line 1936 explicitly re-rendered the tag inputs with a
+  hardcoded empty array. Added a new `item.listingStyleTags` field, saved
+  alongside `listingTitle`/`listingDescription` at all three save sites
+  (new shared `readCurrentStyleTagInputs()` reads the live DOM inputs when
+  the panel is showing them, falling back to whatever was already saved
+  when it isn't), and restored from it when reopening an item instead of
+  the hardcoded `[]`. **Not yet re-tested against a real save/reopen
+  cycle** — verified via `node --check` and a clean `vite build` only;
+  watch the next save to confirm the tags survive a reopen.
+
 ## Planned changes (backlog)
 
 Not implemented yet — captured here so they survive between sessions.

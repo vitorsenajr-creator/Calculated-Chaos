@@ -65,7 +65,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.66';
+  const APP_VERSION = 'v3.13.67';
   const APP_VERSION_DATE = '2026-09-03';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -1933,7 +1933,7 @@ export const app = (function(){
     // again instead of leaving the panel blank and making her regenerate it
     // just to see it.
     if (item && !isDuplicate && item.listingDescription){
-      renderListingOutput(item.listingTitle || '', item.listingDescription, [], null);
+      renderListingOutput(item.listingTitle || '', item.listingDescription, [...(item.listingStyleTags || [])], null);
     } else {
       document.getElementById('listingOutputArea').innerHTML = '';
     }
@@ -4516,6 +4516,15 @@ Respond with the JSON object only. Do not include any text, explanation, or mark
     return text;
   }
 
+  // Reads whatever's currently sitting in the three Style Tag inputs (she
+  // can edit them freely before copying/saving) — undefined if the listing
+  // output panel isn't currently showing tag inputs at all, so callers can
+  // tell "no tags shown" apart from "all three boxes are blank."
+  function readCurrentStyleTagInputs(){
+    if (!document.getElementById('poshTag0')) return undefined;
+    return [0,1,2].map(i => document.getElementById('poshTag'+i)?.value.trim() || '').filter(Boolean);
+  }
+
   function renderListingOutput(title, description, styleTagGuesses, sourceLabel){
     while (styleTagGuesses.length < 3) styleTagGuesses.push('');
 
@@ -4792,7 +4801,8 @@ Be accurate and honest — never invent brand, material, or condition details th
     if (idx < 0) return;
     const title = document.getElementById('listTitleText')?.textContent || '';
     const description = document.getElementById('listDescText')?.value || '';
-    const updated = { ...items[idx], listingTitle: title, listingDescription: description };
+    const styleTags = readCurrentStyleTagInputs();
+    const updated = { ...items[idx], listingTitle: title, listingDescription: description, listingStyleTags: styleTags !== undefined ? styleTags : (items[idx].listingStyleTags || []) };
     items[idx] = updated;
     try{
       await saveItem(updated);
@@ -4878,7 +4888,7 @@ Be accurate and honest — never invent brand, material, or condition details th
       if (!result.ok) return { ok:false, message: result.message };
       const idx = items.findIndex(i => i.id === item.id);
       if (idx >= 0){
-        const updated = { ...items[idx], listingTitle: result.title, listingDescription: result.description };
+        const updated = { ...items[idx], listingTitle: result.title, listingDescription: result.description, listingStyleTags: result.styleTagGuesses || [] };
         items[idx] = updated;
         await saveItem(updated);
       }
@@ -5079,6 +5089,12 @@ Be accurate and honest — never invent brand, material, or condition details th
         || items.find(i => i.id === currentEditId)?.listingTitle || '',
       listingDescription: document.getElementById('listDescText')?.value
         || items.find(i => i.id === currentEditId)?.listingDescription || '',
+      // Same idea as listingTitle/listingDescription above, for the Style
+      // Tags panel — previously these were never saved at all (only ever
+      // read by the "Copy tags" button), so they silently disappeared the
+      // moment the item was saved and the modal reopened.
+      listingStyleTags: readCurrentStyleTagInputs()
+        ?? items.find(i => i.id === currentEditId)?.listingStyleTags ?? [],
       // Persists the last-generated AI photo analysis (identification, price
       // guess, reasoning, etc.) the same way listingDescription is persisted
       // above — kept in sync with the on-screen card via currentAiAnalysis,
