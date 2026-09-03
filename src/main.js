@@ -65,7 +65,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.64';
+  const APP_VERSION = 'v3.13.65';
   const APP_VERSION_DATE = '2026-09-03';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -2043,13 +2043,14 @@ export const app = (function(){
     `;
   }
 
-  // One sheet, one strip per selected item, each sized to exactly what its
-  // own content needs (no fixed slot, no wasted space) — a single shared
-  // cut line sits between consecutive strips (see .label-sheet-batch CSS),
-  // not a rule pair around every item.
+  // One sheet, one fixed-height (BATCH_LABEL_HEIGHT_IN) strip per selected
+  // item — a single shared cut line sits between consecutive strips (see
+  // .label-sheet-batch CSS), not a rule pair around every item. Font sizes
+  // are applied afterward by openBatchLabelModal (shared across the whole
+  // batch, not each strip fitting its own text independently).
   function buildBatchLabelInnerHtml(itemsArr){
     return itemsArr.map(item =>
-      `<div class="label-batch-strip">${buildLabelInnerHtml(item)}</div>`
+      `<div class="label-batch-strip" style="height:${BATCH_LABEL_HEIGHT_IN}in;">${buildLabelInnerHtml(item)}</div>`
     ).join('');
   }
 
@@ -2121,15 +2122,7 @@ export const app = (function(){
   // canvas (yOffsetIn 0, h = full label height) and each stacked strip of
   // the batch sheet (h = stripH, yOffsetIn = strip index × stripH). Strips
   // are always full sheet width, so there's no x-offset to parameterize.
-  // sizingH drives the font-size caps and the blockFraction target (defaults
-  // to h, i.e. "size relative to my own slot" — single-item behavior,
-  // unchanged); pass a fixed sizingH separately from a tight-fitted h when
-  // you want consistent font sizes across items whose actual slot height
-  // varies (batch mode: same visual scale as a single label, but each
-  // item's block is only as tall as its own content needs).
-  // Returns the block's rendered height in inches (content + padding),
-  // regardless of drawRules — callers use it to stack multiple blocks.
-  function drawItemLabelOnto(ctx, item, w, h, dpi, yOffsetIn, blockFraction = 1/3, sizingH = h, drawRules = true){
+  function drawItemLabelOnto(ctx, item, w, h, dpi, yOffsetIn){
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     const canvasWidthPx = w * dpi;
@@ -2197,20 +2190,20 @@ export const app = (function(){
     // box (3rd) — the whole block sits in the bottom third of the label,
     // bounded above and below by a thin rule (also a cut guide on a larger
     // sheet meant for trimming).
-    let codeFontIn = fitFontIn(code, "'JetBrains Mono', monospace", 700, Math.min(0.6, sizingH * 0.24), 0.14);
+    let codeFontIn = fitFontIn(code, "'JetBrains Mono', monospace", 700, Math.min(0.6, h * 0.24), 0.14);
     let secFontIn = 0, secLines = [];
     if (secondary){
-      const res = fitWrappedFontIn(secondary, "'Inter', sans-serif", 700, Math.min(0.3, sizingH * 0.13), 0.08, 2);
+      const res = fitWrappedFontIn(secondary, "'Inter', sans-serif", 700, Math.min(0.3, h * 0.13), 0.08, 2);
       secFontIn = res.fontIn;
       secLines = res.lines;
     }
-    let boxFontIn = boxText ? fitFontIn(boxText, "'Inter', sans-serif", 600, Math.min(0.2, sizingH * 0.09), 0.08) : 0;
+    let boxFontIn = boxText ? fitFontIn(boxText, "'Inter', sans-serif", 600, Math.min(0.2, h * 0.09), 0.08) : 0;
     const gapIn = 0.035;
     const lineHeightMult = 1.15;
 
     let secBlockIn = secLines.length ? secFontIn * lineHeightMult * secLines.length : 0;
     let totalIn = codeFontIn + (secLines.length ? gapIn + secBlockIn : 0) + (boxText ? gapIn + boxFontIn : 0);
-    const maxBlockIn = sizingH * blockFraction;
+    const maxBlockIn = h / 3;
     if (totalIn > maxBlockIn){
       const scale = maxBlockIn / totalIn;
       codeFontIn = Math.max(0.14, codeFontIn * scale);
@@ -2221,28 +2214,25 @@ export const app = (function(){
 
     // Two thin horizontal rules bound the block — matches the
     // .label-content-block border-top/border-bottom in the browser
-    // preview/print path. Batch mode draws its own single shared
-    // separator between items instead (drawRules=false here).
+    // preview/print path.
     const marginXIn = 0.08;
     const innerPadIn = 0.05;
-    const bottomMarginIn = Math.min(0.08, sizingH * 0.04);
+    const bottomMarginIn = Math.min(0.08, h * 0.04);
     const lineThicknessIn = 0.012;
-    const blockOuterIn = totalIn + innerPadIn * 2 + bottomMarginIn;
+    const blockOuterIn = totalIn + innerPadIn * 2;
     const bottomLineY = (yOffsetIn + h - bottomMarginIn) * dpi;
-    const topLineY = bottomLineY - (blockOuterIn - bottomMarginIn) * dpi;
+    const topLineY = bottomLineY - blockOuterIn * dpi;
 
-    if (drawRules){
-      ctx.strokeStyle = '#6E5F4E';
-      ctx.lineWidth = lineThicknessIn * dpi;
-      ctx.beginPath();
-      ctx.moveTo(marginXIn * dpi, topLineY);
-      ctx.lineTo(canvasWidthPx - marginXIn * dpi, topLineY);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(marginXIn * dpi, bottomLineY);
-      ctx.lineTo(canvasWidthPx - marginXIn * dpi, bottomLineY);
-      ctx.stroke();
-    }
+    ctx.strokeStyle = '#6E5F4E';
+    ctx.lineWidth = lineThicknessIn * dpi;
+    ctx.beginPath();
+    ctx.moveTo(marginXIn * dpi, topLineY);
+    ctx.lineTo(canvasWidthPx - marginXIn * dpi, topLineY);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(marginXIn * dpi, bottomLineY);
+    ctx.lineTo(canvasWidthPx - marginXIn * dpi, bottomLineY);
+    ctx.stroke();
 
     let curY = topLineY + (innerPadIn + codeFontIn / 2) * dpi;
 
@@ -2275,8 +2265,154 @@ export const app = (function(){
       ctx.textBaseline = 'top';
       ctx.fillText('⚠️', canvasWidthPx - (marginXIn + 0.02) * dpi, topLineY + 0.02 * dpi);
     }
+  }
 
-    return blockOuterIn;
+  // Fixed physical height of one label when printing several at once —
+  // a locked constant (not derived from the "paper" setting) so batch
+  // labels always come out a known, predictable size.
+  const BATCH_LABEL_HEIGHT_IN = 2;
+
+  // Pure measurement (no drawing): the font sizes THIS item alone would
+  // want at the given slot height, same fitting rules as drawItemLabelOnto.
+  // Batch printing uses this to find the smallest size any item in the
+  // selection needs, then draws every item at that ONE shared size —
+  // otherwise a short-text item ends up with a much bigger, bolder-looking
+  // font than a long-text item right next to it on the same sheet.
+  function measureItemLabelFonts(ctx, item, w, dpi, h){
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const maxWidth = w * dpi - (w * 0.16 * dpi);
+
+    function fitFontIn(text, family, weight, maxFontIn, minFontIn){
+      let fontIn = maxFontIn;
+      while (fontIn > minFontIn){
+        ctx.font = `${weight} ${fontIn * dpi}px ${family}`;
+        if (ctx.measureText(text).width <= maxWidth) break;
+        fontIn -= 0.02;
+      }
+      return fontIn;
+    }
+    function wrapCanvasText(text, maxW){
+      const words = text.split(' ');
+      const lines = [];
+      let current = '';
+      for (const word of words){
+        const test = current ? current + ' ' + word : word;
+        if (!current || ctx.measureText(test).width <= maxW) current = test;
+        else { lines.push(current); current = word; }
+      }
+      if (current) lines.push(current);
+      return lines;
+    }
+    function fitWrappedFontIn(text, family, weight, maxFontIn, minFontIn, targetLines){
+      let fontIn = maxFontIn;
+      let lines;
+      while (fontIn > minFontIn){
+        ctx.font = `${weight} ${fontIn * dpi}px ${family}`;
+        lines = wrapCanvasText(text, maxWidth);
+        if (lines.length <= targetLines) break;
+        fontIn -= 0.02;
+      }
+      ctx.font = `${weight} ${fontIn * dpi}px ${family}`;
+      lines = wrapCanvasText(text, maxWidth);
+      return { fontIn, lines };
+    }
+
+    const fields = appSettings.labelFields || {};
+    const code = item.productCode || '';
+    const secondaryParts = [];
+    if (fields.name !== false && item.name) secondaryParts.push(item.name);
+    if (fields.color !== false && item.color) secondaryParts.push(item.color);
+    if (fields.category && item.category) secondaryParts.push(item.category);
+    if (fields.brand && item.brand) secondaryParts.push(item.brand);
+    const secondary = secondaryParts.join(' · ');
+    const boxText = (fields.box !== false && item.storageBox) ? ('📦 ' + item.storageBox) : '';
+
+    let codeFontIn = fitFontIn(code, "'JetBrains Mono', monospace", 700, Math.min(0.6, h * 0.24), 0.14);
+    let secFontIn = 0;
+    if (secondary){
+      secFontIn = fitWrappedFontIn(secondary, "'Inter', sans-serif", 700, Math.min(0.3, h * 0.13), 0.08, 2).fontIn;
+    }
+    let boxFontIn = boxText ? fitFontIn(boxText, "'Inter', sans-serif", 600, Math.min(0.2, h * 0.09), 0.08) : 0;
+
+    // Same "shrink to fit the slot" scale-down drawItemLabelOnto applies —
+    // ensures no single item's own natural size ever exceeds its slot,
+    // before we even get to picking the shared minimum across the batch.
+    const gapIn = 0.035, lineHeightMult = 1.15;
+    const secBlockIn = secondary ? secFontIn * lineHeightMult * 2 : 0; // worst case: 2 wrapped lines
+    const totalIn = codeFontIn + (secondary ? gapIn + secBlockIn : 0) + (boxText ? gapIn + boxFontIn : 0);
+    const maxBlockIn = h * 0.92;
+    if (totalIn > maxBlockIn){
+      const scale = maxBlockIn / totalIn;
+      codeFontIn = Math.max(0.14, codeFontIn * scale);
+      secFontIn = secondary ? Math.max(0.08, secFontIn * scale) : 0;
+      boxFontIn = boxText ? Math.max(0.08, boxFontIn * scale) : 0;
+    }
+
+    return { code, secondary, boxText, codeFontIn, secFontIn, boxFontIn };
+  }
+
+  // Finds the uniform font sizes (smallest needed by any item that has
+  // that field) shared by every label in a batch print.
+  function computeSharedBatchFonts(ctx, itemsArr, w, dpi, h){
+    const measures = itemsArr.map(item => measureItemLabelFonts(ctx, item, w, dpi, h));
+    const codeFontIn = Math.min(...measures.map(m => m.codeFontIn));
+    const secSizes = measures.filter(m => m.secondary).map(m => m.secFontIn);
+    const secFontIn = secSizes.length ? Math.min(...secSizes) : 0;
+    const boxSizes = measures.filter(m => m.boxText).map(m => m.boxFontIn);
+    const boxFontIn = boxSizes.length ? Math.min(...boxSizes) : 0;
+    return { measures, codeFontIn, secFontIn, boxFontIn };
+  }
+
+  // Draws one item's label using pre-decided (shared) font sizes, centered
+  // within a yTopIn..yTopIn+h slot — no rules of its own; the caller draws
+  // one shared line between consecutive items instead.
+  function drawBatchItemAt(ctx, w, dpi, yTopIn, h, fonts, m){
+    const canvasWidthPx = w * dpi;
+    const maxWidth = canvasWidthPx - (w * 0.16 * dpi);
+    const gapIn = 0.035, lineHeightMult = 1.15;
+
+    let secLines = [];
+    if (m.secondary){
+      ctx.font = `700 ${fonts.secFontIn * dpi}px 'Inter', sans-serif`;
+      const words = m.secondary.split(' ');
+      let current = '';
+      for (const word of words){
+        const test = current ? current + ' ' + word : word;
+        if (!current || ctx.measureText(test).width <= maxWidth) current = test;
+        else { secLines.push(current); current = word; }
+      }
+      if (current) secLines.push(current);
+    }
+
+    const secBlockIn = secLines.length ? fonts.secFontIn * lineHeightMult * secLines.length : 0;
+    const totalIn = fonts.codeFontIn + (secLines.length ? gapIn + secBlockIn : 0) + (m.boxText ? gapIn + fonts.boxFontIn : 0);
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    let curY = (yTopIn + (h - totalIn) / 2 + fonts.codeFontIn / 2) * dpi;
+
+    ctx.fillStyle = '#2B241E';
+    ctx.font = `700 ${fonts.codeFontIn * dpi}px 'JetBrains Mono', monospace`;
+    ctx.fillText(m.code, canvasWidthPx / 2, curY);
+    curY += (fonts.codeFontIn / 2) * dpi;
+
+    if (secLines.length){
+      curY += (gapIn + fonts.secFontIn * lineHeightMult / 2) * dpi;
+      ctx.font = `700 ${fonts.secFontIn * dpi}px 'Inter', sans-serif`;
+      ctx.fillStyle = '#2B241E';
+      for (let i = 0; i < secLines.length; i++){
+        ctx.fillText(secLines[i], canvasWidthPx / 2, curY + i * fonts.secFontIn * lineHeightMult * dpi);
+      }
+      curY += (secLines.length - 0.5) * fonts.secFontIn * lineHeightMult * dpi;
+    }
+
+    if (m.boxText){
+      curY += (gapIn + fonts.boxFontIn / 2) * dpi;
+      ctx.font = `600 ${fonts.boxFontIn * dpi}px 'Inter', sans-serif`;
+      ctx.fillStyle = '#6E5F4E';
+      ctx.fillText(m.boxText, canvasWidthPx / 2, curY);
+    }
   }
 
   // Renders the same label content to a canvas (plain fillText/fillRect only —
@@ -2363,49 +2499,37 @@ export const app = (function(){
     return canvas;
   }
 
-  // No cap, no fixed slot — every selected item gets exactly the height
-  // its own content needs (same font-size scale as a single label, via
-  // sizingH), stacked with a single shared cut line between consecutive
-  // items (not a rule pair around each one). The sheet is only ever as
-  // tall as the sum of what's actually printed.
+  // Every item gets the same fixed BATCH_LABEL_HEIGHT_IN slot and the same
+  // shared font sizes (see computeSharedBatchFonts) — a single cut line
+  // between consecutive items, no rule pair around each one.
   function drawBatchLabelToCanvas(itemsArr){
     const w = appSettings.labelWidthIn || 2.25;
-    const sizingH = appSettings.labelHeightIn || 6;
+    const h = BATCH_LABEL_HEIGHT_IN;
     const dpi = 300;
 
-    // Pass 1: measure each item's natural block height on a scratch canvas
-    // (drawRules=false — text still renders but is discarded, only the
-    // returned height is used).
     const scratch = document.createElement('canvas');
     scratch.width = Math.round(w * dpi);
-    scratch.height = Math.round(sizingH * dpi);
-    const scratchCtx = scratch.getContext('2d');
-    const heightsIn = itemsArr.map(item =>
-      drawItemLabelOnto(scratchCtx, item, w, sizingH, dpi, 0, 1/3, sizingH, false)
-    );
-    const totalHeightIn = heightsIn.reduce((s, h) => s + h, 0);
+    scratch.height = Math.round(h * dpi);
+    const { measures, codeFontIn, secFontIn, boxFontIn } =
+      computeSharedBatchFonts(scratch.getContext('2d'), itemsArr, w, dpi, h);
+    const fonts = { codeFontIn, secFontIn, boxFontIn };
 
-    // Pass 2: draw each item into its own tight slot (h = its measured
-    // height, so it fills that slot completely) on the real, correctly-
-    // sized canvas, plus one separator line between consecutive items.
     const canvas = document.createElement('canvas');
     canvas.width = Math.round(w * dpi);
-    canvas.height = Math.round(totalHeightIn * dpi);
+    canvas.height = Math.round(h * dpi * itemsArr.length);
     const ctx = canvas.getContext('2d');
     ctx.fillStyle = '#FFFDF9';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    let yIn = 0;
     itemsArr.forEach((item, i) => {
-      const blockH = heightsIn[i];
-      drawItemLabelOnto(ctx, item, w, blockH, dpi, yIn, 1/3, sizingH, false);
-      yIn += blockH;
+      drawBatchItemAt(ctx, w, dpi, i * h, h, fonts, measures[i]);
       if (i < itemsArr.length - 1){
         ctx.strokeStyle = '#6E5F4E';
         ctx.lineWidth = 0.012 * dpi;
+        const yPx = (i + 1) * h * dpi;
         ctx.beginPath();
-        ctx.moveTo(0.08 * dpi, yIn * dpi);
-        ctx.lineTo(canvas.width - 0.08 * dpi, yIn * dpi);
+        ctx.moveTo(0.08 * dpi, yPx);
+        ctx.lineTo(canvas.width - 0.08 * dpi, yPx);
         ctx.stroke();
       }
     });
@@ -2548,16 +2672,28 @@ export const app = (function(){
     printLabelItem = null;
     printBatchItems = itemsArr;
     const w = appSettings.labelWidthIn || 2.25;
-    // Same font-size scale as a single label (sizingH), but each strip is
-    // left to size itself to its own content — no fixed slot.
-    const sizingH = appSettings.labelHeightIn || 6;
+    const h = BATCH_LABEL_HEIGHT_IN;
+    const dpi = 300;
+
+    // Measure once to get font sizes shared by every item in this batch
+    // (see computeSharedBatchFonts) — applied directly as inline
+    // font-size, not each strip auto-fitting its own text independently.
+    const scratch = document.createElement('canvas');
+    scratch.width = Math.round(w * dpi);
+    scratch.height = Math.round(h * dpi);
+    const { codeFontIn, secFontIn, boxFontIn } =
+      computeSharedBatchFonts(scratch.getContext('2d'), itemsArr, w, dpi, h);
+
     const wrap = document.getElementById('labelPreviewWrap');
-    wrap.innerHTML = `<div class="label-sheet label-sheet-batch" style="width:${w}in; height:auto;">${buildBatchLabelInnerHtml(printBatchItems)}</div>`;
+    wrap.innerHTML = `<div class="label-sheet label-sheet-batch" style="width:${w}in; height:${h * itemsArr.length}in;">${buildBatchLabelInnerHtml(itemsArr)}</div>`;
 
     wrap.querySelectorAll('.label-batch-strip').forEach(strip => {
-      shrinkToFit(strip.querySelector('.label-code'), Math.min(0.6, sizingH * 0.24), 0.14);
-      shrinkWrappedToFit(strip.querySelector('.label-secondary'), Math.min(0.3, sizingH * 0.13), 0.08, 2);
-      shrinkToFit(strip.querySelector('.label-box'), Math.min(0.2, sizingH * 0.09), 0.08);
+      const codeEl = strip.querySelector('.label-code');
+      const secEl = strip.querySelector('.label-secondary');
+      const boxEl = strip.querySelector('.label-box');
+      if (codeEl) codeEl.style.fontSize = codeFontIn.toFixed(3) + 'in';
+      if (secEl) secEl.style.fontSize = secFontIn.toFixed(3) + 'in';
+      if (boxEl) boxEl.style.fontSize = boxFontIn.toFixed(3) + 'in';
     });
 
     const flagRow = document.getElementById('printLabelFlagRow');
@@ -2610,10 +2746,7 @@ export const app = (function(){
     if (printMode === 'box' && !printBoxData) return;
     const w = appSettings.labelWidthIn || 2.25;
     const previewSheet = document.querySelector('#labelPreviewWrap .label-sheet');
-    // Batch mode's height is content-driven (no fixed slot), so read the
-    // actual rendered size (1in == 96px in this app's convention) instead
-    // of computing it from a formula.
-    const h = printMode === 'batch' ? previewSheet.getBoundingClientRect().height / 96 : (appSettings.labelHeightIn || 1.25);
+    const h = printMode === 'batch' ? BATCH_LABEL_HEIGHT_IN * printBatchItems.length : (appSettings.labelHeightIn || 1.25);
 
     // Set the physical page size to match the configured label so the
     // thermal printer doesn't get sent a full-sheet page.
