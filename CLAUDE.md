@@ -1001,6 +1001,21 @@ next minor bump:
   cycle** — verified via `node --check` and a clean `vite build` only;
   watch the next save to confirm the tags survive a reopen.
 
+- **v3.13.68** — Vitor asked what the Catalog card's "suggested" price
+  actually was (it comes from `suggestPrice()` in `modules/pricing.js` —
+  a formula blending category baseline/condition/brand boost with
+  historical sold-price data — and is a separate estimate from the "🔮
+  Analyze with AI" photo card's own price range, which stays unchanged).
+  Confirmed the empty "Listing price" field on a never-priced item is
+  intentional (it's only filled by "Calculate suggested price &
+  shipping" or "Apply to form", not on open) — no change requested there.
+  He did ask to stop showing that formula-based number on the Catalog
+  card itself for an item with no `listPrice` set yet, since it read as
+  a real price rather than a guess: the card now shows "no price set"
+  (and hides the projected-profit line, which was derived from that same
+  hidden guess) instead of "suggested $X" until a real listing price is
+  saved on the item.
+
 ## Planned changes (backlog)
 
 Not implemented yet — captured here so they survive between sessions.
