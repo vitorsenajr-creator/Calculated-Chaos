@@ -1016,6 +1016,12 @@ next minor bump:
   hidden guess) instead of "suggested $X" until a real listing price is
   saved on the item.
 
+- **v3.13.69** — Follow-up on v3.13.68: made the "no price set" text on
+  the Catalog card larger and bold, and added the same ⚠ icon already
+  used for the "Missing info"/"No photo" warn-chip, so a card with no
+  listing price reads as a warning at a glance instead of blending into
+  the rest of the card's meta text.
+
 ## Planned changes (backlog)
 
 Not implemented yet — captured here so they survive between sessions.
