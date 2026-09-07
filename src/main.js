@@ -65,7 +65,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.72';
+  const APP_VERSION = 'v3.13.73';
   const APP_VERSION_DATE = '2026-09-07';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -696,7 +696,6 @@ export const app = (function(){
 
   function renderCatalog(){
     const view = document.getElementById('catalogView');
-    const filtered = applyFilters(items);
 
     const filterBtnClass = filtersActiveCount() > 0 ? 'filter-toggle-btn has-active' : 'filter-toggle-btn';
     // Draft groups from a Photo Session live outside `items` entirely (own
@@ -729,23 +728,39 @@ export const app = (function(){
       <div class="filter-panel ${filterPanelOpen ? 'open' : ''}" id="filterPanel"></div>
     `;
 
+    // The results list lives in its own container so typing in #searchInput
+    // (below) only ever touches THAT — never the search field itself.
+    // Rebuilding the whole view's innerHTML on every keystroke (as this used
+    // to do) replaced #searchInput with a brand-new DOM node each time,
+    // which resets the on-screen keyboard's "123"/ABC toggle state on iOS
+    // after every single character typed.
+    view.innerHTML = controlsHtml + '<div id="catalogListArea"></div>';
+    wireCatalogControls();
+    renderCatalogList();
+  }
+
+  function renderCatalogList(){
+    const listArea = document.getElementById('catalogListArea');
+    if (!listArea) return;
+    const filtered = applyFilters(items);
+
     if (items.length === 0){
-      view.innerHTML = controlsHtml + `<div class="empty-state">
+      listArea.innerHTML = `<div class="empty-state">
         <div class="big">🌷</div>
         <div class="serif-line">Your shelf is empty, for now.</div>
         <p>Tap the + button to catalog your first find.</p>
       </div>`;
-      wireCatalogControls();
+      wireCatalogListEvents();
       return;
     }
 
     if (filtered.length === 0){
-      view.innerHTML = controlsHtml + `<div class="empty-state">
+      listArea.innerHTML = `<div class="empty-state">
         <div class="big">🔍</div>
         <div class="serif-line">No matches here.</div>
         <p>Try adjusting your search or filters.</p>
       </div>`;
-      wireCatalogControls();
+      wireCatalogListEvents();
       return;
     }
 
@@ -839,19 +854,23 @@ export const app = (function(){
       </div>
     ` : '';
 
-    view.innerHTML = controlsHtml + `<div style="font-size:12px; color:var(--plum-soft); margin-bottom:10px;">${filtered.length} item${filtered.length===1?'':'s'}</div>` + cardsHtml + (bulkSelectMode ? `<div style="height:140px;"></div>` : '') + bulkBarHtml;
-    wireCatalogControls();
+    listArea.innerHTML = `<div style="font-size:12px; color:var(--plum-soft); margin-bottom:10px;">${filtered.length} item${filtered.length===1?'':'s'}</div>` + cardsHtml + (bulkSelectMode ? `<div style="height:140px;"></div>` : '') + bulkBarHtml;
+    wireCatalogListEvents();
   }
 
+  // Wires the search field, filter toggle, bulk-mode toggle, and the drafts
+  // banner — everything OUTSIDE #catalogListArea. Only runs on a full
+  // renderCatalog() (tab switch, filters changing, bulk mode toggling,
+  // etc.), never on every keystroke in #searchInput.
   function wireCatalogControls(){
     const searchInput = document.getElementById('searchInput');
     if (searchInput){
       searchInput.addEventListener('input', (e) => {
         searchQuery = e.target.value;
-        const cursorPos = e.target.selectionStart;
-        renderCatalog();
-        const newInput = document.getElementById('searchInput');
-        if (newInput){ newInput.focus(); newInput.setSelectionRange(cursorPos, cursorPos); }
+        // Refresh only the results list — #searchInput itself is never
+        // touched, so its focus/cursor and the on-screen keyboard's
+        // current mode (letters vs. "123") stay exactly as they were.
+        renderCatalogList();
       });
     }
     const filterToggleBtn = document.getElementById('filterToggleBtn');
@@ -896,7 +915,11 @@ export const app = (function(){
         renderCatalog();
       });
     });
+  }
 
+  // Wires everything INSIDE #catalogListArea (item cards, bulk action bar) —
+  // runs after both a full renderCatalog() and a list-only renderCatalogList().
+  function wireCatalogListEvents(){
     document.querySelectorAll('.item-card').forEach(card => {
       card.addEventListener('click', (e) => {
         if (bulkSelectMode){
