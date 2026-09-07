@@ -1044,6 +1044,37 @@ next minor bump:
   from him before trying again. The v3.13.70 `inputmode`/`autocomplete`
   attributes on `#searchInput` are left in place (harmless either way).
 
+- **v3.13.73** — Got the real diagnosis for the v3.13.72 revert: it wasn't
+  the OS keyboard at all. Screenshots from his iPhone showed the *native*
+  iOS numeric keyboard (the "123" toggle) working, but reverting to the
+  ABC/letters layout after typing exactly one digit — so a 3-digit code
+  needed tapping "123" three separate times. Root cause: `#searchInput`'s
+  `input` listener called `renderCatalog()` on every keystroke, which does
+  `view.innerHTML = controlsHtml + …` — replacing `#searchInput` with a
+  brand-new DOM node each time, then manually re-`.focus()`ing it. iOS
+  treats a freshly-focused element as a new keyboard session, resetting its
+  "123"/ABC toggle state to the default (letters) — so the very act of
+  filtering-as-you-type was destroying the search box out from under
+  itself on every character. Fixed by splitting the Catalog view into two
+  persistent containers: `controlsHtml` (drafts banner, search row, filter
+  panel — rendered once by `renderCatalog()`) and a new `#catalogListArea`
+  (item cards / empty states / bulk action bar — rendered by the new
+  `renderCatalogList()`). `#searchInput`'s `input` listener now calls only
+  `renderCatalogList()`, which rebuilds just the results below it —
+  `#searchInput` itself is never touched again after the initial render, so
+  its focus, cursor position, and the iOS keyboard's current mode all stay
+  exactly as they were between keystrokes. Split `wireCatalogControls()`
+  (search/filter-toggle/bulk-toggle/drafts-banner listeners, wired once per
+  full render) into that plus a new `wireCatalogListEvents()` (item-card
+  clicks, bulk action bar buttons — wired after both a full render and a
+  list-only refresh). No behavior change to filtering/search results
+  themselves, just how the DOM gets there. Also dropped the now-unneeded
+  manual cursor-position save/restore around the old `renderCatalog()`
+  call, since `#searchInput` is no longer destroyed. **Not yet re-tested on
+  his iPhone** — verified via `node --check` and a clean `vite build` only;
+  watch the next real test to confirm the "123" keyboard now stays up
+  across multiple digits typed in a row.
+
 ## Planned changes (backlog)
 
 Not implemented yet — captured here so they survive between sessions.
