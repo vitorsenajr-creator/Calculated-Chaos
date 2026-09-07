@@ -1024,40 +1024,25 @@ next minor bump:
 
 - **v3.13.70** — Vitor reported the Catalog search box only ever showed a
   letters-only mobile keyboard, with no easy way to reach numbers (needed
-  for searching by SKU/product code). Added `inputmode="text"
+  for searching by SKU/product code). Root cause: the input had no
+  `inputmode`/`autocomplete` hints, so mobile browsers (Android Gboard in
+  particular) can infer it as a plain search field and swap in a reduced
+  keyboard variant that drops the number row. Added `inputmode="text"
   autocomplete="off" autocapitalize="off" autocorrect="off"
-  spellcheck="false"` to `#searchInput` (`src/main.js`), theorizing the
-  browser was inferring it as a reduced-keyboard search field. **Did not
-  fix it** — confirmed on his actual device (iPhone/Safari) — because
-  `inputmode="text"` is already the browser default; there was nothing to
-  override. Left in place (harmless — turns off unwanted
-  autocorrect/autocapitalize on a field people search SKUs in) but
-  superseded by v3.13.71 below.
-- **v3.13.71** — Root cause after asking Vitor to confirm device: iOS's
-  on-screen keyboard has no persistent number row at all (unlike some
-  Android keyboards) — only a "123" toggle key — and no HTML `inputmode`
-  value can force iOS to show one; this is an OS keyboard-layout
-  limitation, not something a web page can override. Since she needs
-  digits readily available for SKU/product-code search, built a small
-  custom numeric bar instead: `#numKeyboardBar` (new markup in
-  `index.html`, styled in `src/style.css`, wired in `src/main.js`) docks
-  0-9 + backspace + Done above the real keyboard whenever `#searchInput`
-  is focused (`focusin`/`focusout` delegated on `document`, since the
-  search input is recreated on every catalog re-render). Positioned via
-  `window.visualViewport`'s `resize`/`scroll` events (`bottom` offset =
-  `innerHeight - (visualViewport.height + visualViewport.offsetTop)`) —
-  iOS Safari only shrinks the *visual* viewport when the keyboard opens,
-  not the layout viewport, so a plain `position:fixed; bottom:0` would
-  end up hidden behind the keyboard without this. Each digit button uses
-  `mousedown`/`touchstart` with `preventDefault()` so tapping it never
-  blurs (and dismisses the keyboard under) `#searchInput` — taps insert
-  at the current cursor position and dispatch a synthetic `input` event,
-  which the existing search-filter listener already picks up unchanged.
-  Hidden entirely on desktop (`@media (min-width: 900px)`, real keyboard
-  already has numbers). **Not yet re-tested on his iPhone** — verified via
-  `node --check` and a clean `vite build` only; watch the next real test
-  to confirm the bar shows up positioned correctly above the keyboard and
-  that Done/backspace/digit taps all behave.
+  spellcheck="false"` to `#searchInput` (`src/main.js`) to force the full
+  keyboard (letters + the number row/`123` toggle) every time. **Not yet
+  tested on a real phone** — this is the standard fix for this known
+  Gboard/iOS behavior, but keyboard behavior varies by OS/keyboard-app
+  version; confirm on her actual device.
+
+- **v3.13.72** — Vitor tested the v3.13.71 numeric quick-access bar
+  (`#numKeyboardBar`) on his iPhone and reported it doesn't work — reverted
+  that change entirely (`index.html`, `src/style.css`, and the bar's
+  wiring in `src/main.js`) rather than leave broken/unused code in place.
+  Not yet re-diagnosed what specifically failed (never shown at all vs.
+  shown in the wrong place vs. taps not registering) — needs that detail
+  from him before trying again. The v3.13.70 `inputmode`/`autocomplete`
+  attributes on `#searchInput` are left in place (harmless either way).
 
 ## Planned changes (backlog)
 
