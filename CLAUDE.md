@@ -1035,6 +1035,15 @@ next minor bump:
   Gboard/iOS behavior, but keyboard behavior varies by OS/keyboard-app
   version; confirm on her actual device.
 
+- **v3.13.72** — Vitor tested the v3.13.71 numeric quick-access bar
+  (`#numKeyboardBar`) on his iPhone and reported it doesn't work — reverted
+  that change entirely (`index.html`, `src/style.css`, and the bar's
+  wiring in `src/main.js`) rather than leave broken/unused code in place.
+  Not yet re-diagnosed what specifically failed (never shown at all vs.
+  shown in the wrong place vs. taps not registering) — needs that detail
+  from him before trying again. The v3.13.70 `inputmode`/`autocomplete`
+  attributes on `#searchInput` are left in place (harmless either way).
+
 ## Planned changes (backlog)
 
 Not implemented yet — captured here so they survive between sessions.
