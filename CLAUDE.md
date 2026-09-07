@@ -1075,31 +1075,6 @@ next minor bump:
   watch the next real test to confirm the "123" keyboard now stays up
   across multiple digits typed in a row.
 
-- **v3.13.74** — v3.13.73 confirmed working — Vitor then asked for what he
-  actually wanted from the start: a persistent digit row docked above the
-  keyboard, like Waze shows above its destination search (he'd also seen
-  the same pattern on some Safari sites). That's exactly what the
-  short-lived `#numKeyboardBar` from v3.13.71 tried to do, reverted in
-  v3.13.72 as "doesn't work" — almost certainly for the *same* underlying
-  reason the native "123" toggle kept resetting: `#searchInput` was being
-  destroyed and recreated on every keystroke (fixed in v3.13.73), which
-  would have broken the bar's focus-tracking and digit insertion too.
-  Re-added it verbatim on top of the now-fixed base: `#numKeyboardBar`
-  markup in `index.html`, styles in `src/style.css`, wiring in
-  `src/main.js` (`initSearchNumKeyboardBar()` and friends) — 0-9 +
-  backspace + Done, shown via `focusin`/`focusout` delegated on
-  `document` (since `#searchInput` can still be rebuilt by a full
-  `renderCatalog()` on tab switches/bulk-mode toggles, just not by
-  typing), positioned above the real keyboard via `visualViewport`, each
-  button using `mousedown`/`touchstart` `preventDefault()` so tapping
-  never blurs `#searchInput`. Hidden on desktop
-  (`@media (min-width: 900px)`) — confirmed with him this is mobile-only,
-  a physical keyboard already has numbers. **Not yet re-tested on his
-  iPhone** — verified via `node --check` and a clean `vite build` only;
-  since the render-destroys-input bug this bar depends on not fighting is
-  now actually fixed, there's real reason to expect this attempt works
-  where v3.13.71 didn't — but only a real test confirms it.
-
 ## Planned changes (backlog)
 
 Not implemented yet — captured here so they survive between sessions.
