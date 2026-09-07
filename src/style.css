@@ -970,3 +970,26 @@
      to hide the whole shell, not the old direct-child selectors, or the
      app would stay visible behind the login overlay. */
   body.auth-locked > .app-shell, body.auth-locked > .fab{ display:none !important; }
+
+  /* Numeric quick-access bar for the Catalog search field on mobile —
+     same idea as the digit row Waze docks above its keyboard for
+     destination search. iOS's own on-screen keyboard has no persistent
+     number row (only a "123" toggle), so this app-level bar sits above
+     the real keyboard instead, positioned via visualViewport in main.js.
+     Desktop has a physical keyboard, so this never shows there. */
+  .num-kb-bar{
+    position:fixed; left:0; right:0; bottom:0; z-index:2000;
+    display:flex; gap:6px; padding:8px calc(8px + env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) calc(8px + env(safe-area-inset-left));
+    background:var(--white, #FFFDF9); border-top:1px solid var(--line, rgba(43,36,30,0.13));
+    box-shadow:0 -2px 10px rgba(0,0,0,0.08);
+    transform:translateY(110%); transition:transform .15s ease;
+  }
+  .num-kb-bar.show{ transform:translateY(0); }
+  .num-kb-bar button{
+    flex:1; min-width:0; padding:10px 0; font-size:17px; font-weight:600;
+    border-radius:8px; border:1px solid var(--line, rgba(43,36,30,0.13));
+    background:var(--cream-soft, #EBE1CE); color:var(--plum, #2B241E);
+  }
+  .num-kb-bar button.num-kb-back, .num-kb-bar button.num-kb-done{ flex:1.6; font-size:13px; }
+  .num-kb-bar button.num-kb-done{ background:var(--terracotta, #8C6F52); color:#fff; border-color:var(--terracotta, #8C6F52); }
+  @media (min-width: 900px){ .num-kb-bar{ display:none !important; } }
