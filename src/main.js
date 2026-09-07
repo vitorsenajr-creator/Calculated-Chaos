@@ -65,7 +65,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.73';
+  const APP_VERSION = 'v3.13.74';
   const APP_VERSION_DATE = '2026-09-07';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -6431,6 +6431,101 @@ EBAY_MERCHANT_LOCATION_KEY=${escapeHtml(data.results.merchantLocationKey)}</div>
       }
     });
   });
+
+  // Numeric quick-access bar for #searchInput on mobile — same idea as the
+  // digit row Waze docks above its keyboard for destination search. iOS's
+  // on-screen keyboard has no persistent number row of its own (just a
+  // "123" toggle), so this app-level bar sits above the real keyboard
+  // instead. Safe to rely on #searchInput's identity now that
+  // renderCatalogList() (not a full renderCatalog()) is what runs on every
+  // keystroke — see v3.13.73's fix; before that, this bar's first attempt
+  // (v3.13.71) almost certainly broke for the same reason the "123"
+  // keyboard did: the search field was being destroyed and recreated out
+  // from under it on every character.
+  function insertIntoSearchInput(char){
+    const input = document.getElementById('searchInput');
+    if (!input) return;
+    const start = input.selectionStart ?? input.value.length;
+    const end = input.selectionEnd ?? input.value.length;
+    input.value = input.value.slice(0, start) + char + input.value.slice(end);
+    const newPos = start + char.length;
+    input.setSelectionRange(newPos, newPos);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  function backspaceSearchInput(){
+    const input = document.getElementById('searchInput');
+    if (!input) return;
+    const start = input.selectionStart ?? input.value.length;
+    const end = input.selectionEnd ?? input.value.length;
+    if (start === end){
+      if (start === 0) return;
+      input.value = input.value.slice(0, start - 1) + input.value.slice(end);
+      input.setSelectionRange(start - 1, start - 1);
+    } else {
+      input.value = input.value.slice(0, start) + input.value.slice(end);
+      input.setSelectionRange(start, start);
+    }
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  function positionNumKeyboardBar(){
+    const bar = document.getElementById('numKeyboardBar');
+    if (!bar || !bar.classList.contains('show')) return;
+    const vv = window.visualViewport;
+    if (!vv){ bar.style.bottom = '0px'; return; }
+    const overlap = window.innerHeight - (vv.height + vv.offsetTop);
+    bar.style.bottom = Math.max(0, overlap) + 'px';
+  }
+  function showNumKeyboardBar(){
+    const bar = document.getElementById('numKeyboardBar');
+    if (!bar || window.innerWidth >= 900) return;
+    bar.classList.add('show');
+    positionNumKeyboardBar();
+  }
+  function hideNumKeyboardBar(){
+    const bar = document.getElementById('numKeyboardBar');
+    if (!bar) return;
+    bar.classList.remove('show');
+    bar.style.bottom = '0px';
+  }
+  function initSearchNumKeyboardBar(){
+    const bar = document.getElementById('numKeyboardBar');
+    if (!bar) return;
+    // Delegated on document (not attached to #searchInput directly) since
+    // the search field is still rebuilt on a full renderCatalog() (tab
+    // switch, bulk-mode toggle, etc.) even though typing no longer does.
+    document.addEventListener('focusin', (e) => {
+      if (e.target && e.target.id === 'searchInput') showNumKeyboardBar();
+    });
+    document.addEventListener('focusout', (e) => {
+      if (!e.target || e.target.id !== 'searchInput') return;
+      setTimeout(() => {
+        if (document.activeElement && document.activeElement.id === 'searchInput') return;
+        hideNumKeyboardBar();
+      }, 50);
+    });
+    // preventDefault on press (not click) keeps focus on #searchInput so
+    // tapping a bar button never blurs it and dismisses the real keyboard.
+    bar.addEventListener('mousedown', (e) => e.preventDefault());
+    bar.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
+    bar.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-key]');
+      if (!btn) return;
+      const key = btn.getAttribute('data-key');
+      if (key === 'back') backspaceSearchInput();
+      else if (key === 'done'){
+        const input = document.getElementById('searchInput');
+        if (input) input.blur();
+        hideNumKeyboardBar();
+      } else {
+        insertIntoSearchInput(key);
+      }
+    });
+    if (window.visualViewport){
+      window.visualViewport.addEventListener('resize', positionNumKeyboardBar);
+      window.visualViewport.addEventListener('scroll', positionNumKeyboardBar);
+    }
+  }
+  initSearchNumKeyboardBar();
 
   // Opens the item modal from the bulk eBay preflight's "Edit" buttons —
   // see openedFromBulkReview above for what happens after she saves.
