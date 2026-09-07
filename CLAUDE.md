@@ -1075,6 +1075,20 @@ next minor bump:
   watch the next real test to confirm the "123" keyboard now stays up
   across multiple digits typed in a row.
 
+- **v3.13.75** — v3.13.73's fix confirmed working on his iPhone (typing a
+  multi-digit code with the native "123" keyboard now works correctly).
+  The v3.13.74 re-add of `#numKeyboardBar` (the Waze-style digit bar) did
+  NOT — his screenshot showed it correctly docked right above the real
+  keyboard this time (so the destroy-on-keystroke bug it depended on
+  really was the blocker for *positioning*), but tapping its buttons did
+  nothing. Root cause not diagnosed — reverted per his explicit
+  instruction ("desfaça novamente e deixe como está") rather than attempt
+  a third fix blind. **Decision: stop trying this bar.** The native "123"
+  keyboard from v3.13.73 is the shipped, working solution for numeric
+  search input on mobile — do not re-attempt `#numKeyboardBar` or a
+  similar custom accessory bar for `#searchInput` without a new, explicit
+  ask from him.
+
 ## Planned changes (backlog)
 
 Not implemented yet — captured here so they survive between sessions.
