@@ -1022,6 +1022,19 @@ next minor bump:
   listing price reads as a warning at a glance instead of blending into
   the rest of the card's meta text.
 
+- **v3.13.70** — Vitor reported the Catalog search box only ever showed a
+  letters-only mobile keyboard, with no easy way to reach numbers (needed
+  for searching by SKU/product code). Root cause: the input had no
+  `inputmode`/`autocomplete` hints, so mobile browsers (Android Gboard in
+  particular) can infer it as a plain search field and swap in a reduced
+  keyboard variant that drops the number row. Added `inputmode="text"
+  autocomplete="off" autocapitalize="off" autocorrect="off"
+  spellcheck="false"` to `#searchInput` (`src/main.js`) to force the full
+  keyboard (letters + the number row/`123` toggle) every time. **Not yet
+  tested on a real phone** — this is the standard fix for this known
+  Gboard/iOS behavior, but keyboard behavior varies by OS/keyboard-app
+  version; confirm on her actual device.
+
 ## Planned changes (backlog)
 
 Not implemented yet — captured here so they survive between sessions.
