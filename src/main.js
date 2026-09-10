@@ -65,7 +65,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.76';
+  const APP_VERSION = 'v3.13.77';
   const APP_VERSION_DATE = '2026-09-10';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -1959,7 +1959,7 @@ export const app = (function(){
     // again instead of leaving the panel blank and making her regenerate it
     // just to see it.
     if (item && !isDuplicate && item.listingDescription){
-      renderListingOutput(item.listingTitle || '', item.listingDescription, [...(item.listingStyleTags || [])], null);
+      renderListingOutput(item.listingTitle || '', item.listingDescription, [...(item.listingStyleTags || [])], item.listingIsAi ? AI_LISTING_SOURCE_LABEL : null);
     } else {
       document.getElementById('listingOutputArea').innerHTML = '';
     }
@@ -4562,6 +4562,8 @@ Respond with the JSON object only. Do not include any text, explanation, or mark
     return [0,1,2].map(i => document.getElementById('poshTag'+i)?.value.trim() || '').filter(Boolean);
   }
 
+  const AI_LISTING_SOURCE_LABEL = '🪄 AI-written — review before copying';
+
   function renderListingOutput(title, description, styleTagGuesses, sourceLabel){
     while (styleTagGuesses.length < 3) styleTagGuesses.push('');
 
@@ -4654,7 +4656,7 @@ Respond with the JSON object only. Do not include any text, explanation, or mark
     // Same autosave the AI generator already does — previously this instant
     // template only ever lived on screen until a separate manual Save,
     // including erroring out on a never-saved item.
-    await autosaveGeneratedListingText();
+    await autosaveGeneratedListingText(false);
   }
 
   // Shared by the single-item generator below and the bulk "generate
@@ -4808,11 +4810,11 @@ Be accurate and honest — never invent brand, material, or condition details th
         return;
       }
 
-      renderListingOutput(result.title, result.description, result.styleTagGuesses, '🪄 AI-written — review before copying');
+      renderListingOutput(result.title, result.description, result.styleTagGuesses, AI_LISTING_SOURCE_LABEL);
       // Autosave the moment the description is delivered — previously she
       // had to click Save separately just to enable "Publish on eBay",
       // and until then the text only ever lived on screen.
-      await autosaveGeneratedListingText();
+      await autosaveGeneratedListingText(true);
       await incrementAiUsage();
       const remaining = aiUsageRemaining();
       if (remaining <= 50 && remaining > 0){
@@ -4834,13 +4836,13 @@ Be accurate and honest — never invent brand, material, or condition details th
   //  - Already-saved item → just updates listingTitle/listingDescription in
   //    place, without re-running the full save flow or its side effects
   //    (photo upload, re-opening the modal, eBay relist prompt, etc.).
-  async function autosaveGeneratedListingText(){
+  async function autosaveGeneratedListingText(isAi){
     if (!currentEditId){
       // skipValidation: generating a description shouldn't be blocked by the
       // "choose an eBay category first" gate the manual Save button
       // enforces — that only matters once she actually tries to list on
       // eBay, which checks for it independently.
-      await saveItemFlow({ skipValidation: true });
+      await saveItemFlow({ skipValidation: true, listingIsAi: isAi });
       return;
     }
     const idx = items.findIndex(i => i.id === currentEditId);
@@ -4848,7 +4850,7 @@ Be accurate and honest — never invent brand, material, or condition details th
     const title = document.getElementById('listTitleText')?.textContent || '';
     const description = document.getElementById('listDescText')?.value || '';
     const styleTags = readCurrentStyleTagInputs();
-    const updated = { ...items[idx], listingTitle: title, listingDescription: description, listingStyleTags: styleTags !== undefined ? styleTags : (items[idx].listingStyleTags || []) };
+    const updated = { ...items[idx], listingTitle: title, listingDescription: description, listingStyleTags: styleTags !== undefined ? styleTags : (items[idx].listingStyleTags || []), listingIsAi: isAi };
     items[idx] = updated;
     try{
       await saveItem(updated);
@@ -4934,7 +4936,7 @@ Be accurate and honest — never invent brand, material, or condition details th
       if (!result.ok) return { ok:false, message: result.message };
       const idx = items.findIndex(i => i.id === item.id);
       if (idx >= 0){
-        const updated = { ...items[idx], listingTitle: result.title, listingDescription: result.description, listingStyleTags: result.styleTagGuesses || [] };
+        const updated = { ...items[idx], listingTitle: result.title, listingDescription: result.description, listingStyleTags: result.styleTagGuesses || [], listingIsAi: true };
         items[idx] = updated;
         await saveItem(updated);
       }
@@ -5032,7 +5034,7 @@ Be accurate and honest — never invent brand, material, or condition details th
   // "Item", same fallback the listing generators already use) and a
   // chosen eBay category (irrelevant until she actually tries to list on
   // eBay — that action checks for it independently).
-  async function saveItemFlow({ skipValidation = false, suppressReopen = false } = {}){
+  async function saveItemFlow({ skipValidation = false, suppressReopen = false, listingIsAi } = {}){
     let name = document.getElementById('fName').value.trim();
     if (!name){
       if (skipValidation) name = 'Item';
@@ -5141,6 +5143,14 @@ Be accurate and honest — never invent brand, material, or condition details th
       // moment the item was saved and the modal reopened.
       listingStyleTags: readCurrentStyleTagInputs()
         ?? items.find(i => i.id === currentEditId)?.listingStyleTags ?? [],
+      // Whether the current listingTitle/listingDescription came from the AI
+      // writer vs. the instant template vs. a manual edit — drives whether
+      // the "AI-written" badge (and its "Apply title" button) still shows
+      // when this item's modal is reopened later. Only set explicitly by the
+      // two generator flows (autosaveGeneratedListingText); a plain manual
+      // Save preserves whatever was already there instead of guessing.
+      listingIsAi: listingIsAi !== undefined ? listingIsAi
+        : (items.find(i => i.id === currentEditId)?.listingIsAi || false),
       // Persists the last-generated AI photo analysis (identification, price
       // guess, reasoning, etc.) the same way listingDescription is persisted
       // above — kept in sync with the on-screen card via currentAiAnalysis,
