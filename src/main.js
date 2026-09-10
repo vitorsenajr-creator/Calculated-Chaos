@@ -65,8 +65,8 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.75';
-  const APP_VERSION_DATE = '2026-09-07';
+  const APP_VERSION = 'v3.13.76';
+  const APP_VERSION_DATE = '2026-09-10';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
   let itemsLoaded = false; // true once the initial Firestore fetch in loadItems() resolves
@@ -4376,6 +4376,17 @@ Respond with the JSON object only. Do not include any text, explanation, or mark
       const editedSize = document.getElementById('aiSizeEdit').value.trim();
       if (editedSize){
         document.getElementById('fSize').value = editedSize;
+      }
+      // Now that Brand/Color/Clothing type/Gender/Size/Category are all on
+      // the form, replace the AI's plain identification (e.g. "Levi's 501
+      // denim jacket") with the same SEO-formatted title
+      // "Generate listing description" already builds via buildListingTitle
+      // — no extra AI call, just the same deterministic formula run on the
+      // fields we just applied. Falls back to the AI's own name if there
+      // isn't enough to build from (no brand/type/category at all).
+      const seoTitle = buildListingTitle(gatherListingFormFields());
+      if (seoTitle.trim()){
+        document.getElementById('fName').value = seoTitle;
       }
       // If the item turned out to be Clothing and shipping dims are still
       // empty, fill in the standard box size now too.

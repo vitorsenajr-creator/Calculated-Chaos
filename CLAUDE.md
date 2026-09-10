@@ -1089,6 +1089,18 @@ next minor bump:
   similar custom accessory bar for `#searchInput` without a new, explicit
   ask from him.
 
+- **v3.13.76** — Added an "Apply title" button next to "Copy title" on the
+  AI-generated listing description result (only shown for the AI writer,
+  not the instant template) — writes the generated title straight into
+  the item's Name field instead of requiring a manual copy/paste.
+  Separately, "🔮 Analyze with AI"'s "Apply to form" now upgrades the
+  plain photo-identification name (e.g. "Levi's 501 denim jacket") into
+  the same SEO-formatted title `buildListingTitle()` already produces for
+  "Generate listing description" (brand + type + size + color + gender),
+  built from the Brand/Color/Clothing type/Gender/Size/Category fields
+  the same click just applied — no extra AI call, falls back to the AI's
+  plain name if there isn't enough to build a title from.
+
 ## Planned changes (backlog)
 
 Not implemented yet — captured here so they survive between sessions.
