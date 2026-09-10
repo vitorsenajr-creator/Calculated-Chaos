@@ -4559,7 +4559,10 @@ Respond with the JSON object only. Do not include any text, explanation, or mark
         ${sourceLabel ? `<div style="display:inline-block; background:var(--gold); color:white; font-size:9.5px; font-weight:700; padding:4px 10px; border-radius:20px; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:10px;">${escapeHtml(sourceLabel)}</div>` : ''}
         <div class="lo-label">Title <span style="font-family:'JetBrains Mono',monospace; font-weight:400; color:${title.length > 80 ? 'var(--danger)' : 'var(--plum-soft)'};">(${title.length}/80)</span></div>
         <div class="lo-title" id="listTitleText">${escapeHtml(title)}</div>
-        <button class="copy-btn" id="copyListTitleBtn" style="margin-bottom:12px;">Copy title</button>
+        <div style="display:flex; gap:8px; margin-bottom:12px;">
+          <button class="copy-btn" id="copyListTitleBtn">Copy title</button>
+          ${sourceLabel ? `<button class="copy-btn" id="applyListTitleBtn">Apply title</button>` : ''}
+        </div>
 
         <div class="lo-label">Description <span style="font-family:'JetBrains Mono',monospace; font-weight:400; color:${description.length > LISTING_DESC_LIMIT ? 'var(--danger)' : 'var(--plum-soft)'};">(${description.length}/${LISTING_DESC_LIMIT})</span></div>
         <div style="font-size:11px; color:var(--plum-soft); margin-bottom:4px;">This exact text is also what gets sent as the eBay listing description — edit freely before saving the item.</div>
@@ -4580,6 +4583,12 @@ Respond with the JSON object only. Do not include any text, explanation, or mark
         btn.textContent = 'Copied ✓';
         setTimeout(() => { btn.textContent = 'Copy title'; }, 1800);
       });
+    });
+    document.getElementById('applyListTitleBtn')?.addEventListener('click', () => {
+      document.getElementById('fName').value = document.getElementById('listTitleText').textContent;
+      const btn = document.getElementById('applyListTitleBtn');
+      btn.textContent = 'Applied ✓';
+      setTimeout(() => { btn.textContent = 'Apply title'; }, 1800);
     });
     document.getElementById('copyListDescBtn').addEventListener('click', () => {
       navigator.clipboard.writeText(document.getElementById('listDescText').value).then(() => {
