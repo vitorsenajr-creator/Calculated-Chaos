@@ -1101,6 +1101,18 @@ next minor bump:
   the same click just applied — no extra AI call, falls back to the AI's
   plain name if there isn't enough to build a title from.
 
+- **v3.13.77** — Fixed "Apply title" (v3.13.76) disappearing the moment
+  the AI-generated description autosaved: autosave reopens the item
+  modal for a never-saved item, which re-rendered the listing panel with
+  `sourceLabel` hardcoded to `null` — the exact condition that hides the
+  button — regardless of whether the saved text actually came from the
+  AI writer. Added a persisted `item.listingIsAi` flag, set explicitly by
+  the two generator flows (`false` for the instant template, `true` for
+  both the AI writer and the bulk/automated generator) and left untouched
+  by a plain manual Save (preserves whatever was already on the item) —
+  reopening the modal now reads it to decide whether to show the
+  "AI-written" badge (and therefore "Apply title") again.
+
 ## Planned changes (backlog)
 
 Not implemented yet — captured here so they survive between sessions.
