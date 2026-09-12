@@ -65,7 +65,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.83';
+  const APP_VERSION = 'v3.13.84';
   const APP_VERSION_DATE = '2026-09-12';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -1695,12 +1695,43 @@ export const app = (function(){
     }
   }
 
+  // Curated pick-lists for aspects eBay itself sometimes leaves as free
+  // text (no allowedValues at all) even though it flags them required —
+  // "Style" for leggings/activewear pants is exactly this case (real
+  // account test, 2026-09-12): eBay's own aspect lookup returned no
+  // selection list, leaving her to guess the right wording from memory
+  // every single time. Keyed by [aspect name lowercased][a simple
+  // category signal], not applied blindly to every category "Style"
+  // shows up for (it means something different on jeans vs. dresses).
+  // Still a free-text input with a <datalist> — never blocks a value
+  // outside this list, same "suggestion, not a restriction" pattern as
+  // Live Catalog's Tipo/Brand/Size fields.
+  const CONDITIONAL_ASPECT_SUGGESTIONS = {
+    style: {
+      test: () => {
+        const type = (document.getElementById('fClothingType')?.value || '').toLowerCase();
+        const name = (document.getElementById('fName')?.value || '').toLowerCase();
+        return type.includes('legging') || name.includes('legging');
+      },
+      values: ['Leggings', 'Jeggings', 'Capri/Cropped', 'Bootcut', 'Flare', 'High-Waisted', 'Compression'],
+    },
+  };
+
   function renderEbayAspectsFields(neededAspects){
     const container = document.getElementById('ebayAspectsContainer');
     if (!neededAspects.length){ container.innerHTML = ''; return; }
     container.innerHTML = `
       <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; color:var(--plum-soft); margin-bottom:6px;">This eBay category also requires:</div>
-      ${neededAspects.map(a => `
+      ${neededAspects.map(a => {
+        const conditional = CONDITIONAL_ASPECT_SUGGESTIONS[a.name.toLowerCase()];
+        const suggestions = (!a.selectionOnly && conditional && conditional.test()) ? conditional.values : null;
+        // Default to the common case (first suggestion) so this doesn't
+        // block "List on eBay" by default — still freely editable/
+        // clearable in the field below, same "only fill if empty" rule
+        // as applyDefaultSizeTypeIfEmpty/applyDefaultClothingShippingIfEmpty.
+        if (suggestions && !currentEbayAspects[a.name]) currentEbayAspects[a.name] = suggestions[0];
+        const listId = `aspectSuggest_${a.name.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
+        return `
         <div style="margin-bottom:8px;">
           <label style="font-size:12px; font-weight:600; color:var(--plum); display:block; margin-bottom:3px;">${escapeHtml(a.name)}</label>
           ${a.selectionOnly && a.allowedValues.length ? `
@@ -1708,11 +1739,15 @@ export const app = (function(){
               <option value="">—</option>
               ${a.allowedValues.map(v => `<option value="${escapeHtml(v)}" ${currentEbayAspects[a.name]===v?'selected':''}>${escapeHtml(v)}</option>`).join('')}
             </select>
+          ` : suggestions ? `
+            <input type="text" list="${listId}" data-aspect="${escapeHtml(a.name)}" value="${escapeHtml(currentEbayAspects[a.name] || '')}" style="width:100%; padding:9px 10px; border:1px solid var(--line); border-radius:8px; font-size:13px;">
+            <datalist id="${listId}">${suggestions.map(v => `<option value="${escapeHtml(v)}">`).join('')}</datalist>
           ` : `
             <input type="text" data-aspect="${escapeHtml(a.name)}" value="${escapeHtml(currentEbayAspects[a.name] || '')}" style="width:100%; padding:9px 10px; border:1px solid var(--line); border-radius:8px; font-size:13px;">
           `}
         </div>
-      `).join('')}
+      `;
+      }).join('')}
     `;
     container.querySelectorAll('[data-aspect]').forEach(el => {
       el.addEventListener('change', () => {
