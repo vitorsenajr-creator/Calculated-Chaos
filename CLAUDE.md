@@ -1101,6 +1101,19 @@ next minor bump:
   the same click just applied — no extra AI call, falls back to the AI's
   plain name if there isn't enough to build a title from.
 
+- **v3.13.79** — Fixed the v3.13.78 quick-reprint tool failing to find
+  ANY typed code, even a correctly-formatted one — real product codes
+  are stored like `#0086` (leading `#`, zero-padded to 4 digits), but the
+  lookup compared the raw typed digits against that string verbatim,
+  which can never match (there's no way to type `#` from the modal's
+  numeric-only inputs, and a short/un-padded entry like "86" or "136"
+  never equalled "#0086"/"#0136" either). Matching now strips non-digits
+  from both sides and zero-pads the typed value to 4 digits before
+  comparing, against the item's own digits with any duplicate `-N` suffix
+  stripped first — so "86", "086", and "0086" all resolve to the same
+  item. No change to what prints: it was already the exact same
+  `openBatchLabelModal()`/label-format code as every other print path,
+  just never reached because the lookup never resolved.
 - **v3.13.78** — Added a "🔁 Etiqueta" quick-reprint tool to the Catalog
   toolbar (temporary, per Vitor's request 2026-09-11): a small modal
   (`#quickLabelOverlay`) with exactly 4 numeric-only inputs (auto-advances
