@@ -65,7 +65,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.79';
+  const APP_VERSION = 'v3.13.80';
   const APP_VERSION_DATE = '2026-09-12';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -724,7 +724,6 @@ export const app = (function(){
         <input type="text" class="search-input" id="searchInput" placeholder="Search by name, brand, category…" value="${escapeHtml(searchQuery)}" inputmode="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
         <button class="${filterBtnClass}" id="filterToggleBtn">Filters${filtersActiveCount() ? ' (' + filtersActiveCount() + ')' : ''}</button>
         <button class="${bulkSelectMode ? 'filter-toggle-btn has-active' : 'filter-toggle-btn'}" id="bulkSelectToggleBtn">${bulkSelectMode ? '✕ Cancel' : '☑ Select'}</button>
-        <button class="filter-toggle-btn" id="quickLabelOpenBtn" title="Quick reprint by code">🔁 Etiqueta</button>
       </div>
       <div class="filter-panel ${filterPanelOpen ? 'open' : ''}" id="filterPanel"></div>
     `;
@@ -890,10 +889,6 @@ export const app = (function(){
         if (!bulkSelectMode) bulkSelectedIds.clear();
         renderCatalog();
       });
-    }
-    const quickLabelOpenBtn = document.getElementById('quickLabelOpenBtn');
-    if (quickLabelOpenBtn){
-      quickLabelOpenBtn.addEventListener('click', openQuickLabelModal);
     }
 
     const draftsBanner = document.getElementById('draftsBanner');
@@ -1590,6 +1585,7 @@ export const app = (function(){
     if (tab === 'settings' && !ebayConnectFlowPending) renderSettings();
   }
   document.querySelectorAll('.tab-btn, .sidebar-link').forEach(btn => {
+    if (!btn.dataset.tab) return; // e.g. the Labels button below — not a real tab
     btn.addEventListener('click', () => switchToTab(btn.dataset.tab));
   });
 
@@ -2822,6 +2818,8 @@ export const app = (function(){
     openBatchLabelModal(matched);
   }
 
+  document.getElementById('quickLabelOpenBtnMobile').addEventListener('click', openQuickLabelModal);
+  document.getElementById('quickLabelOpenBtnDesktop').addEventListener('click', openQuickLabelModal);
   document.getElementById('quickLabelCancelBtn').addEventListener('click', closeQuickLabelModal);
   document.getElementById('quickLabelOverlay').addEventListener('click', (e) => {
     if (e.target.id === 'quickLabelOverlay') closeQuickLabelModal();
