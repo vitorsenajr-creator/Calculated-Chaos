@@ -1101,6 +1101,17 @@ next minor bump:
   the same click just applied — no extra AI call, falls back to the AI's
   plain name if there isn't enough to build a title from.
 
+- **v3.13.88** — Vitor asked for an undo button and a running checklist
+  of recent moves in Stock Transfer, for verification during his stock
+  reorganization. Added `transferRecentMoves` (session-only, reset each
+  time the modal opens, capped at 5, newest first) — each successful
+  move appends `{id, productCode, name, fromBox, toBox}` and re-renders
+  a small "✅ #code Name → Box" checklist under the status line. A single
+  "↩ Undo last move" button (disabled until there's at least one move)
+  reverts the most recent entry's `storageBox` back to `fromBox`, saves,
+  and drops it off the list — a per-row undo wasn't asked for and would
+  have slowed the tool down for the common case (fixing the mis-scan you
+  just made), so it only ever targets the top of the list.
 - **v3.13.87** — v3.13.86's box-list fix wasn't actually the root cause:
   Vitor's screenshot showed the dropdown still empty, with "Loading your
   pieces…" faintly visible in the background — he'd opened the Stock
