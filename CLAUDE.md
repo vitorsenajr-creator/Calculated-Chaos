@@ -1101,6 +1101,29 @@ next minor bump:
   the same click just applied — no extra AI call, falls back to the AI's
   plain name if there isn't enough to build a title from.
 
+- **v3.13.86** — Two real bugs from Vitor's first test of v3.13.85 during
+  an actual stock-organizing session: (1) the box dropdown only ever
+  listed `appSettings.storageBoxes` (formally "registered" boxes) —
+  "Gray Box," a name already sitting on real items but never registered
+  through Settings, didn't show up at all. Switched
+  `populateTransferBoxSelect()` to `getAllStorageBoxes()` (already merges
+  registered boxes with every box name actually used on an item, same
+  source the item modal's own Storage Box datalist uses) instead of
+  reading `appSettings.storageBoxes` directly. (2) Typing a code and
+  tapping the keyboard's own "Done"/checkmark just closed the whole
+  modal instead of moving the item — a numeric-only mobile keypad has no
+  real Enter/Return key, so that checkmark only dismisses the keyboard;
+  it never fires the `keydown` Enter event the code's Enter-to-submit
+  listener was relying on, and the modal's own "Done" button (meant to
+  close the tool entirely) sat right where a thumb reaching for the
+  keyboard would land instead. Added an explicit "➕ Move to box" button
+  right under the code field — the actual reliable way to submit on
+  mobile, Enter still works on desktop — and renamed the close button to
+  "Close" so the two are no longer easy to confuse. Both fixes needed
+  since he's actively organizing stock right now: with the dropdown gap,
+  every item already in an unregistered box couldn't be found for
+  reference, and with the submit gap, the tool couldn't move a single
+  item on his phone at all.
 - **v3.13.85** — Added a "📦 Transfer" stock-transfer tool (temporary
   quick tool, same spirit as the "🔁 Labels" tool), per Vitor's request
   2026-09-12: a new button next to Settings in both the mobile `.tabs`
