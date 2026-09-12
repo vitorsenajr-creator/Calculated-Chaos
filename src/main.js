@@ -65,7 +65,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.78';
+  const APP_VERSION = 'v3.13.79';
   const APP_VERSION_DATE = '2026-09-12';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -2796,10 +2796,21 @@ export const app = (function(){
       errorEl.style.display = '';
       return;
     }
+    // Product codes are stored like "#0086" (leading '#', zero-padded to
+    // 4 digits, duplicates suffixed "-2"). Typed input is plain digits with
+    // no way to type '#' from a numeric keypad, and may be un-padded (e.g.
+    // "86" or "136" for "#0086"/"#0136") — compare on digits-only, padded
+    // to 4, against the item's own digits (suffix stripped) instead of a
+    // raw string match.
     const matched = [];
     const notFound = [];
     codes.forEach(code => {
-      const item = items.find(i => (i.productCode || '').trim() === code);
+      const digits = code.replace(/\D/g, '');
+      const norm = digits.padStart(4, '0');
+      const item = items.find(i => {
+        const base = (i.productCode || '').replace(/-\d+$/, '');
+        return base.replace(/\D/g, '') === norm;
+      });
       if (item) matched.push(item); else notFound.push(code);
     });
     if (notFound.length > 0){
