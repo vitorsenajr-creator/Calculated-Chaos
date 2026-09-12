@@ -65,7 +65,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.82';
+  const APP_VERSION = 'v3.13.83';
   const APP_VERSION_DATE = '2026-09-12';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -1647,6 +1647,29 @@ export const app = (function(){
   // time (see api/ebay-list.js) — never shown here, would just be a
   // confusing duplicate of Brand/Color/Size/Gender above.
   const EBAY_ASPECTS_AUTO_COVERED = ['Department', 'Brand', 'Color', 'Size'];
+
+  // Checks the fields eBay is known to need before ever calling the publish
+  // API, so a real gap surfaces as a plain "check field X" instead of a raw
+  // eBay error box (see v3.13.81/82 — a blank Size silently sent a made-up
+  // value and failed with a cryptic errorId 25129). Two sources:
+  //  1. Size, for any category eBay treats as apparel — the one dedicated
+  //     field known to cause this.
+  //  2. Whatever this item's chosen eBay category requires beyond that
+  //     (Pattern, Material, etc.) — only checkable while THIS item's modal
+  //     is the one open, since that required-field list only ever lives in
+  //     the DOM (#ebayAspectsContainer), never stored on the item itself.
+  function getMissingEbayFieldLabels(item){
+    const missing = [];
+    if (['Clothing', 'Shoes', 'Accessories'].includes(item.category) && !item.size){
+      missing.push('Size');
+    }
+    if (currentEditId === item.id){
+      document.querySelectorAll('#ebayAspectsContainer [data-aspect]').forEach(el => {
+        if (!el.value.trim()) missing.push(el.dataset.aspect);
+      });
+    }
+    return missing;
+  }
   let currentEbayAspects = {}; // { "Pattern": "Floral", "Material": "Cotton", ... } — her real answers, saved on the item
   let currentAiAnalysis = null; // raw AI photo-analysis result for this item, saved on the item so it survives closing/reopening the modal
 
@@ -6568,6 +6591,6 @@ EBAY_MERCHANT_LOCATION_KEY=${escapeHtml(data.results.merchantLocationKey)}</div>
     get currentEditId(){ return currentEditId; },
     saveItem, renderAll, escapeHtml, CONDITION_LABEL, bulkSelectedIds,
     suggestPrice, platformFee, showSavedToast, openModal, renderEbayConnectionStatus,
-    openModalFromBulkReview, setListedPlatformsUI,
+    openModalFromBulkReview, setListedPlatformsUI, getMissingEbayFieldLabels,
   };
 })();
