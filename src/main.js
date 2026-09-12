@@ -65,7 +65,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.88';
+  const APP_VERSION = 'v3.13.89';
   const APP_VERSION_DATE = '2026-09-12';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -2863,6 +2863,17 @@ export const app = (function(){
     document.getElementById('quickLabelOverlay').classList.add('hidden');
   }
 
+  // Bridges Stock Transfer into this tool: rather than retyping the codes
+  // she just scanned to print a batch sheet for them, this pre-fills
+  // Quick Labels' 4 slots with the most recent transferred items and
+  // opens straight to it — same modal, same openBatchLabelModal() print
+  // path, just skipping the re-entry.
+  function openQuickLabelModalWithCodes(codes){
+    openQuickLabelModal();
+    const inputs = [...document.querySelectorAll('#quickLabelInputs .quick-label-input')];
+    codes.slice(0, inputs.length).forEach((code, i) => { inputs[i].value = code; });
+  }
+
   // Product codes are stored like "#0086" (leading '#', zero-padded to 4
   // digits, duplicates suffixed "-2"). Typed input from a numeric-only
   // field is plain digits with no way to type '#', and may be un-padded
@@ -2964,6 +2975,7 @@ export const app = (function(){
       </div>
     `).join('');
     document.getElementById('transferUndoBtn').disabled = transferRecentMoves.length === 0;
+    document.getElementById('transferToLabelsBtn').disabled = transferRecentMoves.length === 0;
   }
 
   function openStockTransferModal(){
@@ -3107,6 +3119,12 @@ export const app = (function(){
   // tool is used from during a stock-take.
   document.getElementById('transferMoveBtn').addEventListener('click', submitTransferCode);
   document.getElementById('transferUndoBtn').addEventListener('click', undoLastTransferMove);
+  document.getElementById('transferToLabelsBtn').addEventListener('click', () => {
+    if (transferRecentMoves.length === 0) return;
+    const codes = transferRecentMoves.map(m => (m.productCode || '').replace(/\D/g, ''));
+    closeStockTransferModal();
+    openQuickLabelModalWithCodes(codes);
+  });
 
   document.getElementById('labelPrintBtn').addEventListener('click', () => {
     if (printMode === 'item' && !printLabelItem) return;

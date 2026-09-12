@@ -1101,6 +1101,22 @@ next minor bump:
   the same click just applied — no extra AI call, falls back to the AI's
   plain name if there isn't enough to build a title from.
 
+- **v3.13.89** — Vitor asked to connect Stock Transfer to the Quick
+  Labels ("Labels") tool, pointing at the 4-code batch print modal
+  specifically rather than the single-item print-after-move checkbox
+  v3.13.87 already added. Added a "🔁 Print labels for these" button
+  (disabled until at least one move has happened, same as Undo) that
+  takes the product codes from `transferRecentMoves` (up to 4 — Quick
+  Labels only has 4 slots) and hands off into it: `closeStockTransferModal()`
+  then a new `openQuickLabelModalWithCodes(codes)`, which opens Quick
+  Labels normally and pre-fills its inputs with those codes instead of
+  leaving them blank — same modal, same `openBatchLabelModal()` print
+  path underneath, just skipping retyping codes she already just
+  scanned. Closes Transfer first rather than stacking both open at once
+  (unlike the single-item print checkbox, which layers on top) since both
+  modals share the same 120 z-index and Quick Labels sits earlier in the
+  DOM — opening it without closing Transfer would render it invisible
+  underneath.
 - **v3.13.88** — Vitor asked for an undo button and a running checklist
   of recent moves in Stock Transfer, for verification during his stock
   reorganization. Added `transferRecentMoves` (session-only, reset each
