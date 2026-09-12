@@ -65,8 +65,8 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.77';
-  const APP_VERSION_DATE = '2026-09-10';
+  const APP_VERSION = 'v3.13.78';
+  const APP_VERSION_DATE = '2026-09-12';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
   let itemsLoaded = false; // true once the initial Firestore fetch in loadItems() resolves
@@ -724,6 +724,7 @@ export const app = (function(){
         <input type="text" class="search-input" id="searchInput" placeholder="Search by name, brand, category…" value="${escapeHtml(searchQuery)}" inputmode="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
         <button class="${filterBtnClass}" id="filterToggleBtn">Filters${filtersActiveCount() ? ' (' + filtersActiveCount() + ')' : ''}</button>
         <button class="${bulkSelectMode ? 'filter-toggle-btn has-active' : 'filter-toggle-btn'}" id="bulkSelectToggleBtn">${bulkSelectMode ? '✕ Cancel' : '☑ Select'}</button>
+        <button class="filter-toggle-btn" id="quickLabelOpenBtn" title="Quick reprint by code">🔁 Etiqueta</button>
       </div>
       <div class="filter-panel ${filterPanelOpen ? 'open' : ''}" id="filterPanel"></div>
     `;
@@ -889,6 +890,10 @@ export const app = (function(){
         if (!bulkSelectMode) bulkSelectedIds.clear();
         renderCatalog();
       });
+    }
+    const quickLabelOpenBtn = document.getElementById('quickLabelOpenBtn');
+    if (quickLabelOpenBtn){
+      quickLabelOpenBtn.addEventListener('click', openQuickLabelModal);
     }
 
     const draftsBanner = document.getElementById('draftsBanner');
@@ -2764,6 +2769,69 @@ export const app = (function(){
   document.getElementById('labelPrintCancelBtn').addEventListener('click', closePrintLabelModal);
   document.getElementById('printLabelOverlay').addEventListener('click', (e) => {
     if (e.target.id === 'printLabelOverlay') closePrintLabelModal();
+  });
+
+  // Quick reprint-by-code: type up to 4 exact product codes and jump
+  // straight to the same batch label sheet openBatchLabelModal already
+  // builds for the Catalog's bulk "Imprimir etiquetas" flow — no digging
+  // through search/select/deselect just to swap a label mid-packing.
+  function openQuickLabelModal(){
+    document.getElementById('quickLabelError').style.display = 'none';
+    const inputs = document.querySelectorAll('#quickLabelInputs .quick-label-input');
+    inputs.forEach(inp => { inp.value = ''; });
+    document.getElementById('quickLabelOverlay').classList.remove('hidden');
+    inputs[0].focus();
+  }
+
+  function closeQuickLabelModal(){
+    document.getElementById('quickLabelOverlay').classList.add('hidden');
+  }
+
+  function submitQuickLabelModal(){
+    const inputs = [...document.querySelectorAll('#quickLabelInputs .quick-label-input')];
+    const codes = inputs.map(inp => inp.value.trim()).filter(v => v !== '');
+    const errorEl = document.getElementById('quickLabelError');
+    if (codes.length === 0){
+      errorEl.textContent = 'Type at least one item code.';
+      errorEl.style.display = '';
+      return;
+    }
+    const matched = [];
+    const notFound = [];
+    codes.forEach(code => {
+      const item = items.find(i => (i.productCode || '').trim() === code);
+      if (item) matched.push(item); else notFound.push(code);
+    });
+    if (notFound.length > 0){
+      errorEl.textContent = `Code${notFound.length===1?'':'s'} not found: ${notFound.join(', ')}`;
+      errorEl.style.display = '';
+      return;
+    }
+    closeQuickLabelModal();
+    openBatchLabelModal(matched);
+  }
+
+  document.getElementById('quickLabelCancelBtn').addEventListener('click', closeQuickLabelModal);
+  document.getElementById('quickLabelOverlay').addEventListener('click', (e) => {
+    if (e.target.id === 'quickLabelOverlay') closeQuickLabelModal();
+  });
+  document.getElementById('quickLabelGoBtn').addEventListener('click', submitQuickLabelModal);
+  document.querySelectorAll('#quickLabelInputs .quick-label-input').forEach((inp, idx, all) => {
+    inp.addEventListener('input', () => {
+      inp.value = inp.value.replace(/[^0-9]/g, '');
+      // Auto-advance to the next empty field once this one has 4 digits
+      // (the app's product codes are 4-digit numbers) — keeps the flow
+      // fully numeric-keyboard, no manual tapping between fields.
+      if (inp.value.length >= 4 && idx < all.length - 1){
+        all[idx + 1].focus();
+      }
+    });
+    inp.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') submitQuickLabelModal();
+      if (e.key === 'Backspace' && inp.value === '' && idx > 0){
+        all[idx - 1].focus();
+      }
+    });
   });
 
   document.getElementById('labelPrintBtn').addEventListener('click', () => {
