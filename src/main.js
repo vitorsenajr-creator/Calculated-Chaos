@@ -65,7 +65,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.86';
+  const APP_VERSION = 'v3.13.87';
   const APP_VERSION_DATE = '2026-09-12';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -1388,6 +1388,20 @@ export const app = (function(){
     renderCatalog();
     renderFinance();
     renderReports();
+    refreshStockTransferBoxListIfOpen();
+  }
+
+  // Opening the Stock Transfer tool right after login/refresh — before
+  // Firestore's item load finishes — used to leave its box dropdown
+  // permanently empty for that session: it only ever populated once, at
+  // modal-open time, off whatever `items` held right then (real report:
+  // the dropdown showed nothing while the page behind it still read
+  // "Loading your pieces…"). renderAll() runs again once items actually
+  // load, so re-populating here (only while the modal is visible) means
+  // the list fills in on its own instead of needing to close and reopen.
+  function refreshStockTransferBoxListIfOpen(){
+    const overlay = document.getElementById('stockTransferOverlay');
+    if (overlay && !overlay.classList.contains('hidden')) populateTransferBoxSelect();
   }
 
   // ---------- DASHBOARD (desktop home — see switchToTab) ----------
@@ -2995,6 +3009,14 @@ export const app = (function(){
     try{
       await saveItem(updated);
       setTransferStatus(`✅ ${item.productCode || ''} ${item.name || 'Item'} → ${box}`.trim(), false);
+      // Opens on top of this still-open modal (printLabelOverlay's z-index
+      // is set above the transfer/label overlays for exactly this) rather
+      // than closing Stock Transfer first — the whole point of this
+      // checkbox is printing one label per scan without losing her place
+      // mid-session.
+      if (document.getElementById('transferPrintCheck').checked){
+        openPrintLabelModal(updated);
+      }
     }catch(e){
       setTransferStatus('Save failed — check your connection and try that code again.', true);
     }

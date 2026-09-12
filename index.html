@@ -433,7 +433,7 @@
   <div class="lightbox-thumbnails" id="lightboxThumbs"></div>
 </div>
 
-<div class="modal-overlay hidden" id="printLabelOverlay" style="z-index:120;">
+<div class="modal-overlay hidden" id="printLabelOverlay" style="z-index:150;">
   <div class="modal" style="max-width:420px;">
     <div class="modal-handle"></div>
     <h3 class="serif" style="margin:0 0 4px; font-size:19px;">Print label</h3>
@@ -498,6 +498,10 @@
     <button class="icon-btn" id="transferNewBoxToggleBtn" style="width:100%; margin-bottom:14px;">+ New box</button>
 
     <input type="text" id="transferCodeInput" inputmode="numeric" pattern="[0-9]*" placeholder="Item code" style="width:100%; box-sizing:border-box; padding:12px 14px; font-size:18px; text-align:center; border:1px solid var(--line); border-radius:10px; margin-bottom:10px;">
+    <label style="display:flex; align-items:center; gap:8px; margin-bottom:10px; font-size:13px; color:var(--plum-soft); cursor:pointer;">
+      <input type="checkbox" id="transferPrintCheck" style="width:18px; height:18px;">
+      🖨️ Also print this item's label after moving it
+    </label>
     <button class="settings-save-btn" id="transferMoveBtn" style="width:100%; margin:0 0 10px;">➕ Move to box</button>
     <div id="transferStatus" style="min-height:20px; font-size:13px; text-align:center; margin-bottom:10px;"></div>
 
