@@ -60,6 +60,7 @@
     <button class="sidebar-link" data-tab="reports">📈 Reports</button>
     <button class="sidebar-link" data-tab="settings">⚙ Settings</button>
     <button class="sidebar-link" id="quickLabelOpenBtnDesktop">🔁 Labels</button>
+    <button class="sidebar-link" id="stockTransferOpenBtnDesktop">📦 Transfer</button>
     <a class="sidebar-link" href="/live-catalog.html">🔴 Live</a>
   </nav>
 
@@ -83,6 +84,7 @@
       <button class="tab-btn" data-tab="reports">Reports</button>
       <button class="tab-btn" data-tab="settings">⚙ Settings</button>
       <button class="tab-btn" id="quickLabelOpenBtnMobile">🔁 Labels</button>
+      <button class="tab-btn" id="stockTransferOpenBtnMobile">📦 Transfer</button>
       <a class="tab-btn" href="/live-catalog.html">🔴 Live</a>
     </div>
 
@@ -475,6 +477,31 @@
     </div>
     <div class="modal-actions" style="margin-top:10px;">
       <button class="icon-btn" id="quickLabelCancelBtn" style="width:100%;">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="stockTransferOverlay" style="z-index:120;">
+  <div class="modal" style="max-width:380px;">
+    <div class="modal-handle"></div>
+    <h3 class="serif" style="margin:0 0 4px; font-size:19px;">Stock transfer</h3>
+    <div class="ss-desc" style="margin-bottom:16px;">Pick a box, then scan item codes one after another — each one moves instantly and the field clears itself.</div>
+
+    <label style="font-size:12px; font-weight:600; color:var(--plum); display:block; margin-bottom:3px;">Destination box</label>
+    <select id="transferBoxSelect" style="width:100%; padding:9px 10px; border:1px solid var(--line); border-radius:8px; font-size:13px; margin-bottom:8px;">
+      <option value="">— Select box —</option>
+    </select>
+    <div id="transferNewBoxRow" style="display:none; gap:8px; margin-bottom:8px;">
+      <input type="text" id="transferNewBoxInput" placeholder="New box name" style="flex:1; padding:9px 10px; border:1px solid var(--line); border-radius:8px; font-size:13px;">
+      <button class="settings-save-btn" id="transferNewBoxAddBtn" style="width:auto; margin:0; padding:9px 14px;">Add</button>
+    </div>
+    <button class="icon-btn" id="transferNewBoxToggleBtn" style="width:100%; margin-bottom:14px;">+ New box</button>
+
+    <input type="text" id="transferCodeInput" inputmode="numeric" pattern="[0-9]*" placeholder="Item code" style="width:100%; box-sizing:border-box; padding:12px 14px; font-size:18px; text-align:center; border:1px solid var(--line); border-radius:10px; margin-bottom:10px;">
+    <div id="transferStatus" style="min-height:20px; font-size:13px; text-align:center; margin-bottom:10px;"></div>
+
+    <div class="modal-actions">
+      <button class="icon-btn" id="transferDoneBtn" style="width:100%;">Done</button>
     </div>
   </div>
 </div>

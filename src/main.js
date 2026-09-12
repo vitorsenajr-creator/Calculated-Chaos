@@ -65,7 +65,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.84';
+  const APP_VERSION = 'v3.13.85';
   const APP_VERSION_DATE = '2026-09-12';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -2849,6 +2849,23 @@ export const app = (function(){
     document.getElementById('quickLabelOverlay').classList.add('hidden');
   }
 
+  // Product codes are stored like "#0086" (leading '#', zero-padded to 4
+  // digits, duplicates suffixed "-2"). Typed input from a numeric-only
+  // field is plain digits with no way to type '#', and may be un-padded
+  // (e.g. "86" or "136" for "#0086"/"#0136") — compare on digits-only,
+  // padded to 4, against the item's own digits (suffix stripped) instead
+  // of a raw string match. Shared by Quick Labels and Stock Transfer so a
+  // future fix to this matching logic (like v3.13.79's) only has one place
+  // to happen.
+  function findItemByProductCodeDigits(code){
+    const digits = code.replace(/\D/g, '');
+    const norm = digits.padStart(4, '0');
+    return items.find(i => {
+      const base = (i.productCode || '').replace(/-\d+$/, '');
+      return base.replace(/\D/g, '') === norm;
+    });
+  }
+
   function submitQuickLabelModal(){
     const inputs = [...document.querySelectorAll('#quickLabelInputs .quick-label-input')];
     const codes = inputs.map(inp => inp.value.trim()).filter(v => v !== '');
@@ -2858,21 +2875,10 @@ export const app = (function(){
       errorEl.style.display = '';
       return;
     }
-    // Product codes are stored like "#0086" (leading '#', zero-padded to
-    // 4 digits, duplicates suffixed "-2"). Typed input is plain digits with
-    // no way to type '#' from a numeric keypad, and may be un-padded (e.g.
-    // "86" or "136" for "#0086"/"#0136") — compare on digits-only, padded
-    // to 4, against the item's own digits (suffix stripped) instead of a
-    // raw string match.
     const matched = [];
     const notFound = [];
     codes.forEach(code => {
-      const digits = code.replace(/\D/g, '');
-      const norm = digits.padStart(4, '0');
-      const item = items.find(i => {
-        const base = (i.productCode || '').replace(/-\d+$/, '');
-        return base.replace(/\D/g, '') === norm;
-      });
+      const item = findItemByProductCodeDigits(code);
       if (item) matched.push(item); else notFound.push(code);
     });
     if (notFound.length > 0){
@@ -2907,6 +2913,113 @@ export const app = (function(){
         all[idx - 1].focus();
       }
     });
+  });
+
+  // Stock transfer: pick a box once, then scan item codes one after another
+  // — each one moves instantly and the field clears itself, so a whole box
+  // can be filled without touching anything but the numeric keypad between
+  // scans. Same digit-matching as Quick Labels (findItemByProductCodeDigits).
+  function populateTransferBoxSelect(selectName){
+    const select = document.getElementById('transferBoxSelect');
+    const boxes = appSettings.storageBoxes || [];
+    const current = selectName !== undefined ? selectName : select.value;
+    select.innerHTML = `<option value="">— Select box —</option>` +
+      boxes.map(b => `<option value="${escapeHtml(b.name)}">${escapeHtml(b.name)}</option>`).join('');
+    if (current && boxes.some(b => b.name === current)) select.value = current;
+  }
+
+  function openStockTransferModal(){
+    populateTransferBoxSelect('');
+    document.getElementById('transferNewBoxRow').style.display = 'none';
+    document.getElementById('transferNewBoxInput').value = '';
+    document.getElementById('transferCodeInput').value = '';
+    document.getElementById('transferStatus').textContent = '';
+    document.getElementById('stockTransferOverlay').classList.remove('hidden');
+    document.getElementById('transferBoxSelect').focus();
+  }
+
+  function closeStockTransferModal(){
+    document.getElementById('stockTransferOverlay').classList.add('hidden');
+  }
+
+  function setTransferStatus(text, isError){
+    const el = document.getElementById('transferStatus');
+    el.textContent = text;
+    el.style.color = isError ? 'var(--danger)' : 'var(--sage-deep)';
+  }
+
+  async function addNewTransferBox(){
+    const input = document.getElementById('transferNewBoxInput');
+    const name = input.value.trim();
+    if (!name){ setTransferStatus('Enter a box name first.', true); return; }
+    if ((appSettings.storageBoxes || []).some(b => b.name.toLowerCase() === name.toLowerCase())){
+      setTransferStatus('A box with that name already exists.', true);
+      return;
+    }
+    appSettings.storageBoxes = [...(appSettings.storageBoxes || []), { name, createdAt: Date.now() }];
+    await saveSettings();
+    populateTransferBoxSelect(name);
+    input.value = '';
+    document.getElementById('transferNewBoxRow').style.display = 'none';
+    setTransferStatus(`Box "${name}" added.`, false);
+    document.getElementById('transferCodeInput').focus();
+  }
+
+  async function submitTransferCode(){
+    const box = document.getElementById('transferBoxSelect').value;
+    const input = document.getElementById('transferCodeInput');
+    const code = input.value.trim();
+    if (!code) return;
+    if (!box){
+      setTransferStatus('Select a destination box first.', true);
+      return;
+    }
+    const item = findItemByProductCodeDigits(code);
+    if (!item){
+      setTransferStatus(`❌ Code not found: ${code}`, true);
+      input.value = '';
+      input.focus();
+      return;
+    }
+    const updated = { ...item, storageBox: box };
+    const idx = items.findIndex(i => i.id === item.id);
+    if (idx >= 0) items[idx] = updated;
+    input.value = '';
+    input.disabled = true;
+    try{
+      await saveItem(updated);
+      setTransferStatus(`✅ ${item.productCode || ''} ${item.name || 'Item'} → ${box}`.trim(), false);
+    }catch(e){
+      setTransferStatus('Save failed — check your connection and try that code again.', true);
+    }
+    input.disabled = false;
+    input.focus();
+  }
+
+  document.getElementById('stockTransferOpenBtnMobile').addEventListener('click', openStockTransferModal);
+  document.getElementById('stockTransferOpenBtnDesktop').addEventListener('click', openStockTransferModal);
+  document.getElementById('transferDoneBtn').addEventListener('click', closeStockTransferModal);
+  document.getElementById('stockTransferOverlay').addEventListener('click', (e) => {
+    if (e.target.id === 'stockTransferOverlay') closeStockTransferModal();
+  });
+  document.getElementById('transferNewBoxToggleBtn').addEventListener('click', () => {
+    const row = document.getElementById('transferNewBoxRow');
+    const showing = row.style.display !== 'none';
+    row.style.display = showing ? 'none' : 'flex';
+    if (!showing) document.getElementById('transferNewBoxInput').focus();
+  });
+  document.getElementById('transferNewBoxAddBtn').addEventListener('click', addNewTransferBox);
+  document.getElementById('transferNewBoxInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') addNewTransferBox();
+  });
+  document.getElementById('transferBoxSelect').addEventListener('change', () => {
+    document.getElementById('transferCodeInput').focus();
+  });
+  document.getElementById('transferCodeInput').addEventListener('input', (e) => {
+    e.target.value = e.target.value.replace(/[^0-9]/g, '');
+  });
+  document.getElementById('transferCodeInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') submitTransferCode();
   });
 
   document.getElementById('labelPrintBtn').addEventListener('click', () => {
