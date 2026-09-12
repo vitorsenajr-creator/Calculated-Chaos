@@ -1101,6 +1101,30 @@ next minor bump:
   the same click just applied — no extra AI call, falls back to the AI's
   plain name if there isn't enough to build a title from.
 
+- **v3.13.83** — Vitor asked for a real pre-flight check instead of
+  chasing eBay's raw error boxes one field at a time: "quero um aviso de
+  qualquer campo faltante antes de apresentar esse erro... uma simples
+  mensagem de 'verifique o campo X' deveria resolver isso." Added
+  `getMissingEbayFieldLabels(item)` in `main.js`, checked right alongside
+  the existing price/description pre-flight checks that already run
+  before "List on eBay" ever calls the publish API: (1) Size, for any
+  apparel-like category (Clothing/Shoes/Accessories) with a blank
+  `item.size` — the exact gap v3.13.81/82 patched server-side, now caught
+  client-side before the request even goes out; (2) any of this item's
+  chosen eBay category's OTHER required fields (Pattern, Material,
+  etc.) still blank in the open item modal's "This eBay category also
+  requires" section (`#ebayAspectsContainer`) — only checkable while
+  that item's own modal is open, since that required-list only ever
+  lives in the DOM. A hit shows "❌ Check the following field(s) before
+  publishing: Size" instead of ever reaching eBay. Wired into all three
+  places a publish can start: the single-item "List on eBay" button
+  (`listItemOnEbay` in `ebay-api.js`), the shared
+  `publishItemToEbayCore()` bulk/background path (new `skipped:true,
+  reason:'missing_fields'` result, reported the same way as the existing
+  no-price/no-description skip reasons), and the bulk preflight review
+  screen itself (`computeBulkEbayGroups`/`showBulkEbayPreflight`) — so a
+  blocked item shows up in the "🚫 can't publish" list with exactly which
+  field(s) to check, before she even confirms the batch.
 - **v3.13.82** — v3.13.81 didn't fully close the errorId 25129 gap: the
   same "50 is not a valid value for Size" failure hit a SECOND, different
   item ("A.n.a Fringe Cable Knit Pullover Sweater Beige Petite") right

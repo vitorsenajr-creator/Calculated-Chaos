@@ -382,6 +382,10 @@
     if (!item.listingDescription){
       return { skipped: true, reason: 'no_description' };
     }
+    const missingFields = app.getMissingEbayFieldLabels(item);
+    if (missingFields.length){
+      return { skipped: true, reason: 'missing_fields', missingFields };
+    }
     const token = await getValidEbayToken();
     if (!token){
       return { success: false, step: 'auth', error: 'eBay account not connected' };
@@ -504,6 +508,14 @@ ${app.escapeHtml(JSON.stringify(result.debugPolicyIdsSent, null, 2))}</div>`;
       return;
     }
 
+    // Check every field eBay is known to need before ever calling the
+    // publish API — a plain "check field X" beats a raw eBay error box.
+    const missingFields = app.getMissingEbayFieldLabels(item);
+    if (missingFields.length){
+      area.innerHTML = `<div class="ebay-status-box error">❌ Check the following field${missingFields.length === 1 ? '' : 's'} before publishing: ${app.escapeHtml(missingFields.join(', '))}.</div>`;
+      return;
+    }
+
     // Check eBay connection
     const token = await getValidEbayToken();
     if (!token){
@@ -579,10 +591,11 @@ ${app.escapeHtml(JSON.stringify(result.debugPolicyIdsSent, null, 2))}</div>`;
   }
 
   // ---------- BULK EBAY PUBLISH ----------
-  // Sorts the current bulk selection into 3 groups instead of just
+  // Sorts the current bulk selection into groups instead of just
   // publish/skip:
-  //  - blocked: can't publish at all (no price, no photos, or no
-  //    description) — same hard requirements as the single-item flow.
+  //  - blocked: can't publish at all (no price, no photos, no description,
+  //    or a known-required field like Size left blank) — same hard
+  //    requirements as the single-item flow.
   //  - needsReview: everything required IS there except a manually-chosen
   //    eBay category — held back rather than auto-guessing it, since a
   //    wrong guess is what caused a wave of listings needing manual fixes.
@@ -595,10 +608,13 @@ ${app.escapeHtml(JSON.stringify(result.debugPolicyIdsSent, null, 2))}</div>`;
     const blockedNoPrice = eligible.filter(i => !i.listPrice);
     const blockedNoPhotos = eligible.filter(i => i.listPrice && !(i.photos && i.photos.length));
     const blockedNoDescription = eligible.filter(i => i.listPrice && (i.photos && i.photos.length) && !i.listingDescription);
-    const publishable = eligible.filter(i => i.listPrice && (i.photos && i.photos.length) && i.listingDescription);
+    const hasBasics = eligible.filter(i => i.listPrice && (i.photos && i.photos.length) && i.listingDescription);
+    const missingFieldsById = new Map(hasBasics.map(i => [i.id, app.getMissingEbayFieldLabels(i)]));
+    const blockedMissingFields = hasBasics.filter(i => missingFieldsById.get(i.id).length > 0);
+    const publishable = hasBasics.filter(i => missingFieldsById.get(i.id).length === 0);
     const needsReview = publishable.filter(i => !i.ebayCategoryId);
     const ready = publishable.filter(i => i.ebayCategoryId);
-    return { selected, alreadyListed, blockedNoPrice, blockedNoPhotos, blockedNoDescription, needsReview, ready };
+    return { selected, alreadyListed, blockedNoPrice, blockedNoPhotos, blockedNoDescription, blockedMissingFields, missingFieldsById, needsReview, ready };
   }
 
   export async function showBulkEbayPreflight(updateAlready){
@@ -624,7 +640,7 @@ ${app.escapeHtml(JSON.stringify(result.debugPolicyIdsSent, null, 2))}</div>`;
     const editBtn = (item) => `<button class="bulk-ebay-edit-btn" data-edit-id="${item.id}" style="background:transparent; border:1px solid var(--line); border-radius:7px; padding:6px 12px; font-size:13px; cursor:pointer; margin-left:8px;">Edit</button>`;
     const itemRow = (text) => `<div style="margin-top:6px; font-size:14px; line-height:1.4; display:flex; align-items:center; flex-wrap:wrap;">${text}</div>`;
 
-    const notPublishingNow = g.blockedNoPrice.length + g.blockedNoPhotos.length + g.blockedNoDescription.length + g.needsReview.length;
+    const notPublishingNow = g.blockedNoPrice.length + g.blockedNoPhotos.length + g.blockedNoDescription.length + g.blockedMissingFields.length + g.needsReview.length;
 
     statusEl.innerHTML = `
       <div class="ebay-connect-box">
@@ -636,11 +652,12 @@ ${app.escapeHtml(JSON.stringify(result.debugPolicyIdsSent, null, 2))}</div>`;
             <input type="checkbox" id="bulkUpdateAlreadyListedChk" ${updateAlready ? 'checked' : ''}>
             Also update the ${g.alreadyListed.length} already-listed item${g.alreadyListed.length===1?'':'s'} instead of skipping ${g.alreadyListed.length===1?'it':'them'}
           </label>` : ''}
-          ${(g.blockedNoPrice.length || g.blockedNoPhotos.length || g.blockedNoDescription.length) ? `
-            <div style="margin-top:8px; font-size:13px;"><b style="color:var(--danger);">🚫 ${g.blockedNoPrice.length + g.blockedNoPhotos.length + g.blockedNoDescription.length} can't publish</b>
+          ${(g.blockedNoPrice.length || g.blockedNoPhotos.length || g.blockedNoDescription.length || g.blockedMissingFields.length) ? `
+            <div style="margin-top:8px; font-size:13px;"><b style="color:var(--danger);">🚫 ${g.blockedNoPrice.length + g.blockedNoPhotos.length + g.blockedNoDescription.length + g.blockedMissingFields.length} can't publish</b>
               ${g.blockedNoPrice.map(i => itemRow(`${itemLabel(i)} — no list price${editBtn(i)}`)).join('')}
               ${g.blockedNoPhotos.map(i => itemRow(`${itemLabel(i)} — no photos${editBtn(i)}`)).join('')}
               ${g.blockedNoDescription.map(i => itemRow(`${itemLabel(i)} — no listing description generated${editBtn(i)}`)).join('')}
+              ${g.blockedMissingFields.map(i => itemRow(`${itemLabel(i)} — check: ${app.escapeHtml((g.missingFieldsById.get(i.id) || []).join(', '))}${editBtn(i)}`)).join('')}
             </div>` : ''}
           ${g.needsReview.length ? `
             <div style="margin-top:8px; font-size:13px;"><b style="color:var(--amber-deep);">⚠️ ${g.needsReview.length} won't publish this round — no eBay category chosen yet</b>
@@ -717,10 +734,12 @@ ${app.escapeHtml(JSON.stringify(result.debugPolicyIdsSent, null, 2))}</div>`;
     if (skipped.length){
       const noPriceSkipped = skipped.filter(r => r.result.reason === 'no_price');
       const noDescSkipped = skipped.filter(r => r.result.reason === 'no_description');
+      const missingFieldsSkipped = skipped.filter(r => r.result.reason === 'missing_fields');
       const alreadySkipped = skipped.filter(r => r.result.reason === 'already_listed');
       html += `<div style="font-size:13px;"><b style="color:var(--plum-soft);">⏭️ ${skipped.length} skipped</b>`;
       html += noPriceSkipped.map(r => itemRow(`${itemLabel(r.item)} — no list price${editBtn(r.item)}`)).join('');
       html += noDescSkipped.map(r => itemRow(`${itemLabel(r.item)} — no listing description generated yet${editBtn(r.item)}`)).join('');
+      html += missingFieldsSkipped.map(r => itemRow(`${itemLabel(r.item)} — check: ${app.escapeHtml((r.result.missingFields || []).join(', '))}${editBtn(r.item)}`)).join('');
       html += alreadySkipped.map(r => itemRow(`${itemLabel(r.item)} — already listed`)).join('');
       html += `</div>`;
     }
