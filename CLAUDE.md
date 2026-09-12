@@ -1101,6 +1101,20 @@ next minor bump:
   the same click just applied — no extra AI call, falls back to the AI's
   plain name if there isn't enough to build a title from.
 
+- **v3.13.80** — Two follow-ups from Vitor: (1) moved the quick-reprint
+  tool's entry point out of the Catalog search row (where it competed
+  with Filters/Select for space and only showed on that one tab) into a
+  new "🔁 Labels" button next to Settings in both the mobile `.tabs` bar
+  and the desktop `#sidebarNav` — same visual treatment as every other
+  nav entry, reachable from anywhere in the app instead of just Catalog.
+  It's a plain action button, not a real tab (nothing to switch to), so
+  the generic `.tab-btn`/`.sidebar-link` click listener that calls
+  `switchToTab()` now skips any element with no `data-tab` attribute
+  first — without that guard, clicking it would have called
+  `switchToTab(undefined)`, which matches none of the tab views and
+  hides all of them. (2) Fixed "Gerar etiquetas" on the modal's button —
+  slipped in Portuguese despite the project's English-only UI-text rule;
+  changed to "Generate labels".
 - **v3.13.79** — Fixed the v3.13.78 quick-reprint tool failing to find
   ANY typed code, even a correctly-formatted one — real product codes
   are stored like `#0086` (leading `#`, zero-padded to 4 digits), but the
