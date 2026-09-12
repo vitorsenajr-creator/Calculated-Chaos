@@ -65,7 +65,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.89';
+  const APP_VERSION = 'v3.13.90';
   const APP_VERSION_DATE = '2026-09-12';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -2851,12 +2851,48 @@ export const app = (function(){
   // straight to the same batch label sheet openBatchLabelModal already
   // builds for the Catalog's bulk "Imprimir etiquetas" flow — no digging
   // through search/select/deselect just to swap a label mid-packing.
+  // Same box list as Stock Transfer (registered boxes + every box name
+  // actually used on an item — see v3.13.86 for why the merge matters).
+  function populateQuickLabelBoxSelect(selectValue){
+    const select = document.getElementById('quickLabelBoxSelect');
+    const boxes = getAllStorageBoxes();
+    const current = selectValue !== undefined ? selectValue : select.value;
+    select.innerHTML = `<option value="">— No change —</option>` +
+      boxes.map(b => `<option value="${escapeHtml(b)}">${escapeHtml(b)}</option>`).join('');
+    if (current && boxes.includes(current)) select.value = current;
+  }
+
   function openQuickLabelModal(){
     document.getElementById('quickLabelError').style.display = 'none';
     const inputs = document.querySelectorAll('#quickLabelInputs .quick-label-input');
     inputs.forEach(inp => { inp.value = ''; });
+    populateQuickLabelBoxSelect('');
+    document.getElementById('quickLabelNewBoxRow').style.display = 'none';
+    document.getElementById('quickLabelNewBoxInput').value = '';
     document.getElementById('quickLabelOverlay').classList.remove('hidden');
     inputs[0].focus();
+  }
+
+  async function addNewQuickLabelBox(){
+    const input = document.getElementById('quickLabelNewBoxInput');
+    const errorEl = document.getElementById('quickLabelError');
+    const name = input.value.trim();
+    if (!name){
+      errorEl.textContent = 'Enter a box name first.';
+      errorEl.style.display = '';
+      return;
+    }
+    if ((appSettings.storageBoxes || []).some(b => b.name.toLowerCase() === name.toLowerCase())){
+      errorEl.textContent = 'A box with that name already exists.';
+      errorEl.style.display = '';
+      return;
+    }
+    appSettings.storageBoxes = [...(appSettings.storageBoxes || []), { name, createdAt: Date.now() }];
+    await saveSettings();
+    populateQuickLabelBoxSelect(name);
+    input.value = '';
+    document.getElementById('quickLabelNewBoxRow').style.display = 'none';
+    errorEl.style.display = 'none';
   }
 
   function closeQuickLabelModal(){
@@ -2891,7 +2927,7 @@ export const app = (function(){
     });
   }
 
-  function submitQuickLabelModal(){
+  async function submitQuickLabelModal(){
     const inputs = [...document.querySelectorAll('#quickLabelInputs .quick-label-input')];
     const codes = inputs.map(inp => inp.value.trim()).filter(v => v !== '');
     const errorEl = document.getElementById('quickLabelError');
@@ -2900,7 +2936,7 @@ export const app = (function(){
       errorEl.style.display = '';
       return;
     }
-    const matched = [];
+    let matched = [];
     const notFound = [];
     codes.forEach(code => {
       const item = findItemByProductCodeDigits(code);
@@ -2911,6 +2947,35 @@ export const app = (function(){
       errorEl.style.display = '';
       return;
     }
+
+    // Move all matched items to the chosen box before printing, so the
+    // labels come out already showing the new box — the whole point of
+    // combining transfer + print into one step instead of using Stock
+    // Transfer first and Quick Labels after.
+    const box = document.getElementById('quickLabelBoxSelect').value;
+    if (box){
+      const goBtn = document.getElementById('quickLabelGoBtn');
+      goBtn.disabled = true;
+      goBtn.textContent = `Moving ${matched.length} item${matched.length===1?'':'s'} to "${box}"…`;
+      try{
+        matched = await Promise.all(matched.map(async item => {
+          const updated = { ...item, storageBox: box };
+          const idx = items.findIndex(i => i.id === item.id);
+          if (idx >= 0) items[idx] = updated;
+          await saveItem(updated);
+          return updated;
+        }));
+      }catch(e){
+        errorEl.textContent = 'Failed to move one or more items — check your connection and try again.';
+        errorEl.style.display = '';
+        goBtn.disabled = false;
+        goBtn.textContent = '🖨️ Generate labels';
+        return;
+      }
+      goBtn.disabled = false;
+      goBtn.textContent = '🖨️ Generate labels';
+    }
+
     closeQuickLabelModal();
     openBatchLabelModal(matched);
   }
@@ -2922,6 +2987,16 @@ export const app = (function(){
     if (e.target.id === 'quickLabelOverlay') closeQuickLabelModal();
   });
   document.getElementById('quickLabelGoBtn').addEventListener('click', submitQuickLabelModal);
+  document.getElementById('quickLabelNewBoxToggleBtn').addEventListener('click', () => {
+    const row = document.getElementById('quickLabelNewBoxRow');
+    const showing = row.style.display !== 'none';
+    row.style.display = showing ? 'none' : 'flex';
+    if (!showing) document.getElementById('quickLabelNewBoxInput').focus();
+  });
+  document.getElementById('quickLabelNewBoxAddBtn').addEventListener('click', addNewQuickLabelBox);
+  document.getElementById('quickLabelNewBoxInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') addNewQuickLabelBox();
+  });
   document.querySelectorAll('#quickLabelInputs .quick-label-input').forEach((inp, idx, all) => {
     inp.addEventListener('input', () => {
       inp.value = inp.value.replace(/[^0-9]/g, '');
