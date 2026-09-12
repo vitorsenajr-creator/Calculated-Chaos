@@ -503,8 +503,12 @@
       🖨️ Also print this item's label after moving it
     </label>
     <button class="settings-save-btn" id="transferMoveBtn" style="width:100%; margin:0 0 10px;">➕ Move to box</button>
-    <div id="transferStatus" style="min-height:20px; font-size:13px; text-align:center; margin-bottom:10px;"></div>
+    <div id="transferStatus" style="min-height:20px; font-size:13px; text-align:center; margin-bottom:8px;"></div>
+    <div id="transferRecentList" style="margin-bottom:10px;"></div>
 
+    <div class="modal-actions" style="margin-bottom:10px;">
+      <button class="icon-btn" id="transferUndoBtn" style="width:100%;" disabled>↩ Undo last move</button>
+    </div>
     <div class="modal-actions">
       <button class="icon-btn" id="transferDoneBtn" style="width:100%;">Close</button>
     </div>

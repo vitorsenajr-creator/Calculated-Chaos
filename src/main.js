@@ -65,7 +65,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.87';
+  const APP_VERSION = 'v3.13.88';
   const APP_VERSION_DATE = '2026-09-12';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -2948,12 +2948,32 @@ export const app = (function(){
     if (current && boxes.includes(current)) select.value = current;
   }
 
+  // Last 5 moves made in the current Stock Transfer session (newest
+  // first) — a running checklist so a mis-scan is easy to spot, plus a
+  // single "undo last" button that reverts the most recent one (not a
+  // per-row undo — the most recent move is overwhelmingly the one that
+  // needs correcting, and it keeps the tool as fast to use as before).
+  let transferRecentMoves = [];
+
+  function renderTransferRecentList(){
+    const list = document.getElementById('transferRecentList');
+    list.innerHTML = transferRecentMoves.map(m => `
+      <div style="display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--plum-soft); padding:3px 0;">
+        <span>✅</span>
+        <span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(m.productCode || '')} ${escapeHtml(m.name || 'Item')} → ${escapeHtml(m.toBox)}</span>
+      </div>
+    `).join('');
+    document.getElementById('transferUndoBtn').disabled = transferRecentMoves.length === 0;
+  }
+
   function openStockTransferModal(){
     populateTransferBoxSelect('');
     document.getElementById('transferNewBoxRow').style.display = 'none';
     document.getElementById('transferNewBoxInput').value = '';
     document.getElementById('transferCodeInput').value = '';
     document.getElementById('transferStatus').textContent = '';
+    transferRecentMoves = [];
+    renderTransferRecentList();
     document.getElementById('stockTransferOverlay').classList.remove('hidden');
     document.getElementById('transferBoxSelect').focus();
   }
@@ -3001,6 +3021,7 @@ export const app = (function(){
       input.focus();
       return;
     }
+    const fromBox = item.storageBox || '';
     const updated = { ...item, storageBox: box };
     const idx = items.findIndex(i => i.id === item.id);
     if (idx >= 0) items[idx] = updated;
@@ -3009,6 +3030,9 @@ export const app = (function(){
     try{
       await saveItem(updated);
       setTransferStatus(`✅ ${item.productCode || ''} ${item.name || 'Item'} → ${box}`.trim(), false);
+      transferRecentMoves.unshift({ id: item.id, productCode: item.productCode, name: item.name, fromBox, toBox: box });
+      transferRecentMoves = transferRecentMoves.slice(0, 5);
+      renderTransferRecentList();
       // Opens on top of this still-open modal (printLabelOverlay's z-index
       // is set above the transfer/label overlays for exactly this) rather
       // than closing Stock Transfer first — the whole point of this
@@ -3022,6 +3046,32 @@ export const app = (function(){
     }
     input.disabled = false;
     input.focus();
+  }
+
+  async function undoLastTransferMove(){
+    if (transferRecentMoves.length === 0) return;
+    const move = transferRecentMoves[0];
+    const item = items.find(i => i.id === move.id);
+    if (!item){
+      setTransferStatus('That item no longer exists — nothing to undo.', true);
+      transferRecentMoves.shift();
+      renderTransferRecentList();
+      return;
+    }
+    const reverted = { ...item, storageBox: move.fromBox };
+    const idx = items.findIndex(i => i.id === move.id);
+    if (idx >= 0) items[idx] = reverted;
+    document.getElementById('transferUndoBtn').disabled = true;
+    try{
+      await saveItem(reverted);
+      transferRecentMoves.shift();
+      renderTransferRecentList();
+      setTransferStatus(`↩ ${move.productCode || ''} ${move.name || 'Item'} back to ${move.fromBox || '(no box)'}`.trim(), false);
+    }catch(e){
+      setTransferStatus('Undo failed — check your connection and try again.', true);
+      document.getElementById('transferUndoBtn').disabled = false;
+    }
+    document.getElementById('transferCodeInput').focus();
   }
 
   document.getElementById('stockTransferOpenBtnMobile').addEventListener('click', openStockTransferModal);
@@ -3056,6 +3106,7 @@ export const app = (function(){
   // one that actually works on a phone, which is the primary device this
   // tool is used from during a stock-take.
   document.getElementById('transferMoveBtn').addEventListener('click', submitTransferCode);
+  document.getElementById('transferUndoBtn').addEventListener('click', undoLastTransferMove);
 
   document.getElementById('labelPrintBtn').addEventListener('click', () => {
     if (printMode === 'item' && !printLabelItem) return;
