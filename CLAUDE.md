@@ -1101,6 +1101,36 @@ next minor bump:
   the same click just applied — no extra AI call, falls back to the AI's
   plain name if there isn't enough to build a title from.
 
+- **v3.13.82** — v3.13.81 didn't fully close the errorId 25129 gap: the
+  same "50 is not a valid value for Size" failure hit a SECOND, different
+  item ("A.n.a Fringe Cable Knit Pullover Sweater Beige Petite") right
+  after that fix shipped — ruling out a per-item stale `ebayAspects.Size`
+  as the only source. Actual second root cause: when `item.size` is blank,
+  line 442 never sets `aspects.Size` at all, so the "last-resort safety
+  net" (`fillMissingRequiredAspects`, fed by `getRequiredAspects()` asking
+  eBay what this category requires) fills it instead — using
+  `aspectValues[0]`, eBay's own "first allowed value" for the category's
+  Size list. That list's first entry isn't guaranteed to be a sane default
+  like "M" — for this category it was the numeric "50", which the
+  category's own aspect rules then rejected as not a "standard value" for
+  Size (the same 25129 message, just from a different code path than
+  v3.13.81 fixed). Moved `EBAY_ASPECTS_AUTO_COVERED` to module scope in
+  `api/ebay-list.js` and applied it to `fillMissingRequiredAspects` too —
+  Department/Brand/Color/Size can now never be filled by this generic
+  eBay-suggested-value fallback, only ever by the item's own dedicated
+  field. If `item.size` is genuinely blank, the aspect is now sent unset
+  instead of a made-up value — publish will fail with eBay's own clear
+  "Size is missing"-type message instead of silently going out wrong (or,
+  worse, succeeding with the wrong size on the live listing). Checked the
+  two existing "missing item specific" auto-retry call sites
+  (`extractMissingAspectName`) for a regression: they match on a
+  different error message shape ("item specific X is missing") than
+  25129's, and even if one ever named "Size" as missing, silently
+  papering over a real blank Size with "Does not apply" wasn't a good
+  outcome anyway — surfacing it as a failure to fix in the catalog is
+  correct here. **Next step for the two items already hit**: confirm
+  their `item.size` is actually filled in before republishing — a blank
+  Size will now fail clearly instead of silently sending "50".
 - **v3.13.81** — Real "List on eBay" failure: errorId 25129 ("The product
   aspects for this category no longer support custom values for Size... 50
   is not a valid value for Size") on a "Sheis Camel Puff Vest" cataloged
