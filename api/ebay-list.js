@@ -315,6 +315,15 @@ function extractMissingAspectName(errorData){
   return m ? m[1].trim() : null;
 }
 
+// Department/Brand/Color/Size must always come from the item's own
+// dedicated fields, never from a generic "eBay's suggested value" fallback
+// or from her free-form Item Specifics answers — see the two call sites
+// below for why (a real listing sent Size:"50" for a Size-L item because
+// this exact safety net grabbed eBay's aspectValues[0] for a blank
+// item.size, and that first entry happened to be a numeric/EU size, not a
+// sane default like "M").
+const EBAY_ASPECTS_AUTO_COVERED = ['department', 'brand', 'color', 'size'];
+
 // Fills in any required aspect that our own data doesn't already cover, using
 // eBay's own suggested first value as a safe, always-valid placeholder. This
 // means we ask eBay upfront what's needed instead of reacting to errors one
@@ -322,6 +331,7 @@ function extractMissingAspectName(errorData){
 function fillMissingRequiredAspects(aspects, requiredAspects){
   for (const req of requiredAspects){
     if (aspects[req.name]) continue; // already set by our own mapping
+    if (EBAY_ASPECTS_AUTO_COVERED.includes(String(req.name).toLowerCase())) continue;
     if (req.selectionOnly && req.firstAllowedValue){
       aspects[req.name] = [req.firstAllowedValue];
     } else {
@@ -452,9 +462,7 @@ function buildInventoryItem(item, extraRequiredAspects, imageUrls, packageTypeOv
   // item) can still sit in item.ebayAspects unnoticed, since the UI never
   // renders it for her to see or clear. Guarding here too means a leftover
   // like ebayAspects.Size:"50" from some earlier category can never silently
-  // override the real Size on publish (this is exactly what caused errorId
-  // 25129 on a real listing — "50 is not a valid value for Size").
-  const EBAY_ASPECTS_AUTO_COVERED = ['department', 'brand', 'color', 'size'];
+  // override the real Size on publish.
   if (item.ebayAspects){
     for (const [name, value] of Object.entries(item.ebayAspects)){
       if (EBAY_ASPECTS_AUTO_COVERED.includes(name.toLowerCase())) continue;
