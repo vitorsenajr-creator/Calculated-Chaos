@@ -1101,6 +1101,24 @@ next minor bump:
   the same click just applied — no extra AI call, falls back to the AI's
   plain name if there isn't enough to build a title from.
 
+- **v3.13.90** — v3.13.89 connected the wrong direction: Vitor clarified
+  he wants the transfer built directly INTO the Quick Labels screen
+  itself, not a handoff button on Stock Transfer — "foque agora na aba
+  labels... quero a opção de transferir os 4 itens de uma vez e já
+  gerar as etiquetas contendo essa informação." Added a "Also move these
+  to a box (optional)" dropdown to the Quick Labels modal itself
+  (`#quickLabelBoxSelect`, populated the same way as Stock Transfer's —
+  registered boxes + every box name actually in use), plus its own
+  "+ New box" inline row for registering one on the spot
+  (`addNewQuickLabelBox()`, same uniqueness check as Stock Transfer's
+  version). `submitQuickLabelModal()` is now async: once all 4 codes
+  resolve, if a box is selected it updates and saves each matched item's
+  `storageBox` FIRST (showing "Moving N items to..." on the Generate
+  button while that's in flight), then opens the batch label print
+  preview with those already-updated item objects — so the printed
+  labels show the new box immediately, in one action, instead of running
+  Stock Transfer and Quick Labels as two separate steps. Leaving the box
+  as "— No change —" behaves exactly as before (no transfer, just print).
 - **v3.13.89** — Vitor asked to connect Stock Transfer to the Quick
   Labels ("Labels") tool, pointing at the 4-code batch print modal
   specifically rather than the single-item print-after-move checkbox
