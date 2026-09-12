@@ -65,7 +65,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.85';
+  const APP_VERSION = 'v3.13.86';
   const APP_VERSION_DATE = '2026-09-12';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -2921,11 +2921,17 @@ export const app = (function(){
   // scans. Same digit-matching as Quick Labels (findItemByProductCodeDigits).
   function populateTransferBoxSelect(selectName){
     const select = document.getElementById('transferBoxSelect');
-    const boxes = appSettings.storageBoxes || [];
+    // Registered boxes (Settings) are a curated subset — a box name only
+    // ever typed into an item's Storage Box field (never formally
+    // "registered") wouldn't show up here otherwise, which is exactly
+    // what happened with "Gray Box" on a real item. getAllStorageBoxes()
+    // already merges both sources for the item modal's own datalist —
+    // reused here for the same reason.
+    const boxes = getAllStorageBoxes();
     const current = selectName !== undefined ? selectName : select.value;
     select.innerHTML = `<option value="">— Select box —</option>` +
-      boxes.map(b => `<option value="${escapeHtml(b.name)}">${escapeHtml(b.name)}</option>`).join('');
-    if (current && boxes.some(b => b.name === current)) select.value = current;
+      boxes.map(b => `<option value="${escapeHtml(b)}">${escapeHtml(b)}</option>`).join('');
+    if (current && boxes.includes(current)) select.value = current;
   }
 
   function openStockTransferModal(){
@@ -3021,6 +3027,13 @@ export const app = (function(){
   document.getElementById('transferCodeInput').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') submitTransferCode();
   });
+  // A numeric-only mobile keypad has no real Enter/Return key — its
+  // "Done"/checkmark toolbar button just dismisses the keyboard, it
+  // doesn't fire a 'keydown' Enter the way a physical keyboard does. The
+  // Enter listener above only ever helps on desktop; this button is the
+  // one that actually works on a phone, which is the primary device this
+  // tool is used from during a stock-take.
+  document.getElementById('transferMoveBtn').addEventListener('click', submitTransferCode);
 
   document.getElementById('labelPrintBtn').addEventListener('click', () => {
     if (printMode === 'item' && !printLabelItem) return;
