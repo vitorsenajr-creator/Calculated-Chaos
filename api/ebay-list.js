@@ -444,8 +444,20 @@ function buildInventoryItem(item, extraRequiredAspects, imageUrls, packageTypeOv
   // Real answers she filled in at cataloging time for whatever this category
   // requires beyond the above (Pattern, Material, "Vintage?", etc. — see
   // /api/ebay-item-aspects.js and the "eBay Item Specifics" form section).
+  // Department/Brand/Color/Size are always derived from the item's own
+  // dedicated fields above, never from this free-form blob — the item
+  // modal's aspect form already excludes them from what it shows/collects
+  // (EBAY_ASPECTS_AUTO_COVERED in main.js), but a stale value saved before
+  // that exclusion existed (or carried over from a duplicated/re-categorized
+  // item) can still sit in item.ebayAspects unnoticed, since the UI never
+  // renders it for her to see or clear. Guarding here too means a leftover
+  // like ebayAspects.Size:"50" from some earlier category can never silently
+  // override the real Size on publish (this is exactly what caused errorId
+  // 25129 on a real listing — "50 is not a valid value for Size").
+  const EBAY_ASPECTS_AUTO_COVERED = ['department', 'brand', 'color', 'size'];
   if (item.ebayAspects){
     for (const [name, value] of Object.entries(item.ebayAspects)){
+      if (EBAY_ASPECTS_AUTO_COVERED.includes(name.toLowerCase())) continue;
       if (value) aspects[name] = [value];
     }
   }

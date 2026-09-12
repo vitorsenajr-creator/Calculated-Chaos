@@ -1101,6 +1101,31 @@ next minor bump:
   the same click just applied — no extra AI call, falls back to the AI's
   plain name if there isn't enough to build a title from.
 
+- **v3.13.81** — Real "List on eBay" failure: errorId 25129 ("The product
+  aspects for this category no longer support custom values for Size... 50
+  is not a valid value for Size") on a "Sheis Camel Puff Vest" cataloged
+  with Size L — but the app sent "50". Root cause: `buildInventoryItem()`
+  in `api/ebay-list.js` always sets `aspects.Size` from `item.size` first,
+  then merges in every key of `item.ebayAspects` (her real answers to
+  whatever else that eBay category requires — Pattern, Material, etc.),
+  which can silently override it. The item modal's aspects form
+  (`EBAY_ASPECTS_AUTO_COVERED` in `main.js`) already excludes
+  Department/Brand/Color/Size from what it shows or collects going
+  forward, but that only stops NEW values from being added — it never
+  cleared an old one already sitting in a saved item's `ebayAspects`
+  object from before that exclusion existed, or carried over from
+  duplicating/re-categorizing an item into a different eBay category
+  that used to treat "Size" as a free-form numeric spec (e.g. a waist
+  size). Since the aspect form never renders an excluded key, there was
+  no way to see or clear the stale "50" through the UI at all — it just
+  kept silently winning at every publish attempt. Fixed at both ends:
+  `api/ebay-list.js` now skips any `ebayAspects` entry (case-insensitive)
+  named Department/Brand/Color/Size when merging, so the item's own
+  dedicated fields can never be overridden by leftover free-form data —
+  covers every already-affected item automatically, no manual per-item
+  fix needed. `openModal()` in `main.js` also strips those same keys from
+  `currentEbayAspects` when an item loads, so a stale value gets scrubbed
+  off (not just ignored) the next time she opens and saves that item.
 - **v3.13.80** — Two follow-ups from Vitor: (1) moved the quick-reprint
   tool's entry point out of the Catalog search row (where it competed
   with Filters/Select for space and only showed on that one tab) into a

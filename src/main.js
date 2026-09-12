@@ -65,7 +65,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.80';
+  const APP_VERSION = 'v3.13.81';
   const APP_VERSION_DATE = '2026-09-12';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -1932,7 +1932,15 @@ export const app = (function(){
     // next (she's often cataloging a run of similar pieces) — still
     // per-item changeable, just saves re-searching the same one every time.
     const carryOverCategory = (!item && quickCatalogMode) ? lastUsedEbayCategory : null;
+    // Strip any stale Department/Brand/Color/Size key that may have been
+    // saved before EBAY_ASPECTS_AUTO_COVERED excluded them from this form
+    // (or carried over from duplicating/re-categorizing an item) — the UI
+    // never shows these to edit or clear, so a leftover value would keep
+    // silently overriding the real field at publish time forever otherwise.
+    // api/ebay-list.js guards against this too, but cleaning it here stops
+    // it from being re-saved on every future edit.
     currentEbayAspects = (item && !isDuplicate && item.ebayAspects) ? { ...item.ebayAspects } : {};
+    EBAY_ASPECTS_AUTO_COVERED.forEach(name => { delete currentEbayAspects[name]; });
     setChosenEbayCategory((item && item.ebayCategoryId)
       ? { id: item.ebayCategoryId, path: item.ebayCategoryPath || item.ebayCategoryId, validConditions: item.ebayValidConditions || null }
       : carryOverCategory);
