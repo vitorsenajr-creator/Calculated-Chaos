@@ -1101,6 +1101,28 @@ next minor bump:
   the same click just applied — no extra AI call, falls back to the AI's
   plain name if there isn't enough to build a title from.
 
+- **v3.13.85** — Added a "📦 Transfer" stock-transfer tool (temporary
+  quick tool, same spirit as the "🔁 Labels" tool), per Vitor's request
+  2026-09-12: a new button next to Settings in both the mobile `.tabs`
+  bar and desktop `#sidebarNav` opens `#stockTransferOverlay` — pick a
+  destination box once from a dropdown of `appSettings.storageBoxes`
+  (registered boxes, same list Settings → "Registered boxes" manages) or
+  register a new one inline ("+ New box", no forced print — reuses
+  `registerAndPrintBox`'s uniqueness check but skips straight to saving),
+  then scan item codes one after another into a single numeric-only
+  field: each Enter looks the code up (`findItemByProductCodeDigits()`,
+  extracted from the Quick Labels tool so both share the exact same
+  digit-normalizing match logic — see v3.13.79 for why that match logic
+  needed fixing once already), sets `item.storageBox`, saves immediately,
+  shows a one-line "✅ Item name → Box" (or "❌ Code not found") status,
+  and clears the field for the next scan — confirmed with Vitor as
+  simple status text rather than a running list-with-undo, and the box
+  dropdown stays live/editable mid-session rather than locking to one
+  box per open. Reuses the exact same `productCode` lookup and
+  `saveItem()` persistence the existing bulk "Move to box" (Catalog
+  multi-select) already uses — no new box-assignment logic, just a much
+  faster entry point for scanning one item at a time instead of
+  checkbox-selecting a batch first.
 - **v3.13.84** — v3.13.83's pre-flight check immediately surfaced a real
   gap on a "Svaha leggings" item: eBay's own required-aspects lookup for
   this category returns "Style" with no `allowedValues` list at all (not
