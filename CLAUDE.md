@@ -1101,6 +1101,26 @@ next minor bump:
   the same click just applied — no extra AI call, falls back to the AI's
   plain name if there isn't enough to build a title from.
 
+- **v3.13.84** — v3.13.83's pre-flight check immediately surfaced a real
+  gap on a "Svaha leggings" item: eBay's own required-aspects lookup for
+  this category returns "Style" with no `allowedValues` list at all (not
+  every category exposes a SELECTION_ONLY list), so the field rendered as
+  a blank free-text input with nothing to go on — she'd have had to guess
+  the right wording from scratch every time. Vitor asked for a category-
+  conditional pick-list. Added `CONDITIONAL_ASPECT_SUGGESTIONS` in
+  `main.js`, keyed by aspect name (currently just "style") with a `test()`
+  that checks whether this item looks like leggings
+  (`fClothingType`/`fName` containing "legging") — deliberately scoped
+  this narrow rather than applied to every category "Style" shows up for,
+  since it means something different on jeans vs. dresses. When it
+  matches, `renderEbayAspectsFields()` renders the field as a text input
+  with a `<datalist>` of common values (Leggings, Jeggings, Capri/Cropped,
+  Bootcut, Flare, High-Waisted, Compression) — a suggestion list, not a
+  restriction, same pattern as Live Catalog's Tipo/Brand/Size fields — and
+  defaults it to "Leggings" (the first entry) if not already set, same
+  "only fill if empty" rule as `applyDefaultSizeTypeIfEmpty`. A leggings
+  item no longer blocks "List on eBay" on this field by default, and the
+  dropdown-of-sorts is right there if the actual style differs.
 - **v3.13.83** — Vitor asked for a real pre-flight check instead of
   chasing eBay's raw error boxes one field at a time: "quero um aviso de
   qualquer campo faltante antes de apresentar esse erro... uma simples
