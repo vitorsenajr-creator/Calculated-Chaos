@@ -456,6 +456,27 @@
   <div id="labelPrintContent"></div>
 </div>
 
+<div class="modal-overlay hidden" id="quickLabelOverlay" style="z-index:120;">
+  <div class="modal" style="max-width:380px;">
+    <div class="modal-handle"></div>
+    <h3 class="serif" style="margin:0 0 4px; font-size:19px;">Quick reprint by code</h3>
+    <div class="ss-desc" style="margin-bottom:16px;">Type up to 4 item codes, then print — same label sheet as always.</div>
+    <div id="quickLabelInputs" style="display:flex; flex-direction:column; gap:10px; margin-bottom:6px;">
+      <input type="text" class="quick-label-input" data-idx="0" inputmode="numeric" pattern="[0-9]*" placeholder="Item code" style="width:100%; box-sizing:border-box; padding:12px 14px; font-size:18px; text-align:center; border:1px solid var(--line); border-radius:10px;">
+      <input type="text" class="quick-label-input" data-idx="1" inputmode="numeric" pattern="[0-9]*" placeholder="Item code" style="width:100%; box-sizing:border-box; padding:12px 14px; font-size:18px; text-align:center; border:1px solid var(--line); border-radius:10px;">
+      <input type="text" class="quick-label-input" data-idx="2" inputmode="numeric" pattern="[0-9]*" placeholder="Item code" style="width:100%; box-sizing:border-box; padding:12px 14px; font-size:18px; text-align:center; border:1px solid var(--line); border-radius:10px;">
+      <input type="text" class="quick-label-input" data-idx="3" inputmode="numeric" pattern="[0-9]*" placeholder="Item code" style="width:100%; box-sizing:border-box; padding:12px 14px; font-size:18px; text-align:center; border:1px solid var(--line); border-radius:10px;">
+    </div>
+    <div id="quickLabelError" style="display:none; color:var(--danger); font-size:13px; margin-bottom:10px;"></div>
+    <div class="modal-actions">
+      <button class="settings-save-btn" id="quickLabelGoBtn" style="margin:0; width:auto; flex:1;">🖨️ Gerar etiquetas</button>
+    </div>
+    <div class="modal-actions" style="margin-top:10px;">
+      <button class="icon-btn" id="quickLabelCancelBtn" style="width:100%;">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay hidden" id="calibInstructionsOverlay" style="z-index:130;">
   <div class="modal" style="max-width:480px;">
     <div class="modal-handle"></div>

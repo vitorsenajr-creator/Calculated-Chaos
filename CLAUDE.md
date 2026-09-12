@@ -1101,6 +1101,23 @@ next minor bump:
   the same click just applied — no extra AI call, falls back to the AI's
   plain name if there isn't enough to build a title from.
 
+- **v3.13.78** — Added a "🔁 Etiqueta" quick-reprint tool to the Catalog
+  toolbar (temporary, per Vitor's request 2026-09-11): a small modal
+  (`#quickLabelOverlay`) with exactly 4 numeric-only inputs (auto-advances
+  after 4 digits, Enter submits, Backspace on an empty field jumps back)
+  — type up to 4 exact product codes and go straight to the print
+  preview, instead of switching to the numeric keyboard, typing a code,
+  waiting for it to load, selecting it, clearing the field, and switching
+  keyboards again for the next one. Looks codes up by exact
+  `productCode` match against `items` and, once every typed code
+  resolves, calls the existing `openBatchLabelModal()` — the same
+  function the Catalog's bulk "Imprimir etiquetas" button already uses —
+  so the printed sheet is pixel-for-pixel the current label format/
+  settings, nothing new to maintain in parallel. An unmatched code blocks
+  printing and lists which code(s) weren't found rather than silently
+  dropping them. Fewer than 4 codes works fine (blank fields are
+  ignored). **Not yet tested against a real device** — verified via
+  `node --check` and a clean `vite build` only.
 - **v3.13.77** — Fixed "Apply title" (v3.13.76) disappearing the moment
   the AI-generated description autosaved: autosave reopens the item
   modal for a never-saved item, which re-rendered the listing panel with
