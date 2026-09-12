@@ -1101,6 +1101,30 @@ next minor bump:
   the same click just applied — no extra AI call, falls back to the AI's
   plain name if there isn't enough to build a title from.
 
+- **v3.13.87** — v3.13.86's box-list fix wasn't actually the root cause:
+  Vitor's screenshot showed the dropdown still empty, with "Loading your
+  pieces…" faintly visible in the background — he'd opened the Stock
+  Transfer tool before Firestore's item load finished, so
+  `getAllStorageBoxes()` ran against a still-empty (or incomplete)
+  `items` array at the moment the modal opened, and the list was never
+  re-populated afterward even once the real data arrived.
+  `populateTransferBoxSelect()` itself was correct all along (confirmed
+  by the "Gray Box" case actually needing the `getAllStorageBoxes()`
+  merge from v3.13.86 — that part stays) — it just only ever ran once,
+  at open time. `renderAll()` (which re-runs every time items finish
+  loading or change) now also calls a new
+  `refreshStockTransferBoxListIfOpen()`, which re-populates the dropdown
+  whenever the modal happens to be visible — so an early-opened tool
+  fills in on its own instead of needing a close/reopen. Also added the
+  requested print integration: a "🖨️ Also print this item's label after
+  moving it" checkbox — when checked, a successful move opens the
+  existing single-item print-label flow (`openPrintLabelModal()`,
+  unchanged) right on top of the still-open Stock Transfer modal instead
+  of closing it first, so reviewing/printing one label doesn't lose her
+  place mid-scan-sequence. Needed `#printLabelOverlay`'s z-index raised
+  from 120 to 150 (above every other 120-level modal, Stock Transfer
+  included) for this — it was never designed to stack on top of another
+  already-open 120-level modal before, only the item modal underneath.
 - **v3.13.86** — Two real bugs from Vitor's first test of v3.13.85 during
   an actual stock-organizing session: (1) the box dropdown only ever
   listed `appSettings.storageBoxes` (formally "registered" boxes) —
