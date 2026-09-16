@@ -1101,6 +1101,34 @@ next minor bump:
   the same click just applied — no extra AI call, falls back to the AI's
   plain name if there isn't enough to build a title from.
 
+- **v3.13.91** — Real "Check the following field(s)" block (v3.13.83's
+  pre-flight) on a "Berkley Jensen Corduroy Shirt Jacket Shacket": Type
+  and Outer Shell Material (plus Style) rendered as empty free-text
+  inputs with no suggestions for the "Women's Coats, Jackets & Vests"
+  eBay category — the same category/Taxonomy inconsistency
+  `CONDITIONAL_ASPECT_SUGGESTIONS` already works around for "Style" on
+  leggings (v3.13.84), just never extended to jackets/coats. Confirmed
+  via git history this wasn't a regression from any recent change —
+  `api/ebay-item-aspects.js` (what decides SELECTION_ONLY vs. free-text)
+  hasn't changed since v3.13.39, and v3.13.84 only ever added the
+  leggings case, nothing broader. Restructured
+  `CONDITIONAL_ASPECT_SUGGESTIONS` in `main.js` to hold an ordered list of
+  `{test, values}` candidates per aspect name (first match wins) instead
+  of one hardcoded test each, since "Style" now needs to mean something
+  different for leggings vs. jackets. Added a shared `isJacketOrCoat()`
+  signal (Clothing type = Jacket/Coat, or the item name containing
+  jacket/coat/shacket/blazer/parka) and suggestion lists for "Type"
+  (Overshirt/Shacket first, then Blazer/Bomber/Denim Jacket/Field
+  Jacket/Parka/Puffer/Trench Coat/Wool Coat/Vest), "Outer Shell Material"
+  (Corduroy first, then Cotton/Cotton Blend/Denim/Faux Leather/Leather/
+  Nylon/Polyester/Suede/Wool/Wool Blend/Fleece), and a jacket-specific
+  "Style" list (Casual/Business Casual/Western/Bomber/Trucker/Military/
+  Preppy/Bohemian) — same "suggestion, not a restriction" free-text +
+  `<datalist>` pattern as the leggings case, still fully editable/
+  clearable. **Not yet re-tested against a real publish** — verified via
+  `node --check` and a clean `vite build` only; watch the next "List on
+  eBay" attempt on a jacket/coat item to confirm the fields no longer
+  block with nothing to go on.
 - **v3.13.90** — v3.13.89 connected the wrong direction: Vitor clarified
   he wants the transfer built directly INTO the Quick Labels screen
   itself, not a handoff button on Stock Transfer — "foque agora na aba
