@@ -1101,6 +1101,25 @@ next minor bump:
   the same click just applied — no extra AI call, falls back to the AI's
   plain name if there isn't enough to build a title from.
 
+- **v3.13.92** — Vitor asked for the live eBay listing link to always be
+  visible on an item, not just right after publishing — reported that
+  reopening an already-listed item's modal showed the "List on eBay"
+  button with no link, only the plain (non-clickable) badge. Root cause:
+  `listItemOnEbay()` in `ebay-api.js` already renders an "✅ Already
+  listed on eBay · View listing ↗" box into `#ebayStatusArea` whenever
+  `item.ebayListingId` is set — but that only runs when she actually
+  clicks "List on eBay" again. `openModal()` in `main.js` unconditionally
+  cleared `#ebayStatusArea` to blank on every open (line ~2084), so an
+  already-published item showed nothing there until she re-triggered the
+  check herself. The Catalog card's own "eBay ↗" badge (`main.js:792-797`)
+  was never affected by this — that one already renders straight from
+  `item.ebayListingId`/`item.ebayListingUrl` on every render, independent
+  of this status area. Fixed `openModal()` to render the same
+  "Already listed on eBay" box immediately whenever the item being opened
+  has `item.ebayListingId`, same pattern already used just above it for
+  restoring the saved listing description and AI photo analysis on
+  reopen — no new link logic, just no longer wiping the one that already
+  existed until manually retriggered.
 - **v3.13.91** — Real "Check the following field(s)" block (v3.13.83's
   pre-flight) on a "Berkley Jensen Corduroy Shirt Jacket Shacket": Type
   and Outer Shell Material (plus Style) rendered as empty free-text

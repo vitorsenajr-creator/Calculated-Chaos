@@ -65,7 +65,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.91';
+  const APP_VERSION = 'v3.13.92';
   const APP_VERSION_DATE = '2026-09-16';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -2081,7 +2081,16 @@ export const app = (function(){
     } else {
       document.getElementById('aiAnalysisArea').innerHTML = '';
     }
-    document.getElementById('ebayStatusArea').innerHTML = '';
+    // Same idea as the listing description/AI analysis above — an item
+    // already published to eBay should show its "Already listed" link
+    // immediately on reopen, not leave the panel blank until she clicks
+    // "List on eBay" again just to see the link she already has.
+    if (item && !isDuplicate && item.ebayListingId){
+      const alreadyUrl = item.ebayListingUrl || `https://www.ebay.com/itm/${item.ebayListingId}`;
+      document.getElementById('ebayStatusArea').innerHTML = `<div class="ebay-status-box success">✅ Already listed on eBay · <a href="${escapeHtml(alreadyUrl)}" target="_blank">View listing ↗</a></div>`;
+    } else {
+      document.getElementById('ebayStatusArea').innerHTML = '';
+    }
     setSaveProgress(null);
     document.getElementById('deleteItemBtn').style.display = (item && !isDuplicate) ? 'block' : 'none';
     document.getElementById('duplicateItemBtn').style.display = (item && !isDuplicate) ? 'block' : 'none';
