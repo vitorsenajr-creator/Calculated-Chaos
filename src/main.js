@@ -65,8 +65,8 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.90';
-  const APP_VERSION_DATE = '2026-09-12';
+  const APP_VERSION = 'v3.13.91';
+  const APP_VERSION_DATE = '2026-09-16';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
   let itemsLoaded = false; // true once the initial Firestore fetch in loadItems() resolves
@@ -1714,21 +1714,48 @@ export const app = (function(){
   // "Style" for leggings/activewear pants is exactly this case (real
   // account test, 2026-09-12): eBay's own aspect lookup returned no
   // selection list, leaving her to guess the right wording from memory
-  // every single time. Keyed by [aspect name lowercased][a simple
-  // category signal], not applied blindly to every category "Style"
-  // shows up for (it means something different on jeans vs. dresses).
-  // Still a free-text input with a <datalist> — never blocks a value
-  // outside this list, same "suggestion, not a restriction" pattern as
-  // Live Catalog's Tipo/Brand/Size fields.
+  // every single time. Keyed by [aspect name lowercased] -> a list of
+  // {test, values} candidates tried in order (first match wins), since the
+  // same aspect name (e.g. "Style") means something different on leggings
+  // vs. a jacket. Still a free-text input with a <datalist> — never blocks
+  // a value outside this list, same "suggestion, not a restriction"
+  // pattern as Live Catalog's Tipo/Brand/Size fields.
+  const isJacketOrCoat = () => {
+    const type = (document.getElementById('fClothingType')?.value || '').toLowerCase();
+    const name = (document.getElementById('fName')?.value || '').toLowerCase();
+    return type.includes('jacket') || type.includes('coat') || type.includes('blazer') ||
+      /jacket|coat|shacket|blazer|parka/.test(name);
+  };
   const CONDITIONAL_ASPECT_SUGGESTIONS = {
-    style: {
-      test: () => {
-        const type = (document.getElementById('fClothingType')?.value || '').toLowerCase();
-        const name = (document.getElementById('fName')?.value || '').toLowerCase();
-        return type.includes('legging') || name.includes('legging');
+    style: [
+      {
+        test: () => {
+          const type = (document.getElementById('fClothingType')?.value || '').toLowerCase();
+          const name = (document.getElementById('fName')?.value || '').toLowerCase();
+          return type.includes('legging') || name.includes('legging');
+        },
+        values: ['Leggings', 'Jeggings', 'Capri/Cropped', 'Bootcut', 'Flare', 'High-Waisted', 'Compression'],
       },
-      values: ['Leggings', 'Jeggings', 'Capri/Cropped', 'Bootcut', 'Flare', 'High-Waisted', 'Compression'],
-    },
+      {
+        test: isJacketOrCoat,
+        values: ['Casual', 'Business Casual', 'Western', 'Bomber', 'Trucker', 'Military', 'Preppy', 'Bohemian'],
+      },
+    ],
+    type: [
+      {
+        // eBay's "Type" aspect for the Women's/Men's Coats & Jackets
+        // category (real account test, 2026-09-15) — first entry
+        // (Overshirt/Shacket) covers the item that surfaced this gap.
+        test: isJacketOrCoat,
+        values: ['Overshirt/Shacket', 'Blazer', 'Bomber Jacket', 'Denim Jacket', 'Field Jacket', 'Parka', 'Puffer/Quilted', 'Trench Coat', 'Wool Coat', 'Vest'],
+      },
+    ],
+    'outer shell material': [
+      {
+        test: isJacketOrCoat,
+        values: ['Corduroy', 'Cotton', 'Cotton Blend', 'Denim', 'Faux Leather', 'Leather', 'Nylon', 'Polyester', 'Suede', 'Wool', 'Wool Blend', 'Fleece'],
+      },
+    ],
   };
 
   function renderEbayAspectsFields(neededAspects){
@@ -1737,8 +1764,9 @@ export const app = (function(){
     container.innerHTML = `
       <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; color:var(--plum-soft); margin-bottom:6px;">This eBay category also requires:</div>
       ${neededAspects.map(a => {
-        const conditional = CONDITIONAL_ASPECT_SUGGESTIONS[a.name.toLowerCase()];
-        const suggestions = (!a.selectionOnly && conditional && conditional.test()) ? conditional.values : null;
+        const candidates = CONDITIONAL_ASPECT_SUGGESTIONS[a.name.toLowerCase()];
+        const matched = candidates && candidates.find(c => c.test());
+        const suggestions = (!a.selectionOnly && matched) ? matched.values : null;
         // Default to the common case (first suggestion) so this doesn't
         // block "List on eBay" by default — still freely editable/
         // clearable in the field below, same "only fill if empty" rule
