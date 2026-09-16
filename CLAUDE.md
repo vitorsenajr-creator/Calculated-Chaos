@@ -1101,6 +1101,17 @@ next minor bump:
   the same click just applied — no extra AI call, falls back to the AI's
   plain name if there isn't enough to build a title from.
 
+- **v3.13.93** — Vitor confirmed he did a real hard reload after v3.13.92
+  and still didn't see the "Already listed on eBay" link on reopen —
+  bumped the version number specifically to test whether his device is
+  actually receiving new deploys at all (a version-bump-only change, no
+  other code touched), since the code path itself (`openModal()` in
+  `main.js`, confirmed reading `item.ebayListingId` from the same shared
+  `items` array `ebay-api.js` updates on publish) looks correct on
+  re-review. If the badge still doesn't read v3.13.93 after this deploys
+  and he hard-reloads, the problem is deploy/caching, not this feature's
+  logic — check the Vercel dashboard for the actual deployed commit/build
+  status next.
 - **v3.13.92** — Vitor asked for the live eBay listing link to always be
   visible on an item, not just right after publishing — reported that
   reopening an already-listed item's modal showed the "List on eBay"
