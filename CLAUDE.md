@@ -1101,6 +1101,46 @@ next minor bump:
   the same click just applied — no extra AI call, falls back to the AI's
   plain name if there isn't enough to build a title from.
 
+- **v3.13.94** — **Found the real bug behind v3.13.92**: republishing this
+  same "Berkley Jensen Corduroy Shirt Jacket Shacket" item confirmed the
+  v3.13.92 fix's logic was correct (`node --check`/`vite build` had
+  already passed and the version bump in v3.13.93 confirmed the deploy
+  really was reaching his device) — yet the eBay link still never stuck
+  after a fresh publish, and the Catalog card kept showing "Cataloged"
+  instead of "Listed" too. A quick isolation test (editing Cost and
+  saving) confirmed plain saves persist fine for this item, ruling out a
+  corrupted `id`. Root cause: `saveItemFlow()` in `main.js` (the manual
+  "Save item" button, and every autosave that reuses it — e.g. closing
+  the item modal with more than 4 photos already added, per v3.13.56;
+  this item has 10) rebuilds the ENTIRE item document from form-field
+  values on every save, and never included `ebayListingId`/
+  `ebayListingUrl`/`ebayOfferId`/`ebaySku`/`ebayListedAt`/
+  `hostedPhotoUrls` at all — fields with no form input of their own,
+  written only by `publishItemToEbayCore()` in `ebay-api.js`. Since
+  `saveItem()` uses `setDoc()` (a full document replace, not a partial
+  merge), any of those saves silently wiped the app's own record of an
+  already-live eBay listing — and also reverted `status` back to
+  whatever `currentStatus` was PRE-publish, since publishing never
+  updated that in-memory variable either (only the "Listed on" pills'
+  `currentListedPlatforms` got synced). Reassuring part: the live eBay
+  listing itself was never actually duplicated by this — `api/ebay-list.js`
+  keys the SKU off `item.productCode` (stable) and looks up/reuses any
+  existing offer for that SKU before deciding create vs. update, so every
+  "republish" in this thread updated the SAME underlying eBay listing,
+  it just kept losing the local pointer to it. Fixed both gaps:
+  `saveItemFlow()` now carries forward all six eBay-metadata fields from
+  the existing saved item (new shared `existingItem` lookup, also
+  de-duplicating five other spots that were separately re-running the
+  same `items.find(i => i.id === currentEditId)` lookup for
+  listingTitle/listingDescription/listingStyleTags/listingIsAi/
+  createdAt/soldAt), and the "🎉 Listed on eBay!" success handler in
+  `ebay-api.js` now also calls the newly-exposed `app.setStatusUI()`
+  (alongside the existing `setListedPlatformsUI()` call) so `currentStatus`
+  reflects "Listed" immediately, not just the pill's visual selection.
+  **Still not confirmed against Vitor's real account** — verified via
+  `node --check` and a clean `vite build` only; watch the next real
+  publish-then-close-modal cycle to confirm the link and "Listed" status
+  now survive.
 - **v3.13.93** — Vitor confirmed he did a real hard reload after v3.13.92
   and still didn't see the "Already listed on eBay" link on reopen —
   bumped the version number specifically to test whether his device is
