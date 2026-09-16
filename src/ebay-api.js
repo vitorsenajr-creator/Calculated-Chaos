@@ -565,7 +565,16 @@ ${app.escapeHtml(JSON.stringify(result.debugPolicyIdsSent, null, 2))}</div>`;
         // Sync the pill UI live so it reflects reality without a reload.
         if (app.currentEditId === item.id){
           const freshItem = items.find(i => i.id === item.id);
-          if (freshItem) app.setListedPlatformsUI([...(freshItem.listedPlatforms || [])]);
+          if (freshItem){
+            app.setListedPlatformsUI([...(freshItem.listedPlatforms || [])]);
+            // Also sync the Status pill's in-memory value, not just its
+            // pills UI — saveItemFlow() reads currentStatus (not the DOM)
+            // when building what to save, so without this, closing the
+            // modal or hitting "Save item" right after a successful eBay
+            // publish would write the item's PRE-publish status back,
+            // undoing the 'anunciado' this same publish just set.
+            app.setStatusUI(freshItem.status);
+          }
         }
         app.renderAll();
         area.innerHTML = `<div class="ebay-status-box success">

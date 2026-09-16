@@ -65,7 +65,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.93';
+  const APP_VERSION = 'v3.13.94';
   const APP_VERSION_DATE = '2026-09-16';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -5582,8 +5582,27 @@ Be accurate and honest — never invent brand, material, or condition details th
 
     const rawProductCode = document.getElementById('fProductCode').value.trim();
     const baseProductCode = (rawProductCode && rawProductCode !== 'loading…') ? rawProductCode : nextProductCode();
+    // Every save here rebuilds the item from form fields — fields with no
+    // form input of their own (set programmatically elsewhere, like the
+    // eBay listing metadata written by publishItemToEbayCore) must be
+    // explicitly carried forward from the currently-saved item, or a save
+    // right after listing on eBay (even just closing the modal, which
+    // autosaves once there are more than 4 photos — see
+    // closeModalWithAutosaveIfNeeded) silently wipes the app's own record
+    // of an already-live eBay listing. The listing itself stays live on
+    // eBay when this happens — only this app's memory of it is lost —
+    // but that's exactly what lets the next "List on eBay" tap create a
+    // second, duplicate live listing, since the app no longer knows one
+    // already exists.
+    const existingItem = currentEditId ? items.find(i => i.id === currentEditId) : null;
     const itemData = {
       id: itemId,
+      ebayListingId: existingItem?.ebayListingId || null,
+      ebayListingUrl: existingItem?.ebayListingUrl || null,
+      ebayOfferId: existingItem?.ebayOfferId || null,
+      ebaySku: existingItem?.ebaySku || null,
+      ebayListedAt: existingItem?.ebayListedAt || null,
+      hostedPhotoUrls: existingItem?.hostedPhotoUrls || null,
       // Quantity > 1 tags every copy "-1", "-2", etc. off the same base code
       // (e.g. "#4578-1", "#4578-2") instead of consuming several numbers from
       // the main sequence — makes it visually obvious they're duplicates.
@@ -5606,15 +5625,15 @@ Be accurate and honest — never invent brand, material, or condition details th
       // shipping-box dimensions. Falls back to whatever was already saved
       // if nothing was (re)generated this time.
       listingTitle: document.getElementById('listTitleText')?.textContent
-        || items.find(i => i.id === currentEditId)?.listingTitle || '',
+        || existingItem?.listingTitle || '',
       listingDescription: document.getElementById('listDescText')?.value
-        || items.find(i => i.id === currentEditId)?.listingDescription || '',
+        || existingItem?.listingDescription || '',
       // Same idea as listingTitle/listingDescription above, for the Style
       // Tags panel — previously these were never saved at all (only ever
       // read by the "Copy tags" button), so they silently disappeared the
       // moment the item was saved and the modal reopened.
       listingStyleTags: readCurrentStyleTagInputs()
-        ?? items.find(i => i.id === currentEditId)?.listingStyleTags ?? [],
+        ?? existingItem?.listingStyleTags ?? [],
       // Whether the current listingTitle/listingDescription came from the AI
       // writer vs. the instant template vs. a manual edit — drives whether
       // the "AI-written" badge (and its "Apply title" button) still shows
@@ -5622,7 +5641,7 @@ Be accurate and honest — never invent brand, material, or condition details th
       // two generator flows (autosaveGeneratedListingText); a plain manual
       // Save preserves whatever was already there instead of guessing.
       listingIsAi: listingIsAi !== undefined ? listingIsAi
-        : (items.find(i => i.id === currentEditId)?.listingIsAi || false),
+        : (existingItem?.listingIsAi || false),
       // Persists the last-generated AI photo analysis (identification, price
       // guess, reasoning, etc.) the same way listingDescription is persisted
       // above — kept in sync with the on-screen card via currentAiAnalysis,
@@ -5645,7 +5664,7 @@ Be accurate and honest — never invent brand, material, or condition details th
       photos: hostedPhotos,
       status: currentStatus,
       prep: currentPrep,
-      createdAt: currentEditId ? (items.find(i=>i.id===currentEditId)?.createdAt || Date.now()) : Date.now(),
+      createdAt: currentEditId ? (existingItem?.createdAt || Date.now()) : Date.now(),
     };
 
     if (currentStatus === 'vendido'){
@@ -5665,7 +5684,7 @@ Be accurate and honest — never invent brand, material, or condition details th
       itemData.soldPlatform = soldPlatform;
       itemData.feesTotal = feesTotal;
       itemData.otherCosts = otherCosts;
-      itemData.soldAt = items.find(i=>i.id===currentEditId)?.soldAt || Date.now();
+      itemData.soldAt = existingItem?.soldAt || Date.now();
       itemData.netProfit = soldPrice - (parseFloat(itemData.cost)||0) - feesTotal - shippingCost - otherCosts;
     }
 
@@ -6955,6 +6974,6 @@ EBAY_MERCHANT_LOCATION_KEY=${escapeHtml(data.results.merchantLocationKey)}</div>
     get currentEditId(){ return currentEditId; },
     saveItem, renderAll, escapeHtml, CONDITION_LABEL, bulkSelectedIds,
     suggestPrice, platformFee, showSavedToast, openModal, renderEbayConnectionStatus,
-    openModalFromBulkReview, setListedPlatformsUI, getMissingEbayFieldLabels,
+    openModalFromBulkReview, setListedPlatformsUI, setStatusUI, getMissingEbayFieldLabels,
   };
 })();
