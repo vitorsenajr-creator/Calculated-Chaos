@@ -1186,6 +1186,36 @@ next minor bump:
   flagged to Vitor as a separate, bigger consideration (migrating to a
   real-time `onSnapshot` listener) if simultaneous-terminal use turns out
   to be a regular pattern, not attempted here.
+- **v3.13.96** — **Found a real data-loss bug**: Vitor reported Settings
+  showing everything back at defaults (AI usage 0/500 with no period-start
+  date, Mercari fee back at the un-overridden 10%, listing closing text
+  blank, etc.) — not caused by v3.13.95 (that only ever touches a
+  separate `app_settings/productCodeCounter` doc; real settings live at
+  `app_config/settings`). Root cause in `loadSettings()`: a THROWN error
+  reading that doc (a transient network/permission hiccup, being briefly
+  offline on load — anything, not just "doc doesn't exist yet") fell into
+  the same `catch` that resets `appSettings` to `DEFAULT_SETTINGS` in
+  memory, and the code right after couldn't tell that apart from a
+  genuine first-ever run — since `aiUsagePeriodStart` was now `null`
+  either way, it "initialized" it and called `saveSettings()`, which does
+  a full `setDoc()` with no merge — permanently overwriting her real
+  saved settings in Firestore with blank defaults over one bad read.
+  Fixed by tracking whether the read actually succeeded
+  (`loadSucceeded`) and gating both the period-init-and-save and
+  `checkScheduledReset()` on it — a failed read now only ever affects
+  what's shown locally for that session, never what's persisted. Also
+  added `{ merge: true }` to `saveSettings()`'s `setDoc()` as a second
+  layer, so an incomplete in-memory `appSettings` (for any other reason)
+  can no longer blank out fields it doesn't know about instead of leaving
+  them alone. **Whatever was already overwritten before this fix is not
+  recoverable from within the app** — the previous document is gone from
+  Firestore's live state; the only way back is Firestore's own
+  point-in-time recovery / backups in the Firebase Console, if enabled on
+  this project (this environment has no credentials to check or restore
+  that — Vitor needs to look there directly). Not yet confirmed this was
+  really a transient-read-failure case rather than something else
+  clearing the doc directly — flagged to watch whether settings ever
+  reset again now that this specific path can't cause it.
 - **v3.13.93** — Vitor confirmed he did a real hard reload after v3.13.92
   and still didn't see the "Already listed on eBay" link on reopen —
   bumped the version number specifically to test whether his device is

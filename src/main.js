@@ -69,7 +69,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.95';
+  const APP_VERSION = 'v3.13.96';
   const APP_VERSION_DATE = '2026-09-16';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -5855,6 +5855,11 @@ Be accurate and honest — never invent brand, material, or condition details th
   // resetAiCounter below reassign/mutate it via setAppSettings and persist it.
 
   async function loadSettings(){
+    // Only true when the read itself succeeded (doc existed and parsed, OR
+    // it genuinely doesn't exist yet — a real first-ever run). A thrown
+    // error (offline blip, transient permission hiccup, etc.) must NEVER
+    // be treated as "no settings yet" — see the 2026-09-16 bug below.
+    let loadSucceeded = false;
     try{
       const { doc, getDoc } = window.firestoreFns;
       const snap = await getDoc(doc(window.db, 'app_config', 'settings'));
@@ -5865,20 +5870,33 @@ Be accurate and honest — never invent brand, material, or condition details th
           appSettings.listingStandardText = appSettings.poshmarkStandardText;
         }
       }
-    }catch(e){ setAppSettings({ ...DEFAULT_SETTINGS }); }
-    // Initialize period if first time
-    if (!appSettings.aiUsagePeriodStart){
+      loadSucceeded = true;
+    }catch(e){
+      // Show local defaults so the app isn't stuck blank, but DO NOT persist
+      // them below — a transient read failure used to fall into the
+      // "first time ever" branch, which then called saveSettings() and
+      // permanently overwrote her real saved settings with these defaults.
+      console.error('Failed to load settings — showing local defaults without touching the saved copy:', e);
+      setAppSettings({ ...DEFAULT_SETTINGS });
+    }
+    // Initialize period if first time — gated on the read having actually
+    // succeeded, for the reason above.
+    if (loadSucceeded && !appSettings.aiUsagePeriodStart){
       appSettings.aiUsagePeriodStart = new Date().toISOString();
       await saveSettings();
     }
     // Check if scheduled reset is due
-    await checkScheduledReset();
+    if (loadSucceeded) await checkScheduledReset();
   }
 
   async function saveSettings(){
     try{
       const { doc, setDoc } = window.firestoreFns;
-      await setDoc(doc(window.db, 'app_config', 'settings'), appSettings);
+      // merge:true — belt-and-suspenders alongside the loadSettings() fix
+      // above: even if appSettings is ever incomplete in memory for some
+      // other reason, a save can no longer blank out fields it doesn't
+      // know about instead of actually overwriting them.
+      await setDoc(doc(window.db, 'app_config', 'settings'), appSettings, { merge: true });
     }catch(e){ console.error('Failed to save settings', e); }
   }
 
