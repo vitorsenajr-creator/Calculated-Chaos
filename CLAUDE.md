@@ -1141,6 +1141,51 @@ next minor bump:
   `node --check` and a clean `vite build` only; watch the next real
   publish-then-close-modal cycle to confirm the link and "Listed" status
   now survive.
+- **v3.13.95** — Vitor reported duplicate registration numbers (e.g. two
+  different items both saved as `#0089`) after adding items from two
+  terminals/devices around the same time. Root cause: items load once via
+  `getDocs` (`main.js` has no `onSnapshot` listener — see "Modularization
+  progress" for the state-sharing situation generally), and
+  `nextProductCode()` only ever guesses the next number from that
+  possibly-stale client-side `items` array; since each item document's
+  Firestore ID is a random `uid()` (not the product code), nothing stops
+  two terminals from both guessing the same "next" number and both saving
+  it. Fixed with the three-part approach Vitor asked to evaluate first,
+  new `modules/product-code-bank.js`: (1) **Number bank** —
+  `reserveNextProductCode()`, an atomic Firestore counter
+  (`app_settings/productCodeCounter`, incremented via `runTransaction`,
+  same pattern already used by Live Catalog's SKU counter) — two
+  terminals reserving at the same instant are serialized by Firestore's
+  transaction retry, so they can never walk away with the same number.
+  `saveItemFlow()` now calls this instead of trusting the client-side
+  guess whenever the Product Code field still holds the auto-filled
+  suggestion (new `productCodeIsAutoSuggested` flag, set in `openModal()`
+  and cleared by a new `input` listener on `#fProductCode` the moment she
+  types into it). (2) **Save-time duplicate check** — for the case that
+  bypasses the counter on purpose (she hand-types/edits the code), a live
+  Firestore query (`findItemsWithProductCode()`, not just the local
+  `items` array) runs before saving; a collision blocks the save, fills
+  the field with a freshly-reserved number, and alerts which item already
+  has it. Only runs when the code actually changed from what the item
+  already had, so a plain re-save of an untouched existing item doesn't
+  pay for the extra round-trip. (3) **Settings tool** ("Duplicate
+  registration numbers", temporary, next to the eBay listing audit) —
+  `runDuplicateProductCodeAudit()` groups the loaded catalog by exact
+  `productCode` string (intentional quantity>1 copies like `#0089-1`/
+  `#0089-2` never collide, so they're never flagged) and shows a
+  "🔢 Give new number" button per duplicate that calls
+  `renumberDuplicateProductCode()` to atomically reserve and save a fresh
+  code for that one item. `maxProductCodeNumber()` was extracted out of
+  `nextProductCode()` (`catalog-lookups.js`) so the counter's first-ever
+  reservation (and any future catch-up if the counter somehow falls
+  behind, e.g. a manually-typed higher code) has the same "highest number
+  actually in use" floor as the original guess-based logic, without
+  duplicating that parsing rule. **Doesn't address** the broader
+  two-terminal staleness beyond product codes (e.g. editing the same item
+  open in two terminals at once still last-write-wins, same as always) —
+  flagged to Vitor as a separate, bigger consideration (migrating to a
+  real-time `onSnapshot` listener) if simultaneous-terminal use turns out
+  to be a regular pattern, not attempted here.
 - **v3.13.93** — Vitor confirmed he did a real hard reload after v3.13.92
   and still didn't see the "Already listed on eBay" link on reopen —
   bumped the version number specifically to test whether his device is

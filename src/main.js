@@ -60,12 +60,16 @@ import {
 } from './modules/sold-confirm.js';
 import { initNarrationCapture } from './modules/narration-capture.js';
 import { runEbayAudit, runListFulfillmentPolicies, runBackfillDescriptions } from './modules/ebay-audit.js';
+import {
+  reserveNextProductCode, findItemsWithProductCode,
+  runDuplicateProductCodeAudit, renumberDuplicateProductCode,
+} from './modules/product-code-bank.js';
 
 export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.94';
+  const APP_VERSION = 'v3.13.95';
   const APP_VERSION_DATE = '2026-09-16';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -84,6 +88,13 @@ export const app = (function(){
   let currentMeasurements = null; // {type, values:{label:inches}, photo:dataUrl} | null
   let currentStatus = 'catalogado';
   let currentPrep = 'ready';
+  // True whenever the Product Code field still holds the auto-filled
+  // suggestion (fillNextProductCode) rather than something she typed/edited
+  // herself — decides whether Save reserves a fresh number atomically
+  // (new item, untouched suggestion) or just checks the typed value isn't
+  // already used by another item (see "duplicate registration numbers" in
+  // CLAUDE.md). Set in openModal(), cleared by the input listener below.
+  let productCodeIsAutoSuggested = false;
   let activeFilters = { status:null, category:null, incomplete:false, needsPhoto:false, box:null, notSold:false, size:null, platformsInclude:[], platformsExclude:[] };
   let bulkSelectMode = false;
   let bulkSelectedIds = new Set();
@@ -1920,8 +1931,10 @@ export const app = (function(){
     document.getElementById('modalTitle').textContent = isDuplicate ? 'Duplicate item' : (item ? 'Edit item' : (quickCatalogMode ? '⚡ New item (quick catalog)' : 'New item'));
     if (item && !isDuplicate && item.productCode){
       document.getElementById('fProductCode').value = item.productCode;
+      productCodeIsAutoSuggested = false;
     } else {
       fillNextProductCode(document.getElementById('fProductCode'));
+      productCodeIsAutoSuggested = true;
     }
     document.getElementById('fStorageBox').value = (item && !isDuplicate) ? (item.storageBox || '') : lastUsedBox;
     document.getElementById('storageBoxList').innerHTML = getAllStorageBoxes().map(b => `<option value="${escapeHtml(b)}">`).join('');
@@ -3572,6 +3585,13 @@ export const app = (function(){
 
   document.getElementById('fName').addEventListener('blur', (e) => {
     if (e.target.value.trim()) e.target.value = toTitleCase(e.target.value.trim());
+  });
+
+  // Any manual edit to the auto-filled Product Code suggestion means Save
+  // should no longer trust it blindly — it now needs the duplicate check
+  // instead of an atomic reservation (see productCodeIsAutoSuggested).
+  document.getElementById('fProductCode').addEventListener('input', () => {
+    productCodeIsAutoSuggested = false;
   });
 
   document.getElementById('duplicateItemBtn').addEventListener('click', () => {
@@ -5580,8 +5600,42 @@ Be accurate and honest — never invent brand, material, or condition details th
       return;
     }
 
+    const existingItemForCode = currentEditId ? items.find(i => i.id === currentEditId) : null;
     const rawProductCode = document.getElementById('fProductCode').value.trim();
-    const baseProductCode = (rawProductCode && rawProductCode !== 'loading…') ? rawProductCode : nextProductCode();
+    let baseProductCode;
+    if (productCodeIsAutoSuggested && !currentEditId){
+      // New item, still showing the auto-filled suggestion — don't trust
+      // that guess (another terminal may have taken it since the modal
+      // opened, see CLAUDE.md "duplicate registration numbers"). Reserve a
+      // fresh number atomically via a Firestore transaction instead, which
+      // two terminals can never both win.
+      try{
+        baseProductCode = await reserveNextProductCode();
+      }catch(e){
+        console.error('Failed to reserve a product code, falling back to a local guess:', e);
+        baseProductCode = (rawProductCode && rawProductCode !== 'loading…') ? rawProductCode : nextProductCode();
+      }
+    } else {
+      baseProductCode = (rawProductCode && rawProductCode !== 'loading…') ? rawProductCode : nextProductCode();
+      // A hand-typed/edited code bypasses the atomic reservation above, so
+      // check it isn't already used by a DIFFERENT item before saving —
+      // but only when it's actually changed from what this item already
+      // had (a plain re-save of an existing item shouldn't pay for a
+      // Firestore round-trip on every click).
+      if (baseProductCode !== existingItemForCode?.productCode){
+        const dupMatches = await findItemsWithProductCode(baseProductCode, currentEditId);
+        if (dupMatches.length){
+          const suggestion = await reserveNextProductCode().catch(() => nextProductCode());
+          document.getElementById('fProductCode').value = suggestion;
+          productCodeIsAutoSuggested = false;
+          saveBtn.disabled = false;
+          saveBtn.textContent = originalBtnText;
+          setSaveProgress(null);
+          alert(`Registration number ${baseProductCode} is already used by "${dupMatches[0].name || 'another item'}".\n\nA new number has been filled in for you: ${suggestion}. Review it and save again.`);
+          return;
+        }
+      }
+    }
     // Every save here rebuilds the item from form fields — fields with no
     // form input of their own (set programmatically elsewhere, like the
     // eBay listing metadata written by publishItemToEbayCore) must be
@@ -6142,6 +6196,14 @@ Be accurate and honest — never invent brand, material, or condition details th
         <div id="ebaySetupResult" style="margin-top:10px;"></div>
       </div>
 
+      <!-- DUPLICATE REGISTRATION NUMBERS (temporary tool) -->
+      <div class="settings-section">
+        <h3>Duplicate registration numbers</h3>
+        <div class="ss-desc">Temporary tool: checks the loaded catalog for two items sharing the exact same registration/product code (e.g. two items both saved as #0089) — can happen when two devices add an item at almost the same time. New items now reserve their number from a shared counter so this shouldn't happen going forward; use this to find and fix any that already slipped through.</div>
+        <button class="settings-save-btn" onclick="runDuplicateProductCodeAudit()">🔍 Check for duplicate numbers</button>
+        <div id="duplicateCodesResult" style="margin-top:10px;"></div>
+      </div>
+
       <!-- EBAY LISTING AUDIT -->
       <div class="settings-section">
         <h3>eBay listing audit</h3>
@@ -6496,6 +6558,9 @@ EBAY_MERCHANT_LOCATION_KEY=${escapeHtml(data.results.merchantLocationKey)}</div>
   window.runEbayAudit = runEbayAudit;
   window.runListFulfillmentPolicies = runListFulfillmentPolicies;
   window.runBackfillDescriptions = runBackfillDescriptions;
+  // See modules/product-code-bank.js — same reasoning as above.
+  window.runDuplicateProductCodeAudit = runDuplicateProductCodeAudit;
+  window.renumberDuplicateProductCode = renumberDuplicateProductCode;
 
   // ---------- PLATFORMS SETTINGS (Settings → Platforms) ----------
   // Which platform's tiered-fee editor is expanded — survives re-renders

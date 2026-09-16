@@ -4,7 +4,10 @@
 // verbatim.
 import { PRESET_CATEGORIES, PRESET_COLORS, PRESET_CLOTHING_TYPES, PRESET_SIZES_BY_TYPE } from './constants.js';
 
-export function nextProductCode(items){
+// Extracted out of nextProductCode() so modules/product-code-bank.js can use
+// the exact same "highest number actually in use" logic as a floor for its
+// atomic counter, without duplicating the parsing rule.
+export function maxProductCodeNumber(items){
   let maxNum = 0;
   items.forEach(i => {
     // Quantity > 1 items are tagged "#4578-2" etc. — strip that duplicate
@@ -17,7 +20,11 @@ export function nextProductCode(items){
       if (n > maxNum) maxNum = n;
     }
   });
-  return '#' + String(maxNum + 1).padStart(4, '0');
+  return maxNum;
+}
+
+export function nextProductCode(items){
+  return '#' + String(maxProductCodeNumber(items) + 1).padStart(4, '0');
 }
 
 export function getAllStorageBoxes(items){
