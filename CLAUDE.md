@@ -1322,7 +1322,31 @@ next minor bump:
   print** — verified via `node --check` and a clean `vite build` only;
   this time there's no separate math to get subtly wrong, since it's
   the exact same rendering code the bulk print path already uses daily.
-- **v3.13.93** — Vitor confirmed he did a real hard reload after v3.13.92
+- **v3.13.100** — Confirmed v3.13.99's batch-print unification actually
+  looked right on a real label (first real "perfeito" of this whole
+  label-printing thread). Vitor asked for the print button to also be
+  reachable straight from the item modal itself — specifically so a
+  brand-new item can be labeled right after saving, without closing the
+  modal to find the card's printer icon in Catalog. Added a
+  "🖨️ Print label" button (`#printLabelItemBtn`, `index.html`) to the
+  item modal, shown/hidden with the exact same `item && !isDuplicate`
+  gate `#duplicateItemBtn`/`#deleteItemBtn` already use in `openModal()`
+  — hidden for a never-saved item (nothing to print a code for yet),
+  and appears automatically once it's a real saved item. That "once
+  saved" part needed no extra plumbing: `saveItemFlow()` already
+  reopens the modal via `openModal(lastSaved, false, {...})` right after
+  a manual "Save item" click (so "List on eBay" works without an extra
+  click to reopen — see that function's own comment), so a brand-new
+  item saved for the first time gets this button the moment the save
+  completes, same modal, no extra step. Its click handler calls
+  `openBatchLabelModal([item])` — the exact same batch-of-one entry
+  point the Catalog card's print button and Select → "Imprimir
+  etiquetas" now share (v3.13.99) — so the result is guaranteed
+  identical, not a third implementation to keep in sync. No z-index work
+  needed: `#printLabelOverlay` already stacks above the item modal
+  (raised to 150 back in v3.13.87 for Stock Transfer's own
+  print-after-move-on-top-of-modal case), so it opens cleanly on top of
+  the still-open item modal here too.
   and still didn't see the "Already listed on eBay" link on reopen —
   bumped the version number specifically to test whether his device is
   actually receiving new deploys at all (a version-bump-only change, no
