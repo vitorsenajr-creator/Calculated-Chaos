@@ -1450,6 +1450,32 @@ next minor bump:
   `vite build`, and hand-tracing that code+box+name can no longer sum
   past `maxBlockIn` for the exact item/label from the cropped-box photo;
   watch the next print to confirm the box line prints in full.
+- **v3.13.105** — v3.13.104's "box never shrinks" fix still cut the box
+  line off on a real print, and Vitor asked to also shrink the code font
+  by 15%. Real bug in v3.13.104's own math: `nameBudgetIn` was computed as
+  `Math.max(0.11 * lineHeightMult, maxBlockIn - codeFontIn - ...)` — that
+  `Math.max` floor forced a nonzero minimum budget for the name even when
+  `codeFontIn` (now capped much higher since v3.13.103,
+  `Math.min(1.4, h*0.55)`) plus the box already consumed all of
+  `maxBlockIn` on its own, so the name's shrink loop was told it had more
+  room than actually existed and rendered past the label's real bottom
+  edge, pushing the box line off it — the exact "still cutting off the
+  box" symptom, on a label where the code alone was now large enough to
+  trigger it. Fixed in `measureItemLabelFonts()` (`src/main.js`) by
+  dropping that `Math.max` floor entirely — `nameBudgetIn` is now the
+  plain (possibly small or negative) leftover space, and the name's own
+  independent `while (fontIn > 0.11)` loop is the only remaining floor,
+  so code+box's real footprint can never be understated. Also reduced the
+  code font's cap by exactly 15% per Vitor's request:
+  `Math.min(1.4, h*0.55)` → `Math.min(1.19, h*0.4675)` — still generous
+  (the SKU stays the most prominent element on the label) but leaves
+  proportionally more guaranteed room for the name+box block below it,
+  which should make the box cutoff far less likely to recur even on a
+  longer item name. **Not yet re-tested against a real print** — verified
+  via `node --check` and a clean `vite build` only; watch the next real
+  print (ideally the same item/label from the last two rounds) to confirm
+  the box line finally prints in full and the new code/name/box balance
+  looks right.
 - **v3.13.93** — Vitor confirmed he did a real hard reload after v3.13.92
   and still didn't see the "Already listed on eBay" link on reopen —
   bumped the version number specifically to test whether his device is
