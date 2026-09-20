@@ -69,7 +69,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.103';
+  const APP_VERSION = 'v3.13.104';
   const APP_VERSION_DATE = '2026-09-20';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -2320,20 +2320,6 @@ export const app = (function(){
       if (current) lines.push(current);
       return lines;
     }
-    function fitWrappedFontIn(text, family, weight, maxFontIn, minFontIn, targetLines){
-      let fontIn = maxFontIn;
-      let lines;
-      while (fontIn > minFontIn){
-        ctx.font = `${weight} ${fontIn * dpi}px ${family}`;
-        lines = wrapCanvasText(text, maxWidth);
-        if (lines.length <= targetLines) break;
-        fontIn -= 0.02;
-      }
-      ctx.font = `${weight} ${fontIn * dpi}px ${family}`;
-      lines = wrapCanvasText(text, maxWidth);
-      return { fontIn, lines };
-    }
-
     const fields = appSettings.labelFields || {};
     const code = item.productCode || '';
     const secondaryParts = [];
@@ -2345,31 +2331,37 @@ export const app = (function(){
     const boxText = (fields.box !== false && item.storageBox) ? ('📦 ' + item.storageBox) : '';
 
     // Code is the most important thing to scan at a glance, so its cap is
-    // now generous enough to actually use most of a tall/wide label instead
-    // of stopping at a fixed, modest ceiling — width (via fitFontIn's own
-    // maxWidth check) and the maxBlockIn scale-down below still keep it
-    // from ever overflowing the label. Name's cap is nudged up and box's
-    // nudged down from each other so the name reads as clearly, but only
-    // slightly, bigger than the storage box line.
+    // generous enough to actually use most of a tall/wide label instead of
+    // stopping at a fixed, modest ceiling — bounded only by its own width
+    // fit (fitFontIn's maxWidth check). Box's cap is fixed and, unlike the
+    // name, is never adjusted for anything else on the label — per Vitor's
+    // request, the storage box's own text always gets the same treatment
+    // regardless of how long the item name happens to be.
     let codeFontIn = fitFontIn(code, "'JetBrains Mono', monospace", 700, Math.min(1.4, h * 0.55), 0.14);
-    let secFontIn = 0;
-    if (secondary){
-      secFontIn = fitWrappedFontIn(secondary, "'Inter', sans-serif", 700, Math.min(0.42, h * 0.19), 0.11, 3).fontIn;
-    }
     let boxFontIn = boxText ? fitFontIn(boxText, "'Inter', sans-serif", 600, Math.min(0.16, h * 0.075), 0.09) : 0;
 
-    // Same "shrink to fit the slot" scale-down every fitting function here
-    // applies — ensures no single item's own natural size ever exceeds its slot,
-    // before we even get to picking the shared minimum across the batch.
     const gapIn = 0.035, lineHeightMult = 1.15;
-    const secBlockIn = secondary ? secFontIn * lineHeightMult * 2 : 0; // worst case: 2 wrapped lines
-    const totalIn = codeFontIn + (secondary ? gapIn + secBlockIn : 0) + (boxText ? gapIn + boxFontIn : 0);
     const maxBlockIn = h * 0.92;
-    if (totalIn > maxBlockIn){
-      const scale = maxBlockIn / totalIn;
-      codeFontIn = Math.max(0.14, codeFontIn * scale);
-      secFontIn = secondary ? Math.max(0.08, secFontIn * scale) : 0;
-      boxFontIn = boxText ? Math.max(0.08, boxFontIn * scale) : 0;
+    // Whatever vertical room code + box (fixed above) don't use is what the
+    // name gets to work with — it's the only one of the three that flexes,
+    // shrinking (and, since a smaller font fits more characters per line,
+    // often needing fewer wrapped lines too) until its own block actually
+    // fits that leftover space. A floor of one line at the minimum font
+    // guarantees this never goes negative even on an unusually short label.
+    const nameBudgetIn = Math.max(0.11 * lineHeightMult,
+      maxBlockIn - codeFontIn - (boxText ? gapIn + boxFontIn : 0) - (secondary ? gapIn : 0));
+
+    let secFontIn = 0;
+    if (secondary){
+      let fontIn = Math.min(0.38, h * 0.17);
+      let lines;
+      while (fontIn > 0.11){
+        ctx.font = `700 ${fontIn * dpi}px 'Inter', sans-serif`;
+        lines = wrapCanvasText(secondary, maxWidth);
+        if (lines.length <= 3 && fontIn * lineHeightMult * lines.length <= nameBudgetIn) break;
+        fontIn -= 0.02;
+      }
+      secFontIn = fontIn;
     }
 
     return { code, secondary, boxText, codeFontIn, secFontIn, boxFontIn };

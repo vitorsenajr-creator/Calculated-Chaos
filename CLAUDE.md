@@ -1418,6 +1418,38 @@ next minor bump:
   clean `vite build`, and hand-tracing the font-fit arithmetic for the
   100×50mm label from the last real test photo; watch the next print to
   confirm the new proportions read the way he wants.
+- **v3.13.104** — v3.13.103's bigger code font made the storage box line
+  get cut off on a real print. Root cause: `measureItemLabelFonts()`'s
+  overflow safety net (the block that scales code/name/box down together
+  when their combined height would exceed `maxBlockIn`) estimated the
+  name's height using a hardcoded "worst case: 2 wrapped lines" even
+  though the name's own wrap target is 3 lines — a 3-line name (like this
+  one) made the REAL total taller than what the safety check saw, so it
+  never triggered, and `drawBatchItemAt` (which re-wraps with the true
+  line count when actually drawing) ended up needing more height than the
+  slot had, pushing the box line past the bottom edge. Rather than just
+  fixing that estimate, implemented what Vitor actually asked for: the
+  box's size should never depend on the item name at all, only the name
+  should flex to fit whatever room is left. Reworked
+  `measureItemLabelFonts()` so code and box are each sized independently
+  (width-fit only, exactly as before) and are never scaled down for
+  anything else afterward; the name now gets whatever vertical budget
+  remains after code + box are reserved (`nameBudgetIn`), and its own
+  fitting loop shrinks it — re-wrapping at each candidate size, since a
+  smaller font can also mean fewer lines — until its wrapped block
+  actually fits that leftover space (floored at one line at the minimum
+  font, so it never goes negative). This makes the geometry
+  self-consistent by construction: code + gap + secBlock + gap + box can
+  no longer exceed `maxBlockIn`, so there's no separate overflow check
+  needed anymore (removed the old proportional-scale-down block and the
+  now-dead `fitWrappedFontIn` helper it was the only caller of). Also
+  nudged the name's own starting cap down slightly per Vitor's separate
+  ask (`Math.min(0.42, h*0.19)` → `Math.min(0.38, h*0.17)`), on top of
+  the space it may lose to the budget calculation. **Not yet re-tested
+  against a real print** — verified via `node --check`, a clean
+  `vite build`, and hand-tracing that code+box+name can no longer sum
+  past `maxBlockIn` for the exact item/label from the cropped-box photo;
+  watch the next print to confirm the box line prints in full.
 - **v3.13.93** — Vitor confirmed he did a real hard reload after v3.13.92
   and still didn't see the "Already listed on eBay" link on reopen —
   bumped the version number specifically to test whether his device is
