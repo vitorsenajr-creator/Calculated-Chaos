@@ -1284,6 +1284,44 @@ next minor bump:
   v3.13.97, but this time verified by actually tracing through the
   font-fit arithmetic by hand for both label sizes rather than trusting
   the code alone, given how wrong the last "should be fine" turned out.
+- **v3.13.99** — After two straight bad rounds tuning the single-item
+  print pipeline's own font/placement math (v3.13.97, v3.13.98), Vitor
+  asked for the card's single "🖨️" print button to produce EXACTLY the
+  same result as Catalog's Select → "Imprimir etiquetas" bulk flow,
+  rather than chasing more one-off fixes on a second implementation.
+  Those two paths had always been genuinely separate code: the card's
+  button called `openPrintLabelModal(item)` (bottom-anchored block with
+  top/bottom cut-guide rules, `drawItemLabelOnto`/`drawLabelToCanvas` on
+  the canvas side) while Select → print labels called
+  `openBatchLabelModal(itemsArr)` (each item centered in its own
+  `BATCH_LABEL_HEIGHT_IN`-tall slot, no rules, `drawBatchItemAt`/
+  `drawBatchLabelToCanvas`) — the item-mode one is what v3.13.97/98 kept
+  fighting with. Rather than a third attempt at that math, made the
+  card's print button (and Stock Transfer's "also print this item's
+  label after moving it" checkbox, the only other single-item print
+  entry point) call `openBatchLabelModal([item])` — a "batch" of exactly
+  one item — so a single-item print is now, literally, the same function
+  call the bulk flow makes for one selected item; there is no longer a
+  second implementation to drift out of sync. Since the item-mode
+  pipeline became fully unreachable, deleted it outright rather than
+  leave dead code sitting next to the one now actually used:
+  `openPrintLabelModal`, `renderItemLabelPreview`, `drawItemLabelOnto`,
+  `drawLabelToCanvas`, `printLabelItem`, and the `'item'`
+  branches/guards in the shared Print/Save-image button handlers and
+  `printMode`'s possible values. The one real feature that lived only in
+  the deleted item-mode path — the "⚠️ Flag for extra outbound
+  inspection" checkbox (`shipInspectionFlag`, v3.13.59), which has no
+  other way to be set anywhere in the app — was ported onto
+  `openBatchLabelModal` instead of being lost: the checkbox row now
+  shows (and is wired to save) whenever the "batch" being printed is
+  exactly one item, and `drawBatchLabelToCanvas` (which previously never
+  drew this flag at all, since only the item-mode canvas path used to
+  handle it) now draws the ⚠️ icon top-right of a flagged item's strip,
+  matching what the shared `buildLabelInnerHtml` markup already rendered
+  for the on-screen/browser-print path. **Not yet tested against a real
+  print** — verified via `node --check` and a clean `vite build` only;
+  this time there's no separate math to get subtly wrong, since it's
+  the exact same rendering code the bulk print path already uses daily.
 - **v3.13.93** — Vitor confirmed he did a real hard reload after v3.13.92
   and still didn't see the "Already listed on eBay" link on reopen —
   bumped the version number specifically to test whether his device is
