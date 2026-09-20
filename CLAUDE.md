@@ -1347,6 +1347,20 @@ next minor bump:
   (raised to 150 back in v3.13.87 for Stock Transfer's own
   print-after-move-on-top-of-modal case), so it opens cleanly on top of
   the still-open item modal here too.
+- **v3.13.101** — v3.13.100's new "🖨️ Print label" button worked but
+  looked wrong — it used `.btn-ghost` (`background:transparent;
+  border-color:transparent`, `src/style.css`), the same class
+  `#duplicateItemBtn` uses, which reads fine for Duplicate since it sits
+  right next to the solid red Delete button in the same row and still
+  looks like part of a button row overall. Alone, full-width, in its own
+  row, ghost styling has no visible button chrome at all — it rendered
+  as plain floating text with an icon, not a button. Switched to
+  `.btn-secondary` (white background, bordered, same look as the Cancel
+  button) so it actually reads as a tappable button; also dropped the
+  redundant inline `width:100%` (unnecessary — `.btn`'s own `flex:1`
+  already fills the row since it's the only button in it, same as how
+  `#duplicateItemBtn`/`#deleteItemBtn`'s row already works).
+- **v3.13.93** — Vitor confirmed he did a real hard reload after v3.13.92
   and still didn't see the "Already listed on eBay" link on reopen —
   bumped the version number specifically to test whether his device is
   actually receiving new deploys at all (a version-bump-only change, no
