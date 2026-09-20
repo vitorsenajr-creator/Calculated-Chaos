@@ -1252,6 +1252,38 @@ next minor bump:
   consistency. **Not yet re-tested against a real print** — verified via
   `node --check` and a clean `vite build` only; watch the next real
   50×100mm print to confirm the new balance actually reads better.
+- **v3.13.98** — v3.13.97 made things worse, not better, on a real test:
+  the SKU code vanished off the label entirely and the item-name text
+  came out oversized and unbalanced ("a distribuição de tamanho ficou
+  ridícula"). Real bug, and it wasn't specific to the 50×100mm label —
+  `drawItemLabelOnto`'s scale-down branch (the one that shrinks
+  code/name/box fonts back down when their combined height exceeds
+  `maxBlockIn`) reassigns `codeFontIn`/`secFontIn`/`boxFontIn` to the
+  scaled-down sizes but never recomputed `totalIn` from them — the block
+  height used right after to position the top/bottom rules
+  (`blockOuterIn`, `topLineY`) stayed based on the ORIGINAL, larger,
+  pre-scale total. On a label where this branch fires (which v3.13.97's
+  bigger caps/floors/line-count made much more likely to trigger, even on
+  the plain default 2.25×1.25in label), that overstates the reserved
+  block height, which can push `topLineY` — and the code text drawn right
+  below it, the very first thing painted — above y=0, off the top of the
+  canvas entirely. That's exactly "the item number disappeared": it was
+  being drawn, just off-canvas. Fixed by recomputing `totalIn` from the
+  actual (scaled) font sizes before it's used for placement. Also dialed
+  back v3.13.97's other numbers, which were too aggressive for the
+  default small label size even once the placement bug is fixed: the
+  name/color line's max cap `h*0.18`→`h*0.16` (0.4in→0.35in), floor
+  0.11in→0.09in, wrap target 4 lines→3; box text floor 0.09in→0.08in.
+  Applied to both the canvas path and the matching CSS preview/print path
+  (`renderItemLabelPreview`) for consistency. Confirmed by hand-computing
+  the actual font-fit math for both a default 2.25×1.25in label and a
+  50×100mm one: the default label's code text now lands well inside the
+  canvas (previously landed above y=0), and the 50×100mm label no longer
+  even needs the scale-down branch, so it isn't exposed to this bug at
+  all. **Still not tested against a real print** — same caveat as
+  v3.13.97, but this time verified by actually tracing through the
+  font-fit arithmetic by hand for both label sizes rather than trusting
+  the code alone, given how wrong the last "should be fine" turned out.
 - **v3.13.93** — Vitor confirmed he did a real hard reload after v3.13.92
   and still didn't see the "Already listed on eBay" link on reopen —
   bumped the version number specifically to test whether his device is
