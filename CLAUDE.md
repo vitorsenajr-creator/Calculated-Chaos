@@ -1216,6 +1216,42 @@ next minor bump:
   really a transient-read-failure case rather than something else
   clearing the doc directly — flagged to watch whether settings ever
   reset again now that this specific path can't cause it.
+- **v3.13.97** — Vitor flagged the thermal item label's font sizes and
+  distribution looked off on a real print (photo from the "Save image"
+  flow on a 50×100mm label): the SKU code dominated the label while the
+  item name was squeezed to a near-unreadable size across many short
+  wrapped lines, and the content block filled barely a third of the tall
+  label with blank space above it. Root cause: two separate but related
+  sizing choices in `drawItemLabelOnto`/`measureItemLabelFonts` (the
+  canvas "Save image" path) and the matching CSS-preview path
+  (`renderItemLabelPreview`/`openBoxLabelModal`), both in `main.js` — (1)
+  the code's max font cap (`h*0.24`, up to 0.6in) was much larger than
+  the name/color line's cap (`h*0.13`, up to 0.3in), and the name's
+  wrapping logic (`fitWrappedFontIn`) forced itself down to its 0.08in
+  floor just to squeeze into a hardcoded 2-line target — on a narrow
+  (50mm-wide) label a long name still needed more than 2 lines even at
+  that floor, so it ended up both tiny AND wrapped across 4+ lines; (2)
+  `maxBlockIn = h / 3` (added in v3.13.60 for a large sheet meant to be
+  trimmed after printing) was being applied to ordinary single-item
+  labels too, capping the whole content block to a third of the label's
+  height regardless of how tall the label itself was. Fixed by: lowering
+  the code's cap (`h*0.2`, up to 0.5in) and raising the name's cap
+  (`h*0.18`, up to 0.4in) so the two are closer in scale instead of one
+  dwarfing the other; raising the name's floor from 0.08in to 0.11in and
+  its wrap target from 2 lines to 4 (3 for the shared batch-strip sizing
+  in `measureItemLabelFonts`) so it settles on a bigger, more legible
+  font across a few more short lines instead of being crushed to the
+  floor to force-fit 2; and raising `maxBlockIn` from `h/3` to `h*0.55`
+  so the block can actually use more of a tall label instead of being
+  needlessly capped small and left surrounded by blank space (this only
+  ever shrinks an over-height block, never forces one to expand, so the
+  existing default 2.25×1.25in label is unaffected). Same numbers applied
+  to both the canvas ("Save image") path and the CSS browser-preview/
+  print path so they stay in sync, plus the box label's own (less
+  critical, since it's just a date) secondary-line sizing for
+  consistency. **Not yet re-tested against a real print** — verified via
+  `node --check` and a clean `vite build` only; watch the next real
+  50×100mm print to confirm the new balance actually reads better.
 - **v3.13.93** — Vitor confirmed he did a real hard reload after v3.13.92
   and still didn't see the "Already listed on eBay" link on reopen —
   bumped the version number specifically to test whether his device is

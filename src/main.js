@@ -69,8 +69,8 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.96';
-  const APP_VERSION_DATE = '2026-09-16';
+  const APP_VERSION = 'v3.13.97';
+  const APP_VERSION_DATE = '2026-09-20';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
   let itemsLoaded = false; // true once the initial Firestore fetch in loadItems() resolves
@@ -2347,20 +2347,31 @@ export const app = (function(){
     // box (3rd) — the whole block sits in the bottom third of the label,
     // bounded above and below by a thin rule (also a cut guide on a larger
     // sheet meant for trimming).
-    let codeFontIn = fitFontIn(code, "'JetBrains Mono', monospace", 700, Math.min(0.6, h * 0.24), 0.14);
+    // Code capped more modestly (was up to 0.6in/24% of h) so it doesn't
+    // dominate the name/color line so heavily on a tall narrow label —
+    // still the biggest element, just less lopsided. Secondary's own cap
+    // raised to match, its floor raised from 0.08in (unreadably small once
+    // printed) to 0.11in, and targetLines raised from 2 to 4 so a long
+    // item name settles on a bigger font across more short lines instead
+    // of being crushed down to the floor just to force-fit 2 lines.
+    let codeFontIn = fitFontIn(code, "'JetBrains Mono', monospace", 700, Math.min(0.5, h * 0.2), 0.14);
     let secFontIn = 0, secLines = [];
     if (secondary){
-      const res = fitWrappedFontIn(secondary, "'Inter', sans-serif", 700, Math.min(0.3, h * 0.13), 0.08, 2);
+      const res = fitWrappedFontIn(secondary, "'Inter', sans-serif", 700, Math.min(0.4, h * 0.18), 0.11, 4);
       secFontIn = res.fontIn;
       secLines = res.lines;
     }
-    let boxFontIn = boxText ? fitFontIn(boxText, "'Inter', sans-serif", 600, Math.min(0.2, h * 0.09), 0.08) : 0;
+    let boxFontIn = boxText ? fitFontIn(boxText, "'Inter', sans-serif", 600, Math.min(0.2, h * 0.09), 0.09) : 0;
     const gapIn = 0.035;
     const lineHeightMult = 1.15;
 
     let secBlockIn = secLines.length ? secFontIn * lineHeightMult * secLines.length : 0;
     let totalIn = codeFontIn + (secLines.length ? gapIn + secBlockIn : 0) + (boxText ? gapIn + boxFontIn : 0);
-    const maxBlockIn = h / 3;
+    // Was h/3 — wasted roughly two-thirds of a tall label as blank space
+    // above the bottom-anchored block. Raised so the block can actually
+    // use most of the label instead of being squeezed tiny for no reason;
+    // this only ever shrinks an over-height block, never forces expansion.
+    const maxBlockIn = h * 0.55;
     if (totalIn > maxBlockIn){
       const scale = maxBlockIn / totalIn;
       codeFontIn = Math.max(0.14, codeFontIn * scale);
@@ -2485,12 +2496,12 @@ export const app = (function(){
     const secondary = secondaryParts.join(' · ');
     const boxText = (fields.box !== false && item.storageBox) ? ('📦 ' + item.storageBox) : '';
 
-    let codeFontIn = fitFontIn(code, "'JetBrains Mono', monospace", 700, Math.min(0.6, h * 0.24), 0.14);
+    let codeFontIn = fitFontIn(code, "'JetBrains Mono', monospace", 700, Math.min(0.5, h * 0.2), 0.14);
     let secFontIn = 0;
     if (secondary){
-      secFontIn = fitWrappedFontIn(secondary, "'Inter', sans-serif", 700, Math.min(0.3, h * 0.13), 0.08, 2).fontIn;
+      secFontIn = fitWrappedFontIn(secondary, "'Inter', sans-serif", 700, Math.min(0.4, h * 0.18), 0.11, 3).fontIn;
     }
-    let boxFontIn = boxText ? fitFontIn(boxText, "'Inter', sans-serif", 600, Math.min(0.2, h * 0.09), 0.08) : 0;
+    let boxFontIn = boxText ? fitFontIn(boxText, "'Inter', sans-serif", 600, Math.min(0.2, h * 0.09), 0.09) : 0;
 
     // Same "shrink to fit the slot" scale-down drawItemLabelOnto applies —
     // ensures no single item's own natural size ever exceeds its slot,
@@ -2742,9 +2753,9 @@ export const app = (function(){
     const codeEl = sheet.querySelector('.label-code');
     const secEl = sheet.querySelector('.label-secondary');
     const boxEl = sheet.querySelector('.label-box');
-    shrinkToFit(codeEl, Math.min(0.6, h * 0.24), 0.14);
-    shrinkWrappedToFit(secEl, Math.min(0.3, h * 0.13), 0.08, 2);
-    shrinkToFit(boxEl, Math.min(0.2, h * 0.09), 0.08);
+    shrinkToFit(codeEl, Math.min(0.5, h * 0.2), 0.14);
+    shrinkWrappedToFit(secEl, Math.min(0.4, h * 0.18), 0.11, 4);
+    shrinkToFit(boxEl, Math.min(0.2, h * 0.09), 0.09);
   }
 
   function openPrintLabelModal(item){
@@ -2782,8 +2793,8 @@ export const app = (function(){
     wrap.innerHTML = `<div class="label-sheet" style="width:${w}in; height:${h}in;">${buildBoxLabelInnerHtml(box)}</div>`;
 
     const sheet = wrap.querySelector('.label-sheet');
-    shrinkToFit(sheet.querySelector('.label-code'), Math.min(0.6, h * 0.24), 0.14);
-    shrinkWrappedToFit(sheet.querySelector('.label-secondary'), Math.min(0.3, h * 0.13), 0.08, 2);
+    shrinkToFit(sheet.querySelector('.label-code'), Math.min(0.5, h * 0.2), 0.14);
+    shrinkWrappedToFit(sheet.querySelector('.label-secondary'), Math.min(0.35, h * 0.15), 0.1, 2);
 
     const flagRow = document.getElementById('printLabelFlagRow');
     if (flagRow) flagRow.style.display = 'none';
