@@ -1392,6 +1392,32 @@ next minor bump:
   `node --check` and a clean `vite build` only; watch the next single-item
   print to confirm it comes out at her actual configured label height
   again, not a fixed 2in.
+- **v3.13.103** — With the height bug (v3.13.102) fixed and the layout
+  itself confirmed working (v3.13.100), Vitor asked for a hierarchy
+  tweak on a real label: the item name should read slightly bigger than
+  the storage box line, and the SKU code should be MUCH bigger, using
+  as much of the available space as it reasonably can. Since v3.13.99
+  unified single-item printing into the batch pipeline, there's now only
+  one place that decides these font sizes — `measureItemLabelFonts()` —
+  so this was a one-function change instead of the usual two-path
+  (canvas + CSS preview) update. The code's max cap was still the
+  original modest ceiling from way back (`Math.min(0.5, h*0.2)`,
+  ~0.39in on the label in this test) even though the actual available
+  height had plenty of room left over — raised it to
+  `Math.min(1.4, h*0.55)`, more than doubling the real font it landed on
+  in testing (~0.39in → ~0.83in on a 100×50mm label); it's still bounded
+  by the code's own width fit and the existing `maxBlockIn` (92% of `h`)
+  scale-down safety net, so it can't run off a narrow or short label —
+  those clamp it down proportionally along with the name/box sizes if
+  the total would overflow, preserving the same relative hierarchy
+  rather than letting the code alone stay huge while the rest shrinks.
+  Widened the name/box gap in the same direction requested: name's cap
+  `Math.min(0.4, h*0.18)` → `Math.min(0.42, h*0.19)`, box's cap
+  `Math.min(0.2, h*0.09)` → `Math.min(0.16, h*0.075)`. **Not yet
+  re-tested against a real print** — verified via `node --check`, a
+  clean `vite build`, and hand-tracing the font-fit arithmetic for the
+  100×50mm label from the last real test photo; watch the next print to
+  confirm the new proportions read the way he wants.
 - **v3.13.93** — Vitor confirmed he did a real hard reload after v3.13.92
   and still didn't see the "Already listed on eBay" link on reopen —
   bumped the version number specifically to test whether his device is
