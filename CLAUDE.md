@@ -1360,6 +1360,38 @@ next minor bump:
   redundant inline `width:100%` (unnecessary — `.btn`'s own `flex:1`
   already fills the row since it's the only button in it, same as how
   `#duplicateItemBtn`/`#deleteItemBtn`'s row already works).
+- **v3.13.102** — Vitor asked why the printed label's proportions seemed
+  to change depending on when/where it was printed from — a real bug,
+  not a per-device thing. Root cause: `BATCH_LABEL_HEIGHT_IN` (a fixed
+  2in constant, "so batch labels always come out a known, predictable
+  size" regardless of her Settings → Label printing height) was always
+  meant for a genuine multi-item sheet (2-3 items stacked on one strip
+  each) — but since v3.13.99 unified the single-item print button into
+  the same `openBatchLabelModal`/`drawBatchLabelToCanvas` pipeline (a
+  "batch" of exactly one item), that single-item case silently inherited
+  the fixed 2in height too, completely ignoring her real configured
+  `appSettings.labelHeightIn`. So a single-item print's physical shape
+  now depended on which of the two `h` sources happened to apply, not on
+  what she'd actually set the label size to — the "changes depending on
+  device" symptom was really "changes depending on whether this specific
+  print went through the old (correct) single-item path or the new
+  (buggy) batch-of-one path," and since v3.13.99 every single-item print
+  goes through the latter. Fixed `openBatchLabelModal`, `drawBatch
+  LabelToCanvas`, and the shared Print-button handler's own `h`
+  calculation to use `appSettings.labelHeightIn` whenever the batch is
+  exactly one item, falling back to the fixed `BATCH_LABEL_HEIGHT_IN`
+  slot only for an actual multi-item sheet (unchanged there — that
+  fixed-slot behavior is still correct for stacking 2-3 items on one
+  print). Also had `buildBatchLabelInnerHtml()` (the HTML/CSS preview
+  path) take the real strip height as a parameter instead of hardcoding
+  `BATCH_LABEL_HEIGHT_IN` internally, so the on-screen preview and the
+  saved PNG use the same number in the single-item case too — before
+  this fix, the preview's own inner strip div was silently sized to 2in
+  even where the outer wrapper below it wasn't, a second copy of the
+  exact same bug. **Not yet tested against a real print** — verified via
+  `node --check` and a clean `vite build` only; watch the next single-item
+  print to confirm it comes out at her actual configured label height
+  again, not a fixed 2in.
 - **v3.13.93** — Vitor confirmed he did a real hard reload after v3.13.92
   and still didn't see the "Already listed on eBay" link on reopen —
   bumped the version number specifically to test whether his device is

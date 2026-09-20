@@ -69,7 +69,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.101';
+  const APP_VERSION = 'v3.13.102';
   const APP_VERSION_DATE = '2026-09-20';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -2215,9 +2215,9 @@ export const app = (function(){
   // .label-sheet-batch CSS), not a rule pair around every item. Font sizes
   // are applied afterward by openBatchLabelModal (shared across the whole
   // batch, not each strip fitting its own text independently).
-  function buildBatchLabelInnerHtml(itemsArr){
+  function buildBatchLabelInnerHtml(itemsArr, stripHeightIn){
     return itemsArr.map(item =>
-      `<div class="label-batch-strip" style="height:${BATCH_LABEL_HEIGHT_IN}in;">${buildLabelInnerHtml(item)}</div>`
+      `<div class="label-batch-strip" style="height:${stripHeightIn}in;">${buildLabelInnerHtml(item)}</div>`
     ).join('');
   }
 
@@ -2499,10 +2499,17 @@ export const app = (function(){
 
   // Every item gets the same fixed BATCH_LABEL_HEIGHT_IN slot and the same
   // shared font sizes (see computeSharedBatchFonts) — a single cut line
-  // between consecutive items, no rule pair around each one.
+  // between consecutive items, no rule pair around each one. That fixed
+  // slot only makes sense for a real multi-item sheet, though — for the
+  // single-item case (the card's print button, item modal's print button,
+  // and Stock Transfer's print-after-move all route through here as a
+  // "batch" of one, per v3.13.99) it silently overrode her actual
+  // configured label height with an unrelated constant, changing the
+  // physical proportions of what got printed. Use her real setting when
+  // there's only one item, same as the pre-v3.13.99 single-item path did.
   function drawBatchLabelToCanvas(itemsArr){
     const w = appSettings.labelWidthIn || 2.25;
-    const h = BATCH_LABEL_HEIGHT_IN;
+    const h = itemsArr.length === 1 ? (appSettings.labelHeightIn || 1.25) : BATCH_LABEL_HEIGHT_IN;
     const dpi = 300;
 
     const scratch = document.createElement('canvas');
@@ -2649,7 +2656,9 @@ export const app = (function(){
     printMode = 'batch';
     printBatchItems = itemsArr;
     const w = appSettings.labelWidthIn || 2.25;
-    const h = BATCH_LABEL_HEIGHT_IN;
+    // Single item ("batch" of one) uses her real configured label height,
+    // not the fixed multi-item strip slot — see drawBatchLabelToCanvas.
+    const h = itemsArr.length === 1 ? (appSettings.labelHeightIn || 1.25) : BATCH_LABEL_HEIGHT_IN;
     const dpi = 300;
 
     // Measure once to get font sizes shared by every item in this batch
@@ -2662,7 +2671,7 @@ export const app = (function(){
       computeSharedBatchFonts(scratch.getContext('2d'), itemsArr, w, dpi, h);
 
     const wrap = document.getElementById('labelPreviewWrap');
-    wrap.innerHTML = `<div class="label-sheet label-sheet-batch" style="width:${w}in; height:${h * itemsArr.length}in;">${buildBatchLabelInnerHtml(itemsArr)}</div>`;
+    wrap.innerHTML = `<div class="label-sheet label-sheet-batch" style="width:${w}in; height:${h * itemsArr.length}in;">${buildBatchLabelInnerHtml(itemsArr, h)}</div>`;
 
     wrap.querySelectorAll('.label-batch-strip').forEach(strip => {
       const codeEl = strip.querySelector('.label-code');
@@ -3085,7 +3094,9 @@ export const app = (function(){
     if (printMode === 'box' && !printBoxData) return;
     const w = appSettings.labelWidthIn || 2.25;
     const previewSheet = document.querySelector('#labelPreviewWrap .label-sheet');
-    const h = printMode === 'batch' ? BATCH_LABEL_HEIGHT_IN * printBatchItems.length : (appSettings.labelHeightIn || 1.25);
+    const h = printMode === 'batch'
+      ? (printBatchItems.length === 1 ? (appSettings.labelHeightIn || 1.25) : BATCH_LABEL_HEIGHT_IN * printBatchItems.length)
+      : (appSettings.labelHeightIn || 1.25);
 
     // Set the physical page size to match the configured label so the
     // thermal printer doesn't get sent a full-sheet page.
