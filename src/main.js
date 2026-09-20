@@ -69,7 +69,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.98';
+  const APP_VERSION = 'v3.13.99';
   const APP_VERSION_DATE = '2026-09-20';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -944,7 +944,12 @@ export const app = (function(){
         const printBtn = e.target.closest('[data-action="print-label"]');
         if (printBtn){
           const item = items.find(i => i.id === printBtn.dataset.id);
-          if (item) openPrintLabelModal(item);
+          // A "batch" of exactly one item — same code path, same visual
+          // result, as selecting this one item and using "Print labels".
+          // The single-item print pipeline this used to call had its own
+          // parallel (and repeatedly buggy) sizing/placement math; this
+          // way there's only ever one label-rendering implementation.
+          if (item) openBatchLabelModal([item]);
           return;
         }
         // If tapped on the "Missing info" chip, show what's missing instead
@@ -2273,183 +2278,13 @@ export const app = (function(){
     return canvas;
   }
 
-  // Draws one item's full label content (rules + code + name/color + box +
-  // inspection flag) into a w-wide × h-tall region of ctx, starting
-  // yOffsetIn from the top of the canvas — shared by the single-item
-  // canvas (yOffsetIn 0, h = full label height) and each stacked strip of
-  // the batch sheet (h = stripH, yOffsetIn = strip index × stripH). Strips
-  // are always full sheet width, so there's no x-offset to parameterize.
-  function drawItemLabelOnto(ctx, item, w, h, dpi, yOffsetIn){
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    const canvasWidthPx = w * dpi;
-    const maxWidth = canvasWidthPx - (w * 0.16 * dpi);
-
-    function fitFontIn(text, family, weight, maxFontIn, minFontIn){
-      let fontIn = maxFontIn;
-      while (fontIn > minFontIn){
-        ctx.font = `${weight} ${fontIn * dpi}px ${family}`;
-        if (ctx.measureText(text).width <= maxWidth) break;
-        fontIn -= 0.02;
-      }
-      return fontIn;
-    }
-
-    // Word-wraps text to fit maxWidth — never truncates, just breaks onto
-    // more lines (assumes ctx.font is already set to the size being measured).
-    function wrapCanvasText(text, maxW){
-      const words = text.split(' ');
-      const lines = [];
-      let current = '';
-      for (const word of words){
-        const test = current ? current + ' ' + word : word;
-        if (!current || ctx.measureText(test).width <= maxW){
-          current = test;
-        } else {
-          lines.push(current);
-          current = word;
-        }
-      }
-      if (current) lines.push(current);
-      return lines;
-    }
-
-    // Shrinks font size until the wrapped text fits within targetLines lines
-    // (or bottoms out at minFontIn and just wraps onto however many it needs —
-    // the full text always prints, it's never cut off with an ellipsis).
-    function fitWrappedFontIn(text, family, weight, maxFontIn, minFontIn, targetLines){
-      let fontIn = maxFontIn;
-      let lines;
-      while (fontIn > minFontIn){
-        ctx.font = `${weight} ${fontIn * dpi}px ${family}`;
-        lines = wrapCanvasText(text, maxWidth);
-        if (lines.length <= targetLines) break;
-        fontIn -= 0.02;
-      }
-      ctx.font = `${weight} ${fontIn * dpi}px ${family}`;
-      lines = wrapCanvasText(text, maxWidth);
-      return { fontIn, lines };
-    }
-
-    const fields = appSettings.labelFields || {};
-    const code = item.productCode || '';
-    const secondaryParts = [];
-    if (fields.name !== false && item.name) secondaryParts.push(item.name);
-    if (fields.color !== false && item.color) secondaryParts.push(item.color);
-    if (fields.category && item.category) secondaryParts.push(item.category);
-    if (fields.brand && item.brand) secondaryParts.push(item.brand);
-    const secondary = secondaryParts.join(' · ');
-    const boxText = (fields.box !== false && item.storageBox) ? ('📦 ' + item.storageBox) : '';
-
-    // Priority order top-to-bottom: SKU code (largest, but kept modest —
-    // "big but can be discreet"), name/color (2nd priority, wraps onto more
-    // lines rather than truncating so the full name always prints), storage
-    // box (3rd) — the whole block sits in the bottom third of the label,
-    // bounded above and below by a thin rule (also a cut guide on a larger
-    // sheet meant for trimming).
-    // Code capped more modestly (was up to 0.6in/24% of h) so it doesn't
-    // dominate the name/color line so heavily on a tall narrow label —
-    // still the biggest element, just less lopsided. Secondary's own cap
-    // raised to match, its floor raised from 0.08in (unreadably small once
-    // printed) to 0.11in, and targetLines raised from 2 to 4 so a long
-    // item name settles on a bigger font across more short lines instead
-    // of being crushed down to the floor just to force-fit 2 lines.
-    let codeFontIn = fitFontIn(code, "'JetBrains Mono', monospace", 700, Math.min(0.5, h * 0.2), 0.14);
-    let secFontIn = 0, secLines = [];
-    if (secondary){
-      const res = fitWrappedFontIn(secondary, "'Inter', sans-serif", 700, Math.min(0.35, h * 0.16), 0.09, 3);
-      secFontIn = res.fontIn;
-      secLines = res.lines;
-    }
-    let boxFontIn = boxText ? fitFontIn(boxText, "'Inter', sans-serif", 600, Math.min(0.2, h * 0.09), 0.08) : 0;
-    const gapIn = 0.035;
-    const lineHeightMult = 1.15;
-
-    let secBlockIn = secLines.length ? secFontIn * lineHeightMult * secLines.length : 0;
-    let totalIn = codeFontIn + (secLines.length ? gapIn + secBlockIn : 0) + (boxText ? gapIn + boxFontIn : 0);
-    // Was h/3 — wasted roughly two-thirds of a tall label as blank space
-    // above the bottom-anchored block. Raised so the block can actually
-    // use most of the label instead of being squeezed tiny for no reason;
-    // this only ever shrinks an over-height block, never forces expansion.
-    const maxBlockIn = h * 0.55;
-    if (totalIn > maxBlockIn){
-      const scale = maxBlockIn / totalIn;
-      codeFontIn = Math.max(0.14, codeFontIn * scale);
-      secFontIn = secLines.length ? Math.max(0.08, secFontIn * scale) : 0;
-      secBlockIn = secLines.length ? secFontIn * lineHeightMult * secLines.length : 0;
-      boxFontIn = boxText ? Math.max(0.08, boxFontIn * scale) : 0;
-      // BUG (was causing the SKU code to render off the top of the canvas
-      // entirely on a label where this branch triggers): totalIn was never
-      // recomputed from the just-scaled font sizes, so the block's
-      // reserved height below (blockOuterIn) stayed based on the original,
-      // pre-scale total — taller than what actually got drawn, pushing
-      // topLineY (and the code text right below it) above y=0. Recompute
-      // it from the real, scaled sizes before it's used for placement.
-      totalIn = codeFontIn + (secLines.length ? gapIn + secBlockIn : 0) + (boxText ? gapIn + boxFontIn : 0);
-    }
-
-    // Two thin horizontal rules bound the block — matches the
-    // .label-content-block border-top/border-bottom in the browser
-    // preview/print path.
-    const marginXIn = 0.08;
-    const innerPadIn = 0.05;
-    const bottomMarginIn = Math.min(0.08, h * 0.04);
-    const lineThicknessIn = 0.012;
-    const blockOuterIn = totalIn + innerPadIn * 2;
-    const bottomLineY = (yOffsetIn + h - bottomMarginIn) * dpi;
-    const topLineY = bottomLineY - blockOuterIn * dpi;
-
-    ctx.strokeStyle = '#6E5F4E';
-    ctx.lineWidth = lineThicknessIn * dpi;
-    ctx.beginPath();
-    ctx.moveTo(marginXIn * dpi, topLineY);
-    ctx.lineTo(canvasWidthPx - marginXIn * dpi, topLineY);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(marginXIn * dpi, bottomLineY);
-    ctx.lineTo(canvasWidthPx - marginXIn * dpi, bottomLineY);
-    ctx.stroke();
-
-    let curY = topLineY + (innerPadIn + codeFontIn / 2) * dpi;
-
-    ctx.fillStyle = '#2B241E';
-    ctx.font = `700 ${codeFontIn * dpi}px 'JetBrains Mono', monospace`;
-    ctx.fillText(code, canvasWidthPx / 2, curY);
-    curY += (codeFontIn / 2) * dpi;
-
-    if (secLines.length){
-      curY += (gapIn + secFontIn * lineHeightMult / 2) * dpi;
-      ctx.font = `700 ${secFontIn * dpi}px 'Inter', sans-serif`;
-      ctx.fillStyle = '#2B241E';
-      for (let i = 0; i < secLines.length; i++){
-        ctx.fillText(secLines[i], canvasWidthPx / 2, curY + i * secFontIn * lineHeightMult * dpi);
-      }
-      curY += (secLines.length - 0.5) * secFontIn * lineHeightMult * dpi;
-    }
-
-    if (boxText){
-      curY += (gapIn + boxFontIn / 2) * dpi;
-      ctx.font = `600 ${boxFontIn * dpi}px 'Inter', sans-serif`;
-      ctx.fillStyle = '#6E5F4E';
-      ctx.fillText(boxText, canvasWidthPx / 2, curY);
-    }
-
-    if (item.shipInspectionFlag){
-      const flagSizeIn = Math.min(0.32, h * 0.14, w * 0.14);
-      ctx.font = `${flagSizeIn * dpi}px sans-serif`;
-      ctx.textAlign = 'right';
-      ctx.textBaseline = 'top';
-      ctx.fillText('⚠️', canvasWidthPx - (marginXIn + 0.02) * dpi, topLineY + 0.02 * dpi);
-    }
-  }
-
   // Fixed physical height of one label when printing several at once —
   // a locked constant (not derived from the "paper" setting) so batch
   // labels always come out a known, predictable size.
   const BATCH_LABEL_HEIGHT_IN = 2;
 
   // Pure measurement (no drawing): the font sizes THIS item alone would
-  // want at the given slot height, same fitting rules as drawItemLabelOnto.
+  // want at the given slot height, same fitting rules as drawBatchItemAt.
   // Batch printing uses this to find the smallest size any item in the
   // selection needs, then draws every item at that ONE shared size —
   // otherwise a short-text item ends up with a much bigger, bolder-looking
@@ -2511,8 +2346,8 @@ export const app = (function(){
     }
     let boxFontIn = boxText ? fitFontIn(boxText, "'Inter', sans-serif", 600, Math.min(0.2, h * 0.09), 0.09) : 0;
 
-    // Same "shrink to fit the slot" scale-down drawItemLabelOnto applies —
-    // ensures no single item's own natural size ever exceeds its slot,
+    // Same "shrink to fit the slot" scale-down every fitting function here
+    // applies — ensures no single item's own natural size ever exceeds its slot,
     // before we even get to picking the shared minimum across the batch.
     const gapIn = 0.035, lineHeightMult = 1.15;
     const secBlockIn = secondary ? secFontIn * lineHeightMult * 2 : 0; // worst case: 2 wrapped lines
@@ -2589,24 +2424,6 @@ export const app = (function(){
       ctx.fillStyle = '#6E5F4E';
       ctx.fillText(m.boxText, canvasWidthPx / 2, curY);
     }
-  }
-
-  // Renders the same label content to a canvas (plain fillText/fillRect only —
-  // no roundRect) so it can be saved as a PNG. Needed for phones, where this
-  // printer has no OS print driver and can only be used through its own app
-  // (FlashLabel Pro) — she opens the saved image there to print it.
-  function drawLabelToCanvas(item){
-    const w = appSettings.labelWidthIn || 2.25;
-    const h = appSettings.labelHeightIn || 1.25;
-    const dpi = 300;
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.round(w * dpi);
-    canvas.height = Math.round(h * dpi);
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#FFFDF9';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    drawItemLabelOnto(ctx, item, w, h, dpi, 0);
-    return canvas;
   }
 
   // Storage box label — box name fills the "code" slot, registration date
@@ -2699,6 +2516,13 @@ export const app = (function(){
 
     itemsArr.forEach((item, i) => {
       drawBatchItemAt(ctx, w, dpi, i * h, h, fonts, measures[i]);
+      if (item.shipInspectionFlag){
+        const flagSizeIn = Math.min(0.32, h * 0.14, w * 0.14);
+        ctx.font = `${flagSizeIn * dpi}px sans-serif`;
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'top';
+        ctx.fillText('⚠️', canvas.width - 0.1 * dpi, (i * h + 0.02) * dpi);
+      }
       if (i < itemsArr.length - 1){
         ctx.strokeStyle = '#6E5F4E';
         ctx.lineWidth = 0.012 * dpi;
@@ -2746,54 +2570,27 @@ export const app = (function(){
     el.style.fontSize = fontIn.toFixed(3) + 'in';
   }
 
-  let printLabelItem = null;
   let printBoxData = null;
   let printBatchItems = [];
-  let printMode = 'item'; // 'item' | 'marker' | 'box' | 'batch'
+  let printMode = 'batch'; // 'marker' | 'box' | 'batch' — a single item prints as a batch of one
 
-  function renderItemLabelPreview(item){
-    const w = appSettings.labelWidthIn || 2.25;
-    const h = appSettings.labelHeightIn || 1.25;
-    const wrap = document.getElementById('labelPreviewWrap');
-    wrap.innerHTML = `<div class="label-sheet" style="width:${w}in; height:${h}in;">${buildLabelInnerHtml(item)}</div>`;
-
-    const sheet = wrap.querySelector('.label-sheet');
-    const codeEl = sheet.querySelector('.label-code');
-    const secEl = sheet.querySelector('.label-secondary');
-    const boxEl = sheet.querySelector('.label-box');
-    shrinkToFit(codeEl, Math.min(0.5, h * 0.2), 0.14);
-    shrinkWrappedToFit(secEl, Math.min(0.35, h * 0.16), 0.09, 3);
-    shrinkToFit(boxEl, Math.min(0.2, h * 0.09), 0.08);
-  }
-
-  function openPrintLabelModal(item){
-    printMode = 'item';
-    printLabelItem = item;
-    renderItemLabelPreview(item);
-
-    const flagRow = document.getElementById('printLabelFlagRow');
-    const flagCheck = document.getElementById('printLabelShipFlagCheck');
-    if (flagRow) flagRow.style.display = '';
-    if (flagCheck) flagCheck.checked = !!item.shipInspectionFlag;
-
-    document.querySelector('#printLabelOverlay h3').textContent = 'Print label';
-    document.getElementById('printLabelOverlay').classList.remove('hidden');
-  }
-
+  // Only meaningful when printBatchItems is exactly one item (see the
+  // flagRow handling in openBatchLabelModal) — updates that item's
+  // shipInspectionFlag and re-renders through the same batch pipeline
+  // everything else here uses, so a single-item print never has its own
+  // separate rendering path to fall out of sync with the real batch one.
   document.getElementById('printLabelShipFlagCheck').addEventListener('change', async (e) => {
-    if (printMode !== 'item' || !printLabelItem) return;
+    if (printMode !== 'batch' || printBatchItems.length !== 1) return;
     const checked = e.target.checked;
-    const updated = { ...printLabelItem, shipInspectionFlag: checked };
-    printLabelItem = updated;
+    const updated = { ...printBatchItems[0], shipInspectionFlag: checked };
     const idx = items.findIndex(i => i.id === updated.id);
     if (idx >= 0) items[idx] = updated;
-    renderItemLabelPreview(updated);
+    openBatchLabelModal([updated]);
     try{ await saveItem(updated); }catch(err){ /* saveItem already alerts */ }
   });
 
   function openBoxLabelModal(box){
     printMode = 'box';
-    printLabelItem = null;
     printBoxData = box;
     const w = appSettings.labelWidthIn || 2.25;
     const h = appSettings.labelHeightIn || 1.25;
@@ -2845,7 +2642,6 @@ export const app = (function(){
   // drawBatchLabelToCanvas for the print-image side of this.
   function openBatchLabelModal(itemsArr){
     printMode = 'batch';
-    printLabelItem = null;
     printBatchItems = itemsArr;
     const w = appSettings.labelWidthIn || 2.25;
     const h = BATCH_LABEL_HEIGHT_IN;
@@ -2872,16 +2668,26 @@ export const app = (function(){
       if (boxEl) boxEl.style.fontSize = boxFontIn.toFixed(3) + 'in';
     });
 
+    // The "ship inspection" flag only makes sense per-item, so it's only
+    // ever shown/editable here when this "batch" is really just one item
+    // (the card's single-item print button, and Stock Transfer's
+    // print-after-move, both go through this same function now).
     const flagRow = document.getElementById('printLabelFlagRow');
-    if (flagRow) flagRow.style.display = 'none';
+    const flagCheck = document.getElementById('printLabelShipFlagCheck');
+    if (itemsArr.length === 1){
+      if (flagRow) flagRow.style.display = '';
+      if (flagCheck) flagCheck.checked = !!itemsArr[0].shipInspectionFlag;
+    } else if (flagRow) {
+      flagRow.style.display = 'none';
+    }
 
-    document.querySelector('#printLabelOverlay h3').textContent = `Print label sheet (${printBatchItems.length} item${printBatchItems.length===1?'':'s'})`;
+    document.querySelector('#printLabelOverlay h3').textContent =
+      itemsArr.length === 1 ? 'Print label' : `Print label sheet (${itemsArr.length} items)`;
     document.getElementById('printLabelOverlay').classList.remove('hidden');
   }
 
   window.openMarkerPrintModal = function(){
     printMode = 'marker';
-    printLabelItem = null;
     const w = appSettings.labelWidthIn || 2.25;
     const h = appSettings.labelHeightIn || 1.25;
     const wrap = document.getElementById('labelPreviewWrap');
@@ -2906,7 +2712,6 @@ export const app = (function(){
 
   function closePrintLabelModal(){
     document.getElementById('printLabelOverlay').classList.add('hidden');
-    printLabelItem = null;
     printBoxData = null;
     printBatchItems = [];
   }
@@ -3195,7 +3000,7 @@ export const app = (function(){
       // checkbox is printing one label per scan without losing her place
       // mid-session.
       if (document.getElementById('transferPrintCheck').checked){
-        openPrintLabelModal(updated);
+        openBatchLabelModal([updated]);
       }
     }catch(e){
       setTransferStatus('Save failed — check your connection and try that code again.', true);
@@ -3271,7 +3076,6 @@ export const app = (function(){
   });
 
   document.getElementById('labelPrintBtn').addEventListener('click', () => {
-    if (printMode === 'item' && !printLabelItem) return;
     if (printMode === 'batch' && printBatchItems.length === 0) return;
     if (printMode === 'box' && !printBoxData) return;
     const w = appSettings.labelWidthIn || 2.25;
@@ -3300,7 +3104,6 @@ export const app = (function(){
   });
 
   document.getElementById('labelSaveImgBtn').addEventListener('click', async () => {
-    if (printMode === 'item' && !printLabelItem) return;
     if (printMode === 'batch' && printBatchItems.length === 0) return;
     if (printMode === 'box' && !printBoxData) return;
     try{ await document.fonts.ready; }catch(e){}
@@ -3308,12 +3111,10 @@ export const app = (function(){
     const h = appSettings.labelHeightIn || 1.25;
     const canvas = printMode === 'marker' ? drawMarkerToCanvas(w, h)
       : printMode === 'box' ? drawBoxLabelToCanvas(printBoxData)
-      : printMode === 'batch' ? drawBatchLabelToCanvas(printBatchItems)
-      : drawLabelToCanvas(printLabelItem);
+      : drawBatchLabelToCanvas(printBatchItems);
     const filename = printMode === 'marker' ? 'wall-marker.png'
       : printMode === 'box' ? `box-${(printBoxData.name || 'label').replace(/[^a-z0-9-_]/gi, '_')}.png`
-      : printMode === 'batch' ? `labels-batch-${Date.now()}.png`
-      : `${(printLabelItem.productCode || 'label').replace(/[^a-z0-9-_]/gi, '_')}.png`;
+      : `labels-batch-${Date.now()}.png`;
 
     canvas.toBlob(async (blob) => {
       if (!blob) return;
