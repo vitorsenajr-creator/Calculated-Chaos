@@ -69,7 +69,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.97';
+  const APP_VERSION = 'v3.13.98';
   const APP_VERSION_DATE = '2026-09-20';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -2357,11 +2357,11 @@ export const app = (function(){
     let codeFontIn = fitFontIn(code, "'JetBrains Mono', monospace", 700, Math.min(0.5, h * 0.2), 0.14);
     let secFontIn = 0, secLines = [];
     if (secondary){
-      const res = fitWrappedFontIn(secondary, "'Inter', sans-serif", 700, Math.min(0.4, h * 0.18), 0.11, 4);
+      const res = fitWrappedFontIn(secondary, "'Inter', sans-serif", 700, Math.min(0.35, h * 0.16), 0.09, 3);
       secFontIn = res.fontIn;
       secLines = res.lines;
     }
-    let boxFontIn = boxText ? fitFontIn(boxText, "'Inter', sans-serif", 600, Math.min(0.2, h * 0.09), 0.09) : 0;
+    let boxFontIn = boxText ? fitFontIn(boxText, "'Inter', sans-serif", 600, Math.min(0.2, h * 0.09), 0.08) : 0;
     const gapIn = 0.035;
     const lineHeightMult = 1.15;
 
@@ -2378,6 +2378,14 @@ export const app = (function(){
       secFontIn = secLines.length ? Math.max(0.08, secFontIn * scale) : 0;
       secBlockIn = secLines.length ? secFontIn * lineHeightMult * secLines.length : 0;
       boxFontIn = boxText ? Math.max(0.08, boxFontIn * scale) : 0;
+      // BUG (was causing the SKU code to render off the top of the canvas
+      // entirely on a label where this branch triggers): totalIn was never
+      // recomputed from the just-scaled font sizes, so the block's
+      // reserved height below (blockOuterIn) stayed based on the original,
+      // pre-scale total — taller than what actually got drawn, pushing
+      // topLineY (and the code text right below it) above y=0. Recompute
+      // it from the real, scaled sizes before it's used for placement.
+      totalIn = codeFontIn + (secLines.length ? gapIn + secBlockIn : 0) + (boxText ? gapIn + boxFontIn : 0);
     }
 
     // Two thin horizontal rules bound the block — matches the
@@ -2754,8 +2762,8 @@ export const app = (function(){
     const secEl = sheet.querySelector('.label-secondary');
     const boxEl = sheet.querySelector('.label-box');
     shrinkToFit(codeEl, Math.min(0.5, h * 0.2), 0.14);
-    shrinkWrappedToFit(secEl, Math.min(0.4, h * 0.18), 0.11, 4);
-    shrinkToFit(boxEl, Math.min(0.2, h * 0.09), 0.09);
+    shrinkWrappedToFit(secEl, Math.min(0.35, h * 0.16), 0.09, 3);
+    shrinkToFit(boxEl, Math.min(0.2, h * 0.09), 0.08);
   }
 
   function openPrintLabelModal(item){
