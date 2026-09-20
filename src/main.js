@@ -69,7 +69,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.99';
+  const APP_VERSION = 'v3.13.100';
   const APP_VERSION_DATE = '2026-09-20';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -2112,6 +2112,11 @@ export const app = (function(){
     setSaveProgress(null);
     document.getElementById('deleteItemBtn').style.display = (item && !isDuplicate) ? 'block' : 'none';
     document.getElementById('duplicateItemBtn').style.display = (item && !isDuplicate) ? 'block' : 'none';
+    // Same "only once it's a real saved item" gate as Duplicate/Delete —
+    // saving a brand-new item reopens the modal with a real id (see
+    // saveItemFlow), so this appears right in the card the moment it's
+    // actually savable to a label, no extra step needed.
+    document.getElementById('printLabelItemBtn').style.display = (item && !isDuplicate) ? 'block' : 'none';
 
     renderPhotoPreviews();
     renderMeasureChips();
@@ -3417,6 +3422,14 @@ export const app = (function(){
   document.getElementById('duplicateItemBtn').addEventListener('click', () => {
     const item = items.find(i => i.id === currentEditId);
     if (item) openModal(item, true);
+  });
+
+  // Same batch-of-one print pipeline as the Catalog card's print button
+  // and Select → "Imprimir etiquetas" (see v3.13.99) — one label-rendering
+  // implementation, so this is guaranteed to look exactly the same.
+  document.getElementById('printLabelItemBtn').addEventListener('click', () => {
+    const item = items.find(i => i.id === currentEditId);
+    if (item) openBatchLabelModal([item]);
   });
 
   // ================= MEASUREMENT TOOL =================
