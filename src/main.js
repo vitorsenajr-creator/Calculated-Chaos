@@ -69,7 +69,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.104';
+  const APP_VERSION = 'v3.13.105';
   const APP_VERSION_DATE = '2026-09-20';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -2337,7 +2337,7 @@ export const app = (function(){
     // name, is never adjusted for anything else on the label — per Vitor's
     // request, the storage box's own text always gets the same treatment
     // regardless of how long the item name happens to be.
-    let codeFontIn = fitFontIn(code, "'JetBrains Mono', monospace", 700, Math.min(1.4, h * 0.55), 0.14);
+    let codeFontIn = fitFontIn(code, "'JetBrains Mono', monospace", 700, Math.min(1.19, h * 0.4675), 0.14);
     let boxFontIn = boxText ? fitFontIn(boxText, "'Inter', sans-serif", 600, Math.min(0.16, h * 0.075), 0.09) : 0;
 
     const gapIn = 0.035, lineHeightMult = 1.15;
@@ -2346,10 +2346,11 @@ export const app = (function(){
     // name gets to work with — it's the only one of the three that flexes,
     // shrinking (and, since a smaller font fits more characters per line,
     // often needing fewer wrapped lines too) until its own block actually
-    // fits that leftover space. A floor of one line at the minimum font
-    // guarantees this never goes negative even on an unusually short label.
-    const nameBudgetIn = Math.max(0.11 * lineHeightMult,
-      maxBlockIn - codeFontIn - (boxText ? gapIn + boxFontIn : 0) - (secondary ? gapIn : 0));
+    // fits that leftover space. No artificial floor here: forcing a minimum
+    // budget when code+box already consume all of maxBlockIn (or more) is
+    // exactly what let the box line get cut off — the name's own minFontIn
+    // loop below is the only floor that's safe to rely on.
+    const nameBudgetIn = maxBlockIn - codeFontIn - (boxText ? gapIn + boxFontIn : 0) - (secondary ? gapIn : 0);
 
     let secFontIn = 0;
     if (secondary){
