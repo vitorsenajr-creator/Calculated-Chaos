@@ -69,8 +69,8 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.105';
-  const APP_VERSION_DATE = '2026-09-20';
+  const APP_VERSION = 'v3.13.106';
+  const APP_VERSION_DATE = '2026-09-21';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
   let itemsLoaded = false; // true once the initial Firestore fetch in loadItems() resolves
@@ -2586,6 +2586,16 @@ export const app = (function(){
   let printBatchItems = [];
   let printMode = 'batch'; // 'marker' | 'box' | 'batch' — a single item prints as a batch of one
 
+  // Quick Labels prints each matched code as its own individual label (same
+  // "batch of one" pipeline the card's single-item print button uses) rather
+  // than grouping all 4 into one combined sheet/image — queued one at a time
+  // so each Print/Save click only ever produces one label. Once the queue is
+  // empty, the print modal hands control back to the Quick Labels tool itself
+  // instead of revealing whatever view was open behind it.
+  let quickLabelPrintQueue = [];
+  let quickLabelPrintTotal = 0;
+  let quickLabelReturnAfterPrint = false;
+
   // Only meaningful when printBatchItems is exactly one item (see the
   // flagRow handling in openBatchLabelModal) — updates that item's
   // shipInspectionFlag and re-renders through the same batch pipeline
@@ -2696,7 +2706,11 @@ export const app = (function(){
     }
 
     document.querySelector('#printLabelOverlay h3').textContent =
-      itemsArr.length === 1 ? 'Print label' : `Print label sheet (${itemsArr.length} items)`;
+      itemsArr.length === 1
+        ? (quickLabelReturnAfterPrint && quickLabelPrintTotal > 1
+            ? `Print label (${quickLabelPrintTotal - quickLabelPrintQueue.length} of ${quickLabelPrintTotal})`
+            : 'Print label')
+        : `Print label sheet (${itemsArr.length} items)`;
     document.getElementById('printLabelOverlay').classList.remove('hidden');
   }
 
@@ -2728,11 +2742,28 @@ export const app = (function(){
     document.getElementById('printLabelOverlay').classList.add('hidden');
     printBoxData = null;
     printBatchItems = [];
+    if (quickLabelReturnAfterPrint){
+      if (quickLabelPrintQueue.length > 0){
+        openBatchLabelModal([quickLabelPrintQueue.shift()]);
+      } else {
+        quickLabelReturnAfterPrint = false;
+        quickLabelPrintTotal = 0;
+        openQuickLabelModal();
+      }
+    }
   }
 
-  document.getElementById('labelPrintCancelBtn').addEventListener('click', closePrintLabelModal);
+  // Cancelling (or dismissing via the backdrop) abandons the rest of the
+  // queue instead of advancing to the next item — closePrintLabelModal
+  // then sees an empty queue and returns straight to the Quick Labels
+  // screen, same as finishing the last item normally.
+  function abandonQuickLabelQueueAndClose(){
+    quickLabelPrintQueue = [];
+    closePrintLabelModal();
+  }
+  document.getElementById('labelPrintCancelBtn').addEventListener('click', abandonQuickLabelQueueAndClose);
   document.getElementById('printLabelOverlay').addEventListener('click', (e) => {
-    if (e.target.id === 'printLabelOverlay') closePrintLabelModal();
+    if (e.target.id === 'printLabelOverlay') abandonQuickLabelQueueAndClose();
   });
 
   // Quick reprint-by-code: type up to 4 exact product codes and jump
@@ -2865,7 +2896,10 @@ export const app = (function(){
     }
 
     closeQuickLabelModal();
-    openBatchLabelModal(matched);
+    quickLabelPrintTotal = matched.length;
+    quickLabelPrintQueue = matched.slice(1);
+    quickLabelReturnAfterPrint = true;
+    openBatchLabelModal([matched[0]]);
   }
 
   document.getElementById('quickLabelOpenBtnMobile').addEventListener('click', openQuickLabelModal);

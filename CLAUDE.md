@@ -1476,6 +1476,27 @@ next minor bump:
   print (ideally the same item/label from the last two rounds) to confirm
   the box line finally prints in full and the new code/name/box balance
   looks right.
+- **v3.13.106** — Two follow-ups on the "Quick reprint by code" (Labels)
+  tool per Vitor: (1) it no longer groups the up-to-4 matched items into
+  one combined sheet/image — each one now prints individually through the
+  exact same "batch of one" pipeline the Catalog card's own single-item
+  print button already uses (`openBatchLabelModal([item])`), so a
+  Quick-Labels print looks pixel-identical to printing that item's label
+  from its card, just reached faster. The 4 (or fewer) matched items are
+  queued (`quickLabelPrintQueue`) and printed one at a time — each
+  Print/Save click on the print modal advances to the next item's own
+  individual label automatically, with the modal title showing progress
+  ("Print label (2 of 4)") while the queue is running. (2) Finishing the
+  queue (or cancelling out of it) now reopens the Quick Labels modal
+  fresh, reset and ready for the next batch of codes, instead of leaving
+  her back on whatever screen was open behind it (`closePrintLabelModal`
+  now hands control back via `openQuickLabelModal()` once the queue is
+  empty). Cancelling/backdrop-dismissing the print modal mid-queue
+  abandons the rest of the queue rather than skipping ahead to the next
+  item. **Not yet tested against a real device** — verified via
+  `node --check` and a clean `vite build` only; watch the next real
+  4-code batch to confirm each label prints individually and the tool
+  lands back on its own opening screen afterward.
 - **v3.13.93** — Vitor confirmed he did a real hard reload after v3.13.92
   and still didn't see the "Already listed on eBay" link on reopen —
   bumped the version number specifically to test whether his device is
