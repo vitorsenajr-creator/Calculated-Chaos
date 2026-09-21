@@ -69,7 +69,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.106';
+  const APP_VERSION = 'v3.13.107';
   const APP_VERSION_DATE = '2026-09-21';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -2846,14 +2846,21 @@ export const app = (function(){
     });
   }
 
-  async function submitQuickLabelModal(){
+  // Shared by both "Generate labels" (the print queue) and "Save all as
+  // images" — resolves the up-to-4 typed codes against the catalog and,
+  // if a destination box was picked, moves every matched item there first
+  // (both actions should reflect the move). Disables/relabels whichever
+  // trigger button is passed while the move is in flight. Returns the
+  // matched items array, or null if it already showed an error and the
+  // caller should stop.
+  async function resolveQuickLabelMatchedItems(triggerBtn, triggerDefaultLabel){
     const inputs = [...document.querySelectorAll('#quickLabelInputs .quick-label-input')];
     const codes = inputs.map(inp => inp.value.trim()).filter(v => v !== '');
     const errorEl = document.getElementById('quickLabelError');
     if (codes.length === 0){
       errorEl.textContent = 'Type at least one item code.';
       errorEl.style.display = '';
-      return;
+      return null;
     }
     let matched = [];
     const notFound = [];
@@ -2864,18 +2871,19 @@ export const app = (function(){
     if (notFound.length > 0){
       errorEl.textContent = `Code${notFound.length===1?'':'s'} not found: ${notFound.join(', ')}`;
       errorEl.style.display = '';
-      return;
+      return null;
     }
 
-    // Move all matched items to the chosen box before printing, so the
-    // labels come out already showing the new box — the whole point of
+    // Move all matched items to the chosen box before printing/saving, so
+    // the labels come out already showing the new box — the whole point of
     // combining transfer + print into one step instead of using Stock
     // Transfer first and Quick Labels after.
     const box = document.getElementById('quickLabelBoxSelect').value;
     if (box){
-      const goBtn = document.getElementById('quickLabelGoBtn');
-      goBtn.disabled = true;
-      goBtn.textContent = `Moving ${matched.length} item${matched.length===1?'':'s'} to "${box}"…`;
+      if (triggerBtn){
+        triggerBtn.disabled = true;
+        triggerBtn.textContent = `Moving ${matched.length} item${matched.length===1?'':'s'} to "${box}"…`;
+      }
       try{
         matched = await Promise.all(matched.map(async item => {
           const updated = { ...item, storageBox: box };
@@ -2887,19 +2895,105 @@ export const app = (function(){
       }catch(e){
         errorEl.textContent = 'Failed to move one or more items — check your connection and try again.';
         errorEl.style.display = '';
-        goBtn.disabled = false;
-        goBtn.textContent = '🖨️ Generate labels';
-        return;
+        if (triggerBtn){
+          triggerBtn.disabled = false;
+          triggerBtn.textContent = triggerDefaultLabel;
+        }
+        return null;
       }
-      goBtn.disabled = false;
-      goBtn.textContent = '🖨️ Generate labels';
+      if (triggerBtn){
+        triggerBtn.disabled = false;
+        triggerBtn.textContent = triggerDefaultLabel;
+      }
     }
+    return matched;
+  }
+
+  async function submitQuickLabelModal(){
+    const goBtn = document.getElementById('quickLabelGoBtn');
+    const matched = await resolveQuickLabelMatchedItems(goBtn, '🖨️ Generate labels');
+    if (!matched) return;
 
     closeQuickLabelModal();
     quickLabelPrintTotal = matched.length;
     quickLabelPrintQueue = matched.slice(1);
     quickLabelReturnAfterPrint = true;
     openBatchLabelModal([matched[0]]);
+  }
+
+  // "Save all as images" — instead of stepping through the print modal
+  // once per item (Print/Save clicking 4 separate times), this renders
+  // every matched item's individual label canvas up front (same pipeline,
+  // same physical size as the single-item print/save flow) and stitches
+  // them into ONE multi-page PDF — one label per page, each page sized to
+  // her real configured label dimensions — rather than separate image
+  // files. A single PDF is what her printing app (any PDF-capable app,
+  // AirPrint, FlashLabel Pro's own PDF import, etc.) can reliably open and
+  // print as one job with N physical pages, unlike relying on the OS share
+  // sheet to fan N separate image files out into N recognized items (not
+  // guaranteed to be supported by whatever app receives them).
+  async function saveAllQuickLabelImages(){
+    const saveBtn = document.getElementById('quickLabelSaveAllBtn');
+    const defaultLabel = '📄 Save all as PDF (1 page per label)';
+    const matched = await resolveQuickLabelMatchedItems(saveBtn, defaultLabel);
+    if (!matched) return;
+
+    const errorEl = document.getElementById('quickLabelError');
+    errorEl.style.display = 'none';
+    saveBtn.disabled = true;
+    saveBtn.textContent = `Preparing ${matched.length}-page PDF…`;
+    try{
+      try{ await document.fonts.ready; }catch(e){}
+      // Loaded on demand — jsPDF (and the html2canvas/dompurify code it
+      // bundles for a feature this app never uses) is a heavy dependency
+      // that would otherwise bloat every page load just for this one
+      // rarely-used button.
+      const { jsPDF } = await import('jspdf');
+      const w = appSettings.labelWidthIn || 2.25;
+      const h = appSettings.labelHeightIn || 1.25;
+      const orientation = w >= h ? 'landscape' : 'portrait';
+      const pdf = new jsPDF({ orientation, unit: 'in', format: [w, h] });
+
+      matched.forEach((item, i) => {
+        if (i > 0) pdf.addPage([w, h], orientation);
+        const canvas = drawBatchLabelToCanvas([item]);
+        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, w, h);
+      });
+
+      const filename = `labels-${matched.length}-pages-${Date.now()}.pdf`;
+      const blob = pdf.output('blob');
+      const file = new File([blob], filename, { type: 'application/pdf' });
+
+      // Web Share API for a single PDF file is well supported (unlike
+      // sharing several separate image files, which depends on the
+      // receiving app accepting a multi-file share) — same "share sheet
+      // straight to FlashLabel Pro/Files" pattern the single-item Save
+      // Image flow already relies on.
+      if (navigator.canShare && navigator.canShare({ files: [file] })){
+        try{
+          await navigator.share({ files: [file], title: filename });
+        }catch(e){
+          if (!e || e.name !== 'AbortError') throw e; // real failure, not a user cancel
+        }
+      } else {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 2000);
+      }
+      closeQuickLabelModal();
+      openQuickLabelModal();
+    }catch(e){
+      errorEl.textContent = 'Failed to build the label PDF — check your connection and try again.';
+      errorEl.style.display = '';
+    }finally{
+      saveBtn.disabled = false;
+      saveBtn.textContent = defaultLabel;
+    }
   }
 
   document.getElementById('quickLabelOpenBtnMobile').addEventListener('click', openQuickLabelModal);
@@ -2909,6 +3003,7 @@ export const app = (function(){
     if (e.target.id === 'quickLabelOverlay') closeQuickLabelModal();
   });
   document.getElementById('quickLabelGoBtn').addEventListener('click', submitQuickLabelModal);
+  document.getElementById('quickLabelSaveAllBtn').addEventListener('click', saveAllQuickLabelImages);
   document.getElementById('quickLabelNewBoxToggleBtn').addEventListener('click', () => {
     const row = document.getElementById('quickLabelNewBoxRow');
     const showing = row.style.display !== 'none';

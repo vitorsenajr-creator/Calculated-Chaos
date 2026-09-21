@@ -1497,6 +1497,37 @@ next minor bump:
   `node --check` and a clean `vite build` only; watch the next real
   4-code batch to confirm each label prints individually and the tool
   lands back on its own opening screen afterward.
+- **v3.13.107** — Vitor pushed back on the first draft of a "save all at
+  once" option for Quick Labels (right after v3.13.106 made each code
+  print individually) — exporting the up-to-4 labels as separate PNG
+  files shared together depends on the receiving app (FlashLabel Pro)
+  actually accepting a multi-file share, which isn't guaranteed and isn't
+  really "4 pages" anyway. He confirmed what he actually wants: **one PDF
+  file with one label per page**, matching how a real printer/PDF app
+  treats a multi-page document as one job. Added "📄 Save all as PDF (1
+  page per label)" next to "Generate labels" in the Quick Labels modal —
+  renders each matched item's label through the exact same
+  `drawBatchLabelToCanvas([item])` pipeline the individual print/save
+  flow already uses (so each page looks identical to printing that one
+  label on its own), stitches them into a single PDF via the new `jspdf`
+  dependency (one page per item, each page sized to her real configured
+  label width/height), then hands the single PDF file to
+  `navigator.share()` (falls back to a plain download if the browser
+  doesn't support file sharing) — a single-file share is well-supported,
+  unlike the multi-file share the first draft relied on. `jspdf` is
+  dynamically `import()`ed only inside this button's handler rather than
+  a top-level import — it bundles `html2canvas`/`dompurify` internally
+  (a feature this app never uses) and added ~400KB to the main bundle
+  when imported statically; lazy-loading keeps every other page load
+  unaffected. Also extracted `resolveQuickLabelMatchedItems()` (code
+  lookup + optional box move) out of `submitQuickLabelModal()` so both
+  the print-queue button and the new PDF button share the exact same
+  code-matching/box-move logic instead of duplicating it. Finishing (or
+  failing) either action reopens the Quick Labels modal fresh, same
+  v3.13.106 behavior. **Not yet tested against a real device** — verified
+  via `node --check` and a clean `vite build` only; watch the next real
+  4-code batch to confirm the PDF actually opens/prints as 4 separate
+  pages at the right physical label size.
 - **v3.13.93** — Vitor confirmed he did a real hard reload after v3.13.92
   and still didn't see the "Already listed on eBay" link on reopen —
   bumped the version number specifically to test whether his device is
