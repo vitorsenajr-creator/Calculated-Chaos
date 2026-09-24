@@ -5,6 +5,7 @@
 import { estimateShipping } from '../src/modules/pricing.js';
 import { normalizeSizeForEbay } from '../src/modules/ebay-size.js';
 import { conformAspectsToAllowedValues } from '../src/modules/ebay-aspect-match.js';
+import { suggestEbayTypeValue, isTypeAspect } from '../src/modules/ebay-type-map.js';
 
 const EBAY_SANDBOX = process.env.EBAY_SANDBOX === 'true';
 
@@ -511,6 +512,15 @@ function buildInventoryItem(item, categoryAspects, imageUrls, packageTypeOverrid
   // match ("Medium" -> "M", "EUR XS / USA XS / MEX 34" -> "XS"). Runs
   // before the safety net below so that only ever fills truly blank fields.
   if (categoryAspects){
+    // eBay "Type" from the item's own Clothing Type when she didn't set it
+    // (bulk publishes never open the modal that pre-fills it) — only for
+    // categories that actually have a "Type" item specific. See
+    // src/modules/ebay-type-map.js.
+    const typeSpec = categoryAspects.find(a => isTypeAspect(a.name));
+    if (typeSpec && !Object.keys(aspects).some(isTypeAspect)){
+      const typeValue = suggestEbayTypeValue(item.clothingType, typeSpec.allowedValues);
+      if (typeValue) aspects[typeSpec.name] = [typeValue];
+    }
     const adjustments = conformAspectsToAllowedValues(aspects, categoryAspects);
     if (adjustmentsOut) adjustmentsOut.splice(0, adjustmentsOut.length, ...adjustments);
     fillMissingRequiredAspects(aspects, categoryAspects);

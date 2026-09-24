@@ -1610,6 +1610,29 @@ next minor bump:
   per failed item). **Not yet tested against real eBay/Firestore/AI** —
   verified via `node --check`, clean `vite build`, and the matcher/
   diagnosis/AI-mapping exercised with the real 25129 payload.
+- **v3.13.110** — Vitor asked what the blank required "Type" field was
+  on a Kids > Girls tops listing (eBay's per-category "what kind of piece"
+  item specific — flagged required but with NO allowed-values list for
+  that category, so it rendered as empty free text) and asked for it to
+  fill automatically from an official list. There's no public static eBay
+  list (searched — none; eBay's category pages 403 to fetchers); the
+  official source is the Taxonomy API the app already calls per category.
+  New shared `src/modules/ebay-type-map.js`: each Clothing Type maps to
+  ordered candidates (T-Shirt → T-Shirt/Tee/Top, Tank Top → Tank Top/Tank/
+  Camisole/Cami/Top, Blouse, Sweater, Hoodie, Jeans, Pants, Shorts, Skirt,
+  Dress, Blazer, Swimwear). When the category HAS an official list, the
+  first candidate literally in it wins (eBay's exact spelling), none → null
+  (she picks); when it has no list, the first candidate is used.
+  Jacket/Coat excluded on purpose (`CONDITIONAL_ASPECT_SUGGESTIONS`
+  already has a finer jacket Type list); Shoes/Bag/Accessory/Activewear
+  excluded (Type means something category-specific there). Item modal:
+  `renderEbayAspectsFields` pre-fills a blank Type, and changing Clothing
+  Type updates it (`refreshAutoEbayType`) only while it still holds the
+  auto-filled value — never overwrites her own. Server: `buildInventoryItem`
+  fills Type from `item.clothingType` when the category has a Type aspect
+  and nothing was set, so bulk publishes (modal never opened) get it too.
+  **Not yet tested against a real publish** — `node --check`, clean
+  `vite build`, mapping exercised with sample allowed-values lists.
 - **v3.13.93** — Vitor confirmed he did a real hard reload after v3.13.92
   and still didn't see the "Already listed on eBay" link on reopen —
   bumped the version number specifically to test whether his device is
