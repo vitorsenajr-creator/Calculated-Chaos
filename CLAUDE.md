@@ -1528,6 +1528,43 @@ next minor bump:
   via `node --check` and a clean `vite build` only; watch the next real
   4-code batch to confirm the PDF actually opens/prints as 4 separate
   pages at the right physical label size.
+- **v3.13.108** — Real "List on eBay" failure: errorId 25129 ("no longer
+  support custom values for Size… EUR XS / USA XS / MEX 34 is not a valid
+  value") — the Size field held the full multi-country string copied off
+  the garment tag, and that category only accepts eBay's standard sizes.
+  (1) New shared `src/modules/ebay-size.js` (`normalizeSizeForEbay()`),
+  imported by both `api/ebay-list.js` (same `../src/modules/` import
+  pattern `pricing.js` already uses there) and the app: pulls the US/USA
+  part out of a multi-region size ("EUR XS / USA XS / MEX 34" → "XS"),
+  or the plain letter size if there's no US part; anything it isn't sure
+  about is left untouched (never invents a value). The server now sends
+  that as `aspects.Size`, and the single-item confirm screen says "Size:
+  will be sent to eBay as XS (from …)" so it's not a surprise. (2) Per
+  Vitor's ask to "modular melhor essas respostas de erro com sugestão de
+  correção imediata": new `src/modules/ebay-error-hints.js`
+  (`diagnoseEbayFailure(result, item)`, pure, no DOM) maps known eBay
+  errors to a plain-language problem + a fix — 25129 (standard values
+  only; for Size, a "Change Size to "XS" & retry" button when the
+  normalizer finds one), 25002/"item specific X is missing", 25021
+  condition, 25020 package weight, 25101 package type (retry), invalid
+  category, business-policy and token/auth errors. Fix types: `setField`
+  (save the new value on the item, sync the open modal's input, republish
+  immediately), `focusField` (open the item + scroll/highlight the field),
+  `retry`, `settings`. `renderEbayErrorBoxHtml(result, item)` in
+  `ebay-api.js` now shows those hints with buttons first, eBay's own short
+  messages when nothing was recognized, and the raw JSON/debug dump
+  collapsed under "Full eBay response"; the generic "check your Seller Hub
+  policies" line only shows when nothing more specific was found (it used
+  to show on every failure). Wired via new `wireEbayErrorFixes()`. The
+  single-item publish body was split out into `publishAndRenderResult()`
+  so a fix-and-retry republishes directly instead of re-showing the
+  confirm screen. The bulk publish report shows the same hint text per
+  failed item, plus the one-tap fix button for `setField` fixes (retries
+  just that item and updates its row in place). `ebayErrorShortMessages()`
+  moved from `ebay-audit.js` into the new module and is imported back.
+  **Not yet tested against a real publish** — verified via `node --check`,
+  a clean `vite build`, and the normalizer/diagnosis exercised with the
+  exact error payload from the screenshot.
 - **v3.13.93** — Vitor confirmed he did a real hard reload after v3.13.92
   and still didn't see the "Already listed on eBay" link on reopen —
   bumped the version number specifically to test whether his device is
