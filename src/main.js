@@ -60,6 +60,8 @@ import {
 } from './modules/sold-confirm.js';
 import { initNarrationCapture } from './modules/narration-capture.js';
 import { runEbayAudit, runListFulfillmentPolicies, runBackfillDescriptions } from './modules/ebay-audit.js';
+import { matchAllowedValue, isSizeAspect } from './modules/ebay-aspect-match.js';
+import { runEbayErrorLibrary } from './modules/ebay-error-log.js';
 import {
   reserveNextProductCode, findItemsWithProductCode,
   runDuplicateProductCodeAudit, renumberDuplicateProductCode,
@@ -69,7 +71,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.108';
+  const APP_VERSION = 'v3.13.109';
   const APP_VERSION_DATE = '2026-09-24';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -390,12 +392,15 @@ export const app = (function(){
           e.preventDefault(); // fires before input's blur, so the click isn't lost
           input.value = matches[i];
           box.style.display = 'none';
+          renderEbaySizeCheck();
         });
       });
     }
 
     input.addEventListener('focus', renderSuggestions);
     input.addEventListener('input', renderSuggestions);
+    input.addEventListener('input', () => renderEbaySizeCheck());
+    input.addEventListener('change', () => renderEbaySizeCheck());
     input.addEventListener('blur', () => { setTimeout(() => { box.style.display = 'none'; }, 150); });
   }
 
@@ -1665,10 +1670,13 @@ export const app = (function(){
       });
     }
     if (cat && cat.id){
+      currentCategoryAspects = []; // don't check against the previous category's list while this one loads
       loadEbayAspectsForCategory(cat.id);
     } else {
       currentEbayAspects = {};
+      currentCategoryAspects = [];
       document.getElementById('ebayAspectsContainer').innerHTML = '';
+      renderEbaySizeCheck();
     }
   }
 
@@ -1694,6 +1702,11 @@ export const app = (function(){
       missing.push('Size');
     }
     if (currentEditId === item.id){
+      const sizeSpec = getEbaySizeSpec();
+      if (item.size && sizeSpec && !sizeSpec.allowedValues.includes(item.size.trim())
+          && !matchAllowedValue('Size', item.size, sizeSpec.allowedValues)){
+        missing.push("Size (pick one of eBay's standard sizes)");
+      }
       document.querySelectorAll('#ebayAspectsContainer [data-aspect]').forEach(el => {
         if (!el.value.trim()) missing.push(el.dataset.aspect);
       });
@@ -1701,6 +1714,45 @@ export const app = (function(){
     return missing;
   }
   let currentEbayAspects = {}; // { "Pattern": "Floral", "Material": "Cotton", ... } — her real answers, saved on the item
+  // Every item specific the chosen eBay category knows about, with its
+  // official allowed values (Taxonomy API) — used to check Size against
+  // eBay's own list before publishing, see renderEbaySizeCheck().
+  let currentCategoryAspects = [];
+
+  function getEbaySizeSpec(){
+    return currentCategoryAspects.find(a => isSizeAspect(a.name) && a.allowedValues && a.allowedValues.length) || null;
+  }
+
+  // Checks the Size field against the chosen category's official list,
+  // live as she types: silent when it's already a standard value, a
+  // one-line "will be sent as XS" note when there's a confident match
+  // (the server applies the same match — src/modules/ebay-aspect-match.js),
+  // and a dropdown of eBay's real sizes when there isn't one — otherwise
+  // that's a guaranteed errorId 25129 at publish time.
+  function renderEbaySizeCheck(){
+    const box = document.getElementById('ebaySizeCheck');
+    if (!box) return;
+    const spec = getEbaySizeSpec();
+    const size = (document.getElementById('fSize')?.value || '').trim();
+    if (!spec || !size || spec.allowedValues.includes(size)){ box.innerHTML = ''; return; }
+    const match = matchAllowedValue('Size', size, spec.allowedValues);
+    if (match){
+      box.innerHTML = `<div style="font-size:12px; margin-top:4px; color:var(--plum-soft);">eBay will receive this as "<b>${escapeHtml(match)}</b>" (its standard size for this category).</div>`;
+      return;
+    }
+    box.innerHTML = `<div style="font-size:12px; margin-top:6px; padding:8px; border-radius:8px; background:rgba(229,50,56,0.08); color:var(--plum);">
+      ⚠️ "${escapeHtml(size)}" isn't one of eBay's standard sizes for this category — eBay will reject it.
+      <select id="ebaySizePick" style="width:100%; margin-top:6px; padding:8px; border:1px solid var(--line); border-radius:8px; font-size:13px;">
+        <option value="">Pick eBay's size…</option>
+        ${spec.allowedValues.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('')}
+      </select>
+    </div>`;
+    document.getElementById('ebaySizePick').addEventListener('change', (e) => {
+      if (!e.target.value) return;
+      document.getElementById('fSize').value = e.target.value;
+      renderEbaySizeCheck();
+    });
+  }
   let currentAiAnalysis = null; // raw AI photo-analysis result for this item, saved on the item so it survives closing/reopening the modal
 
   async function loadEbayAspectsForCategory(categoryId){
@@ -1717,6 +1769,8 @@ export const app = (function(){
       });
       const data = await res.json();
       if (!data.success){ container.innerHTML = ''; return; }
+      currentCategoryAspects = data.aspects;
+      renderEbaySizeCheck();
       const needed = data.aspects.filter(a => a.required && !EBAY_ASPECTS_AUTO_COVERED.includes(a.name));
       renderEbayAspectsFields(needed);
     }catch(e){
@@ -2065,6 +2119,7 @@ export const app = (function(){
     document.getElementById('fBrand').value = item?.brand || '';
     document.getElementById('fGender').value = item?.gender || '';
     document.getElementById('fSize').value = item?.size || '';
+    renderEbaySizeCheck();
     document.getElementById('fCondition').value = item?.condition || 'excelente';
     document.getElementById('fCost').value = item?.cost || '';
     document.getElementById('fWeight').value = item?.weight || '';
@@ -4841,6 +4896,7 @@ Respond with the JSON object only. Do not include any text, explanation, or mark
       const editedSize = document.getElementById('aiSizeEdit').value.trim();
       if (editedSize){
         document.getElementById('fSize').value = editedSize;
+        renderEbaySizeCheck();
       }
       // Now that Brand/Color/Clothing type/Gender/Size/Category are all on
       // the form, replace the AI's plain identification (e.g. "Levi's 501
@@ -6195,6 +6251,14 @@ Be accurate and honest — never invent brand, material, or condition details th
         <div id="duplicateCodesResult" style="margin-top:10px;"></div>
       </div>
 
+      <!-- EBAY ERROR LIBRARY -->
+      <div class="settings-section">
+        <h3>eBay error library</h3>
+        <div class="ss-desc">Every eBay publish error seen on this account, with how often it happened. Errors the app doesn't know how to fix yet are listed first, with the AI's explanation when it gave one — those are the ones to add to the library next.</div>
+        <button class="settings-save-btn" onclick="runEbayErrorLibrary()">📚 Open eBay error library</button>
+        <div id="ebayErrorLibraryResult" style="margin-top:10px;"></div>
+      </div>
+
       <!-- EBAY LISTING AUDIT -->
       <div class="settings-section">
         <h3>eBay listing audit</h3>
@@ -6547,6 +6611,7 @@ EBAY_MERCHANT_LOCATION_KEY=${escapeHtml(data.results.merchantLocationKey)}</div>
   // window.* function wired via inline onclick, since renderSettings()
   // tears down and rebuilds this HTML on every render).
   window.runEbayAudit = runEbayAudit;
+  window.runEbayErrorLibrary = runEbayErrorLibrary;
   window.runListFulfillmentPolicies = runListFulfillmentPolicies;
   window.runBackfillDescriptions = runBackfillDescriptions;
   // See modules/product-code-bank.js — same reasoning as above.
@@ -7031,5 +7096,6 @@ EBAY_MERCHANT_LOCATION_KEY=${escapeHtml(data.results.merchantLocationKey)}</div>
     saveItem, renderAll, escapeHtml, CONDITION_LABEL, bulkSelectedIds,
     suggestPrice, platformFee, showSavedToast, openModal, renderEbayConnectionStatus,
     openModalFromBulkReview, setListedPlatformsUI, setStatusUI, getMissingEbayFieldLabels, closeModal,
+    aiUsageRemaining, incrementAiUsage,
   };
 })();

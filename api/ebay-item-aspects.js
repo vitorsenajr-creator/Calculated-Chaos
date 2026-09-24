@@ -20,6 +20,13 @@
 //     number before saving.
 //     POST body: { mode: 'suggest_fee', platformName }
 //     Returns: { feePct, note }
+//
+//   mode: 'explain_error' — fallback for an eBay publish error the app's own
+//     error library (src/modules/ebay-error-hints.js) doesn't recognize:
+//     asks the AI to explain it in plain English and name the one field to
+//     change. Only called for UNRECOGNIZED errors, so the cost stays small.
+//     POST body: { mode: 'explain_error', errors, step, item, category, aspectsSent }
+//     Returns: { explanation, fieldToChange, suggestedValue }
 
 import { requireApprovedUser } from './_requireApprovedUser.js';
 
@@ -120,6 +127,71 @@ If you're not confident about this specific platform, still give your best reaso
   return res.status(200).json({ feePct, note: result.note || null });
 }
 
+const EXPLAIN_FIELDS = ['size', 'brand', 'color', 'condition', 'weight', 'category', 'price', 'description', 'photos', 'ebay_settings', 'none'];
+
+async function handleExplainError(req, res) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    return res.status(500).json({ error: 'Server is not configured with an API key.' });
+  }
+  const { errors, step, item, category, aspectsSent } = req.body || {};
+  if (!Array.isArray(errors) || !errors.length) {
+    return res.status(400).json({ error: 'No errors provided.' });
+  }
+  const clip = (v, n) => JSON.stringify(v ?? null).slice(0, n);
+
+  const promptText = `You help a small secondhand reseller understand why the eBay Sell Inventory API rejected a listing, and what to change in her own catalog app to fix it.
+
+Failed step: ${String(step || 'unknown').slice(0, 40)}
+eBay errors (JSON): ${clip(errors, 4000)}
+Item as cataloged (JSON): ${clip(item, 2000)}
+eBay category: ${clip(category, 300)}
+Item specifics that were sent (JSON): ${clip(aspectsSent, 2000)}
+
+Her app has these editable fields: size, brand, color, condition, weight (package weight/dimensions), category (eBay category), price, description, photos, eBay settings (policies / account connection), and category item specifics (Pattern, Material, Type, etc.).
+
+Respond with ONLY a JSON object, no markdown fences, no preamble:
+{"explanation": "1-2 short plain-English sentences: what eBay rejected and exactly what to change. No jargon, no error codes.",
+ "fieldToChange": one of ${JSON.stringify(EXPLAIN_FIELDS)} or "aspect:<exact item specific name>",
+ "suggestedValue": "the exact new value to use, ONLY if it can be determined with confidence from the error or the data above, otherwise an empty string"}`;
+
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01'
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-5',
+      max_tokens: 400,
+      messages: [{ role: 'user', content: promptText }]
+    })
+  });
+  const data = await r.json();
+  if (!r.ok) {
+    console.error('Anthropic API error:', data);
+    return res.status(r.status).json({ error: 'Upstream API error', detail: data });
+  }
+  const textBlock = data.content && data.content.find(b => b.type === 'text');
+  const raw = textBlock ? textBlock.text.replace(/```json|```/gi, '') : '';
+  const first = raw.indexOf('{');
+  const last = raw.lastIndexOf('}');
+  let result = null;
+  if (first !== -1 && last !== -1) {
+    try { result = JSON.parse(raw.slice(first, last + 1)); } catch (e) { result = null; }
+  }
+  if (!result || typeof result.explanation !== 'string') {
+    return res.status(500).json({ error: "Couldn't make sense of the AI's response." });
+  }
+  const field = String(result.fieldToChange || 'none');
+  return res.status(200).json({
+    explanation: result.explanation.slice(0, 600),
+    fieldToChange: (EXPLAIN_FIELDS.includes(field) || /^aspect:.+/.test(field)) ? field : 'none',
+    suggestedValue: typeof result.suggestedValue === 'string' ? result.suggestedValue.slice(0, 120) : '',
+  });
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -133,6 +205,9 @@ export default async function handler(req, res) {
   try {
     if (req.body?.mode === 'suggest_fee') {
       return await handleSuggestFee(req, res);
+    }
+    if (req.body?.mode === 'explain_error') {
+      return await handleExplainError(req, res);
     }
     return await handleAspects(req, res);
   } catch (e) {
