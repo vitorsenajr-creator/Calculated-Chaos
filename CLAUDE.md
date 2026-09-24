@@ -1565,6 +1565,51 @@ next minor bump:
   **Not yet tested against a real publish** — verified via `node --check`,
   a clean `vite build`, and the normalizer/diagnosis exercised with the
   exact error payload from the screenshot.
+- **v3.13.109** — Follow-up to v3.13.108, Vitor asked for "tudo": (1)
+  **eBay's own list decides, before publishing** — `api/ebay-list.js`'s
+  `getRequiredAspects` became `getCategoryAspects` (same Taxonomy call,
+  now keeps every aspect's `allowedValues`, not just required ones), and
+  `buildInventoryItem` runs new `conformAspectsToAllowedValues()`
+  (`src/modules/ebay-aspect-match.js`, shared with the app) on every
+  aspect sent: a value that isn't in eBay's list is swapped for its
+  unambiguous match ("Medium" → "M", "EUR XS / USA XS / MEX 34" → "XS",
+  "black" → "Black") — never a fuzzy guess; no confident match = left
+  as-is. Changes come back as `aspectAdjustments` and show on the success
+  box ("Size sent as eBay's standard XS"). Failed responses now carry
+  `aspectAllowedValues` (the official list for whatever aspect eBay
+  rejected with 25129) plus `categoryIdUsed`/`categoryPathUsed`/
+  `aspectsSent`. In the item modal, `#ebaySizeCheck` (under Size) checks
+  the field live against the chosen category's list (stored in new
+  `currentCategoryAspects`): silent if standard, "eBay will receive this
+  as XS" if matchable, otherwise a dropdown of eBay's real sizes;
+  `getMissingEbayFieldLabels` also blocks publish on an unmatchable Size.
+  (2) **Error library** — `ebay-error-hints.js` is now a declarative
+  `EBAY_ERROR_LIBRARY` (one entry per known error: key/title/codes/match/
+  diagnose). Adding a new known error = adding one entry. 25129 now offers
+  a `chooseValue` fix (dropdown of eBay's official values, best match
+  preselected, "Apply & retry"); fix `target` is `{field}` or `{aspect}`
+  so item specifics (item.ebayAspects) can be fixed too, not just
+  size/brand/color. (3) **Error log** — new `modules/ebay-error-log.js`:
+  every publish failure (from `publishItemToEbayCore`, so single and bulk)
+  is written to Firestore `ebay_error_log`, one doc per distinct error
+  (errorId + message shape, quoted values/numbers stripped) with count,
+  first/last seen, last item/category, and which library entry recognized
+  it. Settings → "eBay error library" lists unrecognized errors first,
+  then recognized ones, then everything the library covers.
+  Best-effort: a log write failure never affects publishing. **If the
+  Firestore rules (Console only) whitelist collections, `ebay_error_log`
+  needs adding** — the Settings screen shows the load error if so. (4)
+  **AI fallback** — when an error isn't in the library, the single-item
+  error box asks the AI (new `mode:'explain_error'` on the existing
+  `api/ebay-item-aspects.js` — no new function file, 12-function cap
+  untouched; model `claude-sonnet-5`) for a plain-English explanation +
+  which field to change (+ value when certain), mapped by
+  `modules/ebay-error-ai.js` to the same fix buttons. Counts toward the
+  AI usage limit and is skipped when it's exhausted; the explanation is
+  saved on the log entry. Not run in bulk publish (would cost one call
+  per failed item). **Not yet tested against real eBay/Firestore/AI** —
+  verified via `node --check`, clean `vite build`, and the matcher/
+  diagnosis/AI-mapping exercised with the real 25129 payload.
 - **v3.13.93** — Vitor confirmed he did a real hard reload after v3.13.92
   and still didn't see the "Already listed on eBay" link on reopen —
   bumped the version number specifically to test whether his device is

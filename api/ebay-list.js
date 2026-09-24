@@ -4,6 +4,7 @@
 
 import { estimateShipping } from '../src/modules/pricing.js';
 import { normalizeSizeForEbay } from '../src/modules/ebay-size.js';
+import { conformAspectsToAllowedValues } from '../src/modules/ebay-aspect-match.js';
 
 const EBAY_SANDBOX = process.env.EBAY_SANDBOX === 'true';
 
@@ -197,15 +198,19 @@ async function resolveLeafCategoryId(parentCategoryId, accessToken, matchKeyword
   return { id: parentCategoryId, path: '(fallback: category tree lookup failed entirely)' };
 }
 
-const requiredAspectsCache = {};
+const categoryAspectsCache = {};
 
-// Asks eBay directly which item specifics (aspects) are REQUIRED for a given
-// leaf category — instead of discovering them one-by-one through trial and
-// error. Note: eBay's aspectUsage field always shows "RECOMMENDED" even for
-// hard-required aspects, so aspectConstraint.aspectRequired is the field that
-// actually tells the truth (per eBay's own documentation).
-async function getRequiredAspects(leafCategoryId, accessToken){
-  if (requiredAspectsCache[leafCategoryId]) return requiredAspectsCache[leafCategoryId];
+// Asks eBay (Taxonomy API) for every item specific this leaf category
+// knows about — which are REQUIRED, and each one's official allowed-values
+// list. The required ones feed fillMissingRequiredAspects; the allowed
+// values feed conformAspectsToAllowedValues (src/modules/ebay-aspect-match.js)
+// so e.g. a tag-copied "EUR XS / USA XS / MEX 34" is sent as eBay's own
+// "XS" instead of failing with errorId 25129. Note: eBay's aspectUsage
+// field always shows "RECOMMENDED" even for hard-required aspects, so
+// aspectConstraint.aspectRequired is the field that actually tells the
+// truth (per eBay's own documentation).
+async function getCategoryAspects(leafCategoryId, accessToken){
+  if (categoryAspectsCache[leafCategoryId]) return categoryAspectsCache[leafCategoryId];
   try{
     const result = await ebayRequest(
       'GET',
@@ -213,22 +218,45 @@ async function getRequiredAspects(leafCategoryId, accessToken){
       accessToken
     );
     if (result.ok && Array.isArray(result.data?.aspects)){
-      const required = result.data.aspects
-        .filter(a => a.aspectConstraint?.aspectRequired)
-        .map(a => ({
-          name: a.localizedAspectName,
-          // First allowed value, if eBay restricts this aspect to a fixed list —
-          // used as a safe default when we have no better data for it.
-          firstAllowedValue: a.aspectValues?.[0]?.localizedValue || null,
-          selectionOnly: a.aspectConstraint?.aspectMode === 'SELECTION_ONLY',
-        }));
-      requiredAspectsCache[leafCategoryId] = required;
-      return required;
+      const aspects = result.data.aspects
+        .filter(a => a.localizedAspectName)
+        .map(a => {
+          const allowedValues = (a.aspectValues || []).map(v => v.localizedValue).filter(Boolean);
+          return {
+            name: a.localizedAspectName,
+            required: !!a.aspectConstraint?.aspectRequired,
+            // First allowed value, if eBay restricts this aspect to a fixed list —
+            // used as a safe default when we have no better data for it.
+            firstAllowedValue: allowedValues[0] || null,
+            selectionOnly: a.aspectConstraint?.aspectMode === 'SELECTION_ONLY',
+            allowedValues,
+          };
+        });
+      categoryAspectsCache[leafCategoryId] = aspects;
+      return aspects;
     }
   }catch(e){
-    console.error('Required aspects lookup failed:', e);
+    console.error('Category aspects lookup failed:', e);
   }
   return [];
+}
+
+// For a failed request: the official allowed values of every aspect eBay
+// complained about (errorId 25129, "no longer support custom values for
+// X"), so the app can offer a dropdown of real choices right in the error
+// box instead of making her guess.
+function allowedValuesForFailedAspects(errorData, categoryAspects){
+  const errors = Array.isArray(errorData) ? errorData : (errorData?.errors || []);
+  const out = {};
+  for (const err of errors){
+    const msg = err.message || err.longMessage || '';
+    const m = msg.match(/custom values for ([^.]+?)\./i);
+    const name = (m && m[1].trim()) || (err.errorId === 25129 && err.parameters?.[3]?.value) || null;
+    if (!name) continue;
+    const spec = (categoryAspects || []).find(a => a.name.toLowerCase() === String(name).toLowerCase());
+    if (spec && spec.allowedValues.length) out[spec.name] = spec.allowedValues;
+  }
+  return Object.keys(out).length ? out : undefined;
 }
 
 const validConditionsCache = {};
@@ -300,7 +328,7 @@ async function getValidConditionsForCategory(leafCategoryId, accessToken){
 }
 
 // eBay's Taxonomy API (get_item_aspects_for_category, used by
-// getRequiredAspects above) doesn't always agree with what the Inventory
+// getCategoryAspects above) doesn't always agree with what the Inventory
 // API actually enforces at publish time — a category can reject a listing
 // for a missing item specific that the Taxonomy API never flagged as
 // required (seen for "Type" on a Dresses listing even though
@@ -329,8 +357,9 @@ const EBAY_ASPECTS_AUTO_COVERED = ['department', 'brand', 'color', 'size'];
 // eBay's own suggested first value as a safe, always-valid placeholder. This
 // means we ask eBay upfront what's needed instead of reacting to errors one
 // field at a time.
-function fillMissingRequiredAspects(aspects, requiredAspects){
-  for (const req of requiredAspects){
+function fillMissingRequiredAspects(aspects, categoryAspects){
+  for (const req of categoryAspects){
+    if (!req.required) continue;
     if (aspects[req.name]) continue; // already set by our own mapping
     if (EBAY_ASPECTS_AUTO_COVERED.includes(String(req.name).toLowerCase())) continue;
     if (req.selectionOnly && req.firstAllowedValue){
@@ -430,7 +459,7 @@ function isInvalidConditionError(errorData){
   return !!err && err.errorId === 25021;
 }
 
-function buildInventoryItem(item, extraRequiredAspects, imageUrls, packageTypeOverride, conditionOverride){
+function buildInventoryItem(item, categoryAspects, imageUrls, packageTypeOverride, conditionOverride, adjustmentsOut){
   // Compress photos: eBay accepts up to 12 image URLs, but we're using base64 data URLs
   // eBay requires hosted URLs — we send a placeholder note about this in the description
   // (In production, photos should be hosted; for now we include all available from item.photos)
@@ -478,7 +507,14 @@ function buildInventoryItem(item, extraRequiredAspects, imageUrls, packageTypeOv
   // this exact leaf category that neither the mapping above nor her own
   // answers covered — better than a failed publish, but should rarely fire
   // now that the cataloging form asks for these directly.
-  if (extraRequiredAspects) fillMissingRequiredAspects(aspects, extraRequiredAspects);
+  // Swap any value that isn't in eBay's official list for its unambiguous
+  // match ("Medium" -> "M", "EUR XS / USA XS / MEX 34" -> "XS"). Runs
+  // before the safety net below so that only ever fills truly blank fields.
+  if (categoryAspects){
+    const adjustments = conformAspectsToAllowedValues(aspects, categoryAspects);
+    if (adjustmentsOut) adjustmentsOut.splice(0, adjustmentsOut.length, ...adjustments);
+    fillMissingRequiredAspects(aspects, categoryAspects);
+  }
 
   // eBay rejects the inventory item outright (errorId 25020) without a
   // valid package weight — same fallback defaults already used by
@@ -620,7 +656,8 @@ export default async function handler(req, res){
       leafCategory = await resolveLeafCategoryId(parentCategoryId, access_token, matchKeywords, item.category);
       leafCategoryId = leafCategory.id;
     }
-    const requiredAspects = await getRequiredAspects(leafCategoryId, access_token);
+    const categoryAspects = await getCategoryAspects(leafCategoryId, access_token);
+    const aspectAdjustments = [];
 
     // Fetch the REAL valid condition values for this exact category, fresh,
     // straight from eBay — every time. We don't rely on whatever the client
@@ -638,7 +675,7 @@ export default async function handler(req, res){
     // categories, same universal set CONDITION_ID_MAP already leans on.
     const UNIVERSAL_CONDITION_FALLBACKS = ['NEW', 'NEW_OTHER', 'LIKE_NEW', 'USED_EXCELLENT', 'USED_VERY_GOOD', 'USED_ACCEPTABLE'];
     const triedConditions = new Set();
-    let inventoryBody = buildInventoryItem(itemForBuild, requiredAspects, imageUrls, packageTypeOverride, conditionOverride);
+    let inventoryBody = buildInventoryItem(itemForBuild, categoryAspects, imageUrls, packageTypeOverride, conditionOverride, aspectAdjustments);
     let invResult = await ebayRequest('PUT', `/sell/inventory/v1/inventory_item/${encodedSku}`, access_token, inventoryBody);
 
     // Retry with whatever eBay's own error says is wrong, up to a few times —
@@ -669,7 +706,7 @@ export default async function handler(req, res){
         const nextCandidate = candidates.find(c => !triedConditions.has(c));
         if (nextCandidate) conditionOverride = nextCandidate;
       }
-      inventoryBody = buildInventoryItem(itemForBuild, requiredAspects, imageUrls, packageTypeOverride, conditionOverride);
+      inventoryBody = buildInventoryItem(itemForBuild, categoryAspects, imageUrls, packageTypeOverride, conditionOverride, aspectAdjustments);
       invResult = await ebayRequest('PUT', `/sell/inventory/v1/inventory_item/${encodedSku}`, access_token, inventoryBody);
       retries++;
     }
@@ -680,6 +717,7 @@ export default async function handler(req, res){
         error: 'Failed to create eBay inventory item',
         detail: invResult.data,
         step: 'inventory',
+        aspectAllowedValues: allowedValuesForFailedAspects(invResult.data, categoryAspects),
         debugConditionSent: inventoryBody.condition,
         debugItemConditionRaw: item.condition,
         debugValidConditionsForCategory: validConditions,
@@ -802,7 +840,7 @@ export default async function handler(req, res){
         const nextCandidate = candidates.find(c => !triedConditions.has(c));
         if (nextCandidate) conditionOverride = nextCandidate;
       }
-      inventoryBody = buildInventoryItem(itemForBuild, requiredAspects, imageUrls, packageTypeOverride, conditionOverride);
+      inventoryBody = buildInventoryItem(itemForBuild, categoryAspects, imageUrls, packageTypeOverride, conditionOverride, aspectAdjustments);
       const retryInvResult = await ebayRequest('PUT', `/sell/inventory/v1/inventory_item/${encodedSku}`, access_token, inventoryBody);
       if (!retryInvResult.ok && retryInvResult.status !== 204){
         console.error('Inventory item error on publish-retry:', retryInvResult.data);
@@ -810,6 +848,7 @@ export default async function handler(req, res){
           error: 'Failed to create eBay inventory item',
           detail: retryInvResult.data,
           step: 'inventory',
+          aspectAllowedValues: allowedValuesForFailedAspects(retryInvResult.data, categoryAspects),
         });
       }
       publishResult = await ebayRequest('POST', `/sell/inventory/v1/offer/${offerId}/publish`, access_token);
@@ -822,6 +861,10 @@ export default async function handler(req, res){
         error: 'Failed to publish eBay listing',
         detail: publishResult.data,
         step: 'publish',
+        aspectAllowedValues: allowedValuesForFailedAspects(publishResult.data, categoryAspects),
+        categoryIdUsed: leafCategoryId,
+        categoryPathUsed: leafCategory.path,
+        aspectsSent: inventoryBody.product.aspects,
       });
     }
 
@@ -839,6 +882,7 @@ export default async function handler(req, res){
       categoryIdUsed: leafCategoryId,
       categoryPathUsed: leafCategory.path,
       aspectsUsed: inventoryBody.product.aspects,
+      aspectAdjustments,
     });
 
   }catch(err){

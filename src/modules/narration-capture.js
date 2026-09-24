@@ -384,7 +384,13 @@ Respond with the JSON object only. Do not include any text, explanation, or mark
         switch(key){
           case 'name': document.getElementById('fName').value = value; break;
           case 'brand': document.getElementById('fBrand').value = value; break;
-          case 'size': document.getElementById('fSize').value = value; break;
+          case 'size': {
+            const sizeEl = document.getElementById('fSize');
+            sizeEl.value = value;
+            // Lets main.js re-check it against eBay's standard sizes.
+            sizeEl.dispatchEvent(new Event('change'));
+            break;
+          }
           case 'notes': {
             const notesEl = document.getElementById('fNotes');
             const existingNotes = (notesEl.value || '').trim();
