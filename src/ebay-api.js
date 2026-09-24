@@ -19,6 +19,8 @@
   // its own, so this is safe to read at the top level too, not just inside
   // function bodies.
   import { items } from './modules/state.js';
+  import { diagnoseEbayFailure } from './modules/ebay-error-hints.js';
+  import { normalizeSizeForEbay } from './modules/ebay-size.js';
 
   // eBay tokens are stored in Firestore under 'ebay_tokens/main' so both users share the same connection
   export let ebayTokens = null; // { access_token, refresh_token, connected_at, expires_in }
@@ -452,32 +454,136 @@
     }
   }
 
-  // Renders the rich error box (with the debug detail eBay's API errors
-  // usually need to be diagnosed) shared by the single-item and bulk flows.
-  export function renderEbayErrorBoxHtml(result){
-    let detailHtml = '';
+  // Renders the error box shared by the single-item and bulk flows:
+  // plain-language problems first, each with a one-tap fix when one is
+  // known (modules/ebay-error-hints.js decides what the fix is), then
+  // eBay's own short messages, then the raw JSON/debug detail collapsed —
+  // still there for diagnosing something new, just not in the way.
+  // Pass `item` to get fix buttons; wire them with wireEbayErrorFixes().
+  export function renderEbayErrorBoxHtml(result, item){
+    const esc = app.escapeHtml;
+    const { messages, hints } = diagnoseEbayFailure(result, item);
+
+    const hintsHtml = hints.map((h, i) => `
+      <div style="margin-top:8px; padding:10px; background:var(--cream, #fff); border:1px solid var(--line); border-radius:8px; color:var(--plum); font-size:13px; line-height:1.4;">
+        💡 ${esc(h.text)}
+        ${h.fix && item ? `<button type="button" data-ebay-fix="${i}" style="display:block; width:100%; margin-top:8px; background:var(--terracotta); color:white; border:none; border-radius:8px; padding:9px 12px; font-size:13px; font-weight:600; cursor:pointer;">${esc(h.fix.label)}</button>` : ''}
+      </div>`).join('');
+
+    const messagesHtml = (!hints.length && messages.length)
+      ? `<div style="margin-top:6px; font-size:13px;">${messages.map(m => `• ${esc(m)}`).join('<br>')}</div>`
+      : '';
+
+    let rawHtml = '';
     if (result.detail){
       const errorsList = result.detail.errors || (Array.isArray(result.detail) ? result.detail : [result.detail]);
-      detailHtml = `<div style="margin-top:8px; padding:8px; background:rgba(0,0,0,0.04); border-radius:6px; font-family:monospace; font-size:11px; white-space:pre-wrap;">${app.escapeHtml(JSON.stringify(errorsList, null, 2))}</div>`;
+      rawHtml += `<div style="margin-top:6px; padding:8px; background:rgba(0,0,0,0.04); border-radius:6px; font-family:monospace; font-size:11px; white-space:pre-wrap;">${esc(JSON.stringify(errorsList, null, 2))}</div>`;
     }
-    let debugHtml = '';
     if (result.debugConditionSent !== undefined){
-      debugHtml = `<div style="margin-top:8px; padding:8px; background:rgba(194,112,95,0.08); border-radius:6px; font-family:monospace; font-size:11px; white-space:pre-wrap;">DEBUG — condition sent to eBay: ${app.escapeHtml(String(result.debugConditionSent))}
-DEBUG — item.condition (raw form value): ${app.escapeHtml(String(result.debugItemConditionRaw))}
-DEBUG — category chosen: ${result.debugCategoryChosen ? app.escapeHtml(result.debugCategoryChosen.id + ' — ' + result.debugCategoryChosen.path) : 'n/a'}
+      rawHtml += `<div style="margin-top:8px; padding:8px; background:rgba(194,112,95,0.08); border-radius:6px; font-family:monospace; font-size:11px; white-space:pre-wrap;">DEBUG — condition sent to eBay: ${esc(String(result.debugConditionSent))}
+DEBUG — item.condition (raw form value): ${esc(String(result.debugItemConditionRaw))}
+DEBUG — category chosen: ${result.debugCategoryChosen ? esc(result.debugCategoryChosen.id + ' — ' + result.debugCategoryChosen.path) : 'n/a'}
 DEBUG — full inventory body sent:
-${app.escapeHtml(JSON.stringify(result.debugFullInventoryBody, null, 2))}</div>`;
+${esc(JSON.stringify(result.debugFullInventoryBody, null, 2))}</div>`;
     }
     if (result.debugPolicyIdsSent){
-      debugHtml += `<div style="margin-top:8px; padding:8px; background:rgba(194,112,95,0.08); border-radius:6px; font-family:monospace; font-size:11px; white-space:pre-wrap;">DEBUG — policy IDs actually sent by the server (compare with Vercel dashboard values):
-${app.escapeHtml(JSON.stringify(result.debugPolicyIdsSent, null, 2))}</div>`;
+      rawHtml += `<div style="margin-top:8px; padding:8px; background:rgba(194,112,95,0.08); border-radius:6px; font-family:monospace; font-size:11px; white-space:pre-wrap;">DEBUG — policy IDs actually sent by the server (compare with Vercel dashboard values):
+${esc(JSON.stringify(result.debugPolicyIdsSent, null, 2))}</div>`;
     }
+    const detailsHtml = rawHtml
+      ? `<details style="margin-top:8px;"><summary style="cursor:pointer; font-size:12px; opacity:0.75;">Full eBay response</summary>${rawHtml}</details>`
+      : '';
+
+    // Only fall back to the old generic hint when nothing more specific
+    // was recognized — it used to show on every failure, even ones that
+    // had nothing to do with account policies.
+    const genericHtml = (!hints.length && !messages.length)
+      ? `<br><small>Check that your eBay account policies (fulfillment, payment, return) are configured in Seller Hub.</small>`
+      : '';
+
     return `<div class="ebay-status-box error">
-      ❌ Listing failed at step "${app.escapeHtml(result.step || 'unknown')}": ${app.escapeHtml(result.error)}<br>
-      <small>Check that your eBay account policies (fulfillment, payment, return) are configured in Seller Hub.</small>
-      ${detailHtml}
-      ${debugHtml}
+      ❌ Listing failed at step "${esc(result.step || 'unknown')}": ${esc(result.error)}${genericHtml}
+      ${hintsHtml}
+      ${messagesHtml}
+      ${detailsHtml}
     </div>`;
+  }
+
+  // Applies a single field change straight to the saved item (and to the
+  // open item modal's form, if this item is the one open — otherwise a
+  // later "Save item" would rebuild the doc from the stale form value and
+  // undo the fix). Returns the updated item.
+  // Pass rerender:false from the bulk report — app.renderAll() rebuilds the
+  // bulk bar and would wipe the report the fix button lives in.
+  async function applyItemFieldFix(item, field, value, { rerender = true } = {}){
+    const fresh = items.find(i => i.id === item.id) || item;
+    const updated = { ...fresh, [field]: value };
+    await app.saveItem(updated);
+    const idx = items.findIndex(i => i.id === item.id);
+    if (idx >= 0) items[idx] = updated;
+    if (app.currentEditId === item.id){
+      const inputId = { size: 'fSize', brand: 'fBrand', color: 'fColor' }[field];
+      const el = inputId && document.getElementById(inputId);
+      if (el) el.value = value;
+    }
+    if (rerender) app.renderAll();
+    return updated;
+  }
+
+  // Scrolls to (and focuses) the field a hint points at, opening the item's
+  // modal first if it isn't the one currently open.
+  function focusItemField(item, fix){
+    const go = () => {
+      const el = fix.fieldId
+        ? document.getElementById(fix.fieldId)
+        : Array.from(document.querySelectorAll('#ebayAspectsContainer [data-aspect]'))
+            .find(x => x.dataset.aspect.toLowerCase() === String(fix.aspect).toLowerCase());
+      const target = el || document.getElementById('ebayAspectsContainer');
+      if (!target) return;
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (el){
+        el.focus({ preventScroll: true });
+        el.style.outline = '2px solid var(--danger)';
+        setTimeout(() => { el.style.outline = ''; }, 2500);
+      }
+    };
+    if (app.currentEditId === item.id) go();
+    else { app.openModal(items.find(i => i.id === item.id) || item); setTimeout(go, 400); }
+  }
+
+  // Hooks up the fix buttons rendered by renderEbayErrorBoxHtml(result, item).
+  // `retry(updatedItem)` re-runs the publish for the flow that failed.
+  export function wireEbayErrorFixes(container, result, item, retry){
+    if (!container) return;
+    const { hints } = diagnoseEbayFailure(result, item);
+    container.querySelectorAll('[data-ebay-fix]').forEach(btn => {
+      const hint = hints[Number(btn.dataset.ebayFix)];
+      if (!hint || !hint.fix) return;
+      btn.addEventListener('click', async () => {
+        const fix = hint.fix;
+        if (fix.type === 'setField'){
+          btn.disabled = true;
+          btn.textContent = '⏳ Saving & retrying…';
+          try{
+            const updated = await applyItemFieldFix(item, fix.field, fix.value);
+            await retry(updated);
+          }catch(e){
+            btn.disabled = false;
+            btn.textContent = fix.label;
+          }
+        }else if (fix.type === 'retry'){
+          btn.disabled = true;
+          btn.textContent = '⏳ Retrying…';
+          await retry(items.find(i => i.id === item.id) || item);
+        }else if (fix.type === 'focusField'){
+          focusItemField(item, fix);
+        }else if (fix.type === 'settings'){
+          if (typeof app.closeModal === 'function') app.closeModal();
+          const settingsTab = document.querySelector('[data-tab="settings"]');
+          if (settingsTab) settingsTab.click();
+        }
+      });
+    });
   }
 
   export async function listItemOnEbay(item, forceRelist){
@@ -526,6 +632,14 @@ ${app.escapeHtml(JSON.stringify(result.debugPolicyIdsSent, null, 2))}</div>`;
       return;
     }
 
+    // A tag-copied multi-region Size ("EUR XS / USA XS / MEX 34") gets
+    // trimmed to its US part by the server (modules/ebay-size.js) — say so
+    // up front instead of letting it be a surprise on the live listing.
+    const sentSize = item.size ? normalizeSizeForEbay(item.size) : '';
+    const sizeNoticeHtml = sentSize && sentSize !== item.size.trim()
+      ? `<b>Size:</b> will be sent to eBay as "${app.escapeHtml(sentSize)}" <small style="opacity:0.7;">(from "${app.escapeHtml(item.size)}" — eBay only takes standard sizes)</small><br>`
+      : '';
+
     // Show confirmation before publishing
     area.innerHTML = `
       <div class="ebay-connect-box">
@@ -537,6 +651,7 @@ ${app.escapeHtml(JSON.stringify(result.debugPolicyIdsSent, null, 2))}</div>`;
             ? app.escapeHtml(item.ebayCategoryPath)
             : `<span style="color:var(--amber);">⚠️ Not set — will guess automatically, may be wrong. Edit the item first to search &amp; pick the exact category.</span>`}<br>
           <b>Condition:</b> ${app.escapeHtml(app.CONDITION_LABEL[item.condition] || item.condition || '')}<br>
+          ${sizeNoticeHtml}
           ${item.photos && item.photos.length > 0
             ? `<b>Photos:</b> ${item.photos.length} attached (will be uploaded automatically before publishing)`
             : `<span style="color:var(--danger)">⚠️ No photos — strongly recommended before listing</span>`}
@@ -554,7 +669,15 @@ ${app.escapeHtml(JSON.stringify(result.debugPolicyIdsSent, null, 2))}</div>`;
       confirmBtn.disabled = true;
       confirmBtn.textContent = item.photos && item.photos.length ? '⏳ Uploading photos…' : '⏳ Publishing…';
       area.querySelector('button:last-child').disabled = true;
+      await publishAndRenderResult(item, forceRelist, area);
+    });
+  }
 
+  // Runs the publish and renders its outcome into `area` — shared by the
+  // confirm button and by the error box's "fix & retry" buttons, so a
+  // retry after a one-tap fix goes straight back to publishing instead of
+  // re-showing the confirmation screen.
+  async function publishAndRenderResult(item, forceRelist, area){
       const result = await publishItemToEbayCore(item, forceRelist);
 
       if (result.success){
@@ -582,10 +705,18 @@ ${app.escapeHtml(JSON.stringify(result.debugPolicyIdsSent, null, 2))}</div>`;
           ${result.categoryIdUsed ? `<br><small>Category used: ${app.escapeHtml(String(result.categoryIdUsed))}${result.categoryPathUsed ? ' — ' + app.escapeHtml(result.categoryPathUsed) : ''}</small>` : ''}
           ${result.aspectsUsed ? `<br><small>Item specifics sent: ${app.escapeHtml(JSON.stringify(result.aspectsUsed))}</small>` : ''}
         </div>`;
+      }else if (result.skipped){
+        const reasonText = result.reason === 'missing_fields'
+          ? `Check the following field${result.missingFields.length === 1 ? '' : 's'} before publishing: ${result.missingFields.join(', ')}.`
+          : ({ no_price: 'Set a listing price first.', no_description: 'Generate a listing description first.', already_listed: 'Already listed on eBay.' }[result.reason] || 'Not published.');
+        area.innerHTML = `<div class="ebay-status-box error">❌ ${app.escapeHtml(reasonText)}</div>`;
       }else{
-        area.innerHTML = renderEbayErrorBoxHtml(result);
+        area.innerHTML = renderEbayErrorBoxHtml(result, item);
+        wireEbayErrorFixes(area, result, item, async (updated) => {
+          area.innerHTML = `<div class="ebay-status-box pending">⏳ Publishing…</div>`;
+          await publishAndRenderResult(updated, forceRelist || !!updated.ebayListingId, area);
+        });
       }
-    });
   }
 
   export function buildEbayTitle(item){
@@ -737,7 +868,13 @@ ${app.escapeHtml(JSON.stringify(result.debugPolicyIdsSent, null, 2))}</div>`;
     }
     if (failed.length){
       html += `<div style="margin-bottom:8px; font-size:13px;"><b style="color:var(--danger);">❌ ${failed.length} failed</b>`;
-      html += failed.map(r => itemRow(`${itemLabel(r.item)} — ${app.escapeHtml(r.result.error || 'unknown error')}${editBtn(r.item)}`)).join('');
+      html += failed.map((r, i) => {
+        const { hints, messages } = diagnoseEbayFailure(r.result, r.item);
+        const why = hints[0] ? hints[0].text : (messages[0] || r.result.error || 'unknown error');
+        const fix = hints[0] && hints[0].fix && hints[0].fix.type === 'setField' ? hints[0].fix : null;
+        const fixBtn = fix ? `<button class="bulk-ebay-fix-btn" data-fail-idx="${i}" style="background:var(--terracotta); color:white; border:none; border-radius:7px; padding:6px 12px; font-size:13px; cursor:pointer; margin-left:8px;">${app.escapeHtml(fix.label)}</button>` : '';
+        return `<div data-fail-row="${i}">${itemRow(`${itemLabel(r.item)} — ${app.escapeHtml(why)}${fixBtn}${editBtn(r.item)}`)}</div>`;
+      }).join('');
       html += `</div>`;
     }
     if (skipped.length){
@@ -761,6 +898,33 @@ ${app.escapeHtml(JSON.stringify(result.debugPolicyIdsSent, null, 2))}</div>`;
       btn.addEventListener('click', () => {
         const item = items.find(i => i.id === btn.dataset.editId);
         if (item) app.openModal(item);
+      });
+    });
+    // One-tap fixes (e.g. "Change Size to XS & retry") re-publish just that
+    // item and swap its row for the new outcome, without redoing the batch.
+    statusEl.querySelectorAll('.bulk-ebay-fix-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const r = failed[Number(btn.dataset.failIdx)];
+        const fix = diagnoseEbayFailure(r.result, r.item).hints[0].fix;
+        const row = statusEl.querySelector(`[data-fail-row="${btn.dataset.failIdx}"]`);
+        btn.disabled = true;
+        btn.textContent = '⏳ Fixing…';
+        try{
+          const updated = await applyItemFieldFix(r.item, fix.field, fix.value, { rerender: false });
+          const retryResult = await publishItemToEbayCore(updated, !!updated.ebayListingId);
+          if (row){
+            row.innerHTML = retryResult.success
+              ? itemRow(`✅ ${itemLabel(updated)} · <a href="${retryResult.listingUrl}" target="_blank">View ↗</a>`)
+              : itemRow(`${itemLabel(updated)} — still failing: ${app.escapeHtml((diagnoseEbayFailure(retryResult, updated).hints[0] || {}).text || retryResult.error || 'unknown error')}${editBtn(updated)}`);
+            row.querySelectorAll('[data-edit-id]').forEach(b => b.addEventListener('click', () => {
+              const it = items.find(i => i.id === b.dataset.editId);
+              if (it) app.openModal(it);
+            }));
+          }
+        }catch(e){
+          btn.disabled = false;
+          btn.textContent = fix.label;
+        }
       });
     });
     const closeBtn = document.getElementById('bulkEbayReportCloseBtn');

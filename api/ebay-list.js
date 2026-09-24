@@ -3,6 +3,7 @@
 // POST body: { access_token, item, refresh_token }
 
 import { estimateShipping } from '../src/modules/pricing.js';
+import { normalizeSizeForEbay } from '../src/modules/ebay-size.js';
 
 const EBAY_SANDBOX = process.env.EBAY_SANDBOX === 'true';
 
@@ -449,7 +450,10 @@ function buildInventoryItem(item, extraRequiredAspects, imageUrls, packageTypeOv
   }
   if (item.brand) aspects.Brand = [item.brand];
   if (item.color) aspects.Color = [item.color];
-  if (item.size) aspects.Size = [item.size];
+  // Tag-copied multi-region sizes ("EUR XS / USA XS / MEX 34") are rejected
+  // outright by categories that only accept standard values (errorId
+  // 25129) — send just the US part. See src/modules/ebay-size.js.
+  if (item.size) aspects.Size = [normalizeSizeForEbay(item.size)];
 
   // Real answers she filled in at cataloging time for whatever this category
   // requires beyond the above (Pattern, Material, "Vintage?", etc. — see

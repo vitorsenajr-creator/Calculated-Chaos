@@ -69,8 +69,8 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.107';
-  const APP_VERSION_DATE = '2026-09-21';
+  const APP_VERSION = 'v3.13.108';
+  const APP_VERSION_DATE = '2026-09-24';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
   let itemsLoaded = false; // true once the initial Firestore fetch in loadItems() resolves
@@ -7030,6 +7030,6 @@ EBAY_MERCHANT_LOCATION_KEY=${escapeHtml(data.results.merchantLocationKey)}</div>
     get currentEditId(){ return currentEditId; },
     saveItem, renderAll, escapeHtml, CONDITION_LABEL, bulkSelectedIds,
     suggestPrice, platformFee, showSavedToast, openModal, renderEbayConnectionStatus,
-    openModalFromBulkReview, setListedPlatformsUI, setStatusUI, getMissingEbayFieldLabels,
+    openModalFromBulkReview, setListedPlatformsUI, setStatusUI, getMissingEbayFieldLabels, closeModal,
   };
 })();

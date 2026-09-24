@@ -24,6 +24,7 @@
 import { items } from './state.js';
 import { escapeHtml, uid } from './format-utils.js';
 import { nextProductCode } from './catalog-lookups.js';
+import { ebayErrorShortMessages } from './ebay-error-hints.js';
 import { getValidEbayToken, publishItemToEbayCore } from '../ebay-api.js';
 
 function itemForSku(sku){
@@ -35,24 +36,8 @@ function itemNameForSku(sku){
   return match ? (match.name || sku) : sku;
 }
 
-// Trading API (ReviseItem, GetItem, ...) errors come back as an array of
-// {ShortMessage, SeverityCode, ...} — a raw JSON dump of that is technically
-// complete but not scannable at a glance. Pulls out just the Error-severity
-// ShortMessages (skips informational Warnings, like the standing "seller
-// has opted into business policies" notice eBay attaches to most Trading
-// API responses) so the actual problem reads as a sentence, not a blob.
-function ebayErrorShortMessages(detail){
-  const arr = Array.isArray(detail) ? detail
-    : Array.isArray(detail?.Errors) ? detail.Errors
-    : Array.isArray(detail?.errors) ? detail.errors
-    : null;
-  if (!arr) return null;
-  const msgs = arr
-    .filter(e => (e.SeverityCode || e.severity) !== 'Warning')
-    .map(e => e.ShortMessage || e.LongMessage || e.message)
-    .filter(Boolean);
-  return msgs.length ? msgs : null;
-}
+// ebayErrorShortMessages() now lives in ./ebay-error-hints.js, shared with
+// the publish error box.
 
 function renderAuditReport(data){
   const area = document.getElementById('ebayAuditResult');
