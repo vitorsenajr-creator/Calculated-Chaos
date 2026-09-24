@@ -61,6 +61,7 @@ import {
 import { initNarrationCapture } from './modules/narration-capture.js';
 import { runEbayAudit, runListFulfillmentPolicies, runBackfillDescriptions } from './modules/ebay-audit.js';
 import { matchAllowedValue, isSizeAspect } from './modules/ebay-aspect-match.js';
+import { suggestEbayTypeValue, isTypeAspect } from './modules/ebay-type-map.js';
 import { runEbayErrorLibrary } from './modules/ebay-error-log.js';
 import {
   reserveNextProductCode, findItemsWithProductCode,
@@ -71,7 +72,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.109';
+  const APP_VERSION = 'v3.13.110';
   const APP_VERSION_DATE = '2026-09-24';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -1828,6 +1829,29 @@ export const app = (function(){
     ],
   };
 
+  // The eBay "Type" value last filled in automatically from Clothing Type —
+  // lets a later Clothing Type change update it, without ever overwriting
+  // something she typed herself.
+  let autoFilledEbayType = null;
+
+  function currentClothingTypeValue(){
+    const sel = document.getElementById('fClothingType')?.value || '';
+    return sel === '__other__' ? (document.getElementById('fClothingTypeOther')?.value.trim() || '') : sel;
+  }
+
+  function refreshAutoEbayType(){
+    const el = Array.from(document.querySelectorAll('#ebayAspectsContainer [data-aspect]')).find(x => isTypeAspect(x.dataset.aspect));
+    if (!el) return;
+    const current = el.value.trim();
+    if (current && current !== autoFilledEbayType) return; // her own value — leave it
+    const spec = currentCategoryAspects.find(a => isTypeAspect(a.name));
+    const next = suggestEbayTypeValue(currentClothingTypeValue(), spec ? spec.allowedValues : null) || '';
+    el.value = next;
+    if (next) currentEbayAspects[el.dataset.aspect] = next;
+    else delete currentEbayAspects[el.dataset.aspect];
+    autoFilledEbayType = next || null;
+  }
+
   function renderEbayAspectsFields(neededAspects){
     const container = document.getElementById('ebayAspectsContainer');
     if (!neededAspects.length){ container.innerHTML = ''; return; }
@@ -1842,6 +1866,13 @@ export const app = (function(){
         // clearable in the field below, same "only fill if empty" rule
         // as applyDefaultSizeTypeIfEmpty/applyDefaultClothingShippingIfEmpty.
         if (suggestions && !currentEbayAspects[a.name]) currentEbayAspects[a.name] = suggestions[0];
+        // eBay "Type" = the Clothing Type she already picked above (e.g.
+        // T-Shirt), in eBay's own spelling when the category has an
+        // official list — see modules/ebay-type-map.js. Only fills a blank.
+        if (!suggestions && isTypeAspect(a.name) && !currentEbayAspects[a.name]){
+          const typeValue = suggestEbayTypeValue(currentClothingTypeValue(), a.allowedValues);
+          if (typeValue){ currentEbayAspects[a.name] = typeValue; autoFilledEbayType = typeValue; }
+        }
         const listId = `aspectSuggest_${a.name.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
         return `
         <div style="margin-bottom:8px;">
@@ -3576,6 +3607,7 @@ export const app = (function(){
     // Picking any clothing type is a strong signal this is a garment —
     // fill in the standard shipping box size if it hasn't been set yet.
     if (e.target.value) applyDefaultClothingShippingIfEmpty();
+    refreshAutoEbayType();
   });
 
   document.getElementById('fCategory').addEventListener('change', (e) => {
