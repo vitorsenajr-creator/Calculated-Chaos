@@ -1666,6 +1666,13 @@ next minor bump:
   info in a partly-overlapping bullet, pick the 4 most useful if more are
   visible. Title from the same run confirmed good (75/80 chars, followed
   the new formula).
+- **v3.13.113** — v3.13.112 got the bullet count right (4) but bullets
+  still repeated the opening (closures, shawl collar) because the opening
+  itself listed construction details. Fixed structurally instead of
+  relying on the model to remember: the opening is now keyword-only
+  (color + material + type + brand + at most one standout trait) and
+  construction details (closures, collar/neckline, pockets, sleeves, hem,
+  fit) are allowed ONLY in the bullets.
 - **v3.13.93** — Vitor confirmed he did a real hard reload after v3.13.92
   and still didn't see the "Already listed on eBay" link on reopen —
   bumped the version number specifically to test whether his device is
