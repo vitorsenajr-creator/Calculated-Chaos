@@ -72,8 +72,8 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.110';
-  const APP_VERSION_DATE = '2026-09-24';
+  const APP_VERSION = 'v3.13.111';
+  const APP_VERSION_DATE = '2026-10-01';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
   let itemsLoaded = false; // true once the initial Firestore fetch in loadItems() resolves
@@ -5059,11 +5059,19 @@ Respond with the JSON object only. Do not include any text, explanation, or mark
   const LISTING_DESC_LIMIT = 1500;
 
   function buildListingTitle({ brand, clothingType, category, gender, size, color, condition }){
-    let title = [brand, clothingType || category].filter(Boolean).join(' ').trim();
+    // Search-term order (same formula the AI title prompt uses): Brand +
+    // Gender + Type + Color + Size. Brand + type are never dropped; gender
+    // sits right after the brand because "Women's ..." is one of the most
+    // searched qualifiers on both Poshmark and eBay.
+    const type = clothingType || category;
+    let title = [brand, type].filter(Boolean).join(' ').trim();
+    if (gender && type){
+      const withGender = [brand, gender, type].filter(Boolean).join(' ').trim();
+      if (withGender.length <= 80) title = withGender;
+    }
     const optional = [];
-    if (size) optional.push(`Size ${size}`);
     if (color) optional.push(color);
-    if (gender) optional.push(gender);
+    if (size) optional.push(`Size ${size}`);
     if (condition === 'novo_etiqueta') optional.push('NWT');
     optional.forEach(part => {
       const candidate = (title + ' ' + part).trim();
@@ -5072,22 +5080,27 @@ Respond with the JSON object only. Do not include any text, explanation, or mark
     return title.slice(0, 80);
   }
 
-  // Builds a Poshmark description within the 500-char limit. Lines are added
-  // in priority order (most important first) and lower-priority lines are
-  // dropped first if space runs out — mirrors the "never cut your first/last
-  // 10 words" SEO guidance by keeping brand/type/size at the very top.
-  function buildListingDescription({ name, brand, clothingType, size, condition, notes, measurements, keywords, useStandardClosing }){
-    const intro = `${name}${brand ? ' by ' + brand : ''}${clothingType ? ' — ' + clothingType : ''}`;
+  // Builds a Poshmark description within LISTING_DESC_LIMIT, using the
+  // same section order the AI writer is asked for (opening → "Details:"
+  // bullets → standard closing line), so both generators produce the same
+  // shape. Lines are added in priority order and lower-priority ones are
+  // dropped first if space runs out. No "Keywords:" line — keyword lists
+  // read as keyword stuffing, which Poshmark's policy prohibits.
+  function buildListingDescription({ name, brand, clothingType, size, color, condition, notes, measurements, useStandardClosing }){
+    const intro = `${name}${brand && !name.includes(brand) ? ' by ' + brand : ''}`;
 
     const detailLines = [];
+    if (brand) detailLines.push(`* Brand: ${brand}`);
+    if (clothingType) detailLines.push(`* Style: ${clothingType}`);
     if (size) detailLines.push(`* Size: ${size}`);
+    if (color) detailLines.push(`* Color: ${color}`);
     detailLines.push(`* Condition: ${LISTING_CONDITION_LABEL[condition] || condition}`);
     if (measurements) detailLines.push(`* Measurements: ${measurements}`);
-    if (notes) detailLines.push(`* ${notes}`);
+    if (notes) detailLines.push(`* Notes: ${notes}`);
 
     const sections = [
       intro,
-      `Details:\n\n${detailLines.join('\n')}`,
+      `Details:\n${detailLines.join('\n')}`,
     ];
     // The closet/bundle blurb only makes sense for clothing — she can
     // uncheck "Include my standard closing line" for anything else
@@ -5096,7 +5109,6 @@ Respond with the JSON object only. Do not include any text, explanation, or mark
       const closing = (appSettings.listingStandardText || '').trim() || `Bundle discount available — check my closet! 📦`;
       sections.push(closing);
     }
-    if (keywords.length) sections.push(`Keywords: ${keywords.join(', ')}`);
 
     let text = '';
     for (const section of sections){
@@ -5199,9 +5211,8 @@ Respond with the JSON object only. Do not include any text, explanation, or mark
 
   async function generateListingDescription(){
     const f = gatherListingFormFields();
-    const keywords = Array.from(new Set([f.clothingType, f.category, f.color, f.gender].filter(Boolean))).slice(0, 5);
     const title = buildListingTitle(f);
-    const description = buildListingDescription({ ...f, keywords });
+    const description = buildListingDescription(f);
     // Best-effort starting point for Style Tags (max 3 on Poshmark) — she can
     // freely edit these before copying, this just saves typing from scratch.
     const styleTagGuesses = Array.from(new Set([f.clothingType, f.color, f.gender ? `${f.gender} Style` : ''].filter(Boolean))).slice(0, 3);
@@ -5225,9 +5236,9 @@ Respond with the JSON object only. Do not include any text, explanation, or mark
     // uncheck "Include my standard closing line" for anything else (e.g. a
     // pencil got "check my closet!" tacked on before this existed).
     const closingLineInstruction = f.useStandardClosing === false
-      ? `one short, factual closing line appropriate for this specific item — do NOT reference a "closet" or wardrobe, and do NOT mention bundling clothing, since this item may not be clothing`
+      ? `one short, factual closing line appropriate for this specific item (not a styling/pairing suggestion) — do NOT reference a "closet" or wardrobe, and do NOT mention bundling clothing, since this item may not be clothing`
       : includeStandardText
-        ? `a closing line that is EXACTLY this seller-provided text, verbatim, only trimmed at the end if needed to fit the 500-character limit: "${standardText}"`
+        ? `a closing line that is EXACTLY this seller-provided text, verbatim, only trimmed at the end if needed to fit the ${LISTING_DESC_LIMIT}-character limit: "${standardText}"`
         : `a line saying 'Bundle discount available — check my closet!'`;
 
     const promptText = `You are an expert Poshmark reseller writing an SEO-optimized listing for this item, following Poshmark's own best practices. You have been given up to 5 photos of the item — look at ALL of them carefully, not just the first. Sellers commonly include a close-up photo of the clothing tag/label showing fabric content (e.g. "100% cotton", "95% polyester 5% spandex"), care instructions, and sometimes country of origin or a style/RN number. If any such tag or label is visible in any photo, read it and use that real information — this is the single biggest thing that makes a description feel complete instead of generic. Never guess or invent fabric content or care instructions that you can't actually read; if no tag is visible or legible, just omit that detail rather than making it up.
@@ -5236,8 +5247,8 @@ Treat Brand, Size, Color, and Condition given in "Item data" below as ground tru
 
 Respond with ONLY a JSON object (no markdown fences, no preamble), with this exact shape:
 {
-  "title": "Poshmark title, HARD LIMIT 80 characters. Formula: Brand + Item Type + a key style/color detail + Size. Never omit Brand or Item Type if they are provided below. Keyword-first, no filler words, no ALL CAPS.",
-  "description": "Poshmark description, HARD LIMIT ${LISTING_DESC_LIMIT} characters, formatted in EXACTLY this structure:\n(1) A short, direct opening — 1 sentence, at most 2 only if truly needed. State what the item is and its most notable visual features (color/pattern, fabric texture, fit) in plain, factual language. NO marketing filler, NO phrases like 'the kind of piece that earns its keep', 'reach for this on...', 'effortlessly', 'elevate your wardrobe', or similar generic copywriting — just describe what it actually is and looks like.\n(2) A blank line, then the word 'Details:' alone on its own line.\n(3) A bullet list where every single line starts with '* ' (asterisk + space), in this order:\n  * Brand: <from item data>\n  * Style: <a specific, descriptive style phrase for this exact item — e.g. 'Oversized color block pullover sweater', not just the raw item type>\n  * Size: <from item data>\n  * Color: <from item data, described richly if it's multi-color or patterned>\n  * Condition: <the EXACT condition wording given below, never altered>\n  followed by 3-6 more '* Label: detail' lines covering whichever garment-construction attributes are actually visible AND relevant to this specific item type (a sweater and a dress need different attributes) — choose from things like Neckline, Sleeve length, Hem & cuffs, Fabric/knit texture, Closures, Pockets, Lining, Silhouette/fit, or fabric content/care instructions if a tag was legible.\n  then one final bullet noting which angles the photos show and confirming there's no visible flaw beyond what's noted in seller notes below (e.g. 'Front and back views shown — no visible wear or pilling'). Only state 'no visible flaws' if that's consistent with the seller notes; if seller notes mention a flaw, reflect that honestly instead.\n(4) A blank line, then one short, factual closing line (not flowery) — a genuine, concrete reason this specific piece is useful (e.g. what to pair it with), one sentence only.\n(5) A blank line, then ${closingLineInstruction}.\nDo not add anything after that — no keywords line, no hashtags, nothing else.",
+  "title": "Poshmark title, HARD LIMIT 80 characters — aim to use 70-80 of them, since every unused character is a lost search keyword. Formula, in this order: Brand + Gender (e.g. Women's, if given) + Material or texture visible in the photos/tag (e.g. Boucle, Linen, Denim, Cashmere) + Key style detail (e.g. Lace Trim, Button Front, Wrap) + Item Type + Color + Size. Never omit Brand or Item Type if they are provided below. Use the words real buyers type into search (e.g. 'Boucle', 'Cardigan Vest', 'Longline', 'Midi'), not vague descriptors nobody searches for (e.g. 'Mixed Knit', 'Unique', 'Beautiful'). No filler words, no ALL CAPS, no repeated words.",
+  "description": "Poshmark description, HARD LIMIT ${LISTING_DESC_LIMIT} characters, formatted in EXACTLY this structure:\n(1) A short, direct opening — ONE sentence. Lead with the searchable keywords: color + material/texture + item type first, then the brand, then 1-2 most notable features (e.g. 'Black boucle and lace trim sweater vest by Coco + Carmen, sleeveless with a three-button front.'). Plain, factual language. NO marketing filler, NO phrases like 'the kind of piece that earns its keep', 'reach for this on...', 'effortlessly', 'elevate your wardrobe', or similar generic copywriting.\n(2) A blank line, then the word 'Details:' alone on its own line.\n(3) A bullet list where every single line starts with '* ' (asterisk + space). Keep EVERY bullet to one short line — a phrase, not a sentence; buyers skim on a phone. Never repeat in a bullet what the opening sentence or another bullet already said. In this order:\n  * Brand: <from item data>\n  * Style: <a specific, descriptive style phrase for this exact item — e.g. 'Oversized color block pullover sweater', not just the raw item type. If the item is commonly searched under other names, add up to 2 genuine synonyms separated by ' / ' (e.g. 'Sweater vest / cardigan vest'). Only real synonyms for THIS item — never unrelated terms or other brands>\n  * Size: <from item data>\n  * Color: <from item data, described richly if it's multi-color or patterned>\n  * Condition: <the EXACT condition wording given below, never altered>\n  * Material: <the fiber content EXACTLY as printed on a legible tag (e.g. '60% cotton, 40% acrylic'), plus care instructions if legible. OMIT this bullet entirely if no tag is legible — never guess fiber content>\n  * Measurements: <the measurements given in item data, formatted compactly (e.g. 'Pit to pit 21\" · Length 30\"'). OMIT this bullet entirely if none were provided — never estimate measurements from the photos>\n  followed by 2-4 more '* Label: detail' lines covering whichever garment-construction attributes are actually visible AND relevant to this specific item type (a sweater and a dress need different attributes) — choose from things like Neckline, Sleeve length, Hem & cuffs, Texture, Closures, Pockets, Lining, Silhouette/fit. Do NOT include country of origin, RN/style numbers, or a 'Label reads...' line — they don't help a buyer.\n  then one final bullet noting which angles the photos show and confirming there's no visible flaw beyond what's noted in seller notes below (e.g. 'Front and back views shown — no visible wear or pilling'). Only state 'no visible flaws' if that's consistent with the seller notes; if seller notes mention a flaw, reflect that honestly instead.\n(4) A blank line, then ${closingLineInstruction}.\nDo not add anything after that — no styling/pairing suggestion, no keywords line, no hashtags, nothing else.",
   "style_tags": ["tag1", "tag2", "tag3"]
 }
 For "style_tags": choose up to 3 tags ONLY from this exact list (copy the spelling exactly, do not invent new ones or alter wording): ${POSHMARK_STYLE_TAGS.join(', ')}. Pick whichever 1-3 best match this item's era/material/silhouette/aesthetic — an empty array is fine if nothing fits well.
@@ -5251,7 +5262,6 @@ Color: ${f.color || '(unspecified)'}
 Condition (use this EXACT wording in the description): ${LISTING_CONDITION_LABEL[f.condition] || f.condition}
 Measurements: ${f.measurements || '(none provided)'}
 Seller notes / flaws: ${f.notes || '(none)'}
-Price: ${f.price ? '$' + f.price : '(unset)'}
 Be accurate and honest — never invent brand, material, or condition details that aren't given above or clearly readable in a photo. Do not use words like "rare", "vintage", or "authentic" unless explicitly supported by the data. Respond with the JSON object only — no text before or after it.`;
 
     const idToken = await window.auth.currentUser.getIdToken();
