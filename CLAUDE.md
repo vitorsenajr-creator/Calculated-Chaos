@@ -1658,6 +1658,14 @@ next minor bump:
   line is gone (reads as keyword stuffing, which Poshmark prohibits).
   **Not yet tested against a real generation** — `node --check`, clean
   `vite build`, and the template builders exercised with a sample item.
+- **v3.13.112** — First real generation after v3.13.111 still returned 5
+  construction bullets (limit was 2-4) and repeated the opening's
+  "boucle and lace" in a Texture bullet and "shawl collar" in Neckline.
+  Tightened that part of the prompt: "AT MOST 4 … 5 or more is NOT
+  allowed", skip any attribute the opening already states, keep only new
+  info in a partly-overlapping bullet, pick the 4 most useful if more are
+  visible. Title from the same run confirmed good (75/80 chars, followed
+  the new formula).
 - **v3.13.93** — Vitor confirmed he did a real hard reload after v3.13.92
   and still didn't see the "Already listed on eBay" link on reopen —
   bumped the version number specifically to test whether his device is
