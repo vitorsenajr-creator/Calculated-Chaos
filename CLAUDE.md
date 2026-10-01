@@ -1633,6 +1633,31 @@ next minor bump:
   and nothing was set, so bulk publishes (modal never opened) get it too.
   **Not yet tested against a real publish** — `node --check`, clean
   `vite build`, mapping exercised with sample allowed-values lists.
+- **v3.13.111** — Restructured the listing description/title generators
+  per Vitor (2026-10-01), after reviewing a real AI-written description
+  together. AI writer (`requestAiListingDescription()`): (1) removed the
+  "what to pair it with" usage sentence (old block 4) — the closing is now
+  only the standard closing line; (2) title formula now Brand + Gender +
+  Material/texture + Key style detail + Type + Color + Size, aiming for
+  70-80 of the 80 chars with words buyers actually search ("Boucle", not
+  "Mixed Knit"); (3) opening sentence leads with color + material + type,
+  then brand; (4) new fixed `Material:` bullet (tag fiber content, omitted
+  if not legible) and `Measurements:` bullet (omitted if none saved —
+  never estimated from photos), construction bullets cut from 3-6 to 2-4,
+  every bullet one short line, no repeating the opening; (5) `Style:` may
+  carry up to 2 genuine synonyms ("Sweater vest / cardigan vest"); (6)
+  country of origin / RN numbers / "Label reads…" dropped; (7) price no
+  longer sent in the prompt (unused); (8) fixed the standard-closing
+  instruction still saying "500-character limit" (real limit is
+  `LISTING_DESC_LIMIT`, 1500). The photos-shown/no-flaws final bullet was
+  deliberately KEPT (Vitor declined replacing it with a "Flaws:" bullet).
+  Instant template (`buildListingTitle`/`buildListingDescription`) aligned
+  to the same shape: title is Brand + Gender + Type + Color + Size,
+  description is opening → `Details:` (Brand/Style/Size/Color/Condition/
+  Measurements/Notes bullets) → standard closing, and the old `Keywords:`
+  line is gone (reads as keyword stuffing, which Poshmark prohibits).
+  **Not yet tested against a real generation** — `node --check`, clean
+  `vite build`, and the template builders exercised with a sample item.
 - **v3.13.93** — Vitor confirmed he did a real hard reload after v3.13.92
   and still didn't see the "Already listed on eBay" link on reopen —
   bumped the version number specifically to test whether his device is
