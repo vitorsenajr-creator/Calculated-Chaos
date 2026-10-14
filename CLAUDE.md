@@ -1747,6 +1747,24 @@ next minor bump:
   `vite build`, the prompt/schema builders exercised with sample data
   (full prompt ~2,600 tokens, rewrite ~1,500), and a headless load of the
   built app with zero JS errors; first real test is 3-5 real items.
+- **v3.13.116** — Vitor asked for a way to mark an item "New with tags"
+  BEFORE running ✨ Analyze, so the listing text comes out with NWT in
+  one call instead of needing a rewrite after changing Condition. Chose a
+  checkbox over having the AI detect store tags (his call — no risk of a
+  thrift-store price tag being read as a retail tag, no AI alert either).
+  New `#fNwtQuick` ("🏷️ New with tags") between the photo grid and the ✨
+  button (`index.html`) — only a shortcut for `#fCondition`, which stays
+  the single source of truth: checking sets Condition to `novo_etiqueta`
+  (the analysis prompt treats Condition as ground truth, so title/
+  description get NWT), unchecking restores the previous Condition
+  (`conditionBeforeNwtQuick`, falls back to `excelente`). Both fire a
+  `change` on `#fCondition`, so the "rewrite listing text?" notice shows
+  if AI text is already on screen. `syncNwtQuickCheckbox()` keeps the box
+  matching Condition on modal open, on manual Condition picks, and after
+  voice narration sets Condition (`narration-capture.js` now dispatches
+  `change` too). Verified via `node --check`, clean `vite build`, and a
+  headless test of check/uncheck/manual-pick sync (no JS errors); not yet
+  tried on a real item.
 - **v3.13.93** — Vitor confirmed he did a real hard reload after v3.13.92
   and still didn't see the "Already listed on eBay" link on reopen —
   bumped the version number specifically to test whether his device is
