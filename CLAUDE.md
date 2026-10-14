@@ -1,5 +1,18 @@
 # Project conventions — Calculated Chaos
 
+## Always confirm before changing anything (added 2026-10-14)
+
+Vitor's standing rule (2026-10-14): **before starting ANY change to this
+project, describe what will be changed and wait for his explicit
+confirmation.** This covers code, config, `CLAUDE.md` itself, version
+bumps, commits, pushes, and PRs — no exceptions for "small" or "obvious"
+fixes. Evaluation, reading code, diagnosing, and planning need no
+confirmation; acting on the plan does. If he says a session is
+"evaluation/planning only", make no changes at all in it.
+
+The merge rule below ("sempre") still applies, but only to PRs for
+changes he has already confirmed under this rule.
+
 ## Git workflow: feature branch + PR (added 2026-08-10)
 
 Vitor asked (2026-08-10) why a Claude Code session's changes landed on a
