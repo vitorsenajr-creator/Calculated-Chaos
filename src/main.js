@@ -72,8 +72,8 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.113';
-  const APP_VERSION_DATE = '2026-10-01';
+  const APP_VERSION = 'v3.13.114';
+  const APP_VERSION_DATE = '2026-10-14';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
   let itemsLoaded = false; // true once the initial Firestore fetch in loadItems() resolves
@@ -2276,7 +2276,7 @@ export const app = (function(){
     // thin top/bottom rule that doubles as a cut guide.
     return `
       <div class="label-content-block">
-        ${item.shipInspectionFlag ? `<div class="label-flag" style="font-size:${flagSizeIn}in;" title="Inspect before shipping">⚠️</div>` : ''}
+        ${item.shipInspectionFlag ? `<div class="label-flag" style="width:${flagSizeIn}in; height:${flagSizeIn}in;" title="Inspect before shipping"><svg viewBox="0 0 100 100" width="100%" height="100%"><path d="M50 4 L96 90 L4 90 Z" fill="#000" stroke="#000" stroke-width="8" stroke-linejoin="round"/><rect x="44" y="31" width="12" height="34" fill="#fff"/><circle cx="50" cy="76" r="7" fill="#fff"/></svg></div>` : ''}
         <div class="label-code">${escapeHtml(item.productCode || '')}</div>
         ${secondary ? `<div class="label-secondary">${escapeHtml(secondary)}</div>` : ''}
         ${fields.box !== false && item.storageBox ? `<div class="label-box">📦 ${escapeHtml(item.storageBox)}</div>` : ''}
@@ -2583,6 +2583,34 @@ export const app = (function(){
     return canvas;
   }
 
+  // Inspection flag drawn as a solid black vector warning triangle with a
+  // white "!" instead of the ⚠️ emoji: the emoji is mostly yellow, and the
+  // thermal printer app's B/W conversion (FlashLabel Pro's threshold) turns
+  // yellow into white, so the flag vanished from the saved image entirely.
+  // Pure black/white survives any threshold. (x, y) = top-left, size in px.
+  function drawInspectionFlagIcon(ctx, x, y, size){
+    const triH = size * 0.9;
+    ctx.save();
+    ctx.fillStyle = '#000000';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = size * 0.08;
+    ctx.strokeStyle = '#000000';
+    ctx.beginPath();
+    ctx.moveTo(x + size / 2, y);
+    ctx.lineTo(x + size, y + triH);
+    ctx.lineTo(x, y + triH);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#FFFFFF';
+    const barW = size * 0.12;
+    ctx.fillRect(x + size / 2 - barW / 2, y + triH * 0.3, barW, triH * 0.38);
+    ctx.beginPath();
+    ctx.arc(x + size / 2, y + triH * 0.8, barW * 0.6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
   // Every item gets the same fixed BATCH_LABEL_HEIGHT_IN slot and the same
   // shared font sizes (see computeSharedBatchFonts) — a single cut line
   // between consecutive items, no rule pair around each one. That fixed
@@ -2616,10 +2644,7 @@ export const app = (function(){
       drawBatchItemAt(ctx, w, dpi, i * h, h, fonts, measures[i]);
       if (item.shipInspectionFlag){
         const flagSizeIn = Math.min(0.32, h * 0.14, w * 0.14);
-        ctx.font = `${flagSizeIn * dpi}px sans-serif`;
-        ctx.textAlign = 'right';
-        ctx.textBaseline = 'top';
-        ctx.fillText('⚠️', canvas.width - 0.1 * dpi, (i * h + 0.02) * dpi);
+        drawInspectionFlagIcon(ctx, canvas.width - (0.06 + flagSizeIn) * dpi, (i * h + 0.04) * dpi, flagSizeIn * dpi);
       }
       if (i < itemsArr.length - 1){
         ctx.strokeStyle = '#6E5F4E';
