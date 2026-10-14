@@ -1696,6 +1696,57 @@ next minor bump:
   `buildLabelInnerHtml`) uses a matching inline SVG so the preview shows
   what actually prints. **Not yet tested on a real print** — `node
   --check` and a clean `vite build` only.
+- **v3.13.115** — Single AI call per item, planned with Vitor (2026-10-14)
+  after a cost/efficiency review of the two AI functions: photo analysis
+  (~$0.02/call) and the AI listing writer (~$0.035/call) both sent the
+  same photos, and images are ~75% of input cost. "🔮 Analyze with AI" is
+  replaced by one **"✨ Analyze & write listing"** button (his choice: a
+  single button, no old buttons kept alongside): one request reads up to
+  5 photos (kept at 5 — front/back/tag matter; tag photo must be among
+  the first 5) and returns brand, color, clothing type, gender, size, size
+  type, category, eBay category search term, visible flaws, price range,
+  **eBay item specifics** (only ones confirmable from photos/tag — list in
+  `AI_EBAY_ASPECT_NAMES`; Material/Country only from a legible tag;
+  Occasion/Season/Theme/Vintage deliberately excluded as guesses), the
+  listing title/description/style tags, and the "visual facts" it saw
+  (`material`, `construction_details`, `visible_flaws`). Prompt + JSON
+  schema live in new pure module `src/modules/ai-item.js`; listing rules
+  text kept from the v3.13.111-113 wording. "Apply to form" fills
+  everything, renders the listing panel, runs the eBay category search,
+  waits for that category's aspect list, applies the AI's item specifics
+  (`applyPendingAiEbayAspects`: only aspects the category has, matched to
+  eBay's official values via `matchAllowedValue`, skipped if
+  SELECTION_ONLY with no match, never over her own value, never
+  Size/Brand/Color/Department/Size Type), then autosaves
+  (`saveItemFlow({skipValidation:true})`). Visual facts persist as
+  `item.aiFacts`; the old AI writer button is now **"🪄 Rewrite listing
+  text with AI"** and, when `aiFacts` exist, sends NO photos (~$0.013 per
+  rewrite vs ~$0.035) — items without facts still send photos. Same for
+  the bulk "Generate descriptions" tool. A "⚠️ X changed after this text
+  was written — rewrite?" notice appears when she edits brand/size/color/
+  gender/type/condition on the review card or the form while listing text
+  is showing. Server: `api/analyze-photo.js` is the single endpoint
+  (`mode:'full'|'listing_only'`), sends the schema as structured output
+  (`output_config.format`) and **falls back to a schema-less retry if the
+  API rejects it** — the skill docs don't list `claude-sonnet-4-6` among
+  structured-output models, so watch the Vercel logs: an `ai-usage` line
+  with `"structured":false` means the fallback ran (still works, parsing
+  is tolerant). Every call now logs real token usage (`ai-usage` in Vercel
+  function logs; also saved as `aiAnalysis.usage` on the item) to replace
+  the estimates. `api/generate-listing.js` removed — **frees one of the 12
+  Hobby-plan function slots** (11 used now). `vercel.json` gives
+  `analyze-photo.js` `maxDuration: 60` (bigger response, ~15-30s). Old
+  saved analyses (likely_* keys, no listing copy) still render via
+  `normalizeAiAnalysis()`. The tag-fallback patches from v3.13.61/66 were
+  removed — tags are now constrained to `POSHMARK_STYLE_TAGS` by the
+  schema (and `normalizeStyleTags()` on the fallback path). Estimated cost
+  per item: ~$0.038-0.047 vs ~$0.047-0.063 before (~20-25% less — an
+  earlier 40-50% estimate in the planning chat was wrong). Model switch
+  (Sonnet 5.5) deliberately left for a separate later change. **Not yet
+  tested against the real AI** — verified via `node --check`, a clean
+  `vite build`, the prompt/schema builders exercised with sample data
+  (full prompt ~2,600 tokens, rewrite ~1,500), and a headless load of the
+  built app with zero JS errors; first real test is 3-5 real items.
 - **v3.13.93** — Vitor confirmed he did a real hard reload after v3.13.92
   and still didn't see the "Already listed on eBay" link on reopen —
   bumped the version number specifically to test whether his device is

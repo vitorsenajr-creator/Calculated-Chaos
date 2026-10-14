@@ -64,6 +64,10 @@ import { matchAllowedValue, isSizeAspect } from './modules/ebay-aspect-match.js'
 import { suggestEbayTypeValue, isTypeAspect } from './modules/ebay-type-map.js';
 import { runEbayErrorLibrary } from './modules/ebay-error-log.js';
 import {
+  buildAnalyzeAndWritePrompt, buildAnalyzeAndWriteSchema, buildRewritePrompt, buildRewriteSchema,
+  normalizeStyleTags, AI_GENDER_VALUES, AI_SIZE_TYPE_VALUES,
+} from './modules/ai-item.js';
+import {
   reserveNextProductCode, findItemsWithProductCode,
   runDuplicateProductCodeAudit, renumberDuplicateProductCode,
 } from './modules/product-code-bank.js';
@@ -72,7 +76,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.114';
+  const APP_VERSION = 'v3.13.115';
   const APP_VERSION_DATE = '2026-10-14';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -1672,7 +1676,7 @@ export const app = (function(){
     }
     if (cat && cat.id){
       currentCategoryAspects = []; // don't check against the previous category's list while this one loads
-      loadEbayAspectsForCategory(cat.id);
+      ebayAspectsLoadPromise = loadEbayAspectsForCategory(cat.id);
     } else {
       currentEbayAspects = {};
       currentCategoryAspects = [];
@@ -1755,6 +1759,14 @@ export const app = (function(){
     });
   }
   let currentAiAnalysis = null; // raw AI photo-analysis result for this item, saved on the item so it survives closing/reopening the modal
+  // Visual facts (fabric tag, construction details, flaws) recorded by the
+  // last ✨ analysis — saved as item.aiFacts so "🪄 Rewrite listing text"
+  // can rewrite without re-sending photos.
+  let currentAiFacts = null;
+  // eBay item specifics from the ✨ analysis, waiting for the chosen
+  // category's aspect list to load (applyPendingAiEbayAspects).
+  let pendingAiEbayAspects = null;
+  let ebayAspectsLoadPromise = null;
 
   async function loadEbayAspectsForCategory(categoryId){
     const container = document.getElementById('ebayAspectsContainer');
@@ -1771,6 +1783,7 @@ export const app = (function(){
       const data = await res.json();
       if (!data.success){ container.innerHTML = ''; return; }
       currentCategoryAspects = data.aspects;
+      applyPendingAiEbayAspects();
       renderEbaySizeCheck();
       const needed = data.aspects.filter(a => a.required && !EBAY_ASPECTS_AUTO_COVERED.includes(a.name));
       renderEbayAspectsFields(needed);
@@ -2180,6 +2193,8 @@ export const app = (function(){
     // photo analysis belongs to this item, so show it again instead of
     // making her regenerate it just to see it.
     currentAiAnalysis = (item && !isDuplicate && item.aiAnalysis) ? item.aiAnalysis : null;
+    currentAiFacts = (item && !isDuplicate && item.aiFacts) ? item.aiFacts : null;
+    pendingAiEbayAspects = null;
     if (currentAiAnalysis){
       renderAiAnalysis(currentAiAnalysis);
     } else {
@@ -4700,7 +4715,107 @@ export const app = (function(){
     return forPayload.map(photoToImageBlock).filter(Boolean);
   }
 
-  async function analyzeItemPhoto(){
+  // ---------- ✨ ANALYZE & WRITE LISTING (single AI call, v3.13.115) ----------
+  // One request reads up to 5 photos and returns every field it can fill
+  // (brand, color, type, gender, size, size type, category, eBay category
+  // search term, eBay item specifics, price range) plus the listing title/
+  // description/style tags and the "visual facts" it saw (fabric tag,
+  // construction details). Replaces the old separate "🔮 Analyze with AI"
+  // and AI listing-writer calls, which both paid for the same photos.
+  // Prompt + schema live in modules/ai-item.js; server is api/analyze-photo.js.
+
+  // Shared caller for /api/analyze-photo. Returns {ok, result, usage} or
+  // {ok:false, message} with the server's real error text when it fails.
+  async function callAiItemEndpoint({ mode, imageBlocks, promptText, outputSchema }){
+    const idToken = await window.auth.currentUser.getIdToken();
+    const response = await fetch('/api/analyze-photo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+      body: JSON.stringify({ mode, imageBlocks, promptText, outputSchema })
+    });
+    if (!response.ok){
+      let detail = '';
+      try{
+        const errJson = await response.json();
+        detail = errJson?.detail?.error?.message || errJson?.error?.message || errJson?.error || '';
+      }catch(parseErr){ /* body wasn't JSON — leave detail blank */ }
+      return { ok:false, message: `Couldn't reach the AI (server said: HTTP ${response.status}${detail ? ' — ' + escapeHtml(String(detail)) : ''}). Try again in a moment — if it keeps happening, tell Vitor this exact message.` };
+    }
+    const data = await response.json();
+    if (data.stop_reason === 'max_tokens'){
+      return { ok:false, message: `The AI's answer was cut off before it finished. Please try again.` };
+    }
+    const textBlock = data.content && data.content.find(b => b.type === 'text');
+    const result = parseAiJsonText(textBlock && textBlock.text);
+    if (!result){
+      return { ok:false, message: `Couldn't make sense of the AI's response. Please try again.` };
+    }
+    return { ok:true, result, usage: data.usage || null };
+  }
+
+  // Structured outputs already guarantee valid JSON — this tolerant parse is
+  // for the fallback path (server retries without a schema if the model
+  // rejects it), where the model can wrap the JSON in fences or write raw
+  // newlines inside the multi-line description string.
+  function parseAiJsonText(text){
+    if (!text) return null;
+    let cleaned = text.replace(/```json|```/gi, '').trim();
+    const firstBrace = cleaned.indexOf('{');
+    const lastBrace = cleaned.lastIndexOf('}');
+    if (firstBrace === -1 || lastBrace <= firstBrace) return null;
+    cleaned = escapeRawControlCharsInJsonStrings(cleaned.slice(firstBrace, lastBrace + 1));
+    try{ return JSON.parse(cleaned); }catch(parseErr){ return null; }
+  }
+
+  // Cuts at the last line break (else last space) before the limit instead
+  // of mid-word, for the rare answer that overshoots the hard limit.
+  function trimToLimit(text, limit){
+    const s = String(text || '');
+    if (s.length <= limit) return s;
+    const cut = s.slice(0, limit);
+    const at = Math.max(cut.lastIndexOf('\n'), cut.lastIndexOf(' '));
+    return (at > limit * 0.6 ? cut.slice(0, at) : cut).trimEnd();
+  }
+
+  // The closet/bundle blurb only makes sense for clothing — she can
+  // uncheck "Include my standard closing line" for anything else (e.g. a
+  // pencil got "check my closet!" tacked on before this existed).
+  function buildClosingLineInstruction(useStandardClosing){
+    const standardText = (appSettings.listingStandardText || '').trim();
+    if (useStandardClosing === false){
+      return `one short, factual closing line appropriate for this specific item (not a styling/pairing suggestion) — do NOT reference a "closet" or wardrobe, and do NOT mention bundling clothing, since this item may not be clothing`;
+    }
+    return standardText
+      ? `a closing line that is EXACTLY this seller-provided text, verbatim, only trimmed at the end if needed to fit the ${LISTING_DESC_LIMIT}-character limit: "${standardText}"`
+      : `a line saying 'Bundle discount available — check my closet!'`;
+  }
+
+  function priceHistoryByCategory(){
+    const history = {};
+    CATEGORY_OPTIONS.forEach(c => {
+      const h = getCategoryPriceHistory(c);
+      if (h) history[c] = h;
+    });
+    return history;
+  }
+
+  // Analyses saved before v3.13.115 used likely_* keys and had no listing
+  // copy — map them to the current shape so reopening an old item still
+  // shows its card.
+  function normalizeAiAnalysis(r){
+    if (!r) return null;
+    if (!('likely_brand' in r)) return r;
+    return {
+      brand: r.likely_brand || '', color: r.likely_color || '', clothing_type: r.likely_clothing_type || '',
+      gender: r.likely_gender || '', size: r.likely_size || '', size_type: r.likely_size_type || '',
+      category: r.category || '', ebay_search_term: r.ebay_search_term || '', visible_flaws: r.visible_flaws || '',
+      price_low: r.price_low, price_high: r.price_high, reasoning: r.reasoning || '',
+      identification: r.identification || '', title: '', description: '', style_tags: [],
+      material: '', construction_details: [], ebay_aspects: [], appliedAt: r.appliedAt,
+    };
+  }
+
+  async function analyzeAndWriteListing(){
     const btn = document.getElementById('analyzePhotoBtn');
     const area = document.getElementById('aiAnalysisArea');
 
@@ -4708,166 +4823,122 @@ export const app = (function(){
       area.innerHTML = `<div class="ai-error">Add at least one photo first — the AI needs something to look at.</div>`;
       return;
     }
-
-    // Check usage limit
     if (aiUsageRemaining() <= 0){
       area.innerHTML = `<div class="ai-error">❌ You've reached your monthly AI analysis limit (${appSettings.aiUsageLimit || 500} analyses). Go to ⚙ Settings to reset the counter.</div>`;
       return;
     }
 
     btn.disabled = true;
-    btn.textContent = '🔮 Analyzing...';
-    area.innerHTML = `<div class="ai-loading">Looking closely at your item — this takes a few seconds…</div>`;
+    btn.textContent = '✨ Analyzing & writing…';
+    area.innerHTML = `<div class="ai-loading">Reading the photos and writing the listing — this takes 15-30 seconds…</div>`;
 
     try{
-      const imageBlocks = await buildAiImageBlocks(currentPhotos, 3); // up to 3 photos for context
+      // 5 photos: front, back and the tag/label close-up are what matter
+      // most — the tag photo needs to be among the first 5.
+      const imageBlocks = await buildAiImageBlocks(currentPhotos, 5);
       if (imageBlocks.length === 0){
         area.innerHTML = `<div class="ai-error">Couldn't read the photo(s) for analysis. Please try again.</div>`;
-        btn.disabled = false;
-        btn.textContent = '🔮 Analyze with AI';
         return;
       }
 
-      const existingHistory = {};
-      CATEGORY_OPTIONS.forEach(c => {
-        const h = getCategoryPriceHistory(c);
-        if (h) existingHistory[c] = h;
+      const f = gatherListingFormFields();
+      const promptText = buildAnalyzeAndWritePrompt({
+        f,
+        conditionLabel: LISTING_CONDITION_LABEL[f.condition] || f.condition,
+        descLimit: LISTING_DESC_LIMIT,
+        closingLineInstruction: buildClosingLineInstruction(f.useStandardClosing),
+        categoryOptions: CATEGORY_OPTIONS,
+        priceHistory: priceHistoryByCategory(),
       });
-
-      const promptText = `You are helping value a secondhand item for resale on eBay/Mercari/Poshmark. Look at the photo(s) and respond with ONLY a JSON object (no markdown fences, no preamble), with this exact shape:
-{
-  "identification": "short name of the item, e.g. 'Levi's 501 denim jacket'",
-  "likely_brand": "brand name if visible/identifiable, or empty string if unknown",
-  "likely_color": "one of: ${PRESET_COLORS.join(', ')}, or another specific color name if none of those fit — pick the single most dominant color of the item",
-  "likely_clothing_type": "if this is a clothing/shoe/bag/accessory item, one of: ${PRESET_CLOTHING_TYPES.join(', ')}, or another specific clothing type name if none of those fit. If the item is not clothing/footwear/accessories, use an empty string.",
-  "likely_gender": "if this is a clothing/shoe/accessory item, one of: Women's, Men's, Girls', Boys', Unisex — inferred from cut/styling/tag if visible. Empty string if not applicable or not confident.",
-  "likely_size": "size exactly as shown on a visible tag/label (e.g. 'M', '32x30', '8.5') — empty string if no size is legible in any photo. Never guess a size that isn't actually visible.",
-  "likely_size_type": "if this is clothing, eBay's Size Type aspect — 'Regular' unless the tag/label or the garment's visible cut clearly indicates otherwise (e.g. 'Plus', 'Petite', 'Tall', 'Big & Tall', 'Maternity', 'Juniors'). Empty string if not clothing.",
-  "category": "a short, specific category name for this item. Reuse one of these if it genuinely fits: ${CATEGORY_OPTIONS.join(', ')} — otherwise suggest a new, concise category name that fits better (e.g. 'Appliances', 'Antiques', 'Board Games')",
-  "ebay_search_term": "a short, specific eBay listing category search term for this exact item, e.g. 'women's skirt', 'hardcover book', 'antique table lamp', 'microwave oven' — specific enough to find the right eBay category, not a broad bucket like 'Clothing'",
-  "visible_flaws": "short description of visible wear, stains, damage, or empty string if none seen",
-  "price_low": number (low end of a reasonable resale price guess in USD),
-  "price_high": number (high end of a reasonable resale price guess in USD),
-  "reasoning": "1-2 sentence explanation of the price guess, mentioning visual cues you used"
-}
-Known past sale averages by category on this account (use only as light context, not gospel): ${JSON.stringify(existingHistory)}
-Be realistic and conservative — secondhand resale prices are usually modest. If you cannot identify the item with any confidence, still provide your best guess and say so in reasoning.
-Respond with the JSON object only. Do not include any text, explanation, or markdown formatting before or after it. Your entire response must be parseable as JSON.`;
-
-      const idToken = await window.auth.currentUser.getIdToken();
-      const response = await fetch("/api/analyze-photo", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
-        body: JSON.stringify({
-          imageBlocks,
-          promptText
-        })
-      });
-
-      if (!response.ok){
-        area.innerHTML = `<div class="ai-error">Couldn't reach the AI right now. Please check your connection and try again.</div>`;
-        return;
-      }
-      const data = await response.json();
-      const textBlock = data.content && data.content.find(b => b.type === 'text');
-      if (!textBlock){
-        area.innerHTML = `<div class="ai-error">The AI didn't return a usable response. Please try again.</div>`;
+      const res = await callAiItemEndpoint({ mode: 'full', imageBlocks, promptText, outputSchema: buildAnalyzeAndWriteSchema() });
+      if (!res.ok){
+        area.innerHTML = `<div class="ai-error">${res.message}</div>`;
         return;
       }
 
-      let cleaned = textBlock.text.replace(/```json|```/gi, '').trim();
-      // Extract just the JSON object in case the model added any stray text around it
-      const firstBrace = cleaned.indexOf('{');
-      const lastBrace = cleaned.lastIndexOf('}');
-      if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace){
-        area.innerHTML = `<div class="ai-error">Couldn't make sense of the AI's response. Please try again.</div>`;
-        return;
-      }
-      cleaned = cleaned.slice(firstBrace, lastBrace + 1);
-      cleaned = escapeRawControlCharsInJsonStrings(cleaned);
-
-      let result;
-      try{
-        result = JSON.parse(cleaned);
-      }catch(parseErr){
-        area.innerHTML = `<div class="ai-error">Couldn't make sense of the AI's response. Please try again.</div>`;
-        return;
-      }
-
-      currentAiAnalysis = result;
-      renderAiAnalysis(result);
-      // Increment AI usage counter
+      const r = res.result;
+      const text = (v) => String(v || '').trim();
+      currentAiAnalysis = {
+        brand: text(r.brand), color: text(r.color), clothing_type: text(r.clothing_type),
+        gender: text(r.gender), size: text(r.size), size_type: text(r.size_type),
+        category: text(r.category), ebay_search_term: text(r.ebay_search_term),
+        visible_flaws: text(r.visible_flaws), material: text(r.material),
+        construction_details: Array.isArray(r.construction_details) ? r.construction_details.map(text).filter(Boolean).slice(0, 8) : [],
+        ebay_aspects: Array.isArray(r.ebay_aspects)
+          ? r.ebay_aspects.filter(a => a && text(a.name) && text(a.value)).map(a => ({ name: text(a.name), value: text(a.value) }))
+          : [],
+        price_low: parseFloat(r.price_low) || 0, price_high: parseFloat(r.price_high) || 0,
+        reasoning: text(r.reasoning),
+        title: text(r.title).slice(0, 80),
+        description: trimToLimit(r.description, LISTING_DESC_LIMIT),
+        style_tags: normalizeStyleTags(r.style_tags),
+        usage: res.usage,
+        analyzedAt: Date.now(),
+      };
+      renderAiAnalysis(currentAiAnalysis);
       await incrementAiUsage();
-      // Show usage warning if getting close to limit
       const remaining = aiUsageRemaining();
       if (remaining <= 50 && remaining > 0){
         area.innerHTML += `<div style="font-size:11px; color:var(--amber-deep); background:rgba(217,160,91,0.15); padding:7px 10px; border-radius:8px; margin-top:6px;">⚠ ${remaining} AI analyses remaining this month. Reset in ⚙ Settings.</div>`;
       } else if (remaining === 0){
         area.innerHTML += `<div style="font-size:11px; color:var(--danger); background:rgba(181,86,74,0.1); padding:7px 10px; border-radius:8px; margin-top:6px;">❌ Monthly AI limit reached. Go to ⚙ Settings to reset.</div>`;
       }
-
     }catch(err){
       area.innerHTML = `<div class="ai-error">Couldn't complete the analysis right now. Please try again in a moment.</div>`;
     }finally{
       btn.disabled = false;
-      btn.textContent = '🔮 Analyze with AI';
+      btn.textContent = '✨ Analyze & write listing';
     }
   }
 
-  function renderAiAnalysis(result){
+  // Already applied → a one-line summary (the fields/listing are on the form
+  // now); otherwise the full review card.
+  function renderAiAnalysis(raw){
+    const result = normalizeAiAnalysis(raw);
+    const area = document.getElementById('aiAnalysisArea');
+    if (result.appliedAt){
+      area.innerHTML = `
+        <div style="font-size:12px; color:var(--sage-deep); background:rgba(127,150,120,0.12); padding:9px 12px; border-radius:10px; margin-bottom:14px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+          <span style="flex:1;">✓ AI analysis applied ${escapeHtml(new Date(result.appliedAt).toLocaleDateString())}.</span>
+          <button class="copy-btn" id="aiShowAgainBtn">Show details</button>
+        </div>`;
+      document.getElementById('aiShowAgainBtn').addEventListener('click', () => renderAiAnalysisCard(result));
+      return;
+    }
+    renderAiAnalysisCard(result);
+  }
+
+  function renderAiAnalysisCard(result){
     const area = document.getElementById('aiAnalysisArea');
     const low = Math.max(0, parseFloat(result.price_low) || 0);
     const high = Math.max(low, parseFloat(result.price_high) || low);
     const mid = Math.round(((low+high)/2) * 100) / 100;
+    const labelStyle = 'font-size:10px; text-transform:uppercase; letter-spacing:0.04em; color:var(--plum-soft); font-weight:700; margin-bottom:4px;';
+    const inputStyle = 'width:100%; padding:8px 11px; border:1px solid var(--line); border-radius:8px; font-size:13px; color:var(--plum); background:var(--white);';
+    const field = (label, inner) => `<div style="flex:1; min-width:120px;"><div style="${labelStyle}">${label}</div>${inner}</div>`;
+    const select = (id, values, current) => `<select id="${id}" style="${inputStyle}">${values.map(v =>
+      `<option value="${escapeHtml(v)}" ${v === (current || '') ? 'selected' : ''}>${v ? escapeHtml(v) : '—'}</option>`).join('')}</select>`;
+    const nameValue = result.title || result.identification || '';
+    const tags = result.style_tags || [];
 
     area.innerHTML = `
       <div class="ai-analysis-box">
         <div class="ai-tag">AI estimate — review & apply</div>
 
         <div style="margin-top:6px; margin-bottom:12px;">
-          <div style="font-size:10px; text-transform:uppercase; letter-spacing:0.04em; color:var(--plum-soft); font-weight:700; margin-bottom:4px;">Item name (edit if needed)</div>
-          <input type="text" id="aiNameEdit" value="${escapeHtml(result.identification || '')}"
+          <div style="${labelStyle}">${result.title ? 'Title / item name' : 'Item name'} (edit if needed)</div>
+          <input type="text" id="aiNameEdit" value="${escapeHtml(nameValue)}"
             style="width:100%; padding:9px 11px; border:1.5px solid var(--blush); border-radius:10px; font-size:14px; font-family:'Fraunces',serif; font-weight:600; color:var(--plum); background:var(--white);">
         </div>
 
         <div style="display:flex; gap:10px; margin-bottom:12px; flex-wrap:wrap;">
-          <div style="flex:1; min-width:120px;">
-            <div style="font-size:10px; text-transform:uppercase; letter-spacing:0.04em; color:var(--plum-soft); font-weight:700; margin-bottom:4px;">Brand</div>
-            <input type="text" id="aiBrandEdit" value="${escapeHtml(result.likely_brand || '')}"
-              style="width:100%; padding:8px 11px; border:1px solid var(--line); border-radius:8px; font-size:13px; color:var(--plum); background:var(--white);">
-          </div>
-          <div style="flex:1; min-width:120px;">
-            <div style="font-size:10px; text-transform:uppercase; letter-spacing:0.04em; color:var(--plum-soft); font-weight:700; margin-bottom:4px;">Color</div>
-            <input type="text" id="aiColorEdit" value="${escapeHtml(result.likely_color || '')}" list="colorList"
-              style="width:100%; padding:8px 11px; border:1px solid var(--line); border-radius:8px; font-size:13px; color:var(--plum); background:var(--white);">
-          </div>
-          <div style="flex:1; min-width:120px;">
-            <div style="font-size:10px; text-transform:uppercase; letter-spacing:0.04em; color:var(--plum-soft); font-weight:700; margin-bottom:4px;">Suggested price</div>
-            <input type="number" id="aiPriceEdit" value="${mid.toFixed(2)}" step="0.01"
-              style="width:100%; padding:8px 11px; border:1px solid var(--line); border-radius:8px; font-size:13px; font-family:'JetBrains Mono',monospace; color:var(--terracotta-deep); background:var(--white);">
-          </div>
-          <div style="flex:1; min-width:120px;">
-            <div style="font-size:10px; text-transform:uppercase; letter-spacing:0.04em; color:var(--plum-soft); font-weight:700; margin-bottom:4px;">Clothing type</div>
-            <input type="text" id="aiClothingTypeEdit" value="${escapeHtml(result.likely_clothing_type || '')}" list="clothingTypeList"
-              style="width:100%; padding:8px 11px; border:1px solid var(--line); border-radius:8px; font-size:13px; color:var(--plum); background:var(--white);">
-          </div>
-          <div style="flex:1; min-width:120px;">
-            <div style="font-size:10px; text-transform:uppercase; letter-spacing:0.04em; color:var(--plum-soft); font-weight:700; margin-bottom:4px;">Gender</div>
-            <select id="aiGenderEdit"
-              style="width:100%; padding:8px 11px; border:1px solid var(--line); border-radius:8px; font-size:13px; color:var(--plum); background:var(--white);">
-              <option value="">—</option>
-              <option value="Women's" ${result.likely_gender === "Women's" ? 'selected' : ''}>Women's</option>
-              <option value="Men's" ${result.likely_gender === "Men's" ? 'selected' : ''}>Men's</option>
-              <option value="Girls'" ${result.likely_gender === "Girls'" ? 'selected' : ''}>Girls'</option>
-              <option value="Boys'" ${result.likely_gender === "Boys'" ? 'selected' : ''}>Boys'</option>
-              <option value="Unisex" ${result.likely_gender === 'Unisex' ? 'selected' : ''}>Unisex</option>
-            </select>
-          </div>
-          <div style="flex:1; min-width:120px;">
-            <div style="font-size:10px; text-transform:uppercase; letter-spacing:0.04em; color:var(--plum-soft); font-weight:700; margin-bottom:4px;">Size</div>
-            <input type="text" id="aiSizeEdit" value="${escapeHtml(result.likely_size || '')}"
-              style="width:100%; padding:8px 11px; border:1px solid var(--line); border-radius:8px; font-size:13px; color:var(--plum); background:var(--white);">
-          </div>
+          ${field('Brand', `<input type="text" id="aiBrandEdit" value="${escapeHtml(result.brand || '')}" style="${inputStyle}">`)}
+          ${field('Color', `<input type="text" id="aiColorEdit" value="${escapeHtml(result.color || '')}" list="colorList" style="${inputStyle}">`)}
+          ${field('Suggested price', `<input type="number" id="aiPriceEdit" value="${mid.toFixed(2)}" step="0.01" style="${inputStyle} font-family:'JetBrains Mono',monospace; color:var(--terracotta-deep);">`)}
+          ${field('Clothing type', `<input type="text" id="aiClothingTypeEdit" value="${escapeHtml(result.clothing_type || '')}" list="clothingTypeList" style="${inputStyle}">`)}
+          ${field('Gender', select('aiGenderEdit', AI_GENDER_VALUES, result.gender))}
+          ${field('Size', `<input type="text" id="aiSizeEdit" value="${escapeHtml(result.size || '')}" style="${inputStyle}">`)}
+          ${field('Size type', select('aiSizeTypeEdit', AI_SIZE_TYPE_VALUES, result.size_type))}
         </div>
 
         <div style="font-size:12px; color:var(--plum-soft); margin-bottom:4px;">
@@ -4875,7 +4946,19 @@ Respond with the JSON object only. Do not include any text, explanation, or mark
           ${result.visible_flaws ? ` · <b>Wear noted:</b> ${escapeHtml(result.visible_flaws)}` : ''}
         </div>
         <div class="ai-reasoning">${escapeHtml(result.reasoning || '')}</div>
-        <div class="ai-disclaimer">AI estimate based on visual cues only — not a live market lookup. Adjust before saving.</div>
+        ${result.material ? `<div style="font-size:12px; color:var(--plum-soft); margin-top:6px;"><b>Tag reads:</b> ${escapeHtml(result.material)}</div>` : ''}
+        ${(result.ebay_aspects || []).length ? `
+          <div style="font-size:12px; color:var(--plum-soft); margin-top:6px;">
+            <b>eBay item specifics seen:</b> ${result.ebay_aspects.map(a => `${escapeHtml(a.name)}: ${escapeHtml(a.value)}`).join(' · ')}
+            <div style="font-size:11px; opacity:0.8;">Filled in only where the chosen eBay category uses them, and never over a value you already set.</div>
+          </div>` : ''}
+        ${result.description ? `
+          <details style="margin-top:10px;">
+            <summary style="font-size:12px; font-weight:600; color:var(--plum); cursor:pointer;">Listing description & style tags (preview)</summary>
+            <div style="white-space:pre-wrap; font-size:12px; color:var(--plum); background:var(--white); border:1px solid var(--line); border-radius:8px; padding:9px 11px; margin-top:6px;">${escapeHtml(result.description)}</div>
+            ${tags.length ? `<div style="font-size:12px; color:var(--plum-soft); margin-top:6px;"><b>Style tags:</b> ${tags.map(escapeHtml).join(', ')}</div>` : ''}
+          </details>` : ''}
+        <div class="ai-disclaimer">AI estimate based on visual cues only — not a live market lookup. "Apply" fills the form${result.description ? ' and the listing text' : ''}, then saves the item.</div>
         <div class="ai-actions">
           <button id="aiApplyBtn" class="apply-btn">✓ Apply to form</button>
           <button id="aiDismissBtn">Dismiss</button>
@@ -4883,141 +4966,185 @@ Respond with the JSON object only. Do not include any text, explanation, or mark
       </div>
     `;
 
-    document.getElementById('aiApplyBtn').addEventListener('click', () => {
-      // Name — always apply the (possibly edited) AI name if field is empty OR user chose AI's
-      const editedName = document.getElementById('aiNameEdit').value.trim();
-      if (editedName){
-        document.getElementById('fName').value = editedName;
-      }
-      // Brand
-      const editedBrand = document.getElementById('aiBrandEdit').value.trim();
-      if (editedBrand){
-        document.getElementById('fBrand').value = editedBrand;
-      }
-      // Color
-      const editedColor = document.getElementById('aiColorEdit').value.trim();
-      if (editedColor){
-        const colorSelect = document.getElementById('fColor');
-        const colorOther = document.getElementById('fColorOther');
-        const knownColorValues = Array.from(colorSelect.options).map(o => o.value);
-        if (knownColorValues.includes(editedColor)){
-          colorSelect.value = editedColor;
-          colorOther.style.display = 'none';
-          colorOther.value = '';
-        } else {
-          colorSelect.value = '__other__';
-          colorOther.value = editedColor;
-          colorOther.style.display = 'block';
-        }
-      }
-      // Category — same select+"Add new…" model as Color: if the AI's
-      // suggestion matches a known option it's selected directly, otherwise
-      // it's dropped into the custom "Add new…" field.
-      if (result.category && result.category.trim()){
-        const editedCategory = result.category.trim();
-        const categorySelect = document.getElementById('fCategory');
-        const categoryOther = document.getElementById('fCategoryOther');
-        const knownCategoryValues = Array.from(categorySelect.options).map(o => o.value);
-        if (knownCategoryValues.includes(editedCategory)){
-          categorySelect.value = editedCategory;
-          categoryOther.style.display = 'none';
-          categoryOther.value = '';
-        } else {
-          categorySelect.value = '__other__';
-          categoryOther.value = editedCategory;
-          categoryOther.style.display = 'block';
-        }
-      }
-      // Clothing type
-      const editedClothingType = document.getElementById('aiClothingTypeEdit').value.trim();
-      if (editedClothingType){
-        const typeSelect = document.getElementById('fClothingType');
-        const typeOther = document.getElementById('fClothingTypeOther');
-        const knownTypeValues = Array.from(typeSelect.options).map(o => o.value);
-        if (knownTypeValues.includes(editedClothingType)){
-          typeSelect.value = editedClothingType;
-          typeOther.style.display = 'none';
-          typeOther.value = '';
-        } else {
-          typeSelect.value = '__other__';
-          typeOther.value = editedClothingType;
-          typeOther.style.display = 'block';
-        }
-      }
-      // Gender
-      const editedGender = document.getElementById('aiGenderEdit').value;
-      if (editedGender){
-        document.getElementById('fGender').value = editedGender;
-      }
-      // Size
-      const editedSize = document.getElementById('aiSizeEdit').value.trim();
-      if (editedSize){
-        document.getElementById('fSize').value = editedSize;
-        renderEbaySizeCheck();
-      }
-      // Now that Brand/Color/Clothing type/Gender/Size/Category are all on
-      // the form, replace the AI's plain identification (e.g. "Levi's 501
-      // denim jacket") with the same SEO-formatted title
-      // "Generate listing description" already builds via buildListingTitle
-      // — no extra AI call, just the same deterministic formula run on the
-      // fields we just applied. Falls back to the AI's own name if there
-      // isn't enough to build from (no brand/type/category at all).
-      const seoTitle = buildListingTitle(gatherListingFormFields());
-      if (seoTitle.trim()){
-        document.getElementById('fName').value = seoTitle;
-      }
-      // If the item turned out to be Clothing and shipping dims are still
-      // empty, fill in the standard box size now too.
-      if (getCategoryValue() === 'Clothing'){
-        applyDefaultClothingShippingIfEmpty();
-        applyDefaultSizeTypeIfEmpty();
-      }
-      // Size Type (eBay aspect) defaults to "Regular" for clothing above —
-      // override it here if the AI actually spotted something else (Plus,
-      // Petite, Tall, etc.) from the tag or the garment's visible cut.
-      if (result.likely_size_type && result.likely_size_type.trim()){
-        currentEbayAspects['Size Type'] = result.likely_size_type.trim();
-        const sizeTypeEl = document.querySelector('[data-aspect="Size Type"]');
-        if (sizeTypeEl) sizeTypeEl.value = currentEbayAspects['Size Type'];
-      }
-      // Condition is intentionally NOT auto-applied from the AI's guess — it
-      // always stays at whatever the form already has (defaults to "Used -
-      // Excellent" for new items).
-      // Notes is intentionally left untouched by "Apply to form" — the AI's
-      // visible_flaws is already shown for review in the card above, but
-      // Notes only ever contains what she typed herself, so it stays clean.
-      // Price
-      const editedPrice = parseFloat(document.getElementById('aiPriceEdit').value) || mid;
-      document.getElementById('fListPrice').value = editedPrice.toFixed(2);
-
-      // eBay category — auto-search using the AI's suggested search term and
-      // auto-pick the top match, so she doesn't have to type it herself in
-      // most cases. Results stay visible below so she can pick a different
-      // one with one tap if the AI guessed wrong.
-      if (result.ebay_search_term){
-        document.getElementById('fEbayCategoryQuery').value = result.ebay_search_term;
-        document.getElementById('fEbayCategoryQuery').dataset.lastQuery = result.ebay_search_term;
-        searchEbayCategory(result.ebay_search_term, true);
-      }
-
-      document.getElementById('aiAnalysisArea').innerHTML = `
-        <div style="font-size:12px; color:var(--sage-deep); background:rgba(127,150,120,0.12); padding:9px 12px; border-radius:10px; margin-bottom:14px;">
-          ✓ AI suggestions applied — review the form below and adjust anything before saving.
-        </div>`;
-    });
-
+    document.getElementById('aiApplyBtn').addEventListener('click', () => applyAiAnalysisToForm(result, mid));
     document.getElementById('aiDismissBtn').addEventListener('click', () => {
       currentAiAnalysis = null;
       document.getElementById('aiAnalysisArea').innerHTML = '';
     });
   }
 
-  document.getElementById('analyzePhotoBtn').addEventListener('click', analyzeItemPhoto);
+  // Sets a select that has an "Other…" escape hatch (Color, Category,
+  // Clothing type): a known option is selected directly, anything else goes
+  // into the matching custom text field.
+  function setSelectOrOther(selectId, otherId, value){
+    const sel = document.getElementById(selectId);
+    const other = document.getElementById(otherId);
+    if (Array.from(sel.options).some(o => o.value === value)){
+      sel.value = value;
+      other.style.display = 'none';
+      other.value = '';
+    } else {
+      sel.value = '__other__';
+      other.value = value;
+      other.style.display = 'block';
+    }
+  }
+
+  async function applyAiAnalysisToForm(result, mid){
+    const applyBtn = document.getElementById('aiApplyBtn');
+    const val = (id) => (document.getElementById(id)?.value || '').trim();
+    const edited = {
+      name: val('aiNameEdit'), brand: val('aiBrandEdit'), color: val('aiColorEdit'),
+      clothingType: val('aiClothingTypeEdit'), gender: val('aiGenderEdit'),
+      size: val('aiSizeEdit'), sizeType: val('aiSizeTypeEdit'),
+      price: parseFloat(document.getElementById('aiPriceEdit').value) || mid,
+    };
+    applyBtn.disabled = true;
+    applyBtn.textContent = 'Applying…';
+
+    if (edited.name) document.getElementById('fName').value = edited.name;
+    if (edited.brand) document.getElementById('fBrand').value = edited.brand;
+    if (edited.color) setSelectOrOther('fColor', 'fColorOther', edited.color);
+    if (result.category && result.category.trim()) setSelectOrOther('fCategory', 'fCategoryOther', result.category.trim());
+    if (edited.clothingType) setSelectOrOther('fClothingType', 'fClothingTypeOther', edited.clothingType);
+    if (edited.gender) document.getElementById('fGender').value = edited.gender;
+    if (edited.size){
+      document.getElementById('fSize').value = edited.size;
+      renderEbaySizeCheck();
+    }
+    // Analyses from before v3.13.115 have no AI title — build the same SEO
+    // title "Generate listing description" uses from the fields just set.
+    if (!result.title){
+      const seoTitle = buildListingTitle(gatherListingFormFields());
+      if (seoTitle.trim()) document.getElementById('fName').value = seoTitle;
+    }
+    // If the item turned out to be Clothing and shipping dims are still
+    // empty, fill in the standard box size and the "Regular" Size Type.
+    if (getCategoryValue() === 'Clothing'){
+      applyDefaultClothingShippingIfEmpty();
+      applyDefaultSizeTypeIfEmpty();
+    }
+    // Override the "Regular" default only if the AI (or her edit on the
+    // card) says something else — Plus, Petite, Tall, etc.
+    if (edited.sizeType){
+      currentEbayAspects['Size Type'] = edited.sizeType;
+      const sizeTypeEl = document.querySelector('[data-aspect="Size Type"]');
+      if (sizeTypeEl) sizeTypeEl.value = edited.sizeType;
+    }
+    // Condition is intentionally NOT auto-applied from the AI — it stays at
+    // whatever the form already has. Notes is left untouched too: the AI's
+    // visible_flaws is shown on the card, but Notes only holds what she typed.
+    document.getElementById('fListPrice').value = edited.price.toFixed(2);
+
+    // Listing copy written in the same call.
+    let staleLabels = [];
+    if (result.description){
+      renderListingOutput(edited.name || result.title, result.description, [...(result.style_tags || [])], AI_LISTING_SOURCE_LABEL);
+      // The description was written with the AI's own values — if she
+      // changed any of them on the card, offer the cheap photo-free rewrite.
+      const same = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+      [['Brand', edited.brand, result.brand], ['Color', edited.color, result.color],
+       ['Clothing type', edited.clothingType, result.clothing_type], ['Gender', edited.gender, result.gender],
+       ['Size', edited.size, result.size]].forEach(([label, mine, ai]) => { if (!same(mine, ai)) staleLabels.push(label); });
+    }
+    // What the AI saw in the photos — saved on the item so "🪄 Rewrite
+    // listing text" can rewrite later without re-sending any photo.
+    if (result.title || result.material || (result.construction_details || []).length){
+      currentAiFacts = {
+        material: result.material || '',
+        construction_details: [...(result.construction_details || [])],
+        visible_flaws: result.visible_flaws || '',
+        recordedAt: result.analyzedAt || Date.now(),
+      };
+    }
+
+    // eBay item specifics: applied once the chosen category's aspect list is
+    // known (see applyPendingAiEbayAspects) — only aspects that category
+    // actually has, matched to eBay's official values, never over hers.
+    pendingAiEbayAspects = (result.ebay_aspects || []).length ? [...result.ebay_aspects] : null;
+    if (result.ebay_search_term){
+      document.getElementById('fEbayCategoryQuery').value = result.ebay_search_term;
+      document.getElementById('fEbayCategoryQuery').dataset.lastQuery = result.ebay_search_term;
+      applyBtn.textContent = 'Finding eBay category…';
+      await searchEbayCategory(result.ebay_search_term, true);
+      await waitForEbayAspects();
+    } else if (pendingAiEbayAspects && currentCategoryAspects.length){
+      applyPendingAiEbayAspects();
+      renderEbayAspectsFields(currentCategoryAspects.filter(a => a.required && !EBAY_ASPECTS_AUTO_COVERED.includes(a.name)));
+    }
+
+    currentAiAnalysis = { ...currentAiAnalysis, appliedAt: Date.now() };
+    applyBtn.textContent = 'Saving…';
+    // Same autosave the listing generators use: a new item gets saved for
+    // the first time (no eBay-category gate), and the modal reopens on it.
+    await saveItemFlow({ skipValidation: true, listingIsAi: result.description ? true : undefined });
+    if (staleLabels.length) renderListingStaleNotice(staleLabels);
+  }
+
+  // Waits for the eBay aspect lookup started by the category pick, so the
+  // AI's item specifics are applied before the autosave — capped so a slow
+  // or failed lookup never blocks the save.
+  async function waitForEbayAspects(){
+    if (!ebayAspectsLoadPromise) return;
+    await Promise.race([ebayAspectsLoadPromise, new Promise(r => setTimeout(r, 10000))]);
+  }
+
+  function applyPendingAiEbayAspects(){
+    if (!pendingAiEbayAspects) return;
+    pendingAiEbayAspects.forEach(({ name, value }) => {
+      const v = String(value || '').trim();
+      if (!v) return;
+      const spec = currentCategoryAspects.find(a => String(a.name).toLowerCase() === String(name).toLowerCase());
+      if (!spec) return; // this category doesn't have it
+      if (EBAY_ASPECTS_AUTO_COVERED.includes(spec.name) || /^size type$/i.test(spec.name)) return;
+      if (currentEbayAspects[spec.name]) return; // never overwrite her value
+      let finalValue = v;
+      if (spec.allowedValues && spec.allowedValues.length){
+        const match = matchAllowedValue(spec.name, v, spec.allowedValues);
+        if (match) finalValue = match;
+        else if (spec.selectionOnly) return; // eBay would reject anything off its list
+      }
+      currentEbayAspects[spec.name] = finalValue;
+    });
+    pendingAiEbayAspects = null;
+  }
+
+  // Shown above the listing text when item details changed after it was
+  // written (on the review card, or in the form afterwards).
+  function renderListingStaleNotice(labels){
+    const out = document.getElementById('listingOutputArea');
+    if (!out || !document.getElementById('listDescText')) return;
+    let notice = document.getElementById('listingStaleNotice');
+    if (!notice){
+      notice = document.createElement('div');
+      notice.id = 'listingStaleNotice';
+      notice.style.cssText = 'font-size:12px; color:var(--plum); background:rgba(217,160,91,0.15); padding:8px 10px; border-radius:8px; margin:8px 0; display:flex; align-items:center; gap:8px; flex-wrap:wrap;';
+      out.prepend(notice);
+    }
+    notice.innerHTML = `<span style="flex:1;">⚠️ ${escapeHtml(labels.join(', '))} changed after this text was written — rewrite it so they match?</span>
+      <button class="copy-btn" id="listingStaleRewriteBtn">🪄 Rewrite text</button>`;
+    document.getElementById('listingStaleRewriteBtn').addEventListener('click', generateListingDescriptionAI);
+  }
+
+  // Editing a detail the description depends on, while AI-written text is
+  // showing, offers the same rewrite.
+  [['fBrand', 'Brand'], ['fSize', 'Size'], ['fColor', 'Color'], ['fColorOther', 'Color'], ['fGender', 'Gender'],
+   ['fClothingType', 'Clothing type'], ['fClothingTypeOther', 'Clothing type'], ['fCondition', 'Condition']].forEach(([id, label]) => {
+    document.getElementById(id)?.addEventListener('change', () => {
+      if (!document.getElementById('listDescText')) return;
+      const existing = document.getElementById('listingStaleNotice')?.querySelector('span')?.textContent || '';
+      const labels = existing.replace(/^⚠️\s*/, '').split(' changed after')[0].split(', ').filter(Boolean);
+      if (!labels.includes(label)) labels.push(label);
+      renderListingStaleNotice(labels);
+    });
+  });
+
+  document.getElementById('analyzePhotoBtn').addEventListener('click', analyzeAndWriteListing);
 
   // ---------- VOICE NARRATION CAPTURE ----------
   // Record → transcribe (Deepgram) → extract fields (Claude) → review card,
   // see modules/narration-capture.js. Self-contained: touches the same
-  // form field IDs analyzeItemPhoto/renderAiAnalysis do, no extra wiring
+  // form field IDs analyzeAndWriteListing/renderAiAnalysis do, no extra wiring
   // needed here.
   initNarrationCapture();
 
@@ -5248,126 +5375,35 @@ Respond with the JSON object only. Do not include any text, explanation, or mark
     await autosaveGeneratedListingText(false);
   }
 
-  // Shared by the single-item generator below and the bulk "generate
-  // descriptions for selected items" tool — builds the prompt, calls the
-  // AI, and parses its JSON response. Doesn't touch the DOM or `items`;
-  // callers decide what to do with the result (render it, save it, both).
-  // `f` is the same shape gatherListingFormFields() returns, plus
-  // `imageBlocks` (already-built photo blocks, capped by the caller).
+  // Shared by the single-item "🪄 Rewrite listing text" button and the bulk
+  // "generate descriptions for selected items" tool — rewrites only the
+  // title/description/tags. Doesn't touch the DOM or `items`; callers
+  // decide what to do with the result. `f` is the same shape
+  // gatherListingFormFields() returns, plus `aiFacts` (visual facts saved
+  // by an earlier ✨ analysis — when present NO photos are sent, ~$0.01 per
+  // rewrite) or else `imageBlocks` (photos, the pre-v3.13.115 behavior).
   async function requestAiListingDescription(f){
-    const standardText = (appSettings.listingStandardText || '').trim();
-    const includeStandardText = !!standardText;
-    // The closet/bundle blurb only makes sense for clothing — she can
-    // uncheck "Include my standard closing line" for anything else (e.g. a
-    // pencil got "check my closet!" tacked on before this existed).
-    const closingLineInstruction = f.useStandardClosing === false
-      ? `one short, factual closing line appropriate for this specific item (not a styling/pairing suggestion) — do NOT reference a "closet" or wardrobe, and do NOT mention bundling clothing, since this item may not be clothing`
-      : includeStandardText
-        ? `a closing line that is EXACTLY this seller-provided text, verbatim, only trimmed at the end if needed to fit the ${LISTING_DESC_LIMIT}-character limit: "${standardText}"`
-        : `a line saying 'Bundle discount available — check my closet!'`;
-
-    const promptText = `You are an expert Poshmark reseller writing an SEO-optimized listing for this item, following Poshmark's own best practices. You have been given up to 5 photos of the item — look at ALL of them carefully, not just the first. Sellers commonly include a close-up photo of the clothing tag/label showing fabric content (e.g. "100% cotton", "95% polyester 5% spandex"), care instructions, and sometimes country of origin or a style/RN number. If any such tag or label is visible in any photo, read it and use that real information — this is the single biggest thing that makes a description feel complete instead of generic. Never guess or invent fabric content or care instructions that you can't actually read; if no tag is visible or legible, just omit that detail rather than making it up.
-
-Treat Brand, Size, Color, and Condition given in "Item data" below as ground truth — never contradict or change them. Every other descriptive detail (neckline, sleeve/hem/cuff style, knit or weave texture, silhouette/fit, closures, pockets, lining, pattern, etc.) must come ONLY from what you can actually see in the photos — never invent a construction detail you can't visually confirm.
-
-Respond with ONLY a JSON object (no markdown fences, no preamble), with this exact shape:
-{
-  "title": "Poshmark title, HARD LIMIT 80 characters — aim to use 70-80 of them, since every unused character is a lost search keyword. Formula, in this order: Brand + Gender (e.g. Women's, if given) + Material or texture visible in the photos/tag (e.g. Boucle, Linen, Denim, Cashmere) + Key style detail (e.g. Lace Trim, Button Front, Wrap) + Item Type + Color + Size. Never omit Brand or Item Type if they are provided below. Use the words real buyers type into search (e.g. 'Boucle', 'Cardigan Vest', 'Longline', 'Midi'), not vague descriptors nobody searches for (e.g. 'Mixed Knit', 'Unique', 'Beautiful'). No filler words, no ALL CAPS, no repeated words.",
-  "description": "Poshmark description, HARD LIMIT ${LISTING_DESC_LIMIT} characters, formatted in EXACTLY this structure:\n(1) A short, direct opening — ONE sentence. Keep it SHORT and keyword-only: color + material/texture + item type, then 'by' + brand, plus at most ONE standout trait (e.g. 'Black boucle and lace trim sweater vest by Coco + Carmen.'). Do NOT mention construction details here — closures/buttons, collar/neckline, pockets, sleeves, hem, fit — those belong ONLY in the bullets below, so nothing gets said twice. Plain, factual language. NO marketing filler, NO phrases like 'the kind of piece that earns its keep', 'reach for this on...', 'effortlessly', 'elevate your wardrobe', or similar generic copywriting.\n(2) A blank line, then the word 'Details:' alone on its own line.\n(3) A bullet list where every single line starts with '* ' (asterisk + space). Keep EVERY bullet to one short line — a phrase, not a sentence; buyers skim on a phone. Never repeat in a bullet what the opening sentence or another bullet already said. In this order:\n  * Brand: <from item data>\n  * Style: <a specific, descriptive style phrase for this exact item — e.g. 'Oversized color block pullover sweater', not just the raw item type. If the item is commonly searched under other names, add up to 2 genuine synonyms separated by ' / ' (e.g. 'Sweater vest / cardigan vest'). Only real synonyms for THIS item — never unrelated terms or other brands>\n  * Size: <from item data>\n  * Color: <from item data, described richly if it's multi-color or patterned>\n  * Condition: <the EXACT condition wording given below, never altered>\n  * Material: <the fiber content EXACTLY as printed on a legible tag (e.g. '60% cotton, 40% acrylic'), plus care instructions if legible. OMIT this bullet entirely if no tag is legible — never guess fiber content>\n  * Measurements: <the measurements given in item data, formatted compactly (e.g. 'Pit to pit 21\" · Length 30\"'). OMIT this bullet entirely if none were provided — never estimate measurements from the photos>\n  followed by AT MOST 4 more '* Label: detail' lines (2 is fine; 5 or more is NOT allowed) covering whichever garment-construction attributes are actually visible AND relevant to this specific item type (a sweater and a dress need different attributes) — choose from things like Neckline, Sleeve length, Hem & cuffs, Texture, Closures, Pockets, Lining, Silhouette/fit. Skip any attribute the opening sentence already states (e.g. if the opening says 'boucle and lace trim', do NOT add a Texture bullet repeating it); if a bullet would only partly repeat the opening, keep only the NEW information in it. Pick the 4 most useful to a buyer if more are visible. Do NOT include country of origin, RN/style numbers, or a 'Label reads...' line — they don't help a buyer.\n  then one final bullet noting which angles the photos show and confirming there's no visible flaw beyond what's noted in seller notes below (e.g. 'Front and back views shown — no visible wear or pilling'). Only state 'no visible flaws' if that's consistent with the seller notes; if seller notes mention a flaw, reflect that honestly instead.\n(4) A blank line, then ${closingLineInstruction}.\nDo not add anything after that — no styling/pairing suggestion, no keywords line, no hashtags, nothing else.",
-  "style_tags": ["tag1", "tag2", "tag3"]
-}
-For "style_tags": choose up to 3 tags ONLY from this exact list (copy the spelling exactly, do not invent new ones or alter wording): ${POSHMARK_STYLE_TAGS.join(', ')}. Pick whichever 1-3 best match this item's era/material/silhouette/aesthetic — an empty array is fine if nothing fits well.
-Item data:
-Brand: ${f.brand || '(unknown)'}
-Item type: ${f.clothingType || f.category || '(unknown)'}
-Category: ${f.category}
-Gender: ${f.gender || '(unspecified)'}
-Size: ${f.size || '(unspecified)'}
-Color: ${f.color || '(unspecified)'}
-Condition (use this EXACT wording in the description): ${LISTING_CONDITION_LABEL[f.condition] || f.condition}
-Measurements: ${f.measurements || '(none provided)'}
-Seller notes / flaws: ${f.notes || '(none)'}
-Be accurate and honest — never invent brand, material, or condition details that aren't given above or clearly readable in a photo. Do not use words like "rare", "vintage", or "authentic" unless explicitly supported by the data. Respond with the JSON object only — no text before or after it.`;
-
-    const idToken = await window.auth.currentUser.getIdToken();
-    const response = await fetch("/api/generate-listing", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
-      body: JSON.stringify({ imageBlocks: f.imageBlocks, promptText })
+    const aiFacts = f.aiFacts || null;
+    const promptText = buildRewritePrompt({
+      f,
+      conditionLabel: LISTING_CONDITION_LABEL[f.condition] || f.condition,
+      descLimit: LISTING_DESC_LIMIT,
+      closingLineInstruction: buildClosingLineInstruction(f.useStandardClosing),
+      aiFacts,
     });
-
-    if (!response.ok){
-      let detail = '';
-      try{
-        const errJson = await response.json();
-        detail = errJson?.error?.message || errJson?.detail?.error?.message || errJson?.error || '';
-      }catch(parseErr){ /* body wasn't JSON — leave detail blank */ }
-      return { ok:false, message: `Couldn't generate the listing (server said: HTTP ${response.status}${detail ? ' — ' + escapeHtml(String(detail)) : ''}). Try again in a moment — if it keeps happening, tell Vitor this exact message.` };
-    }
-    const data = await response.json();
-    const textBlock = data.content && data.content.find(b => b.type === 'text');
-    if (!textBlock){
-      return { ok:false, message: `The AI didn't return a usable response. Please try again.` };
-    }
-    let cleaned = textBlock.text.replace(/```json|```/gi, '').trim();
-    const firstBrace = cleaned.indexOf('{');
-    const lastBrace = cleaned.lastIndexOf('}');
-    if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace){
-      return { ok:false, message: `Couldn't make sense of the AI's response. Please try again.` };
-    }
-    cleaned = cleaned.slice(firstBrace, lastBrace + 1);
-    // The description we ask for is explicitly multi-line (blank lines,
-    // bullet points), and the model very often writes real newline/tab
-    // characters inside that JSON string value instead of the escaped
-    // \n / \t JSON requires. A raw control character inside a quoted JSON
-    // string is invalid and makes JSON.parse throw even when the response
-    // is otherwise complete and well-formed. This walks the text and only
-    // escapes newlines/tabs that fall inside a quoted string, leaving
-    // structural whitespace outside strings untouched.
-    cleaned = escapeRawControlCharsInJsonStrings(cleaned);
-
-    let result;
-    try{
-      result = JSON.parse(cleaned);
-    }catch(parseErr){
-      return { ok:false, message: `Couldn't make sense of the AI's response. Please try again.` };
-    }
-
-    const title = String(result.title || '').slice(0, 80);
-    const description = String(result.description || '').slice(0, LISTING_DESC_LIMIT);
-    // The model occasionally returns style_tags as a comma-separated string
-    // instead of a real JSON array — accept that shape too rather than
-    // silently dropping the tags.
-    let rawStyleTags = result.style_tags;
-    if (typeof rawStyleTags === 'string') rawStyleTags = rawStyleTags.split(',').map(s => s.trim());
-    let styleTagGuesses = Array.isArray(rawStyleTags) ? rawStyleTags.filter(Boolean).slice(0, 3).map(String) : [];
-    // The model is explicitly told an empty array is fine "if nothing fits
-    // well," but in practice it comes back empty far more often than that
-    // should happen for ordinary clothing. The v3.13.61 fallback (guessing
-    // from f.clothingType/f.color/f.gender) still came back empty in
-    // practice whenever those specific form fields weren't filled in —
-    // which happens even when the title/description above are detailed,
-    // since the AI can describe what it sees in the photos (a garment tag,
-    // a printed color name) independent of what's typed into the form.
-    // Scan the AI's own generated title+description for real matches
-    // against the actual Poshmark style-tag vocabulary first — this is
-    // strictly more reliable, since it only ever offers tags that are
-    // valid on Poshmark AND is grounded in whatever the AI already wrote,
-    // not just whatever happens to be filled in on the form.
-    if (styleTagGuesses.length === 0){
-      const haystack = `${title} ${description}`.toLowerCase();
-      styleTagGuesses = POSHMARK_STYLE_TAGS.filter(tag => {
-        const re = new RegExp(`\\b${tag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
-        return re.test(haystack);
-      }).slice(0, 3);
-    }
-    // Still nothing (a plain basic-tee type description with no vocabulary
-    // hits) — fall back to the old form-field heuristic so she's never left
-    // with three blank tag fields to fill from scratch.
-    if (styleTagGuesses.length === 0){
-      styleTagGuesses = Array.from(new Set([f.clothingType, f.color, f.gender ? `${f.gender} Style` : ''].filter(Boolean))).slice(0, 3);
-    }
-    return { ok:true, title, description, styleTagGuesses };
+    const res = await callAiItemEndpoint({
+      mode: 'listing_only',
+      imageBlocks: aiFacts ? [] : (f.imageBlocks || []),
+      promptText,
+      outputSchema: buildRewriteSchema(),
+    });
+    if (!res.ok) return res;
+    return {
+      ok: true,
+      title: String(res.result.title || '').trim().slice(0, 80),
+      description: trimToLimit(res.result.description, LISTING_DESC_LIMIT),
+      styleTagGuesses: normalizeStyleTags(res.result.style_tags),
+    };
   }
 
   async function generateListingDescriptionAI(){
@@ -5380,19 +5416,18 @@ Be accurate and honest — never invent brand, material, or condition details th
     }
 
     const f = gatherListingFormFields();
+    const aiFacts = currentAiFacts;
 
     btn.disabled = true;
     btn.textContent = '🪄 Writing…';
     area.innerHTML = `<div class="ai-loading">Creating a special listing…</div>`;
 
     try{
-      // Send several photos, not just the cover shot — tag/label close-ups
-      // (fabric content, size, care instructions) are usually a few photos
-      // in, and reading them is what makes the AI's description as detailed
-      // as a description written by hand from the actual garment tag.
-      const imageBlocks = await buildAiImageBlocks(currentPhotos, 5);
+      // With saved visual facts the photos aren't needed; without them
+      // (item never ran ✨ Analyze), read up to 5 photos as before.
+      const imageBlocks = aiFacts ? [] : await buildAiImageBlocks(currentPhotos, 5);
 
-      const result = await requestAiListingDescription({ ...f, imageBlocks });
+      const result = await requestAiListingDescription({ ...f, aiFacts, imageBlocks });
       if (!result.ok){
         area.innerHTML = `<div class="ai-error">${result.message}</div>`;
         return;
@@ -5412,7 +5447,7 @@ Be accurate and honest — never invent brand, material, or condition details th
       area.innerHTML = `<div class="ai-error">Couldn't complete the AI write-up right now. Please try again in a moment.</div>`;
     }finally{
       btn.disabled = false;
-      btn.textContent = '🪄 Generate listing description with AI';
+      btn.textContent = '🪄 Rewrite listing text with AI';
     }
   }
 
@@ -5518,7 +5553,10 @@ Be accurate and honest — never invent brand, material, or condition details th
         // item's own category instead (this is what produced a "check my
         // closet!" line on a pencil before).
         useStandardClosing: item.category === 'Clothing',
-        imageBlocks: await buildAiImageBlocks(item.photos, 5),
+        // Items analyzed with ✨ (v3.13.115+) rewrite from their saved
+        // visual facts — no photos sent; older items still send photos.
+        aiFacts: item.aiFacts || null,
+        imageBlocks: item.aiFacts ? [] : await buildAiImageBlocks(item.photos, 5),
       };
       const result = await requestAiListingDescription(f);
       if (!result.ok) return { ok:false, message: result.message };
@@ -5610,6 +5648,7 @@ Be accurate and honest — never invent brand, material, or condition details th
 
   function updateListingGeneratorUI(){
     document.getElementById('genListingBtn').textContent = '📝 Generate listing copy (instant template)';
+    document.getElementById('genListingAiBtn').textContent = '🪄 Rewrite listing text with AI';
     document.getElementById('genListingAiBtn').style.display = 'block';
     document.getElementById('genListingAiHint').style.display = 'block';
   }
@@ -5797,6 +5836,9 @@ Be accurate and honest — never invent brand, material, or condition details th
       // above — kept in sync with the on-screen card via currentAiAnalysis,
       // including being cleared when she dismisses the card.
       aiAnalysis: currentAiAnalysis || null,
+      // What the last ✨ analysis saw in the photos (v3.13.115) — lets a
+      // later "🪄 Rewrite listing text" skip re-sending the photos.
+      aiFacts: currentAiFacts || existingItem?.aiFacts || null,
       brand: document.getElementById('fBrand').value.trim(),
       gender: document.getElementById('fGender').value,
       size: document.getElementById('fSize').value.trim(),
