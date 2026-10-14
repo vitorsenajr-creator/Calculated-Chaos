@@ -400,7 +400,11 @@ Respond with the JSON object only. Do not include any text, explanation, or mark
           case 'price': document.getElementById('fListPrice').value = (parseFloat(value) || 0).toFixed(2); break;
           case 'gender': document.getElementById('fGender').value = value; break;
           case 'condition':
-            if (CONDITION_LABELS[value]) document.getElementById('fCondition').value = value;
+            if (CONDITION_LABELS[value]){
+              document.getElementById('fCondition').value = value;
+              // keeps main.js's "New with tags" shortcut checkbox in sync
+              document.getElementById('fCondition').dispatchEvent(new Event('change'));
+            }
             break;
           case 'clothing_type': applySelectOrOther('fClothingType', 'fClothingTypeOther', value); break;
           case 'color': applySelectOrOther('fColor', 'fColorOther', value); break;

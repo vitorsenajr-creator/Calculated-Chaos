@@ -76,7 +76,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.115';
+  const APP_VERSION = 'v3.13.116';
   const APP_VERSION_DATE = '2026-10-14';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -1766,6 +1766,9 @@ export const app = (function(){
   // eBay item specifics from the ✨ analysis, waiting for the chosen
   // category's aspect list to load (applyPendingAiEbayAspects).
   let pendingAiEbayAspects = null;
+  // Condition before the "New with tags" shortcut was checked, so
+  // unchecking it restores that instead of guessing.
+  let conditionBeforeNwtQuick = null;
   let ebayAspectsLoadPromise = null;
 
   async function loadEbayAspectsForCategory(categoryId){
@@ -2165,6 +2168,8 @@ export const app = (function(){
     document.getElementById('fSize').value = item?.size || '';
     renderEbaySizeCheck();
     document.getElementById('fCondition').value = item?.condition || 'excelente';
+    conditionBeforeNwtQuick = null;
+    syncNwtQuickCheckbox();
     document.getElementById('fCost').value = item?.cost || '';
     document.getElementById('fWeight').value = item?.weight || '';
     document.getElementById('fLen').value = item?.length || '';
@@ -5138,6 +5143,31 @@ export const app = (function(){
       renderListingStaleNotice(labels);
     });
   });
+
+  // "🏷️ New with tags" shortcut between the photos and ✨ Analyze
+  // (v3.13.116) — only a front for the Condition field further down, which
+  // stays the single source of truth: checking it sets Condition to New
+  // with tags (the analysis treats Condition as ground truth, so the title
+  // and description come out with NWT in one call), unchecking restores the
+  // previous Condition. Changing Condition directly keeps the box in sync.
+  function syncNwtQuickCheckbox(){
+    const box = document.getElementById('fNwtQuick');
+    if (box) box.checked = document.getElementById('fCondition').value === 'novo_etiqueta';
+  }
+  document.getElementById('fNwtQuick').addEventListener('change', (e) => {
+    const cond = document.getElementById('fCondition');
+    if (e.target.checked){
+      if (cond.value !== 'novo_etiqueta') conditionBeforeNwtQuick = cond.value;
+      cond.value = 'novo_etiqueta';
+    } else {
+      cond.value = (conditionBeforeNwtQuick && conditionBeforeNwtQuick !== 'novo_etiqueta') ? conditionBeforeNwtQuick : 'excelente';
+      conditionBeforeNwtQuick = null;
+    }
+    // Same event a manual pick fires — e.g. offers the listing-text rewrite
+    // if AI text is already showing.
+    cond.dispatchEvent(new Event('change'));
+  });
+  document.getElementById('fCondition').addEventListener('change', syncNwtQuickCheckbox);
 
   document.getElementById('analyzePhotoBtn').addEventListener('click', analyzeAndWriteListing);
 
