@@ -13,7 +13,7 @@
 // - English only — Deepgram is called with language=en, no auto-detect,
 //   since the narrator doesn't speak Portuguese.
 // - The review card only shows fields the extraction actually found a
-//   value for — unlike the photo-analysis card (analyzeItemPhoto/
+//   value for — unlike the photo-analysis card (analyzeAndWriteListing/
 //   renderAiAnalysis in main.js), which always shows its four fixed fields
 //   regardless of what the AI found.
 // - Applying to the form always asks before overwriting a field that

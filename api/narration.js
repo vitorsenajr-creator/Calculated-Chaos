@@ -17,7 +17,7 @@
 //     -> generic text-only Claude proxy (Haiku 4.5) that turns a
 //        narration transcript into structured catalog fields. Prompt is
 //        built client-side (modules/narration-capture.js) and just passed
-//        through, same pattern as generate-listing.js, so iterating on
+//        through, same pattern as analyze-photo.js, so iterating on
 //        prompt wording doesn't need a redeploy of prompt logic split
 //        across two places.
 //     Returns: raw Anthropic Messages API response
