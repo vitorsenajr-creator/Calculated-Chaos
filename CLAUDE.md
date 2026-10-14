@@ -1673,6 +1673,16 @@ next minor bump:
   (color + material + type + brand + at most one standout trait) and
   construction details (closures, collar/neckline, pockets, sleeves, hem,
   fit) are allowed ONLY in the bullets.
+- **v3.13.114** — The "⚠️ Flag for extra outbound inspection" icon showed
+  in the print preview but never appeared on the saved label image. The
+  canvas path (`drawBatchLabelToCanvas`) drew it as the ⚠️ color emoji —
+  mostly yellow — and FlashLabel Pro's B/W threshold conversion (the
+  thermal printer is monochrome) turns yellow into white, wiping the icon
+  out. New `drawInspectionFlagIcon()` draws it as a solid black vector
+  triangle with a white "!" instead; the HTML preview (`.label-flag` in
+  `buildLabelInnerHtml`) uses a matching inline SVG so the preview shows
+  what actually prints. **Not yet tested on a real print** — `node
+  --check` and a clean `vite build` only.
 - **v3.13.93** — Vitor confirmed he did a real hard reload after v3.13.92
   and still didn't see the "Already listed on eBay" link on reopen —
   bumped the version number specifically to test whether his device is
