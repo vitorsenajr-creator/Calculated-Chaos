@@ -1765,6 +1765,27 @@ next minor bump:
   `change` too). Verified via `node --check`, clean `vite build`, and a
   headless test of check/uncheck/manual-pick sync (no JS errors); not yet
   tried on a real item.
+- **v3.13.117** — Vitor (2026-10-15): accuracy has been satisfactory, so
+  "✨ Analyze & write listing" now applies everything and saves right away
+  — no review card, no "Apply" click (`analyzeAndWriteListing()` calls
+  `applyAiAnalysisToForm()` itself, which now takes `{ values,
+  overwritePrice }` instead of reading the card's inputs). He declined an
+  Undo; asked to keep a way to redo instead. Afterwards
+  `renderAiAppliedSummary()` shows what was filled, the price line, a
+  collapsed Details (flaws, price reasoning, tag reads, eBay specifics
+  seen) and **"🔄 Redo analysis"** (re-runs the same call). Rules of the
+  automatic apply: **price only filled if empty** (or still the value the
+  last ✨ run put there) — never over a price she set; Condition/Notes
+  still never touched; eBay specifics same rules as v3.13.115. **Redo
+  logic**: each run saves `aiAnalysis.sellerInput` (what she had typed
+  before the AI) and `aiAnalysis.applied` (what ended up on the form,
+  `AI_FILLED_FORM_FIELDS` + price); on the next run a field still equal to
+  `applied` counts as not entered (falls back to `sellerInput`), so the AI
+  reads the photos fresh instead of echoing its own last answer as ground
+  truth, while anything she edited since stays hers. Old saved analyses
+  that were never applied (pre-v3.13.115 shape) still show the review card
+  with its Apply button. Verified via `node --check`, clean `vite build`,
+  and a headless load (no JS errors); not yet tried on a real item.
 - **v3.13.93** — Vitor confirmed he did a real hard reload after v3.13.92
   and still didn't see the "Already listed on eBay" link on reopen —
   bumped the version number specifically to test whether his device is
