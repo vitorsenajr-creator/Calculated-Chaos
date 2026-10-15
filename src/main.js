@@ -76,8 +76,8 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.116';
-  const APP_VERSION_DATE = '2026-10-14';
+  const APP_VERSION = 'v3.13.117';
+  const APP_VERSION_DATE = '2026-10-15';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
   let itemsLoaded = false; // true once the initial Firestore fetch in loadItems() resolves
@@ -4846,7 +4846,21 @@ export const app = (function(){
         return;
       }
 
+      // Redo: a field still holding the value the previous ✨ run filled in
+      // counts as "not entered" again, so the new run reads the photos fresh
+      // instead of echoing its own last answer back as ground truth —
+      // anything she changed since stays as her own value.
       const f = gatherListingFormFields();
+      const prev = (currentAiAnalysis && currentAiAnalysis.applied) ? currentAiAnalysis : null;
+      if (prev){
+        AI_FILLED_FORM_FIELDS.forEach(k => {
+          if (sameText(f[k], prev.applied[k])) f[k] = (prev.sellerInput && prev.sellerInput[k]) || '';
+        });
+      }
+      const sellerInput = Object.fromEntries(AI_FILLED_FORM_FIELDS.map(k => [k, f[k] || '']));
+      // Same idea for the price: only replaced if empty or still the AI's.
+      const currentPrice = document.getElementById('fListPrice').value.trim();
+      const priceIsAiOrEmpty = !parseFloat(currentPrice) || (prev && sameText(currentPrice, prev.applied.price));
       const promptText = buildAnalyzeAndWritePrompt({
         f,
         conditionLabel: LISTING_CONDITION_LABEL[f.condition] || f.condition,
@@ -4879,9 +4893,22 @@ export const app = (function(){
         style_tags: normalizeStyleTags(r.style_tags),
         usage: res.usage,
         analyzedAt: Date.now(),
+        sellerInput,
       };
-      renderAiAnalysis(currentAiAnalysis);
       await incrementAiUsage();
+      // v3.13.117: no review step — apply everything and save right away;
+      // the summary shown afterwards has "🔄 Redo analysis" if it's off.
+      btn.textContent = '✨ Applying & saving…';
+      const r2 = currentAiAnalysis;
+      const low = Math.max(0, r2.price_low), high = Math.max(low, r2.price_high);
+      await applyAiAnalysisToForm(r2, {
+        values: {
+          name: r2.title, brand: r2.brand, color: r2.color, clothingType: r2.clothing_type,
+          gender: r2.gender, size: r2.size, sizeType: r2.size_type,
+          price: Math.round(((low + high) / 2) * 100) / 100,
+        },
+        overwritePrice: priceIsAiOrEmpty,
+      });
       const remaining = aiUsageRemaining();
       if (remaining <= 50 && remaining > 0){
         area.innerHTML += `<div style="font-size:11px; color:var(--amber-deep); background:rgba(217,160,91,0.15); padding:7px 10px; border-radius:8px; margin-top:6px;">⚠ ${remaining} AI analyses remaining this month. Reset in ⚙ Settings.</div>`;
@@ -4902,15 +4929,43 @@ export const app = (function(){
     const result = normalizeAiAnalysis(raw);
     const area = document.getElementById('aiAnalysisArea');
     if (result.appliedAt){
-      area.innerHTML = `
-        <div style="font-size:12px; color:var(--sage-deep); background:rgba(127,150,120,0.12); padding:9px 12px; border-radius:10px; margin-bottom:14px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-          <span style="flex:1;">✓ AI analysis applied ${escapeHtml(new Date(result.appliedAt).toLocaleDateString())}.</span>
-          <button class="copy-btn" id="aiShowAgainBtn">Show details</button>
-        </div>`;
-      document.getElementById('aiShowAgainBtn').addEventListener('click', () => renderAiAnalysisCard(result));
+      renderAiAppliedSummary(result);
       return;
     }
     renderAiAnalysisCard(result);
+  }
+
+  // What ✨ filled in and saved (v3.13.117 — it applies without a review
+  // step), with "🔄 Redo analysis" to run it again if something's off.
+  function renderAiAppliedSummary(result){
+    const area = document.getElementById('aiAnalysisArea');
+    const low = Math.max(0, parseFloat(result.price_low) || 0);
+    const high = Math.max(low, parseFloat(result.price_high) || low);
+    const filled = [['Brand', result.brand], ['Color', result.color], ['Type', result.clothing_type],
+      ['Gender', result.gender], ['Size', result.size], ['Size type', result.size_type], ['Category', result.category]]
+      .filter(([, v]) => v).map(([k, v]) => `${k}: <b>${escapeHtml(v)}</b>`).join(' · ');
+    const appliedPrice = result.applied && result.applied.price;
+    const priceLine = result.priceKept
+      ? `Price kept at <b>$${escapeHtml(String(appliedPrice || ''))}</b> (AI range $${low.toFixed(2)} – $${high.toFixed(2)})`
+      : `Price set to <b>$${escapeHtml(String(appliedPrice || ((low + high) / 2).toFixed(2)))}</b> (AI range $${low.toFixed(2)} – $${high.toFixed(2)})`;
+    area.innerHTML = `
+      <div style="font-size:12px; color:var(--plum); background:rgba(127,150,120,0.12); padding:10px 12px; border-radius:10px; margin-bottom:14px;">
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+          <span style="flex:1; color:var(--sage-deep); font-weight:600;">✓ AI analysis applied & saved · ${escapeHtml(new Date(result.appliedAt).toLocaleDateString())}</span>
+          <button class="copy-btn" id="aiRedoBtn">🔄 Redo analysis</button>
+        </div>
+        ${filled ? `<div style="margin-top:6px;">${filled}</div>` : ''}
+        <div style="margin-top:4px;">${priceLine}</div>
+        <details style="margin-top:6px;">
+          <summary style="cursor:pointer; color:var(--plum-soft);">Details</summary>
+          ${result.visible_flaws ? `<div style="margin-top:4px;"><b>Wear noted:</b> ${escapeHtml(result.visible_flaws)}</div>` : ''}
+          ${result.reasoning ? `<div style="margin-top:4px;"><b>Price reasoning:</b> ${escapeHtml(result.reasoning)}</div>` : ''}
+          ${result.material ? `<div style="margin-top:4px;"><b>Tag reads:</b> ${escapeHtml(result.material)}</div>` : ''}
+          ${(result.ebay_aspects || []).length ? `<div style="margin-top:4px;"><b>eBay item specifics seen:</b> ${result.ebay_aspects.map(a => `${escapeHtml(a.name)}: ${escapeHtml(a.value)}`).join(' · ')} <span style="opacity:0.8;">(filled only where the eBay category uses them)</span></div>` : ''}
+          <div style="margin-top:4px; opacity:0.8;">Fix anything directly in the form — or redo the analysis. Fields you changed since are kept as yours.</div>
+        </details>
+      </div>`;
+    document.getElementById('aiRedoBtn').addEventListener('click', analyzeAndWriteListing);
   }
 
   function renderAiAnalysisCard(result){
@@ -4971,7 +5026,18 @@ export const app = (function(){
       </div>
     `;
 
-    document.getElementById('aiApplyBtn').addEventListener('click', () => applyAiAnalysisToForm(result, mid));
+    document.getElementById('aiApplyBtn').addEventListener('click', () => {
+      const val = (id) => (document.getElementById(id)?.value || '').trim();
+      applyAiAnalysisToForm(result, {
+        values: {
+          name: val('aiNameEdit'), brand: val('aiBrandEdit'), color: val('aiColorEdit'),
+          clothingType: val('aiClothingTypeEdit'), gender: val('aiGenderEdit'),
+          size: val('aiSizeEdit'), sizeType: val('aiSizeTypeEdit'),
+          price: parseFloat(document.getElementById('aiPriceEdit').value) || mid,
+        },
+        overwritePrice: true,
+      });
+    });
     document.getElementById('aiDismissBtn').addEventListener('click', () => {
       currentAiAnalysis = null;
       document.getElementById('aiAnalysisArea').innerHTML = '';
@@ -4995,15 +5061,19 @@ export const app = (function(){
     }
   }
 
-  async function applyAiAnalysisToForm(result, mid){
-    const applyBtn = document.getElementById('aiApplyBtn');
-    const val = (id) => (document.getElementById(id)?.value || '').trim();
-    const edited = {
-      name: val('aiNameEdit'), brand: val('aiBrandEdit'), color: val('aiColorEdit'),
-      clothingType: val('aiClothingTypeEdit'), gender: val('aiGenderEdit'),
-      size: val('aiSizeEdit'), sizeType: val('aiSizeTypeEdit'),
-      price: parseFloat(document.getElementById('aiPriceEdit').value) || mid,
-    };
+  // Fields ✨ fills on the form — also what a redo compares against to
+  // tell "still the AI's value" from "she changed it".
+  const AI_FILLED_FORM_FIELDS = ['brand', 'color', 'clothingType', 'gender', 'size'];
+  const sameText = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+
+  // `values`: what to put on the form (the AI's own answer when ✨ applies
+  // automatically, or her edits on a pre-v3.13.117 review card).
+  // `overwritePrice`: false keeps a price she already set.
+  async function applyAiAnalysisToForm(result, { values, overwritePrice }){
+    // Status shows on the card's Apply button (old saved cards) or on the
+    // ✨ button itself (automatic apply).
+    const applyBtn = document.getElementById('aiApplyBtn') || document.getElementById('analyzePhotoBtn');
+    const edited = values;
     applyBtn.disabled = true;
     applyBtn.textContent = 'Applying…';
 
@@ -5039,7 +5109,7 @@ export const app = (function(){
     // Condition is intentionally NOT auto-applied from the AI — it stays at
     // whatever the form already has. Notes is left untouched too: the AI's
     // visible_flaws is shown on the card, but Notes only holds what she typed.
-    document.getElementById('fListPrice').value = edited.price.toFixed(2);
+    if (overwritePrice && edited.price > 0) document.getElementById('fListPrice').value = edited.price.toFixed(2);
 
     // Listing copy written in the same call.
     let staleLabels = [];
@@ -5047,7 +5117,7 @@ export const app = (function(){
       renderListingOutput(edited.name || result.title, result.description, [...(result.style_tags || [])], AI_LISTING_SOURCE_LABEL);
       // The description was written with the AI's own values — if she
       // changed any of them on the card, offer the cheap photo-free rewrite.
-      const same = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+      const same = sameText;
       [['Brand', edited.brand, result.brand], ['Color', edited.color, result.color],
        ['Clothing type', edited.clothingType, result.clothing_type], ['Gender', edited.gender, result.gender],
        ['Size', edited.size, result.size]].forEach(([label, mine, ai]) => { if (!same(mine, ai)) staleLabels.push(label); });
@@ -5078,7 +5148,15 @@ export const app = (function(){
       renderEbayAspectsFields(currentCategoryAspects.filter(a => a.required && !EBAY_ASPECTS_AUTO_COVERED.includes(a.name)));
     }
 
-    currentAiAnalysis = { ...currentAiAnalysis, appliedAt: Date.now() };
+    // What ended up on the form — shown in the summary, and what a redo
+    // compares against (see analyzeAndWriteListing).
+    const after = gatherListingFormFields();
+    currentAiAnalysis = {
+      ...currentAiAnalysis,
+      appliedAt: Date.now(),
+      applied: { ...Object.fromEntries(AI_FILLED_FORM_FIELDS.map(k => [k, after[k] || ''])), price: document.getElementById('fListPrice').value.trim() },
+      priceKept: !overwritePrice,
+    };
     applyBtn.textContent = 'Saving…';
     // Same autosave the listing generators use: a new item gets saved for
     // the first time (no eBay-category gate), and the modal reopens on it.
