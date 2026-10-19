@@ -6190,15 +6190,17 @@ export const app = (function(){
       <div class="settings-section">
         <h3>Account</h3>
         <div class="ss-desc">Signed in as <b>${escapeHtml(window.auth.currentUser?.email || '')}</b></div>
-        <button id="signOutBtn" class="settings-save-btn" style="width:auto; padding:8px 14px; margin:0;">Sign out</button>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button id="signOutBtn" class="settings-save-btn" style="width:auto; padding:8px 14px; margin:0;">Sign out</button>
+          ${window.isAdminEmail(window.auth.currentUser?.email) ? `<a href="/admin.html" class="settings-save-btn" style="display:inline-block; width:auto; padding:8px 14px; margin:0; text-decoration:none;">🛠️ Developer Panel</a>` : ''}
+        </div>
       </div>
 
       <!-- AUTHORIZE ACCESS (admin only) -->
       <div class="settings-section" id="authorizeAccessSection" style="display:none;">
         <h3>Developer Panel</h3>
-        <div class="ss-desc">Access requests, users, the eBay connection and the eBay error library now live in the Developer Panel.</div>
+        <div class="ss-desc">Access requests, users, the eBay connection and the eBay error library live in the Developer Panel (button under Account above).</div>
         <div id="authorizeAccessBox"></div>
-        <a href="/admin.html" class="settings-save-btn" style="display:inline-block; width:auto; padding:8px 14px; margin:8px 0 0; text-decoration:none;">Open Developer Panel →</a>
       </div>
 
       <!-- EMPLOYEE ACCOUNTS (admin only) -->
