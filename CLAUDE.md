@@ -75,9 +75,18 @@ renaming them needs a data migration of every saved item.
 
 ## Code map
 
-- `src/main.js`: ~7,300 lines, one IIFE (`export const app = (function(){…})()`).
-  Holds the catalog, item modal, settings, labels, measure tool, AI flows
-  and reports UI. See `docs/modularization.md`.
+- `src/main.js`: ~6,700 lines, one IIFE (`export const app = (function(){…})()`).
+  Holds the catalog, item modal, settings, label print modal, measure
+  tool, AI flows and reports UI. See `docs/modularization.md`.
+- **Layers for new code (v3.17.2, `docs/modularization.md`)**:
+  `src/domain/` = pure logic (no DOM, `window`, Firebase or app state;
+  settings come in as parameters), `src/ui/` = DOM + shared state,
+  `src/platform/` = device/environment APIs (print, files, clipboard,
+  API base URL), so a Capacitor app only swaps the platform layer.
+  Extract with a characterization test (old vs new, identical output).
+  - `domain/listing-copy.js`: listing title/description builders.
+  - `ui/lightbox.js`: `openLightbox(photos, index)`; its state is private.
+  - `ui/label-render.js`: label preview markup + canvas drawing.
 - `src/ebay-api.js`: client side of eBay publish/bulk publish/error box.
 - `src/live-catalog.js` + `live-catalog.html`: separate Vite entry (see
   `docs/live-catalog.md`).
@@ -201,7 +210,8 @@ renaming them needs a data migration of every saved item.
 
 - **Multi-business (paid, for new sellers)**: the app runs on business
   data since 2026-10-19 (v3.17.0 switch confirmed in production).
-  Next, in order: split `main.js` (docs/modularization.md phases 1-3),
+  Next, in order: split `main.js` (docs/modularization.md phases 2-3;
+  phase 1 done in v3.17.2),
   auth hardening (`docs/multi-tenant.md` step 4a: admin custom claim,
   email verification, one account per email, disable Auth on Remove,
   then Google sign-in, App Check, admin 2FA), then onboarding/invites
@@ -244,9 +254,11 @@ on any of these:
   fix (a repeat load shows the first load's result) is tested only with a
   stubbed Firestore and eBay (18 handler tests, including a simultaneous
   double load).
-- Developer Panel on business data (v3.17.1): build, headless load and
-  rules emulator only; the real backup download and eBay errors tab are
-  unconfirmed (they need the v3.17.1 rules pasted in the Console).
+- main.js split phase 1 (v3.17.2): characterization test (79 cases,
+  old vs new identical: listing text, label HTML byte for byte, label
+  canvas pixel for pixel) and a lightbox behavior test in Chromium; the
+  real app (photo viewer, label printing, listing generator) is
+  unconfirmed.
 - Server-built AI prompts (v3.15.3): golden test (prompt text identical)
   and handler tests with a mocked fetch; ✨ analyze, rewrite and both
   narration flows are unconfirmed against the real API.
@@ -279,7 +291,13 @@ on any of these:
   (members included) + `users`; the frozen root collections have a
   secondary "pre-business" button. Rules: `isBusinessData(sub)`, and
   platform admins may read (not write) any business's data. 27 emulator
-  rules tests.
+  rules tests. Confirmed by Vitor (backup + eBay errors) on 2026-10-19.
+- **v3.17.2**: `main.js` split, phase 1, plus the layer convention
+  (`src/domain|ui|platform`, docs/modularization.md, with the
+  app-readiness inventory). `domain/listing-copy.js` (closing line is now
+  a parameter), `ui/lightbox.js` (encapsulated; the catalog grid no longer
+  writes its variables), `ui/label-render.js` (preview markup + canvas
+  drawing). `main.js` 7,303 → 6,726 lines. No behavior change.
 
 ## Backlog (not started)
 
