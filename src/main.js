@@ -1788,8 +1788,7 @@ export const app = (function(){
   // {test, values} candidates tried in order (first match wins), since the
   // same aspect name (e.g. "Style") means something different on leggings
   // vs. a jacket. Still a free-text input with a <datalist> — never blocks
-  // a value outside this list, same "suggestion, not a restriction"
-  // pattern as Live Catalog's Tipo/Brand/Size fields.
+  // a value outside this list ("suggestion, not a restriction").
   const isJacketOrCoat = () => {
     const type = (document.getElementById('fClothingType')?.value || '').toLowerCase();
     const name = (document.getElementById('fName')?.value || '').toLowerCase();

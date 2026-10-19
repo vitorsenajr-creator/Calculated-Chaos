@@ -1,7 +1,7 @@
 // Business-scoped Firestore paths (docs/multi-tenant.md step 4).
 //
-// Every read/write of business data (catalog, drafts, Live Catalog,
-// counters, settings, eBay error library) goes through bizCol()/bizDoc()
+// Every read/write of business data (catalog, drafts, counters, settings,
+// eBay error library) goes through bizCol()/bizDoc()
 // with a logical name. Global data (users, ebay_category_cache) doesn't.
 //
 // Two modes (v3.17.0):
@@ -19,9 +19,6 @@
 const LEGACY_COLLECTIONS = {
   items: 'items',
   drafts: 'drafts',
-  liveSessions: 'liveSessions',
-  liveItems: 'liveItems',
-  options: 'live_catalog_options',
   ebay_error_log: 'ebay_error_log',
 };
 
@@ -29,7 +26,6 @@ const LEGACY_COLLECTIONS = {
 // business they live at counters/* and config/settings.
 const LEGACY_DOCS = {
   'counters/productCode': ['app_settings', 'productCodeCounter'],
-  'counters/liveSku': ['live_catalog_options', 'skuCounter'],
   'config/settings': ['app_config', 'settings'],
 };
 

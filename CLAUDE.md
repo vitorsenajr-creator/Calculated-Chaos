@@ -102,23 +102,22 @@ renaming them needs a data migration of every saved item.
     `platform/files.js` (`saveOrShareFile`, `downloadBlob`,
     `downloadUrl`). `main.js` saves no file by itself (v3.17.4).
 - `src/ebay-api.js`: client side of eBay publish/bulk publish/error box.
-- `src/live-catalog.js` + `live-catalog.html`: separate Vite entry (see
-  `docs/live-catalog.md`).
+- Live Catalog: **removed in v3.19.0** (git tag `live-catalog-last`,
+  `docs/live-catalog.md`). Its data is frozen, readable only by admins.
 - `src/admin.js` + `admin.html`: Developer Panel, a separate Vite entry
   for admins only (access requests, users, eBay status, eBay error
   library, backup, server health). New platform-admin features go here, not in Settings.
 - `src/modules/`: pure helpers and small controllers. Key ones:
   - `state.js`: shared `items`/`appSettings`.
   - `biz.js`: `bizCol()`/`bizDoc()`. **All business data goes through
-    them** (items, drafts, Live Catalog, counters, settings, eBay error
-    log) by logical name. `loadActiveBusiness()` at sign-in picks
+    them** (items, drafts, counters, settings, eBay error log) by logical name. `loadActiveBusiness()` at sign-in picks
     `businesses/{bizId}/…` when the user's business is live, else the
     pre-business root collections. Global data (`users`,
     `ebay_category_cache`) and the Developer Panel don't use them.
   - `constants.js`, `pricing.js`, `settings.js`.
   - `ai-item.js`: ✨ analysis prompt + schema (imported by the server).
   - `narration-prompts.js`: narration extract prompts (server-side).
-  - `narration-capture.js`, `live-narration.js`.
+  - `narration-capture.js`.
   - `ebay-audit.js`, `ebay-error-hints.js`/`-log.js`/`-ai.js`,
     `ebay-size.js`, `ebay-aspect-match.js`, `ebay-type-map.js`.
   - `product-code-bank.js`, `sold-confirm.js`, `dashboard.js`.
@@ -178,14 +177,16 @@ renaming them needs a data migration of every saved item.
     v3.16.1. `ebay_oauth_states/*`: one-time connect codes (v3.16.2),
     server only too.
   - Multi-business (v3.17.0): `businesses/{bizId}` (`live` = the switch;
-    server-written) with `items`, `drafts`, `liveSessions`, `liveItems`,
-    `ebay_error_log`, `options/main`, `counters/*`, `config/settings`
-    (members read/write) and `members/*` (server-written);
+    server-written) with `items`, `drafts`, `ebay_error_log`,
+    `counters/*`, `config/settings` (members read/write), `members/*`
+    (server-written) and the frozen `liveSessions`, `liveItems`,
+    `options/main` (admins read only, v3.19.0);
     `ebay_connections/{bizId}`; `users.activeBizId`; `platform/migration`
     (fixed bizId, `lastCopiedAt`, `switchedAt`; server only). Once live,
     the root business collections are read-only for that business's
     members (`rootWritable()` in the rules).
-  - Live Catalog: `liveSessions`, `liveItems`, `live_catalog_options/*`.
+  - Frozen Live Catalog data at the root: `liveSessions`, `liveItems`,
+    `live_catalog_options/*` (admins read only, v3.19.0). Nothing deleted.
   - Security rules: the live copy is in the Firebase Console; `firestore.rules`
     is a versioned copy (no deploy step). Change both together.
 
@@ -259,19 +260,24 @@ renaming them needs a data migration of every saved item.
   (the structured-output fallback ran on `analyze-photo.js`).
 - **Verified email required (v3.18.4)**: `isVerified()` in the rules
   (inside `isApproved()` and `isAdmin()`), `requireApprovedUser()` on the
-  server, and the sign-in gates of the app, Live Catalog and Developer
-  Panel (`tokenEmailVerified()`, which reads the token the rules see).
+  server, and the sign-in gates of the app and Developer Panel (`tokenEmailVerified()`, which reads the token the rules see).
   New employees must have a real email: they verify on first sign-in.
 
 ### Unverified in production (build-verified only)
 
 Last known status per the v3.13 notes. Confirm with Vitor before relying
 on any of these:
+- Live Catalog removed (v3.19.0): 26 emulator rules tests (members denied
+  on the frozen Live data, admins read only, items/counters/config
+  unchanged), clean build without `live-catalog.html`, app and Developer
+  Panel load with no JS errors. Unconfirmed in production: the rules
+  pasted in the Console, the Developer Panel backup still including the
+  Live collections, item narration still working.
 - Verified email required (v3.18.4): 19 emulator rules tests, server
   test of both `requireApprovedUser` paths, `tokenEmailVerified()` unit
   test, a screenshot of the "Verify your email" screen, clean build and
   page loads. Unconfirmed in production: both admins still opening the
-  app, Live Catalog and Developer Panel after the rules paste; eBay/AI
+  app and Developer Panel after the rules paste; eBay/AI
   calls still working; a new employee going through the verify screen.
 - Email verification on request (v3.18.3): helper unit test with a fake
   user, a Chromium screenshot of the pending screen, clean build and page
@@ -330,44 +336,10 @@ on any of these:
   (v3.13.108-110), publish-step retry loop (v3.13.51).
 - Quick Labels one-by-one queue and PDF export (v3.13.106/107), label font
   sizing (v3.13.102-105), inspection flag icon (v3.13.114).
-- Live Catalog label printing on a real Avery sheet / phone (v3.13.45/47).
 
-## Pending changelog entry (since v3.18.0)
+## Pending changelog entry (since v3.19.0)
 
-- **v3.18.0** (already in `CHANGELOG.md`): admin claim, first half.
-  `api/_adminClaims.js` (`admin_claims`, `admin_claims_sync` in
-  `platform.js`) sets `platformAdmin: true` on the accounts that own
-  `PLATFORM_ADMIN_EMAILS`; `isAdmin()` in the rules accepts the claim OR
-  the email list. The app's UI checks still use `ADMIN_EMAILS` until the
-  second half. Sync confirmed in production (both admins have the claim).
-- **v3.18.1**: admin claim, second half. Admins by uid
-  (`PLATFORM_ADMIN_UIDS`); `isAdmin()` is the claim only; the app reads
-  the claim at sign-in (`src/modules/admin-claim.js`, `loadAdminClaim()` /
-  `isPlatformAdmin()`), and `ADMIN_EMAILS`/`isAdminEmail` are gone. A new
-  account is always `pending` (an admin email is no longer approved on
-  sight). `platform.js` checks the caller's uid.
-- **v3.18.2**: user management on the server (`api/_users.js`, new
-  `platform.js` actions). Remove = `status: 'removed'` (doc first, so the
-  rules cut access at once) + login disabled + sessions revoked + business
-  membership deleted; Restore undoes it (back to the old status/role).
-  Deny deletes a pending request and its login. `employee_create` makes
-  the login, the approved doc and the membership; the old browser flow
-  (`window.createEmployeeAccount`, secondary Firebase app) is gone, and it
-  had been failing since the rules allow only self-created user docs. The
-  Developer Panel shows email verified / login disabled / last sign-in
-  (`users_auth_info`). A removed account sees a "removed" message.
-- **v3.18.3**: email verification on request
-  (`src/modules/email-verification.js`). "Send verification email" + "I've
-  verified it" on the "Awaiting approval" screen and in Settings → Account
-  (only while unverified); nothing is sent automatically. "I've verified
-  it" reloads the account and refreshes the token (for PR 5's rules).
-  Approving an unverified user asks first.
-- **v3.18.4**: verified email required. Rules `isVerified()`
-  (`email_verified` in the token) inside `isApproved()`/`isAdmin()`;
-  `requireApprovedUser()` refuses an unverified token (403) on both the
-  Admin and REST paths; an approved but unverified account sees a "Verify
-  your email" screen (Live Catalog and the Developer Panel point to the
-  app). Pending accounts are unaffected.
+(none yet)
 
 ## Backlog (not started)
 
@@ -416,6 +388,7 @@ platforms keep using the tiered editor.
 - `docs/ebay-shipping-policy.md`: the v3.13.9 buyer-pays shipping bug
   (resolved).
 - `docs/multi-tenant.md`: ADR for offering the app to other businesses.
-- `docs/live-catalog.md`, `docs/narration.md`, `docs/dashboard.md`,
+- `docs/live-catalog.md` (historical, removed in v3.19.0),
+  `docs/narration.md`, `docs/dashboard.md`,
   `docs/employee-accounts.md`, `docs/platform-fees.md`,
   `docs/sold-confirmation.md`, `docs/modularization.md`.

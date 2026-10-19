@@ -13,6 +13,11 @@
 // (email_verified in the sign-in token): an unverified address may not even
 // belong to the person using it. Pending accounts only touch their own
 // users doc, so they can still sign up and wait for approval.
+//
+// The Live Catalog was removed in v3.19.0 (git tag live-catalog-last). Its
+// data (liveSessions, liveItems, options / live_catalog_options) is frozen:
+// members no longer read or write it; platform admins still read it, so the
+// Developer Panel backup keeps it.
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -37,8 +42,14 @@ service cloud.firestore {
       return isApproved() &&
         exists(/databases/$(database)/documents/businesses/$(bizId)/members/$(request.auth.uid));
     }
+    // What members read and write.
+    function isMemberData(sub) {
+      return sub in ['items', 'drafts', 'counters', 'config', 'ebay_error_log'];
+    }
+    // What platform admins read: the member data plus the frozen Live
+    // Catalog collections.
     function isBusinessData(sub) {
-      return sub in ['items', 'drafts', 'liveSessions', 'liveItems', 'options', 'counters', 'config', 'ebay_error_log'];
+      return isMemberData(sub) || sub in ['liveSessions', 'liveItems', 'options'];
     }
     // The pre-business root collections stay readable, but writes stop
     // once the user's business is live, so a device still running the old
@@ -70,7 +81,7 @@ service cloud.firestore {
         allow write: if false;
       }
       match /{sub}/{docId} {
-        allow read, write: if isBusinessData(sub) && isMember(bizId);
+        allow read, write: if isMemberData(sub) && isMember(bizId);
         // Platform admins read any business's data (Developer Panel backup
         // and eBay errors, v3.17.1); writing stays with the members.
         allow read: if isBusinessData(sub) && isAdmin();
@@ -94,8 +105,9 @@ service cloud.firestore {
     // v3.14.2, so nothing was ever saved.
     match /ebay_error_log/{docId} { allow read: if isApproved(); allow write: if isApproved() && rootWritable(); }
 
-    match /liveSessions/{id} { allow read: if isApproved(); allow write: if isApproved() && rootWritable(); }
-    match /liveItems/{id} { allow read: if isApproved(); allow write: if isApproved() && rootWritable(); }
-    match /live_catalog_options/{id} { allow read: if isApproved(); allow write: if isApproved() && rootWritable(); }
+    // Frozen Live Catalog data (v3.19.0): admins read it for the backup.
+    match /liveSessions/{id} { allow read: if isAdmin(); allow write: if false; }
+    match /liveItems/{id} { allow read: if isAdmin(); allow write: if false; }
+    match /live_catalog_options/{id} { allow read: if isAdmin(); allow write: if false; }
   }
 }

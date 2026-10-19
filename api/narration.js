@@ -13,7 +13,7 @@
 //        discarded when the function returns.
 //     Returns: { transcript }
 //
-//   action: 'extract'  { kind: 'item' | 'live', transcript }
+//   action: 'extract'  { kind: 'item', transcript }
 //     -> Claude (Haiku 4.5) turns a narration transcript into structured
 //        catalog fields. The prompt is built here (v3.15.3) by
 //        src/modules/narration-prompts.js; the browser only sends the

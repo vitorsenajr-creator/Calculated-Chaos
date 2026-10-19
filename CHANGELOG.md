@@ -3,6 +3,35 @@
 Version history for Calculated Chaos. The current version is also shown in
 the badge at the top of the app (`APP_VERSION` in `src/modules/version.js`).
 
+## v3.19.0 — 2026-10-19
+
+Rolls up v3.18.1 – v3.18.4, which finish the admin and email part of the
+sign-in hardening (`docs/multi-tenant.md` step 4a), and starts a cleanup
+that keeps the app focused on inventory, logistics, listings and finances.
+
+- **Live Catalog removed.** The 🔴 Live tool, its page and its voice
+  narration are gone (the last version is tagged `live-catalog-last`).
+  Its sessions, items and options are kept, frozen: only platform admins
+  can read them, and the Developer Panel backup still includes them.
+- **Admins by account, not by email** (v3.18.1). Platform admins are
+  listed by account ID on the server, and the app and the security rules
+  trust only the server-set admin claim. A new account always starts as
+  pending, even with an admin's email.
+- **User management on the server** (v3.18.2). Remove disables the login,
+  signs the person out and takes them off the business; Restore undoes
+  it. Deny deletes a pending request and its login. Creating an employee
+  in Settings works again (it had been failing since the rules allow only
+  self-created user records). The Developer Panel shows each account's
+  email status, disabled login and last sign-in.
+- **Email verification on request** (v3.18.3). "Send verification email"
+  and "I've verified it" on the "Awaiting approval" screen and in
+  Settings → Account. Nothing is ever sent automatically; only the
+  person's own click sends one.
+- **Verified email required** (v3.18.4). The security rules, the server
+  and the sign-in screens require a verified email; an approved but
+  unverified account sees a "Verify your email" screen. Pending accounts
+  are unaffected.
+
 ## v3.18.0 — 2026-10-19
 
 Rolls up v3.17.1 – v3.17.6 (the `main.js` split) and starts the sign-in

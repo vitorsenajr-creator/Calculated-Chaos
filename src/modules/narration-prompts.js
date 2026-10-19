@@ -2,7 +2,8 @@
 // on the SERVER since v3.15.3: the browser sends only the transcript and
 // which flow it came from (`kind`), so the endpoint can't be used as a
 // general-purpose Claude proxy. Wording moved verbatim from
-// narration-capture.js (item modal) and live-narration.js (Live Catalog).
+// narration-capture.js (item modal). The Live Catalog's 'live' kind was
+// removed with the Live Catalog in v3.19.0.
 
 import { PRESET_COLORS, PRESET_CLOTHING_TYPES } from './constants.js';
 
@@ -34,28 +35,8 @@ Respond with ONLY a JSON object (no markdown fences, no preamble), with this exa
 Respond with the JSON object only. Do not include any text, explanation, or markdown formatting before or after it. Your entire response must be parseable as JSON.`;
 }
 
-// Live Catalog quick-add narration.
-function buildLiveNarrationPrompt(transcript){
-  return `You are helping catalog an item for a live-sale "lot list" (Poshmark/similar live shopping) from a spoken narration. The seller described the item out loud while holding it, right before presenting it live. Here is the transcript:
-
-"${quoteTranscript(transcript)}"
-
-Respond with ONLY a JSON object (no markdown fences, no preamble), with this exact shape — use an empty string "" for anything not mentioned or not confidently inferable, and an empty array for measurements if none were mentioned. Do not guess just to fill a field:
-{
-  "tipo": "the item type, e.g. 'Sweater', 'Jeans', 'Dress' — empty string if unclear",
-  "brand": "brand name if mentioned, else empty string",
-  "size": "size exactly as mentioned, e.g. 'M', '32x30' — empty string if not mentioned",
-  "color": "one of: ${PRESET_COLORS.join(', ')}, or another specific color if none fit. Empty string if not mentioned.",
-  "fabric": "fabric/material composition if mentioned, e.g. '100% cotton', '80% polyester 20% spandex' — empty string if not mentioned",
-  "measurements": [{"label": "e.g. Pit to pit, Length, Waist, Sleeve length", "value": "e.g. 20 in"}] — one entry per measurement actually stated, empty array if none,
-  "notes": "anything else mentioned that doesn't fit above — flaws, condition, styling notes, etc. Empty string if nothing extra was said."
-}
-Respond with the JSON object only. Do not include any text, explanation, or markdown formatting before or after it. Your entire response must be parseable as JSON.`;
-}
-
-// kind: 'item' | 'live'. Returns null for an unknown kind.
+// kind: 'item'. Returns null for an unknown kind.
 export function buildNarrationExtractPrompt(kind, transcript){
   if (kind === 'item') return buildItemNarrationPrompt(transcript);
-  if (kind === 'live') return buildLiveNarrationPrompt(transcript);
   return null;
 }
