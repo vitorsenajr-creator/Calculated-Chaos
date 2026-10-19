@@ -10,10 +10,34 @@
 //                          visual facts + listing copy, one request).
 //  - mode:'listing_only' → photos optional; rewrites title/description/tags,
 //                          photo-free when the item has saved aiFacts.
-// The prompt and the JSON schema are built client-side
-// (src/modules/ai-item.js) and passed through, same pattern as before.
+// The prompt and the JSON schema are built HERE (v3.15.3) from the item
+// data the browser sends (`input`), using the pure builders in
+// src/modules/ai-item.js. A prompt or schema sent by the browser is ignored,
+// so the endpoint can't be used as a general-purpose Claude proxy.
 
 import { requireApprovedUser } from './_requireApprovedUser.js';
+import { buildItemAiRequest } from '../src/modules/ai-item.js';
+
+const MAX_IMAGES = 5;
+const IMAGE_MEDIA_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+
+// Keeps only well-formed image blocks (base64 or http(s) URL), at most
+// MAX_IMAGES; anything else in the array is dropped.
+function sanitizeImageBlocks(raw){
+  if (!Array.isArray(raw)) return [];
+  const out = [];
+  for (const b of raw){
+    if (out.length >= MAX_IMAGES) break;
+    const src = b && b.type === 'image' ? b.source : null;
+    if (!src) continue;
+    if (src.type === 'base64' && IMAGE_MEDIA_TYPES.includes(src.media_type) && typeof src.data === 'string' && src.data){
+      out.push({ type: 'image', source: { type: 'base64', media_type: src.media_type, data: src.data } });
+    } else if (src.type === 'url' && typeof src.url === 'string' && /^https?:\/\//i.test(src.url)){
+      out.push({ type: 'image', source: { type: 'url', url: src.url } });
+    }
+  }
+  return out;
+}
 
 // Sonnet 5.5 at low effort (v3.14.1). Thinking is always on for this model
 // (adaptive); effort is the control for how much it thinks, and low keeps
@@ -75,19 +99,19 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Server is not configured with an API key.' });
   }
 
-  const { mode = 'full', imageBlocks, promptText, outputSchema } = req.body || {};
+  const { mode = 'full', imageBlocks, input } = req.body || {};
 
   if (!MAX_TOKENS[mode]) {
     return res.status(400).json({ error: `Unknown mode: ${mode}` });
   }
-  const safeImageBlocks = Array.isArray(imageBlocks) ? imageBlocks : [];
+  const safeImageBlocks = sanitizeImageBlocks(imageBlocks);
   if (mode === 'full' && safeImageBlocks.length === 0) {
     return res.status(400).json({ error: 'No images provided.' });
   }
-  if (!promptText || typeof promptText !== 'string') {
-    return res.status(400).json({ error: 'No prompt provided.' });
+  if (!input || typeof input !== 'object') {
+    return res.status(400).json({ error: 'No item data provided. Reload the app to get the latest version.' });
   }
-  const schema = (outputSchema && typeof outputSchema === 'object') ? outputSchema : null;
+  const { promptText, schema } = buildItemAiRequest(mode, input);
 
   try {
     const content = [...safeImageBlocks, { type: 'text', text: promptText }];

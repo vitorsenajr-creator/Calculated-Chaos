@@ -13,16 +13,15 @@
 //        discarded when the function returns.
 //     Returns: { transcript }
 //
-//   action: 'extract'  { promptText }
-//     -> generic text-only Claude proxy (Haiku 4.5) that turns a
-//        narration transcript into structured catalog fields. Prompt is
-//        built client-side (modules/narration-capture.js) and just passed
-//        through, same pattern as analyze-photo.js, so iterating on
-//        prompt wording doesn't need a redeploy of prompt logic split
-//        across two places.
+//   action: 'extract'  { kind: 'item' | 'live', transcript }
+//     -> Claude (Haiku 4.5) turns a narration transcript into structured
+//        catalog fields. The prompt is built here (v3.15.3) by
+//        src/modules/narration-prompts.js; the browser only sends the
+//        transcript, so this isn't a general-purpose Claude proxy.
 //     Returns: raw Anthropic Messages API response
 
 import { requireApprovedUser } from './_requireApprovedUser.js';
+import { buildNarrationExtractPrompt } from '../src/modules/narration-prompts.js';
 
 async function handleTranscribe(req, res){
   const apiKey = process.env.DEEPGRAM_API_KEY;
@@ -64,9 +63,13 @@ async function handleExtract(req, res){
     return res.status(500).json({ error: 'Server is not configured with an API key.' });
   }
 
-  const { promptText } = req.body || {};
-  if (!promptText || typeof promptText !== 'string') {
-    return res.status(400).json({ error: 'No prompt provided.' });
+  const { kind, transcript } = req.body || {};
+  if (!transcript || typeof transcript !== 'string') {
+    return res.status(400).json({ error: 'No transcript provided. Reload the app to get the latest version.' });
+  }
+  const promptText = buildNarrationExtractPrompt(kind, transcript);
+  if (!promptText) {
+    return res.status(400).json({ error: 'Unknown narration kind.' });
   }
 
   const anthropicResponse = await fetch('https://api.anthropic.com/v1/messages', {

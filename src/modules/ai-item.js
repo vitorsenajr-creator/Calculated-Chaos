@@ -1,7 +1,9 @@
 // Prompt + JSON-schema builders for the single "✨ Analyze & write listing"
 // AI call (v3.13.115) and its photo-free "rewrite listing text" sibling.
-// Pure functions, no DOM — main.js gathers the form values and passes them
-// in, then sends the prompt + schema to /api/analyze-photo.
+// Pure functions, no DOM. Since v3.15.3 the prompt and schema are built on
+// the SERVER (api/analyze-photo.js calls buildItemAiRequest() below): the
+// browser only sends the item's field values, so nobody can swap in their
+// own prompt and use the server's API key for something else.
 //
 // Why one call: photo analysis and listing writing used to be two separate
 // requests that both sent the same photos, and images are ~75% of the
@@ -10,7 +12,14 @@
 // construction details) it saw — saved on the item as `aiFacts`, so later
 // rewrites of the text don't need to re-send any photo.
 
-import { POSHMARK_STYLE_TAGS, PRESET_COLORS, PRESET_CLOTHING_TYPES } from './constants.js';
+import {
+  POSHMARK_STYLE_TAGS, PRESET_COLORS, PRESET_CLOTHING_TYPES,
+  LISTING_CONDITION_LABEL, BASE_CATEGORY_VALUE,
+} from './constants.js';
+
+// Max listing description length (Poshmark's limit), used by the prompt and
+// by main.js when trimming/showing the result.
+export const LISTING_DESC_LIMIT = 1500;
 
 export const AI_GENDER_VALUES = ['', "Women's", "Men's", "Girls'", "Boys'", 'Unisex'];
 export const AI_SIZE_TYPE_VALUES = ['', 'Regular', 'Plus', 'Petite', 'Tall', 'Big & Tall', 'Maternity', 'Juniors'];
@@ -212,4 +221,85 @@ ${factsBlock}
 ${buildListingRules({ descLimit, closingLineInstruction, source })}
 
 Return a single JSON object with exactly these keys: title, description, style_tags (array). No text before or after it.`;
+}
+
+// The description's closing line. `standardText` is the seller's own
+// closing text from Settings (appSettings.listingStandardText).
+export function buildClosingLineInstruction(useStandardClosing, standardText){
+  const text = String(standardText || '').trim();
+  if (useStandardClosing === false){
+    return `one short, factual closing line appropriate for this specific item (not a styling/pairing suggestion) — do NOT reference a "closet" or wardrobe, and do NOT mention bundling clothing, since this item may not be clothing`;
+  }
+  return text
+    ? `a closing line that is EXACTLY this seller-provided text, verbatim, only trimmed at the end if needed to fit the ${LISTING_DESC_LIMIT}-character limit: "${text}"`
+    : `a line saying 'Bundle discount available — check my closet!'`;
+}
+
+// ---------- Server-side request building (api/analyze-photo.js) ----------
+// The browser sends `input` (raw item data); everything that shapes the
+// prompt — wording, option lists, limits, schema — is decided here. Each
+// value is type-checked and length-capped, so a hand-crafted request can at
+// most put odd text inside the item's own fields.
+
+const clip = (v, max) => (typeof v === 'string' ? v : (v == null ? '' : String(v))).slice(0, max);
+
+const FIELD_CAPS = {
+  brand: 100, clothingType: 100, gender: 40, size: 60, color: 60, category: 100,
+  condition: 60, measurements: 600, notes: 2000,
+};
+
+function sanitizeFields(raw){
+  const f = {};
+  const src = (raw && typeof raw === 'object') ? raw : {};
+  Object.entries(FIELD_CAPS).forEach(([k, max]) => { f[k] = clip(src[k], max); });
+  return f;
+}
+
+function sanitizeAiFacts(raw){
+  if (!raw || typeof raw !== 'object') return null;
+  const details = Array.isArray(raw.construction_details) ? raw.construction_details : [];
+  return {
+    material: clip(raw.material, 400),
+    construction_details: details.slice(0, 12).map(d => clip(d, 150)).filter(Boolean),
+    visible_flaws: clip(raw.visible_flaws, 400),
+  };
+}
+
+// Same shape and key order as main.js priceHistoryByCategory():
+// { [category]: { avg, count } } for the known categories only.
+function sanitizePriceHistory(raw){
+  const out = {};
+  if (!raw || typeof raw !== 'object') return out;
+  Object.keys(BASE_CATEGORY_VALUE).forEach(c => {
+    const h = raw[c];
+    if (h && Number.isFinite(Number(h.avg)) && Number.isFinite(Number(h.count))){
+      out[c] = { avg: Number(h.avg), count: Math.round(Number(h.count)) };
+    }
+  });
+  return out;
+}
+
+// mode: 'full' | 'listing_only'. Returns { promptText, schema }.
+export function buildItemAiRequest(mode, input){
+  const src = (input && typeof input === 'object') ? input : {};
+  const f = sanitizeFields(src.fields);
+  const conditionLabel = LISTING_CONDITION_LABEL[f.condition] || f.condition;
+  const closingLineInstruction = buildClosingLineInstruction(src.useStandardClosing !== false, clip(src.standardClosingText, LISTING_DESC_LIMIT));
+  if (mode === 'full'){
+    return {
+      promptText: buildAnalyzeAndWritePrompt({
+        f, conditionLabel, descLimit: LISTING_DESC_LIMIT, closingLineInstruction,
+        categoryOptions: Object.keys(BASE_CATEGORY_VALUE),
+        priceHistory: sanitizePriceHistory(src.priceHistory),
+      }),
+      schema: buildAnalyzeAndWriteSchema(),
+    };
+  }
+  return {
+    promptText: buildRewritePrompt({
+      f, conditionLabel, descLimit: LISTING_DESC_LIMIT, closingLineInstruction,
+      aiFacts: sanitizeAiFacts(src.aiFacts),
+    }),
+    schema: buildRewriteSchema(),
+  };
 }

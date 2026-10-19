@@ -87,7 +87,8 @@ renaming them needs a data migration of every saved item.
 - `src/modules/`: pure helpers and small controllers. Key ones:
   - `state.js`: shared `items`/`appSettings`.
   - `constants.js`, `pricing.js`, `settings.js`.
-  - `ai-item.js`: ✨ analysis prompt + schema.
+  - `ai-item.js`: ✨ analysis prompt + schema (imported by the server).
+  - `narration-prompts.js`: narration extract prompts (server-side).
   - `narration-capture.js`, `live-narration.js`.
   - `ebay-audit.js`, `ebay-error-hints.js`/`-log.js`/`-ai.js`,
     `ebay-size.js`, `ebay-aspect-match.js`, `ebay-type-map.js`.
@@ -96,8 +97,11 @@ renaming them needs a data migration of every saved item.
   adding an `action`/`mode` to an existing file over a new file.
   Underscore files (`_requireApprovedUser.js`) don't count.
   - `analyze-photo.js`: ✨ analysis, `mode: full | listing_only`, Sonnet 5.5
-    at `effort: low`, with server-side refusal `fallbacks`.
-  - `narration.js`: `transcribe` (Deepgram) / `extract` (Haiku 4.5).
+    at `effort: low`, with server-side refusal `fallbacks`. Builds the
+    prompt itself from item data (`buildItemAiRequest()`); never accept a
+    prompt from the browser again.
+  - `narration.js`: `transcribe` (Deepgram) / `extract` (Haiku 4.5,
+    prompts in `src/modules/narration-prompts.js`).
   - `ebay-item-aspects.js`: category aspects, `suggest_fee`,
     `explain_error`.
   - `ebay-listing-tools.js`: audit, legacy scan/migrate, backfill,
@@ -187,6 +191,9 @@ on any of these:
   "declined" message (v3.14.1).
 - Developer Panel (v3.15.0): tested headless with a stubbed Firebase
   only; real Firestore reads/writes and the rules are unconfirmed.
+- Server-built AI prompts (v3.15.3): golden test (prompt text identical)
+  and handler tests with a mocked fetch; ✨ analyze, rewrite and both
+  narration flows are unconfirmed against the real API.
 - eBay endpoint auth (v3.15.1): guards tested by calling the handlers
   without a token (401) and the client headers headless; the full eBay
   flows (connect, publish, check sales, end listing) are unconfirmed.
@@ -211,6 +218,18 @@ on any of these:
 - **v3.15.2**: admins get a "🛠️ Developer Panel" button next to "Sign
   out" in Settings → Account (the old link lower down was removed; that
   section now only shows the pending-request count).
+- **v3.15.3**: AI prompts are built on the server. `analyze-photo.js`
+  takes `{ mode, imageBlocks, input }` (raw item fields, closing-line
+  choice, price history, `aiFacts`) and builds prompt + schema with
+  `buildItemAiRequest()` in `src/modules/ai-item.js`; any `promptText` /
+  `outputSchema` from the browser is ignored. Inputs are type-checked and
+  length-capped, image blocks are filtered (max 5, base64 or http(s) URL).
+  `narration.js` `extract` takes `{ kind: 'item' | 'live', transcript }`;
+  the two prompts moved verbatim to `src/modules/narration-prompts.js`.
+  `LISTING_DESC_LIMIT` and `buildClosingLineInstruction()` moved from
+  `main.js` to `ai-item.js`. A golden test confirmed the prompt text is
+  byte-identical to v3.15.2 for the analyze, rewrite and both narration
+  prompts, so AI output shouldn't change.
 
 ## Backlog (not started)
 
@@ -227,21 +246,15 @@ A/B are already separated, the JSON shape is enforced by structured
 output, and cost barely changes. It's mainly clarity. Scope: reorganize
 the text only, with no rule or field changes. Test on 3-5 real items.
 
-### 2. Move fixed AI rules into a server-side `system` prompt
+### 2. Move fixed AI rules into a `system` prompt with caching
 
-`api/analyze-photo.js` and `api/narration.js` (`extract`) accept a
-browser-built `promptText` as the only user message, with no `system`.
-- **Security**: any approved user can send any prompt from DevTools and
-  use the server's Anthropic key as a general Claude proxy, or override
-  the listing rules.
-- **Caching**: the fixed rules are most of the ~2,600-token prompt but
-  come after the photos, so nothing caches. Put them in `system` with
-  `cache_control`. Savings are modest, since images dominate cost. Check
-  the minimum cacheable length first.
-
-Shape: the client sends structured fields (`f`, conditionLabel, `aiFacts`,
-mode); the server imports the pure builders from `src/modules/ai-item.js`
-(same pattern as `pricing.js`). Do this together with item 1.
+The security half is done (v3.15.3: prompts are built on the server). What
+remains is caching: the fixed rules are most of the ~2,600-token prompt
+but come after the photos in one user message, so nothing caches. Put
+them in `system` with `cache_control`. Savings are modest, since images
+dominate cost. Check the minimum cacheable length first. Do this together
+with item 1 (planned as PR "5b"); it changes the prompt text, so test on
+3-5 real items.
 
 ### 3. Give "🔍 Suggest %" (platform fee) web search
 

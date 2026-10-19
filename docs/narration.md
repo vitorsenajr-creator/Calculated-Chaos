@@ -29,10 +29,11 @@ reflect that conversation, not defaults picked unilaterally.
   a short transcript doesn't need Sonnet's cost/latency) → review card →
   "Apply to form". `api/narration.js` follows the existing
   `api/analyze-photo.js`/`api/generate-listing.js` pattern
-  (`requireApprovedUser` guard, API keys server-side only, prompt built
-  client-side and passed as `promptText`), but as a single
+  (`requireApprovedUser` guard, API keys server-side only), but as a single
   `action`-dispatched file rather than two separate ones — see the Vercel
-  function-limit note below for why.
+  function-limit note below for why. Since v3.15.3 the extract prompt is
+  built on the server (`src/modules/narration-prompts.js`); the browser
+  sends only `{ kind: 'item' | 'live', transcript }`.
 - **Audio is never persisted** — not in Firestore, not in Storage, not by
   the serverless function. It's base64-encoded client-side, POSTed, and
   discarded the moment the transcript comes back.
