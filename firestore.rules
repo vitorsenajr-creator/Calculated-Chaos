@@ -4,11 +4,10 @@
 // Rules); there is no deploy step that reads this file. This is a versioned
 // copy: change it here in a PR, then paste the same text into the Console.
 //
-// The admin email list must stay in sync with ADMIN_EMAILS in
-// src/config/firebase.js (that one only drives the UI; these rules are what
-// actually enforce it). Since v3.18.0 the platformAdmin custom claim, set
-// by the server (api/_adminClaims.js), is accepted too; the email list goes
-// away in the next step (docs/multi-tenant.md step 4a).
+// Platform admins carry the platformAdmin custom claim in their sign-in
+// token (v3.18.1). Only the server sets it (api/_adminClaims.js, from
+// PLATFORM_ADMIN_UIDS in api/_firebaseAdmin.js), so it can't be obtained
+// by signing up with an admin's email the way the old email list could.
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -16,12 +15,7 @@ service cloud.firestore {
       return request.auth != null;
     }
     function isAdmin() {
-      return isSignedIn() && (
-        request.auth.token.get('platformAdmin', false) == true ||
-        request.auth.token.email in [
-          'vitor.sena.jr@gmail.com',
-          'insuredbyjasmine@gmail.com'
-        ]);
+      return isSignedIn() && request.auth.token.get('platformAdmin', false) == true;
     }
     function isApproved() {
       return isSignedIn() &&

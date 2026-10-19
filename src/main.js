@@ -77,6 +77,7 @@ import {
   reserveNextProductCode, findItemsWithProductCode,
 } from './modules/product-code-bank.js';
 import { jsonAuthHeaders } from './modules/api-auth.js';
+import { loadAdminClaim } from './modules/admin-claim.js';
 
 export const app = (function(){
   // APP_VERSION / APP_VERSION_DATE live in modules/version.js (shared with
@@ -4782,9 +4783,10 @@ export const app = (function(){
 
   // ---------- AUTH GATE ----------
   // Nobody sees the app until Firebase confirms they're signed in AND their
-  // Firestore user doc says status:'approved'. New sign-ups default to
-  // 'pending' (except ADMIN_EMAILS, auto-approved) and sit behind the
-  // "Awaiting approval" screen until the admin approves them in Settings.
+  // Firestore user doc says status:'approved'. New sign-ups are always
+  // 'pending' and sit behind the "Awaiting approval" screen until an admin
+  // approves them in the Developer Panel. (Before v3.18.1 an admin email
+  // was approved on sight; admins are now marked by a server-set claim.)
   let isSignupMode = false;
 
   // A returning, already-signed-in user still has to wait for Firebase's
@@ -4865,10 +4867,9 @@ export const app = (function(){
       if (isSignupMode){
         const cred = await createUserWithEmailAndPassword(window.auth, email, password);
         const { doc, setDoc } = window.firestoreFns;
-        const isAdmin = window.isAdminEmail(email);
         await setDoc(doc(window.db, 'users', cred.user.uid), {
           email,
-          status: isAdmin ? 'approved' : 'pending',
+          status: 'pending',
           createdAt: Date.now(),
         });
       } else {
@@ -4907,14 +4908,15 @@ export const app = (function(){
         if (!snap.exists()){
           // First time we see this uid (e.g. account existed before this
           // feature shipped) — default to pending, never to approved.
-          const isAdmin = window.isAdminEmail(user.email);
-          await setDoc(userRef, { email: user.email, status: isAdmin ? 'approved' : 'pending', createdAt: Date.now() });
+          await setDoc(userRef, { email: user.email, status: 'pending', createdAt: Date.now() });
           snap = await getDoc(userRef);
         }
         if (snap.data().status === 'approved'){
           currentUserRole = snap.data().role === 'employee' ? 'employee' : 'owner';
           // Picks business vs pre-business data paths before anything loads.
           await loadActiveBusiness(snap.data());
+          // Admin-only UI (Settings) reads this synchronously later.
+          await loadAdminClaim(user);
           showApp();
           applyRoleRestrictions();
           waitForFirebaseThenLoad();

@@ -5,8 +5,8 @@ import { escapeHtml } from '../../modules/format-utils.js';
 
 // Settings only shows how many sign-ups are waiting; approving/denying
 // moved to the Developer Panel (admin.html, src/admin.js) in v3.15.0.
-// Only reachable when signed in as one of window.ADMIN_EMAILS — the
-// Firestore rules (firestore.rules) independently enforce this.
+// Only reachable for a platform admin (isPlatformAdmin(), the server-set
+// claim) — the Firestore rules (firestore.rules) independently enforce this.
 export async function renderAuthorizeAccessPanel(){
   const section = document.getElementById('authorizeAccessSection');
   const box = document.getElementById('authorizeAccessBox');

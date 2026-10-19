@@ -16,10 +16,17 @@ import { getFirestore } from 'firebase-admin/firestore';
 // Override with the FIREBASE_PROJECT_ID env var; defaults to the current project.
 export const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || 'calculated-chaos-4027a';
 
-// Platform admins. Keep in sync with ADMIN_EMAILS in src/config/firebase.js
-// and isAdmin() in firestore.rules.
-export const PLATFORM_ADMIN_EMAILS = ['vitor.sena.jr@gmail.com', 'insuredbyjasmine@gmail.com'];
-export const isPlatformAdminEmail = (email) => PLATFORM_ADMIN_EMAILS.includes(String(email || '').toLowerCase());
+// Platform admins, by Firebase Auth uid (v3.18.1): Vitor and Jasmine (two,
+// so one can recover the other). A uid can't be claimed by signing up with
+// someone's email, unlike the email list this replaced. The rules and the
+// app don't read this list: "Sync admin access" in the Developer Panel
+// copies it onto the accounts as the platformAdmin claim
+// (_adminClaims.js), so after changing it, run that sync.
+export const PLATFORM_ADMIN_UIDS = [
+  'TpE1hmofirMzGSPE6C8arBl9eGi2', // vitor.sena.jr@gmail.com
+  'O7TKdj6AYKOCMcc998ioaYM1Y0o2', // insuredbyjasmine@gmail.com
+];
+export const isPlatformAdminUid = (uid) => PLATFORM_ADMIN_UIDS.includes(uid);
 
 const APP_NAME = 'calculated-chaos-admin';
 let cached = null;

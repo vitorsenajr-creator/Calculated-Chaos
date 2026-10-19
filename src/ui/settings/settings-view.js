@@ -10,6 +10,7 @@ import { appSettings } from '../../modules/state.js';
 import { escapeHtml } from '../../modules/format-utils.js';
 import { aiUsageRemaining, aiUsagePct } from '../../data/settings-store.js';
 import { renderAuthorizeAccessPanel, renderEmployeeAccountsPanel } from './admin-panels.js';
+import { isPlatformAdmin } from '../../modules/admin-claim.js';
 import { renderEbayConnectionStatus } from './ebay-panel.js';
 import { renderPlatformsSettingsList } from './platforms-panel.js';
 
@@ -38,7 +39,7 @@ export function renderSettings(){
         <div class="ss-desc">Signed in as <b>${escapeHtml(window.auth.currentUser?.email || '')}</b></div>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
           <button id="signOutBtn" class="settings-save-btn" style="width:auto; padding:8px 14px; margin:0;">Sign out</button>
-          ${window.isAdminEmail(window.auth.currentUser?.email) ? `<a href="/admin.html" class="settings-save-btn" style="display:inline-block; width:auto; padding:8px 14px; margin:0; text-decoration:none;">🛠️ Developer Panel</a>` : ''}
+          ${isPlatformAdmin() ? `<a href="/admin.html" class="settings-save-btn" style="display:inline-block; width:auto; padding:8px 14px; margin:0; text-decoration:none;">🛠️ Developer Panel</a>` : ''}
         </div>
       </div>
 
@@ -388,7 +389,7 @@ export function renderSettings(){
       resultEl.innerHTML = `<div class="ebay-status-box error">❌ Could not create the account: ${escapeHtml(result.error || 'unknown error')}</div>`;
     }
   });
-  if (window.isAdminEmail(window.auth.currentUser?.email)){
+  if (isPlatformAdmin()){
     renderAuthorizeAccessPanel();
     renderEmployeeAccountsPanel();
   }

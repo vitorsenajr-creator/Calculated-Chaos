@@ -1,8 +1,9 @@
 // Developer Panel — platform administration (added v3.15.0).
 // Separate page/bundle from the main app (see vite.config.js + admin.html),
-// same pattern as the Live Catalog. Only ADMIN_EMAILS get past the gate
-// below; that check only drives the UI — firestore.rules is what actually
-// limits reading/changing other users' docs to admins.
+// same pattern as the Live Catalog. Only platform admins (the server-set
+// platformAdmin claim, src/modules/admin-claim.js) get past the gate below;
+// that check only drives the UI — firestore.rules is what actually limits
+// reading/changing other users' docs to admins.
 //
 // Today it covers the single-business app: access requests, users, the
 // shared eBay connection and the eBay error library. The Businesses and
@@ -13,12 +14,16 @@ import { escapeHtml } from './modules/format-utils.js';
 import { EBAY_ERROR_LIBRARY } from './modules/ebay-error-hints.js';
 import { APP_VERSION, APP_VERSION_DATE } from './modules/version.js';
 import { jsonAuthHeaders } from './modules/api-auth.js';
+import { loadAdminClaim } from './modules/admin-claim.js';
 
 function db(){ return window.db; }
 function fns(){ return window.firestoreFns; }
 
 let users = [];
 let currentUid = null;
+// Admins' uids, from the "Admin access" card (only the server can list
+// other accounts' claims); marks them in the Users tab.
+let adminUids = new Set();
 
 const fmtDate = (v) => {
   if (!v) return '—';
@@ -69,7 +74,7 @@ waitForFirebaseReady().then(() => {
     hideAuthOverlay();
     // Not signing a non-admin out here: the session is shared with the main
     // app on the same origin, so that would log them out of it too.
-    if (!window.isAdminEmail(user.email)){
+    if (!(await loadAdminClaim(user))){
       document.getElementById('adDeniedEmail').textContent = user.email || user.uid;
       document.getElementById('adDenied').style.display = 'block';
       return;
@@ -199,7 +204,7 @@ function renderUsers(){
         <div class="ad-row">
           <div>
             <div class="ad-main-text">${escapeHtml(u.email || u.id)}${statusPill(u)}${rolePill(u)}${isSelf ? ' <span class="ad-meta">(you)</span>' : ''}</div>
-            <div class="ad-meta">Created ${escapeHtml(fmtDate(u.createdAt))}${window.isAdminEmail(u.email) ? ' · admin' : ''}</div>
+            <div class="ad-meta">Created ${escapeHtml(fmtDate(u.createdAt))}${adminUids.has(u.id) ? ' · admin' : ''}</div>
           </div>
           ${isSelf ? '' : `
           <div class="ad-actions">
@@ -471,7 +476,7 @@ function renderApp(){
     </div>
     <div class="ad-card">
       <h3>Admin access</h3>
-      <div class="ad-desc">Platform admins are marked on their account by the server (the <code>platformAdmin</code> claim), which the security rules read. Today the rules still accept the admin email list too; once both admins show ✅ here, the next update keeps only the claim, listed by the UIDs below.</div>
+      <div class="ad-desc">Platform admins are marked on their account by the server (the <code>platformAdmin</code> claim), which the security rules read. Who is an admin is set by UID in the code (PLATFORM_ADMIN_UIDS in api/_firebaseAdmin.js); "Sync admin access" copies that list onto the accounts.</div>
       <div id="adClaimsStatus" class="ad-empty">Loading…</div>
       <div id="adClaimsProgress" class="ad-meta" style="margin-top:8px;"></div>
       <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
@@ -525,8 +530,8 @@ async function platformAction(body){
 function renderAdminClaims(s, mine){
   const rows = s.admins.map(a => `
     <div class="ad-row" style="display:block;">
-      <div class="ad-main-text">${a.missing ? '⚠️' : a.hasClaim ? '✅' : '⏳'} ${escapeHtml(a.email)}</div>
-      <div class="ad-meta">${a.missing ? 'No account with this email.' : `UID ${escapeHtml(a.uid)} · ${a.hasClaim ? 'has the claim' : 'no claim yet'} · email ${a.emailVerified ? 'verified' : 'not verified'}${a.disabled ? ' · disabled' : ''}`}</div>
+      <div class="ad-main-text">${a.missing ? '⚠️' : a.hasClaim ? '✅' : '⏳'} ${escapeHtml(a.email || a.uid)}</div>
+      <div class="ad-meta">${a.missing ? `No account with UID ${escapeHtml(a.uid)}.` : `UID ${escapeHtml(a.uid)} · ${a.hasClaim ? 'has the claim' : 'no claim yet'} · email ${a.emailVerified ? 'verified' : 'not verified'}${a.disabled ? ' · disabled' : ''}`}</div>
     </div>`).join('') + s.extra.map(u => `
     <div class="ad-row" style="display:block;">
       <div class="ad-main-text">❗ ${escapeHtml(u.email || u.uid)}</div>
@@ -536,21 +541,14 @@ function renderAdminClaims(s, mine){
     <div class="ad-meta" style="margin-top:8px;">This browser's session: ${mine ? '✅ carries the claim' : '⏳ no claim yet (Sync refreshes it; other devices pick it up within an hour or at the next sign-in)'}</div>`;
 }
 
-// The claim in this browser's current sign-in token. forceRefresh asks
-// Firebase for a new token, which is when a just-set claim shows up.
-async function sessionHasClaim(forceRefresh){
-  const user = window.auth.currentUser;
-  if (!user) return false;
-  const t = await user.getIdTokenResult(forceRefresh);
-  return t.claims.platformAdmin === true;
-}
-
 async function loadAdminClaims(forceRefresh = false){
   const el = document.getElementById('adClaimsStatus');
   el.innerHTML = '<div class="ad-empty">Loading…</div>';
   try{
-    const [s, mine] = await Promise.all([platformAction({ action: 'admin_claims' }), sessionHasClaim(forceRefresh)]);
+    const [s, mine] = await Promise.all([platformAction({ action: 'admin_claims' }), loadAdminClaim(window.auth.currentUser, forceRefresh)]);
     el.innerHTML = renderAdminClaims(s, mine);
+    adminUids = new Set(s.admins.filter(a => a.hasClaim).map(a => a.uid));
+    renderUsers();
   }catch(e){
     el.innerHTML = `<div class="ebay-status-box error">❌ Could not load admin access: ${escapeHtml(e.message || String(e))}</div>`;
   }

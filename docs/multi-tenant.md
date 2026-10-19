@@ -218,9 +218,11 @@ Enforcement:
    verified emails get access, employees included (so their emails must
    be real). Progress: v3.18.0 sets the `platformAdmin` claim
    (`api/_adminClaims.js`, Developer Panel → App → "Admin access") and the
-   rules accept the claim or the email list ("expand"); the next PR keeps
-   only the claim ("contract"). Small fixes first, in this order:
-   - Platform admin as a custom claim set by `api/platform.js`, instead
+   rules accept the claim or the email list ("expand"; synced in
+   production); v3.18.1 keeps only the claim, with the admins listed by
+   uid in `PLATFORM_ADMIN_UIDS` ("contract"). Small fixes first, in this
+   order:
+   - [x] Platform admin as a custom claim set by `api/platform.js`, instead
      of the email lists in `isAdmin()` / `ADMIN_EMAILS` /
      `PLATFORM_ADMIN_EMAILS`. The rules trust `token.email` without
      `email_verified`, and a password sign-up can use any email address.

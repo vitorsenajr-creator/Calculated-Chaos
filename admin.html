@@ -11,8 +11,9 @@
   <style>
     /* ---------- DEVELOPER PANEL (v3.15.0) ----------
        Platform-admin page, separate from the main app like the Live
-       Catalog. Only ADMIN_EMAILS get past the gate in src/admin.js, and the
-       Firestore rules enforce the same thing server-side. Reuses
+       Catalog. Only platform admins (the platformAdmin claim) get past the
+       gate in src/admin.js, and the Firestore rules enforce the same thing
+       server-side. Reuses
        style.css's tokens. */
     body{ padding-bottom:40px; }
     .ad-header{

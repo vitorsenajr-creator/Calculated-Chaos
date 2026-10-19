@@ -31,10 +31,10 @@
 //        an admin and who has the claim; sync gives it to the listed
 //        accounts and removes it from any other.
 //
-// Platform admins only (PLATFORM_ADMIN_EMAILS in _firebaseAdmin.js).
+// Platform admins only (PLATFORM_ADMIN_UIDS in _firebaseAdmin.js).
 
 import { requireApprovedUser } from './_requireApprovedUser.js';
-import { getFirebaseAdmin, isPlatformAdminEmail, FIREBASE_PROJECT_ID } from './_firebaseAdmin.js';
+import { getFirebaseAdmin, isPlatformAdminUid, FIREBASE_PROJECT_ID } from './_firebaseAdmin.js';
 import { migrationStatus, migrationCopy, migrationSwitch } from './_migration.js';
 import { adminClaimsStatus, adminClaimsSync } from './_adminClaims.js';
 
@@ -78,7 +78,7 @@ export default async function handler(req, res){
   if (!auth.ok){
     return res.status(auth.status).json({ error: auth.error });
   }
-  if (!isPlatformAdminEmail(auth.email)){
+  if (!isPlatformAdminUid(auth.uid)){
     return res.status(403).json({ error: 'Platform admins only.' });
   }
 

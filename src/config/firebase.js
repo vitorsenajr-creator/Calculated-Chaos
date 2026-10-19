@@ -27,14 +27,8 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.
   window.storageFns = { ref, uploadString, getDownloadURL };
 
   // ---------- Auth ----------
-  // These accounts are treated as admin — able to approve/deny new sign-ups
-  // from the "Authorize access" panel in Settings. This list must be kept in
-  // sync with the isAdmin() function in the Firestore security rules
-  // (Firebase Console → Firestore Database → Rules) — the client-side check
-  // here only controls what's shown in the UI; the rules are what actually
-  // enforce it server-side. See README for the rules text.
-  window.ADMIN_EMAILS = ['vitor.sena.jr@gmail.com', 'insuredbyjasmine@gmail.com'];
-  window.isAdminEmail = (email) => window.ADMIN_EMAILS.includes((email || '').toLowerCase());
+  // Platform admins are recognized by the platformAdmin claim in their
+  // sign-in token (src/modules/admin-claim.js), not by email (v3.18.1).
   window.auth = getAuth(app);
   window.authFns = { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut };
   // Keeps the session on this device/browser until an explicit sign-out —
