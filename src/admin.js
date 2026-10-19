@@ -470,6 +470,16 @@ function renderApp(){
       <button class="ad-btn secondary" id="adHealthBtn" style="margin-top:10px;">Check again</button>
     </div>
     <div class="ad-card">
+      <h3>Admin access</h3>
+      <div class="ad-desc">Platform admins are marked on their account by the server (the <code>platformAdmin</code> claim), which the security rules read. Today the rules still accept the admin email list too; once both admins show ✅ here, the next update keeps only the claim, listed by the UIDs below.</div>
+      <div id="adClaimsStatus" class="ad-empty">Loading…</div>
+      <div id="adClaimsProgress" class="ad-meta" style="margin-top:8px;"></div>
+      <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="ad-btn secondary" id="adClaimsRefreshBtn">Refresh</button>
+        <button class="ad-btn" id="adClaimsSyncBtn">Sync admin access</button>
+      </div>
+    </div>
+    <div class="ad-card">
       <h3>Business migration</h3>
       <div class="ad-desc">Copies today's catalog, drafts, Live Catalog, counters, settings, eBay error library and eBay connection into one business (businesses/{id}). <b>Copy, never move:</b> the app keeps using the current data until the switch, and nothing is deleted. Safe to run again.</div>
       <div class="ad-desc">Before copying: download a backup in the Backup tab and run a Google Cloud export.</div>
@@ -493,6 +503,9 @@ function renderApp(){
     </div>`;
   document.getElementById('adHealthBtn').addEventListener('click', runHealthCheck);
   runHealthCheck();
+  document.getElementById('adClaimsRefreshBtn').addEventListener('click', () => loadAdminClaims());
+  document.getElementById('adClaimsSyncBtn').addEventListener('click', runAdminClaimsSync);
+  loadAdminClaims();
   document.getElementById('adMigrationRefreshBtn').addEventListener('click', loadMigrationStatus);
   document.getElementById('adMigrationCopyBtn').addEventListener('click', runMigrationCopy);
   document.getElementById('adMigrationSwitchBtn').addEventListener('click', runMigrationSwitch);
@@ -501,13 +514,65 @@ function renderApp(){
   loadMigrationStatus();
 }
 
-// ---------- Business migration (api/_migration.js) ----------
 async function platformAction(body){
   const res = await fetch('/api/platform', { method: 'POST', headers: await jsonAuthHeaders(), body: JSON.stringify(body) });
   const data = await res.json().catch(() => null);
   if (!res.ok || !data) throw new Error((data && data.error) || `HTTP ${res.status}`);
   return data;
 }
+
+// ---------- Admin access (api/_adminClaims.js) ----------
+function renderAdminClaims(s, mine){
+  const rows = s.admins.map(a => `
+    <div class="ad-row" style="display:block;">
+      <div class="ad-main-text">${a.missing ? '⚠️' : a.hasClaim ? '✅' : '⏳'} ${escapeHtml(a.email)}</div>
+      <div class="ad-meta">${a.missing ? 'No account with this email.' : `UID ${escapeHtml(a.uid)} · ${a.hasClaim ? 'has the claim' : 'no claim yet'} · email ${a.emailVerified ? 'verified' : 'not verified'}${a.disabled ? ' · disabled' : ''}`}</div>
+    </div>`).join('') + s.extra.map(u => `
+    <div class="ad-row" style="display:block;">
+      <div class="ad-main-text">❗ ${escapeHtml(u.email || u.uid)}</div>
+      <div class="ad-meta">Has the claim but isn't an admin. "Sync admin access" removes it.</div>
+    </div>`).join('');
+  return `${rows}
+    <div class="ad-meta" style="margin-top:8px;">This browser's session: ${mine ? '✅ carries the claim' : '⏳ no claim yet (Sync refreshes it; other devices pick it up within an hour or at the next sign-in)'}</div>`;
+}
+
+// The claim in this browser's current sign-in token. forceRefresh asks
+// Firebase for a new token, which is when a just-set claim shows up.
+async function sessionHasClaim(forceRefresh){
+  const user = window.auth.currentUser;
+  if (!user) return false;
+  const t = await user.getIdTokenResult(forceRefresh);
+  return t.claims.platformAdmin === true;
+}
+
+async function loadAdminClaims(forceRefresh = false){
+  const el = document.getElementById('adClaimsStatus');
+  el.innerHTML = '<div class="ad-empty">Loading…</div>';
+  try{
+    const [s, mine] = await Promise.all([platformAction({ action: 'admin_claims' }), sessionHasClaim(forceRefresh)]);
+    el.innerHTML = renderAdminClaims(s, mine);
+  }catch(e){
+    el.innerHTML = `<div class="ebay-status-box error">❌ Could not load admin access: ${escapeHtml(e.message || String(e))}</div>`;
+  }
+}
+
+async function runAdminClaimsSync(){
+  const btn = document.getElementById('adClaimsSyncBtn');
+  const progress = document.getElementById('adClaimsProgress');
+  btn.disabled = true;
+  progress.textContent = 'Syncing…';
+  try{
+    await platformAction({ action: 'admin_claims_sync' });
+    progress.textContent = '✅ Synced.';
+    await loadAdminClaims(true);
+  }catch(e){
+    progress.textContent = `❌ Could not sync: ${e.message || e}`;
+  }finally{
+    btn.disabled = false;
+  }
+}
+
+// ---------- Business migration (api/_migration.js) ----------
 
 function migrationButtons(){
   return ['adMigrationRefreshBtn', 'adMigrationCopyBtn', 'adMigrationSwitchBtn', 'adMigrationMembersBtn', 'adMigrationBackBtn']
