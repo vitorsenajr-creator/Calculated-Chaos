@@ -100,6 +100,7 @@ function showTab(tab){
   loadedTabs.add(tab);
   if (tab === 'ebay') renderEbay();
   if (tab === 'errors') renderErrors();
+  if (tab === 'backup') renderBackup();
 }
 
 // ---------- USERS (Approvals + Users tabs share one load) ----------
@@ -295,6 +296,99 @@ async function renderErrors(){
       <div class="ad-desc">${log.length} distinct error${log.length === 1 ? '' : 's'}, ${total} occurrence${total === 1 ? '' : 's'} in total, most frequent first. ${unknown.length} not in the error library yet; those are candidates for new library entries (src/modules/ebay-error-hints.js).</div>
       ${log.length ? log.map(row).join('') : '<div class="ad-empty">No eBay errors logged yet.</div>'}
     </div>`;
+}
+
+// ---------- BACKUP ----------
+// Downloads every Firestore collection the app uses as one JSON file
+// (v3.15.5), so there's a copy on hand before the multi-business data
+// migration (docs/multi-tenant.md step 6). Read-only: there is deliberately
+// no restore button; restoring would be written for the case at hand.
+// Left out on purpose:
+//  - ebay_tokens: it's a credential (refresh token); a stray copy of the
+//    file would give access to the eBay account. Reconnecting eBay replaces it.
+//  - ebay_category_cache: rebuilt automatically on use.
+// Photos stay in Firebase Storage; items keep their URLs.
+const BACKUP_COLLECTIONS = [
+  'items', 'drafts', 'users', 'app_config', 'app_settings', 'ebay_error_log',
+  'liveSessions', 'liveItems', 'live_catalog_options',
+];
+
+// Firestore Timestamps (if any) become ISO strings tagged so a restore can
+// tell them apart from plain strings.
+function toPlain(value){
+  if (value && typeof value.toDate === 'function') return { __timestamp: value.toDate().toISOString() };
+  if (Array.isArray(value)) return value.map(toPlain);
+  if (value && typeof value === 'object'){
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, toPlain(v)]));
+  }
+  return value;
+}
+
+function renderBackup(){
+  document.getElementById('panelBackup').innerHTML = `
+    <div class="ad-card">
+      <h3>Full backup</h3>
+      <div class="ad-desc">Downloads every collection the app uses (${BACKUP_COLLECTIONS.join(', ')}) as one JSON file. Keep it somewhere safe (computer, Drive). Not included: the eBay token (it's a password; reconnecting eBay replaces it) and the eBay category cache (rebuilt on its own). Photos stay in Firebase Storage; items keep their links.</div>
+      <button class="ad-btn" id="adBackupBtn">Download full backup</button>
+      <div id="adBackupResult" style="margin-top:12px;"></div>
+    </div>
+    <div class="ad-card">
+      <h3>Google Cloud export (Blaze plan)</h3>
+      <div class="ad-desc">A second, server-side copy of the whole database, including everything above. Run it right before the data migration.</div>
+      <ol style="font-size:13px; color:var(--plum); padding-left:20px; margin:0;">
+        <li>Open <a href="https://console.cloud.google.com/firestore/databases/-default-/import-export?project=${escapeHtml(window.db?.app?.options?.projectId || '')}" target="_blank" rel="noopener">Firestore Import/Export</a> in Google Cloud (same Google account as Firebase).</li>
+        <li>Click <b>Export</b>, choose <b>Export entire database</b>.</li>
+        <li>Pick a bucket (create one if asked, same region as the database), then <b>Export</b>.</li>
+        <li>It shows up under the bucket in a few minutes. Storage costs cents per month.</li>
+      </ol>
+    </div>`;
+  document.getElementById('adBackupBtn').addEventListener('click', runBackup);
+}
+
+async function runBackup(){
+  const btn = document.getElementById('adBackupBtn');
+  const out = document.getElementById('adBackupResult');
+  btn.disabled = true;
+  out.innerHTML = '<div class="ad-empty">Reading the database…</div>';
+  const backup = {
+    app: 'Calculated Chaos',
+    version: APP_VERSION,
+    projectId: window.db?.app?.options?.projectId || null,
+    createdAt: new Date().toISOString(),
+    createdBy: window.auth?.currentUser?.email || null,
+    counts: {},
+    collections: {},
+  };
+  try{
+    const { collection, getDocs } = fns();
+    for (const name of BACKUP_COLLECTIONS){
+      out.innerHTML = `<div class="ad-empty">Reading ${escapeHtml(name)}…</div>`;
+      const snap = await getDocs(collection(db(), name));
+      backup.collections[name] = Object.fromEntries(snap.docs.map(d => [d.id, toPlain(d.data())]));
+      backup.counts[name] = snap.docs.length;
+    }
+  }catch(e){
+    btn.disabled = false;
+    out.innerHTML = `<div class="ebay-status-box error">❌ Backup failed while reading the database: ${escapeHtml(e.message || String(e))}<br>Nothing was downloaded.</div>`;
+    return;
+  }
+
+  const json = JSON.stringify(backup);
+  const fileName = `calculated-chaos-backup-${backup.createdAt.slice(0, 10)}.json`;
+  const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+
+  const sizeMb = (json.length / (1024 * 1024)).toFixed(2);
+  out.innerHTML = `
+    <div class="ebay-status-box success">✅ Backup downloaded: ${escapeHtml(fileName)} (${sizeMb} MB)</div>
+    ${BACKUP_COLLECTIONS.map(n => `<div class="ad-row"><div class="ad-main-text">${escapeHtml(n)}</div><div class="ad-meta">${backup.counts[n]} doc${backup.counts[n] === 1 ? '' : 's'}</div></div>`).join('')}`;
+  btn.disabled = false;
 }
 
 // ---------- APP ----------
