@@ -22,6 +22,7 @@
 // (runEbaySetup, checkEbaySalesNow, findEligibleOffers) is a window.*
 // function wired via inline onclick instead.
 import { items } from './state.js';
+import { bizDoc } from './biz.js';
 import { escapeHtml, uid } from './format-utils.js';
 import { nextProductCode } from './catalog-lookups.js';
 import { ebayErrorShortMessages } from './ebay-error-hints.js';
@@ -306,8 +307,8 @@ function renderAuditReport(data){
             freeShipping: false,
             createdAt: Date.now(),
           };
-          const { doc, setDoc } = window.firestoreFns;
-          await setDoc(doc(window.db, 'items', newItem.id), newItem);
+          const { setDoc } = window.firestoreFns;
+          await setDoc(bizDoc('items', newItem.id), newItem);
           items.push(newItem);
           results.push({ row, itemId, sku, ok: true, shipping: migrateData.shipping, newItemId: newItem.id, name: newItem.name });
         }catch(e){
@@ -550,7 +551,7 @@ export async function runBackfillDescriptions(){
       errors.push(...data.errors);
     }
 
-    const { doc, setDoc } = window.firestoreFns;
+    const { setDoc } = window.firestoreFns;
     let saved = 0;
     const stillEmpty = [];
     for (const { listingId, description } of fetched){
@@ -561,7 +562,7 @@ export async function runBackfillDescriptions(){
         continue;
       }
       item.listingDescription = description;
-      await setDoc(doc(window.db, 'items', item.id), item);
+      await setDoc(bizDoc('items', item.id), item);
       saved++;
     }
 

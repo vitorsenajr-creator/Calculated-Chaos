@@ -206,8 +206,13 @@ Enforcement:
    pasted. Still to do: the doc id becomes the business id. That's one
    line: `action=url` passes the user's business id as `connectionId`,
    and the callback already writes to whatever the code says.
-4. [ ] Business-scoped data paths: a `bizCol()`/`bizDoc()` helper used by
-   all ~40 call sites; per-business counters.
+4. [~] Business-scoped data paths. Done in v3.16.4: `src/modules/biz.js`
+   (`bizCol()`/`bizDoc()`) used by all 31 business-data call sites, still
+   resolving to the root collections. Decided (2026-10-19): the current
+   business gets a random id (name in a field), and settings live in
+   `businesses/{bizId}/config/settings`. Still to do: the copy migration
+   (Developer Panel dry run + copy, step 6), then the switch (rules,
+   `bizCol` → `businesses/{activeBizId}/…`, eBay endpoints per business).
 5. [ ] "Create your business" onboarding, members/roles, owner invites
    employees; new rules.
 6. [ ] Migration script: copy current data into `businesses/<current>/…`.
