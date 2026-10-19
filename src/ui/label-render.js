@@ -3,9 +3,9 @@
 // CSS inches) and the canvas images that get printed or saved, for item
 // labels, multi-item batch sheets, storage-box labels and the calibration
 // marker. It only reads the label settings from state.js; the print modal,
-// Quick Labels and storage boxes that call it still live in main.js.
-// Every print still goes through main.js's openBatchLabelModal (one
-// pipeline, see CLAUDE.md).
+// Quick Labels, storage boxes and Stock Transfer that call it live in
+// src/ui/labels/ (v3.17.3). Every print still goes through
+// labels/print-modal.js's openBatchLabelModal (one pipeline, see CLAUDE.md).
 import { appSettings } from '../modules/state.js';
 import { escapeHtml } from '../modules/format-utils.js';
 

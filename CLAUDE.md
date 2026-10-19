@@ -75,7 +75,7 @@ renaming them needs a data migration of every saved item.
 
 ## Code map
 
-- `src/main.js`: ~6,700 lines, one IIFE (`export const app = (function(){…})()`).
+- `src/main.js`: ~6,000 lines, one IIFE (`export const app = (function(){…})()`).
   Holds the catalog, item modal, settings, label print modal, measure
   tool, AI flows and reports UI. See `docs/modularization.md`.
 - **Layers for new code (v3.17.2, `docs/modularization.md`)**:
@@ -87,6 +87,11 @@ renaming them needs a data migration of every saved item.
   - `domain/listing-copy.js`: listing title/description builders.
   - `ui/lightbox.js`: `openLightbox(photos, index)`; its state is private.
   - `ui/label-render.js`: label preview markup + canvas drawing.
+  - `ui/labels/`: print modal (`openBatchLabelModal`), Quick Labels,
+    storage boxes, Stock Transfer (v3.17.3).
+  - `domain/product-code-match.js`: typed digits → item.
+  - `platform/print.js` (`printHtml`, keep it synchronous) and
+    `platform/files.js` (`saveOrShareFile`).
 - `src/ebay-api.js`: client side of eBay publish/bulk publish/error box.
 - `src/live-catalog.js` + `live-catalog.html`: separate Vite entry (see
   `docs/live-catalog.md`).
@@ -210,8 +215,8 @@ renaming them needs a data migration of every saved item.
 
 - **Multi-business (paid, for new sellers)**: the app runs on business
   data since 2026-10-19 (v3.17.0 switch confirmed in production).
-  Next, in order: split `main.js` (docs/modularization.md phases 2-3;
-  phase 1 done in v3.17.2),
+  Next, in order: split `main.js` (docs/modularization.md phase 2b, then
+  phase 3; phases 1-2 done in v3.17.2-3),
   auth hardening (`docs/multi-tenant.md` step 4a: admin custom claim,
   email verification, one account per email, disable Auth on Remove,
   then Google sign-in, App Check, admin 2FA), then onboarding/invites
@@ -259,6 +264,12 @@ on any of these:
   canvas pixel for pixel) and a lightbox behavior test in Chromium; the
   real app (photo viewer, label printing, listing generator) is
   unconfirmed.
+- main.js split phase 2 (v3.17.3): characterization test in Chromium on
+  the real `index.html` markup (195 recorded entries, old vs new
+  identical: screens, print, share, download, saves, PDF calls), plus a
+  clean load of the built app. Unconfirmed on real devices: printing and
+  saving item/batch/box labels and the wall marker, Quick Labels (queue
+  and PDF), storage boxes in Settings, Stock Transfer.
 - Server-built AI prompts (v3.15.3): golden test (prompt text identical)
   and handler tests with a mocked fetch; ✨ analyze, rewrite and both
   narration flows are unconfirmed against the real API.
@@ -298,6 +309,13 @@ on any of these:
   a parameter), `ui/lightbox.js` (encapsulated; the catalog grid no longer
   writes its variables), `ui/label-render.js` (preview markup + canvas
   drawing). `main.js` 7,303 → 6,726 lines. No behavior change.
+- **v3.17.3**: `main.js` split, phase 2, and the first platform layer.
+  `ui/labels/` (print-modal, quick-labels, storage-boxes,
+  stock-transfer), `domain/product-code-match.js`, `platform/print.js`
+  (`printHtml`) and `platform/files.js` (`saveOrShareFile`). Modules get
+  `main.js`'s IIFE functions through `init…(deps)`. The print modal takes
+  a `session` (`title`, `onClose`) instead of reading the Quick Labels
+  queue. `main.js` 6,726 → 5,998 lines. No behavior change.
 
 ## Backlog (not started)
 
