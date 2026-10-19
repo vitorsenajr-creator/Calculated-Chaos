@@ -12,6 +12,7 @@ import './config/firebase.js';
 import { escapeHtml } from './modules/format-utils.js';
 import { EBAY_ERROR_LIBRARY } from './modules/ebay-error-hints.js';
 import { APP_VERSION, APP_VERSION_DATE } from './modules/version.js';
+import { jsonAuthHeaders } from './modules/api-auth.js';
 
 function db(){ return window.db; }
 function fns(){ return window.firestoreFns; }
@@ -306,6 +307,12 @@ function renderApp(){
         <dt>Firebase project</dt><dd>${escapeHtml(window.db?.app?.options?.projectId || 'unknown')}</dd>
       </dl>
     </div>
+    <div class="ad-card">
+      <h3>Server admin access</h3>
+      <div class="ad-desc">Whether the server can use its Firebase Admin key (FIREBASE_SERVICE_ACCOUNT in Vercel). Needed for the upcoming multi-business work; until it works, sign-in checks use the older fallback.</div>
+      <div id="adHealthResult" class="ad-empty">Checking…</div>
+      <button class="ad-btn secondary" id="adHealthBtn" style="margin-top:10px;">Check again</button>
+    </div>
     <div class="ad-card ad-links">
       <h3>Links</h3>
       <a href="https://vercel.com/dashboard" target="_blank" rel="noopener">Vercel dashboard (deploys, logs)</a>
@@ -314,4 +321,37 @@ function renderApp(){
       <a href="https://console.anthropic.com/" target="_blank" rel="noopener">Anthropic Console (API usage)</a>
       <a href="https://github.com/vitorsenajr-creator/Calculated-Chaos" target="_blank" rel="noopener">GitHub repository</a>
     </div>`;
+  document.getElementById('adHealthBtn').addEventListener('click', runHealthCheck);
+  runHealthCheck();
+}
+
+// api/platform.js action:'health' — see that file for what each check means.
+async function runHealthCheck(){
+  const el = document.getElementById('adHealthResult');
+  const btn = document.getElementById('adHealthBtn');
+  el.innerHTML = '<div class="ad-empty">Checking…</div>';
+  btn.disabled = true;
+  try{
+    const res = await fetch('/api/platform', {
+      method: 'POST',
+      headers: await jsonAuthHeaders(),
+      body: JSON.stringify({ action: 'health' }),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data || !Array.isArray(data.checks)){
+      el.innerHTML = `<div class="ebay-status-box error">❌ Could not run the check: ${escapeHtml((data && data.error) || `HTTP ${res.status}`)}</div>`;
+      return;
+    }
+    el.innerHTML = `
+      <div class="ebay-status-box ${data.ok ? 'success' : 'error'}">${data.ok ? '✅ Working' : '❌ Not working yet — see the failed check below'}</div>
+      ${data.checks.map(c => `
+        <div class="ad-row" style="display:block;">
+          <div class="ad-main-text">${c.ok ? '✅' : '❌'} ${escapeHtml(c.name)}</div>
+          <div class="ad-meta">${escapeHtml(c.detail || '')}</div>
+        </div>`).join('')}`;
+  }catch(e){
+    el.innerHTML = `<div class="ebay-status-box error">❌ Could not reach the server: ${escapeHtml(e.message || String(e))}</div>`;
+  }finally{
+    btn.disabled = false;
+  }
 }
