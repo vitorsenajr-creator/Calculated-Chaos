@@ -83,7 +83,7 @@ renaming them needs a data migration of every saved item.
   `docs/live-catalog.md`).
 - `src/admin.js` + `admin.html`: Developer Panel, a separate Vite entry
   for admins only (access requests, users, eBay status, eBay error
-  library). New platform-admin features go here, not in Settings.
+  library, backup, server health). New platform-admin features go here, not in Settings.
 - `src/modules/`: pure helpers and small controllers. Key ones:
   - `state.js`: shared `items`/`appSettings`.
   - `constants.js`, `pricing.js`, `settings.js`.
@@ -203,6 +203,8 @@ on any of these:
   "declined" message (v3.14.1).
 - Developer Panel (v3.15.0): tested headless with a stubbed Firebase
   only; real Firestore reads/writes and the rules are unconfirmed.
+- Backup download (v3.15.5): tested headless with a stubbed Firestore;
+  a real backup of the production data is unconfirmed.
 - Firebase Admin (v3.15.4): key handling tested with missing, invalid,
   partial, wrong-project and a locally generated key (forged token → 401);
   the real key in Vercel is unconfirmed until Developer Panel → App shows
@@ -253,6 +255,12 @@ on any of these:
   check if the key is missing/broken. New `api/platform.js` (12th and
   last Hobby function) with an admin-only `health` action, shown in
   Developer Panel → App → "Server admin access".
+- **v3.15.5**: Developer Panel → Backup tab. "Download full backup" saves
+  every app collection as one JSON file (Timestamps tagged as
+  `{ __timestamp }`), leaving out `ebay_tokens` (a credential) and
+  `ebay_category_cache`. Read-only, no restore button by design. The tab
+  also has the steps for a Google Cloud managed export (project is on
+  Blaze).
 
 ## Backlog (not started)
 

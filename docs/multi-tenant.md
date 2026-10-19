@@ -204,7 +204,11 @@ Enforcement:
    all ~40 call sites; per-business counters.
 5. [ ] "Create your business" onboarding, members/roles, owner invites
    employees; new rules.
-6. [ ] Migration script: move current data into `businesses/<current>/…`.
+6. [ ] Migration script: copy current data into `businesses/<current>/…`.
+   Copy, never move: the old collections stay until Vitor confirms the
+   new ones, then get removed in a separate step. Before running it:
+   Developer Panel → Backup (JSON download) plus a Google Cloud managed
+   export (the project is on Blaze).
 7. [ ] eBay policies per business (reuse `ebay-setup.js` listing).
 8. [ ] Server-side prompts + AI credits + usage UI (with backlog item 1).
 9. [ ] Billing (e.g. Stripe), plan → credit limit.
