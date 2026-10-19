@@ -1786,6 +1786,20 @@ next minor bump:
   that were never applied (pre-v3.13.115 shape) still show the review card
   with its Apply button. Verified via `node --check`, clean `vite build`,
   and a headless load (no JS errors); not yet tried on a real item.
+- **v3.13.118** — Vitor asked for a sweep of Portuguese left in the code.
+  Translated the UI strings still in Portuguese, which broke the
+  English-only rule: the Catalog bulk button "Imprimir etiquetas" → "Print
+  labels", and the whole Settings storage-box section (title "Cadastrar /
+  Imprimir Etiqueta de Estoque", "Reimprimir", "Remover", placeholder
+  "Nome/número da caixa", "Registrar e Imprimir"). Also translated the one
+  Portuguese code comment (`src/ebay-api.js`) and two comments quoting the
+  old button name. Left alone on purpose: internal data keys stored in
+  Firestore (`vendido`, `catalogado`, `anunciado`, `novo_etiqueta`,
+  `novo_sem_etiqueta`, `excelente`, …). They're never shown to the user
+  (labels come from `CONDITION_LABEL`/status maps), and renaming them would
+  need a data migration of every saved item.
+- Same session also added backlog items 3-5 below (prompt tags, server-side
+  `system` prompt, web search for "🔍 Suggest %"), all not started.
 - **v3.13.93** — Vitor confirmed he did a real hard reload after v3.13.92
   and still didn't see the "Already listed on eBay" link on reopen —
   bumped the version number specifically to test whether his device is
@@ -2168,6 +2182,70 @@ Shipped as part of the new desktop Dashboard (`modules/dashboard.js`'s
 `revenueByPlatform`, grouped by `soldPlatform`) rather than in Reports.
 Still not in the Reports tab itself — revisit if that's wanted there too
 (e.g. in a CSV export).
+
+### 3. Structure the "✨ Analyze & write listing" prompt with tags — not started
+
+From an external review (2026-10-19), noted by Vitor for later.
+`buildAnalyzeAndWritePrompt()` in `src/modules/ai-item.js` mixes the task,
+the JSON output format, the option lists (`PRESET_COLORS`,
+`PRESET_CLOTHING_TYPES`, `categoryOptions`, pasted inline mid-sentence)
+and the account's sale history (`priceHistory`, raw JSON inside the price
+bullet) in one string. The proposal is to split it into tagged blocks
+(`<instrucoes>`, `<opcoes_validas>`, `<historico_vendas>`) and have the
+rules refer to them by name. Expected gain is modest: the prompt already
+separates seller data and Part A/B, the JSON shape is already enforced by
+structured output, and cost barely changes. It's mainly clarity, for the
+model and for maintenance. Scope: reorganize the text only, with no rule
+or field changes. Test on 3-5 real items before trusting it.
+
+### 4. Move fixed AI rules into a server-side `system` prompt — not started
+
+From the same external review (2026-10-19). `api/analyze-photo.js` and
+`api/narration.js` (`action:'extract'`) accept a `promptText` built in
+the browser and send it as the only user message, with no `system`.
+(`api/ebay-item-aspects.js` already builds its prompts server-side, so
+it's fine.) Two reasons to change this:
+- **Security**: any approved user (owner/employees, via
+  `requireApprovedUser`) can send any prompt they like from DevTools and
+  use the server's Anthropic key as a general-purpose Claude proxy, or
+  override the listing rules. Exposure is limited to logged-in, approved
+  accounts, but the fix is cheap.
+- **Caching**: the fixed rules (role, Part A/B rules, listing rules,
+  option lists) are most of the ~2,600-token prompt, but today they come
+  after the photos in the user message, so nothing is cacheable. Put the
+  fixed rules in `system` with `cache_control`, and send only the
+  per-item seller data, photos, and mode from the client. Repeat calls
+  within the cache window (e.g. a cataloging session) would then pay
+  ~10% on that part. Savings are real but modest, since images are most
+  of the input cost. Check the model's minimum cacheable length before
+  counting on it.
+Shape: the client sends structured fields (`f`, conditionLabel,
+`aiFacts`, mode); the server owns `buildAnalyzeAndWritePrompt`/
+`buildRewritePrompt` (they're already pure functions in
+`src/modules/ai-item.js`, importable from `api/` the same way
+`pricing.js` is). Pairs naturally with item 3 (tagged prompt structure),
+so do both together.
+
+### 5. Give "🔍 Suggest %" (platform fee) web search — not started
+
+From the same external review (2026-10-19). `handleSuggestFee()` in
+`api/ebay-item-aspects.js` (`mode:'suggest_fee'`, called by
+`suggestPlatformFee()` in `src/main.js`) asks the model for a platform's
+current seller fee from training memory alone. Fees change often (Vinted
+went from 5% to $0, Depop dropped its commission; see "Tiered platform
+fees"), so the answer can be out of date with no warning. The prompt also
+says "give your best estimate rather than refusing", which invites a
+confident guess. Proposal: add the API's server-side `web_search` tool
+(`max_uses` 1-2) so the answer comes from the platform's current fee
+page, return the source URL(s) alongside `feePct`/`note`, and show them
+in Settings next to the suggestion so she can check before saving. Drop
+the "never refuse" line; let it say when it couldn't find the fee.
+Cost is a few cents per click, and it's a rare action. Check the
+`web_search` tool version and which models support it before building.
+Limitation to keep in mind: it still returns one flat %, so a tiered
+platform (eBay/Poshmark/Depop) can't be represented here. The `note`
+should say when a fee is tiered, and those platforms keep using the
+tiered editor.
 
 ## Modularization progress
 
