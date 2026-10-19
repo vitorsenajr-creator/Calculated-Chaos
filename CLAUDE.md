@@ -112,7 +112,8 @@ renaming them needs a data migration of every saved item.
   `EBAY_FULFILLMENT_POLICY_ID`, `EBAY_FULFILLMENT_POLICY_ID_BUYER_PAYS`,
   `EBAY_PAYMENT_POLICY_ID`, `EBAY_RETURN_POLICY_ID`,
   `EBAY_MERCHANT_LOCATION_KEY`, `EBAY_DELETION_ENDPOINT_URL`,
-  `EBAY_DELETION_VERIFICATION_TOKEN`.
+  `EBAY_DELETION_VERIFICATION_TOKEN`. Optional: `FIREBASE_PROJECT_ID`
+  (defaults to `calculated-chaos-4027a`).
 - Firestore collections and docs:
   - Catalog and app data: `items`, `drafts`, `users` (role/status),
     `app_config/settings`, `app_settings/productCodeCounter`,
@@ -186,6 +187,9 @@ on any of these:
   "declined" message (v3.14.1).
 - Developer Panel (v3.15.0): tested headless with a stubbed Firebase
   only; real Firestore reads/writes and the rules are unconfirmed.
+- eBay endpoint auth (v3.15.1): guards tested by calling the handlers
+  without a token (401) and the client headers headless; the full eBay
+  flows (connect, publish, check sales, end listing) are unconfirmed.
 - ✨ analyze + auto-apply + Redo (v3.13.115-117), NWT checkbox (v3.13.116).
 - eBay error library, AI explanation, aspect matching, Type auto-fill
   (v3.13.108-110), publish-step retry loop (v3.13.51).
@@ -195,7 +199,15 @@ on any of these:
 
 ## Pending changelog entry (since v3.15.0)
 
-(none yet)
+- **v3.15.1**: every eBay endpoint now requires a signed-in, approved
+  user (`requireApprovedUser`), like the AI endpoints already did:
+  `ebay-category-search`, `ebay-check-sales`, `ebay-end-listing`,
+  `ebay-list`, `ebay-listing-tools`, `ebay-setup`, and `ebay-auth` except
+  its `callback` (eBay's own redirect). `ebay-account-deletion` stays open
+  (eBay calls it). The client sends the ID token through
+  `jsonAuthHeaders()` (`src/modules/api-auth.js`) on all 16 eBay calls.
+  The Firebase project ID in `_requireApprovedUser.js` can be overridden
+  with an optional `FIREBASE_PROJECT_ID` env var.
 
 ## Backlog (not started)
 

@@ -23,6 +23,7 @@
   import { logEbayFailure, saveAiExplanationToLog } from './modules/ebay-error-log.js';
   import { explainEbayErrorWithAi } from './modules/ebay-error-ai.js';
   import { normalizeSizeForEbay } from './modules/ebay-size.js';
+  import { jsonAuthHeaders } from './modules/api-auth.js';
 
   // eBay tokens are stored in Firestore under 'ebay_tokens/main' so both users share the same connection
   export let ebayTokens = null; // { access_token, refresh_token, connected_at, expires_in }
@@ -75,7 +76,7 @@
     try{
       const res = await fetch('/api/ebay-auth?action=refresh', {
         method: 'POST',
-        headers: {'Content-Type':'application/json'},
+        headers: await jsonAuthHeaders(),
         body: JSON.stringify({ refresh_token: ebayTokens.refresh_token })
       });
       const data = await res.json();
@@ -103,7 +104,7 @@
       if (!token) return { checked: false };
       const res = await fetch('/api/ebay-check-sales', {
         method: 'POST',
-        headers: {'Content-Type':'application/json'},
+        headers: await jsonAuthHeaders(),
         body: JSON.stringify({ access_token: token })
       });
       const data = await res.json();
@@ -184,7 +185,7 @@
       if (!token) return { ended: false, reason: 'not_connected' };
       const res = await fetch('/api/ebay-end-listing', {
         method: 'POST',
-        headers: {'Content-Type':'application/json'},
+        headers: await jsonAuthHeaders(),
         body: JSON.stringify({ access_token: token, offer_id: itemData.ebayOfferId })
       });
       const data = await res.json();
@@ -277,7 +278,7 @@
     // browsers silently block the popup — which is why nothing seemed to happen.
     const authTab = window.open('about:blank', '_blank');
     try{
-      const res = await fetch('/api/ebay-auth?action=url');
+      const res = await fetch('/api/ebay-auth?action=url', { headers: await jsonAuthHeaders() });
       const data = await res.json();
       if (!data.url) throw new Error('No auth URL returned');
       if (authTab && !authTab.closed){
@@ -408,7 +409,7 @@
       const freshToken = await getValidEbayToken();
       const res = await fetch('/api/ebay-list', {
         method: 'POST',
-        headers: {'Content-Type':'application/json'},
+        headers: await jsonAuthHeaders(),
         body: JSON.stringify({ access_token: freshToken, item, imageUrls: hostedPhotoUrls })
       });
       const data = await res.json();

@@ -7,6 +7,8 @@
 // POST body: { access_token, query }
 // Returns: { success, suggestions: [{ id, name, path }] }
 
+import { requireApprovedUser } from './_requireApprovedUser.js';
+
 const EBAY_SANDBOX = process.env.EBAY_SANDBOX === 'true';
 const API_BASE = EBAY_SANDBOX
   ? 'https://api.sandbox.ebay.com'
@@ -16,6 +18,11 @@ const CATEGORY_TREE_ID = '0'; // eBay's default/shared tree ID for EBAY_US
 export default async (req, res) => {
   if (req.method !== 'POST'){
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  const authCheck = await requireApprovedUser(req);
+  if (!authCheck.ok){
+    return res.status(authCheck.status).json({ error: authCheck.error });
   }
 
   try{

@@ -13,6 +13,8 @@
 // variables: EBAY_FULFILLMENT_POLICY_ID, EBAY_PAYMENT_POLICY_ID,
 // EBAY_RETURN_POLICY_ID, EBAY_MERCHANT_LOCATION_KEY — then redeploy.
 
+import { requireApprovedUser } from './_requireApprovedUser.js';
+
 const EBAY_SANDBOX = process.env.EBAY_SANDBOX === 'true';
 const API_BASE = EBAY_SANDBOX ? 'https://api.sandbox.ebay.com' : 'https://api.ebay.com';
 const MARKETPLACE_ID = 'EBAY_US';
@@ -73,6 +75,11 @@ function findPolicyByName(listData, listKey, idField, name){
 export default async function handler(req, res){
   if (req.method !== 'POST'){
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  const authCheck = await requireApprovedUser(req);
+  if (!authCheck.ok){
+    return res.status(authCheck.status).json({ error: authCheck.error });
   }
   const { access_token } = req.body || {};
   if (!access_token){ return res.status(400).json({ error: 'Missing access_token' }); }

@@ -4,6 +4,8 @@
 //   ?action=callback → exchanges the authorization code for access + refresh tokens
 //   ?action=refresh  → uses the refresh token to get a new access token
 
+import { requireApprovedUser } from './_requireApprovedUser.js';
+
 const EBAY_CLIENT_ID     = process.env.EBAY_CLIENT_ID;
 const EBAY_CLIENT_SECRET = process.env.EBAY_CLIENT_SECRET;
 const EBAY_REDIRECT_URI  = process.env.EBAY_REDIRECT_URI; // e.g. https://calculated-chaos-deploy1-1.vercel.app/api/ebay-auth?action=callback
@@ -63,6 +65,15 @@ export default async function handler(req, res){
   // params we might want (like ?action=callback). So if a "code" shows up
   // with no explicit action, treat it as the callback automatically.
   const action = req.query.action || (req.query.code ? 'callback' : undefined);
+
+  // Every action except the callback needs a signed-in, approved user. The
+  // callback is eBay's own browser redirect, so it carries no Firebase token.
+  if (action !== 'callback'){
+    const authCheck = await requireApprovedUser(req);
+    if (!authCheck.ok){
+      return res.status(authCheck.status).json({ error: authCheck.error });
+    }
+  }
 
   // ---------- Return the eBay authorization URL ----------
   if (action === 'url'){

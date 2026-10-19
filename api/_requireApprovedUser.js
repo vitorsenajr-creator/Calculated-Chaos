@@ -7,7 +7,8 @@
 // Firestore independently verifies the token's signature and derives
 // request.auth.uid from it server-side — a forged or expired token simply
 // gets rejected by Firestore, so we don't need to verify the JWT ourselves.
-const FIREBASE_PROJECT_ID = 'calculated-chaos-4027a';
+// Override with the FIREBASE_PROJECT_ID env var; defaults to the current project.
+const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || 'calculated-chaos-4027a';
 
 export async function requireApprovedUser(req){
   const authHeader = req.headers['authorization'] || '';
