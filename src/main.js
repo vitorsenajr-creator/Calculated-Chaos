@@ -76,8 +76,8 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.117';
-  const APP_VERSION_DATE = '2026-10-15';
+  const APP_VERSION = 'v3.13.118';
+  const APP_VERSION_DATE = '2026-10-19';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
   let itemsLoaded = false; // true once the initial Firestore fetch in loadItems() resolves
@@ -868,7 +868,7 @@ export const app = (function(){
           <button id="bulkDeleteBtn" style="background:var(--danger); color:white; border:none; border-radius:8px; padding:8px 14px; font-size:13px; cursor:pointer;" ${bulkSelectedIds.size===0?'disabled':''}>Delete</button>
           <button id="bulkPublishEbayBtn" style="background:#E53238; color:white; border:none; border-radius:8px; padding:8px 14px; font-size:13px; font-weight:600; cursor:pointer;" ${bulkSelectedIds.size===0?'disabled':''}>🛒 Publish on eBay</button>
           <button id="bulkGenerateDescBtn" style="background:var(--gold); color:white; border:none; border-radius:8px; padding:8px 14px; font-size:13px; font-weight:600; cursor:pointer;" ${bulkSelectedIds.size===0?'disabled':''}>🪄 Generate descriptions</button>
-          <button id="bulkPrintLabelsBtn" style="background:var(--plum); color:white; border:none; border-radius:8px; padding:8px 14px; font-size:13px; font-weight:600; cursor:pointer;" ${bulkSelectedIds.size===0?'disabled':''}>🖨️ Imprimir etiquetas (${bulkSelectedIds.size})</button>
+          <button id="bulkPrintLabelsBtn" style="background:var(--plum); color:white; border:none; border-radius:8px; padding:8px 14px; font-size:13px; font-weight:600; cursor:pointer;" ${bulkSelectedIds.size===0?'disabled':''}>🖨️ Print labels (${bulkSelectedIds.size})</button>
           <button id="bulkSelectAllBtn" style="background:transparent; border:1px solid var(--line); border-radius:8px; padding:8px 14px; font-size:13px; cursor:pointer;">Select all (${filtered.length})</button>
         </div>
         <div id="bulkActionStatus" style="margin-top:8px; font-size:12px;"></div>
@@ -2899,7 +2899,7 @@ export const app = (function(){
 
   // Quick reprint-by-code: type up to 4 exact product codes and jump
   // straight to the same batch label sheet openBatchLabelModal already
-  // builds for the Catalog's bulk "Imprimir etiquetas" flow — no digging
+  // builds for the Catalog's bulk "Print labels" flow — no digging
   // through search/select/deselect just to swap a label mid-packing.
   // Same box list as Stock Transfer (registered boxes + every box name
   // actually used on an item — see v3.13.86 for why the merge matters).
@@ -3697,7 +3697,7 @@ export const app = (function(){
   });
 
   // Same batch-of-one print pipeline as the Catalog card's print button
-  // and Select → "Imprimir etiquetas" (see v3.13.99) — one label-rendering
+  // and Select → "Print labels" (see v3.13.99) — one label-rendering
   // implementation, so this is guaranteed to look exactly the same.
   document.getElementById('printLabelItemBtn').addEventListener('click', () => {
     const item = items.find(i => i.id === currentEditId);
@@ -6409,21 +6409,21 @@ export const app = (function(){
 
       <!-- STORAGE BOX LABELS -->
       <div class="settings-section">
-        <h3>Cadastrar / Imprimir Etiqueta de Estoque</h3>
+        <h3>Register / print storage box labels</h3>
         <div class="ss-desc">Register a storage box by name and print its label right away — before any item is assigned to it. Uses the label size configured above.</div>
         ${(appSettings.storageBoxes || []).length === 0 ? `<div class="ss-desc" style="font-style:italic;">No boxes registered yet.</div>` : ''}
         ${(appSettings.storageBoxes || []).map((b, i) => `
           <div class="settings-row">
             <div><div class="sr-label">📦 ${escapeHtml(b.name)}</div><div class="sr-sub">Registered ${new Date(b.createdAt).toLocaleDateString('en-US')}</div></div>
             <div style="display:flex; gap:6px;">
-              <button onclick="reprintStorageBox(${i})" style="background:var(--sage); color:white; border:none; border-radius:8px; padding:6px 12px; font-size:12px; cursor:pointer;">🖨️ Reimprimir</button>
-              <button onclick="removeStorageBox(${i})" style="background:var(--terracotta); color:white; border:none; border-radius:8px; padding:6px 12px; font-size:12px; cursor:pointer;">🗑️ Remover</button>
+              <button onclick="reprintStorageBox(${i})" style="background:var(--sage); color:white; border:none; border-radius:8px; padding:6px 12px; font-size:12px; cursor:pointer;">🖨️ Reprint</button>
+              <button onclick="removeStorageBox(${i})" style="background:var(--terracotta); color:white; border:none; border-radius:8px; padding:6px 12px; font-size:12px; cursor:pointer;">🗑️ Remove</button>
             </div>
           </div>
         `).join('')}
         <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; align-items:center;">
-          <input type="text" id="sNewBoxName" placeholder="Nome/número da caixa" style="flex:1; min-width:140px; padding:8px 10px; border:1px solid var(--line); border-radius:8px; font-size:13px;">
-          <button class="settings-save-btn" style="width:auto; margin:0;" onclick="registerAndPrintBox()">📦 Registrar e Imprimir</button>
+          <input type="text" id="sNewBoxName" placeholder="Box name/number" style="flex:1; min-width:140px; padding:8px 10px; border:1px solid var(--line); border-radius:8px; font-size:13px;">
+          <button class="settings-save-btn" style="width:auto; margin:0;" onclick="registerAndPrintBox()">📦 Register & print</button>
         </div>
       </div>
 
