@@ -31,6 +31,9 @@ service cloud.firestore {
       return isApproved() &&
         exists(/databases/$(database)/documents/businesses/$(bizId)/members/$(request.auth.uid));
     }
+    function isBusinessData(sub) {
+      return sub in ['items', 'drafts', 'liveSessions', 'liveItems', 'options', 'counters', 'config', 'ebay_error_log'];
+    }
     // The pre-business root collections stay readable, but writes stop
     // once the user's business is live, so a device still running the old
     // paths gets an error instead of writing to the old place.
@@ -61,8 +64,10 @@ service cloud.firestore {
         allow write: if false;
       }
       match /{sub}/{docId} {
-        allow read, write: if isMember(bizId) &&
-          sub in ['items', 'drafts', 'liveSessions', 'liveItems', 'options', 'counters', 'config', 'ebay_error_log'];
+        allow read, write: if isBusinessData(sub) && isMember(bizId);
+        // Platform admins read any business's data (Developer Panel backup
+        // and eBay errors, v3.17.1); writing stays with the members.
+        allow read: if isBusinessData(sub) && isAdmin();
       }
     }
 

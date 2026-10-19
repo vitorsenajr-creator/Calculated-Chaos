@@ -75,6 +75,7 @@ waitForFirebaseReady().then(() => {
       return;
     }
     currentUid = user.uid;
+    await loadAdminBusiness(user.uid);
     document.getElementById('adHeaderSub').textContent = `Platform administration · signed in as ${user.email}`;
     document.getElementById('adTabs').style.display = 'flex';
     document.getElementById('adMain').style.display = 'block';
@@ -83,6 +84,27 @@ waitForFirebaseReady().then(() => {
     renderApp();
   });
 });
+
+// ---------- BUSINESS ----------
+// The business whose data the Backup and eBay errors tabs read: the admin's
+// own (users/{uid}.activeBizId), once it's live (v3.17.1). Platform admins
+// may read any business's data (firestore.rules). A Businesses tab to pick
+// another one comes with onboarding (docs/multi-tenant.md step 5).
+let adminBiz = null; // { id, name } or null = pre-business data
+
+async function loadAdminBusiness(uid){
+  adminBiz = null;
+  try{
+    const { doc, getDoc } = fns();
+    const me = await getDoc(doc(db(), 'users', uid));
+    const bizId = me.exists() ? me.data().activeBizId : null;
+    if (!bizId) return;
+    const biz = await getDoc(doc(db(), 'businesses', bizId));
+    if (biz.exists() && biz.data().live === true) adminBiz = { id: bizId, name: biz.data().name || bizId };
+  }catch(e){
+    console.warn('Could not read the business; the panel shows the pre-business data.', e);
+  }
+}
 
 // ---------- TABS ----------
 const loadedTabs = new Set();
@@ -272,7 +294,8 @@ async function renderErrors(){
   let log = [];
   try{
     const { collection, getDocs } = fns();
-    const snap = await getDocs(collection(db(), 'ebay_error_log'));
+    const ref = adminBiz ? collection(db(), 'businesses', adminBiz.id, 'ebay_error_log') : collection(db(), 'ebay_error_log');
+    const snap = await getDocs(ref);
     log = snap.docs.map(d => ({ id: d.id, ...d.data() }));
   }catch(e){
     el.innerHTML = `<div class="ad-card"><div class="ebay-status-box error">Could not load the eBay error log: ${escapeHtml(e.message || String(e))}<br>If this says "permission", the Firestore rules in the Console are older than v3.14.2 (firestore.rules).</div></div>`;
@@ -295,25 +318,43 @@ async function renderErrors(){
   el.innerHTML = `
     <div class="ad-card">
       <h3>eBay publish errors</h3>
-      <div class="ad-desc">${log.length} distinct error${log.length === 1 ? '' : 's'}, ${total} occurrence${total === 1 ? '' : 's'} in total, most frequent first. ${unknown.length} not in the error library yet; those are candidates for new library entries (src/modules/ebay-error-hints.js).</div>
+      <div class="ad-desc">${adminBiz ? `Business: ${escapeHtml(adminBiz.name)}. ` : ''}${log.length} distinct error${log.length === 1 ? '' : 's'}, ${total} occurrence${total === 1 ? '' : 's'} in total, most frequent first. ${unknown.length} not in the error library yet; those are candidates for new library entries (src/modules/ebay-error-hints.js).</div>
       ${log.length ? log.map(row).join('') : '<div class="ad-empty">No eBay errors logged yet.</div>'}
     </div>`;
 }
 
 // ---------- BACKUP ----------
-// Downloads every Firestore collection the app uses as one JSON file
-// (v3.15.5), so there's a copy on hand before the multi-business data
-// migration (docs/multi-tenant.md step 6). Read-only: there is deliberately
-// no restore button; restoring would be written for the case at hand.
+// Downloads the app's Firestore data as one JSON file (v3.15.5). Since the
+// business switch (v3.17.1) the main backup reads the business
+// (businesses/{bizId} and its subcollections) plus users; the frozen
+// pre-business root collections have their own, secondary button until
+// they're removed. Read-only: there is deliberately no restore button;
+// restoring would be written for the case at hand.
 // Left out on purpose:
 //  - ebay_connections: it's a credential (refresh token), and the browser
 //    can't read it anyway (server only). Reconnecting eBay replaces it.
 //  - ebay_category_cache: rebuilt automatically on use.
 // Photos stay in Firebase Storage; items keep their URLs.
-const BACKUP_COLLECTIONS = [
+const BUSINESS_BACKUP_SUBCOLLECTIONS = [
+  'items', 'drafts', 'liveSessions', 'liveItems', 'ebay_error_log',
+  'options', 'counters', 'config', 'members',
+];
+const ROOT_BACKUP_COLLECTIONS = [
   'items', 'drafts', 'users', 'app_config', 'app_settings', 'ebay_error_log',
   'liveSessions', 'liveItems', 'live_catalog_options',
 ];
+
+// What a backup reads: [{ key, path: [...] }] collection paths, keyed in
+// the JSON by their full path.
+function backupPlan(kind){
+  if (kind === 'business' && adminBiz){
+    return [
+      ...BUSINESS_BACKUP_SUBCOLLECTIONS.map(n => ({ key: `businesses/${adminBiz.id}/${n}`, path: ['businesses', adminBiz.id, n] })),
+      { key: 'users', path: ['users'] },
+    ];
+  }
+  return ROOT_BACKUP_COLLECTIONS.map(n => ({ key: n, path: [n] }));
+}
 
 // Firestore Timestamps (if any) become ISO strings tagged so a restore can
 // tell them apart from plain strings.
@@ -327,16 +368,26 @@ function toPlain(value){
 }
 
 function renderBackup(){
+  const main = adminBiz
+    ? `<div class="ad-desc">Downloads the business <b>${escapeHtml(adminBiz.name)}</b> (${escapeHtml(adminBiz.id)}): ${BUSINESS_BACKUP_SUBCOLLECTIONS.join(', ')}, plus the business doc and users, as one JSON file. This is the data the app uses now. Keep it somewhere safe (computer, Drive). Not included: the eBay token (it's a password; reconnecting eBay replaces it) and the eBay category cache (rebuilt on its own). Photos stay in Firebase Storage; items keep their links.</div>`
+    : `<div class="ad-desc">Downloads every collection the app uses (${ROOT_BACKUP_COLLECTIONS.join(', ')}) as one JSON file. Keep it somewhere safe (computer, Drive). Not included: the eBay token (it's a password; reconnecting eBay replaces it) and the eBay category cache (rebuilt on its own). Photos stay in Firebase Storage; items keep their links.</div>`;
   document.getElementById('panelBackup').innerHTML = `
     <div class="ad-card">
       <h3>Full backup</h3>
-      <div class="ad-desc">Downloads every collection the app uses (${BACKUP_COLLECTIONS.join(', ')}) as one JSON file. Keep it somewhere safe (computer, Drive). Not included: the eBay token (it's a password; reconnecting eBay replaces it) and the eBay category cache (rebuilt on its own). Photos stay in Firebase Storage; items keep their links.</div>
+      ${main}
       <button class="ad-btn" id="adBackupBtn">Download full backup</button>
       <div id="adBackupResult" style="margin-top:12px;"></div>
     </div>
+    ${adminBiz ? `
+    <div class="ad-card">
+      <h3>Pre-business data (frozen)</h3>
+      <div class="ad-desc">The root collections the app used before the switch to the business (${ROOT_BACKUP_COLLECTIONS.join(', ')}). They stopped changing at the switch and stay until they're removed in a separate step. Only needed for a last copy before that.</div>
+      <button class="ad-btn secondary" id="adBackupRootBtn">Download pre-business backup</button>
+      <div id="adBackupRootResult" style="margin-top:12px;"></div>
+    </div>` : ''}
     <div class="ad-card">
       <h3>Google Cloud export (Blaze plan)</h3>
-      <div class="ad-desc">A second, server-side copy of the whole database, including everything above. Run it right before the data migration.</div>
+      <div class="ad-desc">A second, server-side copy of the whole database, including everything above. Run it before big changes, like removing the pre-business data.</div>
       <ol style="font-size:13px; color:var(--plum); padding-left:20px; margin:0;">
         <li>Open <a href="https://console.cloud.google.com/firestore/databases/-default-/import-export?project=${escapeHtml(window.db?.app?.options?.projectId || '')}" target="_blank" rel="noopener">Firestore Import/Export</a> in Google Cloud (same Google account as Firebase).</li>
         <li>Click <b>Export</b>, choose <b>Export entire database</b>.</li>
@@ -344,39 +395,48 @@ function renderBackup(){
         <li>It shows up under the bucket in a few minutes. Storage costs cents per month.</li>
       </ol>
     </div>`;
-  document.getElementById('adBackupBtn').addEventListener('click', runBackup);
+  document.getElementById('adBackupBtn').addEventListener('click', () => runBackup('business', 'adBackupBtn', 'adBackupResult'));
+  document.getElementById('adBackupRootBtn')?.addEventListener('click', () => runBackup('root', 'adBackupRootBtn', 'adBackupRootResult'));
 }
 
-async function runBackup(){
-  const btn = document.getElementById('adBackupBtn');
-  const out = document.getElementById('adBackupResult');
+async function runBackup(kind, btnId, outId){
+  const btn = document.getElementById(btnId);
+  const out = document.getElementById(outId);
+  const plan = backupPlan(kind);
+  const isBusiness = kind === 'business' && !!adminBiz;
   btn.disabled = true;
   out.innerHTML = '<div class="ad-empty">Reading the database…</div>';
   const backup = {
     app: 'Calculated Chaos',
     version: APP_VERSION,
     projectId: window.db?.app?.options?.projectId || null,
+    kind: isBusiness ? 'business' : 'pre-business',
+    business: isBusiness ? { id: adminBiz.id, name: adminBiz.name } : null,
     createdAt: new Date().toISOString(),
     createdBy: window.auth?.currentUser?.email || null,
     counts: {},
     collections: {},
   };
   try{
-    const { collection, getDocs } = fns();
-    for (const name of BACKUP_COLLECTIONS){
-      out.innerHTML = `<div class="ad-empty">Reading ${escapeHtml(name)}…</div>`;
-      const snap = await getDocs(collection(db(), name));
-      backup.collections[name] = Object.fromEntries(snap.docs.map(d => [d.id, toPlain(d.data())]));
-      backup.counts[name] = snap.docs.length;
+    const { collection, getDocs, doc, getDoc } = fns();
+    if (isBusiness){
+      const bizSnap = await getDoc(doc(db(), 'businesses', adminBiz.id));
+      backup.businessDoc = bizSnap.exists() ? toPlain(bizSnap.data()) : null;
+    }
+    for (const { key, path } of plan){
+      out.innerHTML = `<div class="ad-empty">Reading ${escapeHtml(key)}…</div>`;
+      const snap = await getDocs(collection(db(), ...path));
+      backup.collections[key] = Object.fromEntries(snap.docs.map(d => [d.id, toPlain(d.data())]));
+      backup.counts[key] = snap.docs.length;
     }
   }catch(e){
     btn.disabled = false;
-    out.innerHTML = `<div class="ebay-status-box error">❌ Backup failed while reading the database: ${escapeHtml(e.message || String(e))}<br>Nothing was downloaded.</div>`;
+    out.innerHTML = `<div class="ebay-status-box error">❌ Backup failed while reading the database: ${escapeHtml(e.message || String(e))}<br>Nothing was downloaded.${/permission/i.test(String(e.message)) ? '<br>If this says "permission", the Firestore rules in the Console are older than v3.17.1 (firestore.rules).' : ''}</div>`;
     return;
   }
 
   const json = JSON.stringify(backup);
-  const fileName = `calculated-chaos-backup-${backup.createdAt.slice(0, 10)}.json`;
+  const fileName = `calculated-chaos-${isBusiness ? 'business' : 'pre-business'}-backup-${backup.createdAt.slice(0, 10)}.json`;
   const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
   const a = document.createElement('a');
   a.href = url;
@@ -389,7 +449,7 @@ async function runBackup(){
   const sizeMb = (json.length / (1024 * 1024)).toFixed(2);
   out.innerHTML = `
     <div class="ebay-status-box success">✅ Backup downloaded: ${escapeHtml(fileName)} (${sizeMb} MB)</div>
-    ${BACKUP_COLLECTIONS.map(n => `<div class="ad-row"><div class="ad-main-text">${escapeHtml(n)}</div><div class="ad-meta">${backup.counts[n]} doc${backup.counts[n] === 1 ? '' : 's'}</div></div>`).join('')}`;
+    ${plan.map(({ key }) => `<div class="ad-row"><div class="ad-main-text">${escapeHtml(key)}</div><div class="ad-meta">${backup.counts[key]} doc${backup.counts[key] === 1 ? '' : 's'}</div></div>`).join('')}`;
   btn.disabled = false;
 }
 
