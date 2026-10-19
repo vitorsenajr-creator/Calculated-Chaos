@@ -1,8 +1,9 @@
 # Modularization and app readiness
 
-> **Current state (2026-10-19, v3.17.2):** `main.js` is ~6,700 lines, one
-> IIFE (`export const app = (function(){ ... })()`). Phase 1 below is done;
-> phases 2-4 are not started. The goal is a smaller `main.js` **and** a
+> **Current state (2026-10-19, v3.17.3):** `main.js` is ~6,000 lines, one
+> IIFE (`export const app = (function(){ ... })()`). Phases 1 and 2 below
+> are done (phase 2 except moving the last three file downloads onto the
+> file adapter); phases 3-4 are not started. The goal is a smaller `main.js` **and** a
 > codebase that can ship as a phone app without a rewrite.
 
 ## The three layers (2026-10-19)
@@ -36,12 +37,16 @@ only when they're touched for another reason; no mass move.
    every name the rest of `main.js` uses from it. Fewer crossings = a
    better boundary. Phase 1's label rendering crossed only
    `appSettings` and `escapeHtml`; its print modal crossed dozens of
-   names, so it waits for phase 2.
+   names, so it waited for phase 2.
 2. **Characterization test before moving.** Save the old code, run old and
    new side by side on the same inputs, and require identical output
    (byte for byte for text/HTML, pixel for pixel for canvas). This pins
    today's behavior, bugs included, so a refactor can't change it by
    accident. Phase 1: 79 cases, plus a behavior test of the lightbox.
+   Phase 2: one scripted run of ~100 steps through every label flow in
+   Chromium, on the real `index.html` markup, recording each screen state
+   and every print, share, download, save and PDF call; old and new runs
+   must match entry for entry.
    It caught one real slip: re-indenting the moved code also changed the
    whitespace inside multi-line template strings, which is part of the
    generated HTML.
@@ -52,6 +57,12 @@ only when they're touched for another reason; no mass move.
    functions. Before phase 1, the catalog grid wrote the lightbox's
    `lightboxPhotos`/`lightboxIndex` directly; now it calls
    `openLightbox(photos, index)`.
+5. **Inject what lives inside the IIFE.** A module can't import
+   `saveItem` or `renderSettings` from `main.js` (they're local to its
+   IIFE, and importing back would make a cycle), so its `init…(deps)`
+   takes them as parameters. The dependency list is then explicit in one
+   call in `main.js`. Shared data (`items`, `appSettings`) still comes
+   from `modules/state.js`.
 
 ## Phase 1 (done, v3.17.2)
 
@@ -71,15 +82,38 @@ only when they're touched for another reason; no mass move.
 
 `main.js`: 7,303 → 6,726 lines.
 
+## Phase 2 (done, v3.17.3)
+
+- `src/ui/labels/print-modal.js`: `openBatchLabelModal(items, session)`
+  (the one print pipeline), `openBoxLabelModal(box)`, the wall marker and
+  calibration-instructions handlers, and the Print / Save image buttons.
+  A caller that must know when the modal closes passes a `session`
+  (`{ title, onClose(reason) }`, reason `'cancel'` or `'done'`); that
+  replaced the modal reading Quick Labels' queue variables directly.
+- `src/ui/labels/quick-labels.js`: reprint by code, the one-by-one queue
+  (through the session above) and the multi-page PDF.
+- `src/ui/labels/storage-boxes.js`: register + print, reprint, remove (the
+  `window.*` handlers `renderSettings()` calls).
+- `src/ui/labels/stock-transfer.js`: the transfer tool and
+  `refreshStockTransferBoxListIfOpen()`.
+- `src/domain/product-code-match.js`: `findItemByProductCodeDigits(items,
+  code)`, shared by Quick Labels and Stock Transfer.
+- `src/platform/print.js`: `printHtml(html, { widthIn, heightIn })` and
+  `initPrint()` (the way back from the print-only view). It must stay
+  synchronous (iOS drops `window.print()` after an await, v3.13.47).
+- `src/platform/files.js`: `saveOrShareFile(blob, filename, type,
+  { onShareError })` → `'shared' | 'downloaded' | 'cancelled'`. The share
+  sheet when available, else a download link. `onShareError: 'throw'`
+  keeps the PDF's old behavior (a failed share is an error, not a
+  download).
+
+`main.js`: 6,726 → 5,998 lines.
+
 ## Next phases (safest first)
 
-2. **Printing and files, plus the first platform adapters.** The rest of
-   the label section (print modal, Quick Labels queue and PDF export,
-   storage boxes, stock transfer; ~800 lines, heavily stateful) into
-   `src/ui/labels/…`, and `src/platform/print.js` + `src/platform/files.js`
-   (print a canvas, save/share an image or PDF) with the web
-   implementation they have today. Then the photo session and save-photos
-   download code move onto the same file adapter.
+2b. **The remaining file downloads onto `platform/files.js`**: the measure
+   tool's "save labeled photo" (same share-or-download code), the item
+   photo download and the CSV export (download only). Small, separate PR.
 3. **Settings** (~950 lines: `renderSettings()` and the
    `window.save*Settings` handlers) into `src/ui/settings/…`. Do this
    before the onboarding work (docs/multi-tenant.md step 5), which adds
