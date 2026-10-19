@@ -268,6 +268,10 @@ renaming them needs a data migration of every saved item.
 
 Last known status per the v3.13 notes. Confirm with Vitor before relying
 on any of these:
+- Finances profit from saved `netProfit` + "Other costs" box (v3.19.1):
+  Node test running the real `renderFinance()` on sample sales (before:
+  Finances $89.20 vs stats strip $83.70; after: both $83.70). Unconfirmed
+  in production: the Finances screen with real data.
 - Live Catalog removed (v3.19.0): rules pasted in the Console, tag
   `live-catalog-last` on GitHub; Vitor confirmed the app and catalog load
   and item narration works (2026-10-19). Still unconfirmed: the Developer
@@ -338,7 +342,9 @@ on any of these:
 
 ## Pending changelog entry (since v3.19.0)
 
-(none yet)
+- v3.19.1: Finances sums each sale's saved `netProfit` (it left out Other
+  costs before, so it disagreed with the stats strip, Dashboard and
+  Reports) and shows an "Other costs" box per month.
 
 ## Backlog (not started)
 
