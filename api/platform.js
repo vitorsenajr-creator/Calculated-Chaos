@@ -26,11 +26,17 @@
 //     -> turns the business data on for the app, server and rules
 //        (businesses/{bizId}.live), or back off.
 //
+//   action: 'admin_claims' | 'admin_claims_sync'
+//     -> the platform-admin custom claim (_adminClaims.js): who should be
+//        an admin and who has the claim; sync gives it to the listed
+//        accounts and removes it from any other.
+//
 // Platform admins only (PLATFORM_ADMIN_EMAILS in _firebaseAdmin.js).
 
 import { requireApprovedUser } from './_requireApprovedUser.js';
 import { getFirebaseAdmin, isPlatformAdminEmail, FIREBASE_PROJECT_ID } from './_firebaseAdmin.js';
 import { migrationStatus, migrationCopy, migrationSwitch } from './_migration.js';
+import { adminClaimsStatus, adminClaimsSync } from './_adminClaims.js';
 
 async function handleHealth(auth){
   const checks = [];
@@ -86,6 +92,13 @@ export default async function handler(req, res){
         : action === 'migrate_copy' ? await migrationCopy(admin.db, auth, req.body || {})
         : await migrationSwitch(admin.db, auth, req.body || {});
       return res.status(result.ok ? 200 : result.status).json(result.ok ? result : { error: result.error });
+    }
+    if (action === 'admin_claims' || action === 'admin_claims_sync'){
+      const admin = getFirebaseAdmin();
+      if (!admin.ok) return res.status(503).json({ error: admin.error });
+      const result = action === 'admin_claims' ? await adminClaimsStatus(admin.auth) : await adminClaimsSync(admin.auth);
+      if (action === 'admin_claims_sync') console.log('admin-claims-sync', JSON.stringify({ by: auth.uid, admins: result.admins.map(a => a.uid) }));
+      return res.status(200).json(result);
     }
     return res.status(400).json({ error: 'Unknown action' });
   }catch(err){

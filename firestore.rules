@@ -6,7 +6,9 @@
 //
 // The admin email list must stay in sync with ADMIN_EMAILS in
 // src/config/firebase.js (that one only drives the UI; these rules are what
-// actually enforce it).
+// actually enforce it). Since v3.18.0 the platformAdmin custom claim, set
+// by the server (api/_adminClaims.js), is accepted too; the email list goes
+// away in the next step (docs/multi-tenant.md step 4a).
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -14,10 +16,12 @@ service cloud.firestore {
       return request.auth != null;
     }
     function isAdmin() {
-      return isSignedIn() && request.auth.token.email in [
-        'vitor.sena.jr@gmail.com',
-        'insuredbyjasmine@gmail.com'
-      ];
+      return isSignedIn() && (
+        request.auth.token.get('platformAdmin', false) == true ||
+        request.auth.token.email in [
+          'vitor.sena.jr@gmail.com',
+          'insuredbyjasmine@gmail.com'
+        ]);
     }
     function isApproved() {
       return isSignedIn() &&

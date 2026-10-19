@@ -212,7 +212,14 @@ Enforcement:
    `businesses/{bizId}/config/settings`.
 4a. [ ] **Auth hardening, before step 5** (planned 2026-10-19). New
    sellers sign themselves up, so the sign-in side needs to be ready
-   first. Small fixes first, in this order:
+   first. Decided 2026-10-19: Vitor and Jasmine both stay platform admins
+   (two, so one can recover the other); "Remove" disables the account
+   (reversible, `status: 'removed'`) instead of deleting it; only
+   verified emails get access, employees included (so their emails must
+   be real). Progress: v3.18.0 sets the `platformAdmin` claim
+   (`api/_adminClaims.js`, Developer Panel → App → "Admin access") and the
+   rules accept the claim or the email list ("expand"); the next PR keeps
+   only the claim ("contract"). Small fixes first, in this order:
    - Platform admin as a custom claim set by `api/platform.js`, instead
      of the email lists in `isAdmin()` / `ADMIN_EMAILS` /
      `PLATFORM_ADMIN_EMAILS`. The rules trust `token.email` without

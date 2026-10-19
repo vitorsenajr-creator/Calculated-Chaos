@@ -3,6 +3,33 @@
 Version history for Calculated Chaos. The current version is also shown in
 the badge at the top of the app (`APP_VERSION` in `src/modules/version.js`).
 
+## v3.18.0 — 2026-10-19
+
+Rolls up v3.17.1 – v3.17.6 (the `main.js` split) and starts the sign-in
+hardening that comes before onboarding new sellers
+(`docs/multi-tenant.md` step 4a).
+
+- **Admin access as a server-set claim.** Developer Panel → App → "Admin
+  access" lists the admin accounts (UID, claim, email verified) and "Sync
+  admin access" has the server mark them with the `platformAdmin` claim.
+  The security rules accept the claim or the old email list for now; the
+  next update drops the email list.
+- **`main.js` split into layers** (v3.17.2 – v3.17.6,
+  `docs/modularization.md`): `src/domain/` (pure logic: listing copy,
+  product-code matching), `src/ui/` (lightbox, label rendering and
+  printing, Quick Labels, storage boxes, Stock Transfer, the Settings
+  screen), `src/platform/` (printing and file saving, so a phone app only
+  swaps this layer) and `src/data/` (the settings store). `main.js` went
+  from 7,303 to 4,956 lines. Each move was checked by running the old and
+  new code side by side; there is no behavior change, except that a CSV
+  export's temporary link is released 2 s after the click instead of
+  immediately.
+- **Developer Panel reads the business** (v3.17.1): the eBay errors and
+  Backup tabs use the admin's live business (the backup includes its
+  members and `users`); the frozen pre-business collections have their
+  own backup button. Platform admins may read, not write, any business's
+  data.
+
 ## v3.17.0 — 2026-10-19
 
 Rolls up v3.16.1 – v3.16.5 and moves the app's data into a business

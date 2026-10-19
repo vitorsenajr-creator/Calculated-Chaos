@@ -166,6 +166,8 @@ renaming them needs a data migration of every saved item.
 - The admin email list lives in three places that must match:
   `ADMIN_EMAILS` in `src/config/firebase.js`, `isAdmin()` in
   `firestore.rules`, `PLATFORM_ADMIN_EMAILS` in `api/_firebaseAdmin.js`.
+  Since v3.18.0 the rules also accept the `platformAdmin` claim
+  (`api/_adminClaims.js`); the lists go away in step 4a's second PR.
 - Firestore collections and docs:
   - Catalog and app data: `items`, `drafts`, `users` (role/status),
     `app_config/settings`, `app_settings/productCodeCounter`,
@@ -225,10 +227,13 @@ renaming them needs a data migration of every saved item.
 - **Multi-business (paid, for new sellers)**: the app runs on business
   data since 2026-10-19 (v3.17.0 switch confirmed in production).
   The `main.js` split's planned phases are done (1-3, v3.17.2-6; phase
-  4 is "when next touched"). Next, in order: auth hardening (`docs/multi-tenant.md` step 4a: admin custom claim,
-  email verification, one account per email, disable Auth on Remove,
-  then Google sign-in, App Check, admin 2FA), then onboarding/invites
-  (step 5). The root collections stay, read-only for the business's
+  4 is "when next touched"). Next, in order: auth hardening
+  (`docs/multi-tenant.md` step 4a, decided 2026-10-19: Vitor and Jasmine
+  stay platform admins; Remove disables the account; only verified
+  emails get access). PRs: (1) claim, first half (v3.18.0); (2) drop the
+  email lists, admins listed by UID; (3) Remove/Deny through the server;
+  (4) send verification emails; (5) require a verified email. Then
+  Google sign-in, App Check, admin 2FA, then onboarding/invites (step 5). The root collections stay, read-only for the business's
   members, until Vitor confirms removing them.
 - **General eBay review**: Vitor plans to review the whole eBay flow soon
   (2026-10-19). The shipping-policy bug is considered resolved; see
@@ -256,6 +261,9 @@ renaming them needs a data migration of every saved item.
 
 Last known status per the v3.13 notes. Confirm with Vitor before relying
 on any of these:
+- Admin claim (v3.18.0): handler test with a fake Firebase Auth (4
+  cases) and 14 emulator rules tests; the real "Sync admin access" run is
+  unconfirmed.
 - ✨ analysis on Sonnet 5.5 / low effort, refusal fallback and the new
   "declined" message (v3.14.1).
 - eBay tokens on the server (v3.16.0): Vitor confirmed Test connection,
@@ -300,54 +308,14 @@ on any of these:
   sizing (v3.13.102-105), inspection flag icon (v3.13.114).
 - Live Catalog label printing on a real Avery sheet / phone (v3.13.45/47).
 
-## Pending changelog entry (since v3.17.0)
+## Pending changelog entry (since v3.18.0)
 
-- **v3.17.0** (already in `CHANGELOG.md`): the multi-business switch.
-  `businesses/{bizId}.live` drives everything: `loadActiveBusiness()` in
-  `biz.js` (called at sign-in in `main.js` and `live-catalog.js`),
-  `requireApprovedUser()` → `bizId` → `ebayConnectionId(auth)` in every
-  eBay endpoint, and `rootWritable()` in `firestore.rules`.
-  `_migration.js`: `migrationSwitch()` (live on/off), prune on the last
-  page of each collection, only `setup` (members) after the switch.
-  Panel buttons: Copy, Switch to business data (final copy first), Sync
-  members, Switch back. Switch confirmed in production on 2026-10-19
-  (catalog, saves, codes, Settings, Live Catalog, eBay Test connection).
-  Rules are tested in the Firestore emulator; it logs "evaluation error"
-  on denials from functions that call get(), but the decisions are right.
-- **v3.17.1**: the Developer Panel reads the business. `loadAdminBusiness()`
-  (the admin's own live `activeBizId`) drives the eBay errors tab and the
-  Backup tab: the main backup is `businesses/{id}` + its subcollections
-  (members included) + `users`; the frozen root collections have a
-  secondary "pre-business" button. Rules: `isBusinessData(sub)`, and
-  platform admins may read (not write) any business's data. 27 emulator
-  rules tests. Confirmed by Vitor (backup + eBay errors) on 2026-10-19.
-- **v3.17.2**: `main.js` split, phase 1, plus the layer convention
-  (`src/domain|ui|platform`, docs/modularization.md, with the
-  app-readiness inventory). `domain/listing-copy.js` (closing line is now
-  a parameter), `ui/lightbox.js` (encapsulated; the catalog grid no longer
-  writes its variables), `ui/label-render.js` (preview markup + canvas
-  drawing). `main.js` 7,303 → 6,726 lines. No behavior change.
-- **v3.17.3**: `main.js` split, phase 2, and the first platform layer.
-  `ui/labels/` (print-modal, quick-labels, storage-boxes,
-  stock-transfer), `domain/product-code-match.js`, `platform/print.js`
-  (`printHtml`) and `platform/files.js` (`saveOrShareFile`). Modules get
-  `main.js`'s IIFE functions through `init…(deps)`. The print modal takes
-  a `session` (`title`, `onClose`) instead of reading the Quick Labels
-  queue. `main.js` 6,726 → 5,998 lines. No behavior change.
-- **v3.17.4**: `main.js` split, phase 2b. The measure tool's labeled
-  photo, the photo downloads and the CSV exports go through
-  `platform/files.js` (`saveOrShareFile`, new `downloadUrl`, now-exported
-  `downloadBlob`). Only difference: the CSV's object URL is revoked after
-  2 s instead of immediately.
-- **v3.17.5**: `main.js` split, phase 3a, and a fourth layer, `src/data/`
-  (Firestore reads/writes through `bizCol()`/`bizDoc()`).
-  `data/settings-store.js`: load/save settings and the AI usage counter,
-  moved unchanged. No behavior change.
-- **v3.17.6**: `main.js` split, phase 3b. The Settings screen into
-  `ui/settings/` (settings-view, admin-panels, ebay-panel,
-  platforms-panel, forms, index). Template kept byte for byte (dedented
-  with a TypeScript-parser script that skips template literals).
-  `main.js` 5,911 → 4,956 lines. No behavior change.
+- **v3.18.0** (already in `CHANGELOG.md`): admin claim, first half.
+  `api/_adminClaims.js` (`admin_claims`, `admin_claims_sync` in
+  `platform.js`) sets `platformAdmin: true` on the accounts that own
+  `PLATFORM_ADMIN_EMAILS`; `isAdmin()` in the rules accepts the claim OR
+  the email list. The app's UI checks still use `ADMIN_EMAILS` until the
+  second half.
 
 ## Backlog (not started)
 
