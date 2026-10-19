@@ -11,6 +11,7 @@ import { escapeHtml } from '../../modules/format-utils.js';
 import { aiUsageRemaining, aiUsagePct } from '../../data/settings-store.js';
 import { renderAuthorizeAccessPanel, renderEmployeeAccountsPanel, createEmployeeLogin } from './admin-panels.js';
 import { isPlatformAdmin } from '../../modules/admin-claim.js';
+import { sendVerificationEmail, refreshEmailVerified } from '../../modules/email-verification.js';
 import { renderEbayConnectionStatus } from './ebay-panel.js';
 import { renderPlatformsSettingsList } from './platforms-panel.js';
 
@@ -37,6 +38,15 @@ export function renderSettings(){
       <div class="settings-section">
         <h3>Account</h3>
         <div class="ss-desc">Signed in as <b>${escapeHtml(window.auth.currentUser?.email || '')}</b></div>
+        ${window.auth.currentUser && !window.auth.currentUser.emailVerified ? `
+        <div id="verifyEmailBox" style="margin-bottom:10px;">
+          <div class="ebay-status-box pending">Your email isn't verified yet. Verified emails will soon be required to use the app: send yourself a verification email, click the link in it, then tap "I've verified it".</div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+            <button id="verifyEmailSendBtn" class="settings-save-btn" style="width:auto; padding:8px 14px; margin:0;">Send verification email</button>
+            <button id="verifyEmailCheckBtn" class="settings-save-btn" style="width:auto; padding:8px 14px; margin:0; background:var(--plum-soft);">I've verified it</button>
+          </div>
+          <div id="verifyEmailMsg" class="ss-desc" style="margin-top:6px;"></div>
+        </div>` : ''}
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
           <button id="signOutBtn" class="settings-save-btn" style="width:auto; padding:8px 14px; margin:0;">Sign out</button>
           ${isPlatformAdmin() ? `<a href="/admin.html" class="settings-save-btn" style="display:inline-block; width:auto; padding:8px 14px; margin:0; text-decoration:none;">🛠️ Developer Panel</a>` : ''}
@@ -362,6 +372,25 @@ export function renderSettings(){
 
   document.getElementById('signOutBtn')?.addEventListener('click', async () => {
     await window.authFns.signOut(window.auth);
+  });
+  // Email verification (v3.18.3): sent only when the person clicks.
+  document.getElementById('verifyEmailSendBtn')?.addEventListener('click', async (e) => {
+    const msg = document.getElementById('verifyEmailMsg');
+    e.target.disabled = true;
+    const r = await sendVerificationEmail(window.auth.currentUser);
+    e.target.disabled = false;
+    msg.textContent = r.ok ? `Sent to ${window.auth.currentUser?.email}. Check your inbox (and spam), click the link, then tap "I've verified it".` : `❌ ${r.error}`;
+  });
+  document.getElementById('verifyEmailCheckBtn')?.addEventListener('click', async (e) => {
+    const msg = document.getElementById('verifyEmailMsg');
+    e.target.disabled = true;
+    const verified = await refreshEmailVerified(window.auth.currentUser);
+    e.target.disabled = false;
+    if (verified){
+      document.getElementById('verifyEmailBox').innerHTML = '<div class="ebay-status-box success">✅ Email verified.</div>';
+    }else{
+      msg.textContent = verified === null ? '❌ Could not check right now. Try again.' : 'Not verified yet. Click the link in the email first.';
+    }
   });
   document.getElementById('createEmployeeBtn')?.addEventListener('click', async () => {
     const email = document.getElementById('newEmployeeEmail').value.trim();

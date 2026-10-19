@@ -226,8 +226,12 @@ Enforcement:
      of the email lists in `isAdmin()` / `ADMIN_EMAILS` /
      `PLATFORM_ADMIN_EMAILS`. The rules trust `token.email` without
      `email_verified`, and a password sign-up can use any email address.
-   - Send verification emails for password sign-ups; invites (step 5)
-     only accept a verified email.
+   - [x] Verification emails for password sign-ups (v3.18.3): sent only
+     when the person clicks "Send verification email" (never
+     automatically, Vitor 2026-10-19). Next: require a verified email
+     (rules + server + a "verify your email" screen) once the Developer
+     Panel shows every account verified. Invites (step 5) only accept a
+     verified email.
    - Firebase Auth: one account per email (link Google and password
      sign-ins); authorized domains limited to production.
    - [x] Developer Panel "Remove" also disables the Firebase Auth account

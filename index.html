@@ -35,7 +35,15 @@
     </div>
     <div id="authPendingState" class="auth-pending" style="display:none;">
       <h2>Awaiting approval</h2>
-      <p class="auth-sub">Your account was created, but it still needs to be approved by the app owner before you can use Calculated Chaos. Ask them to open Settings → Authorize access.</p>
+      <p class="auth-sub">Your account was created, but it still needs to be approved by the app owner before you can use Calculated Chaos. Ask them to approve it in the Developer Panel.</p>
+      <div id="authVerifyBox" class="auth-verify">
+        <p class="auth-sub" id="authVerifyText"></p>
+        <div id="authVerifyActions">
+          <button id="authVerifySendBtn">Send verification email</button>
+          <button id="authVerifyCheckBtn">I've verified it</button>
+        </div>
+        <div class="auth-verify-msg" id="authVerifyMsg"></div>
+      </div>
       <button id="authSignOutBtn">Sign out</button>
     </div>
   </div>
