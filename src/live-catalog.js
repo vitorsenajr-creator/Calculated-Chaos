@@ -5,7 +5,7 @@
 // `items` collection. Still behind the same Firebase login/project.
 import '../src/config/firebase.js';
 import { items, setItems } from './modules/state.js';
-import { bizCol, bizDoc } from './modules/biz.js';
+import { bizCol, bizDoc, loadActiveBusiness } from './modules/biz.js';
 import {
   getAllClothingTypes, getAllBrands, getSizeSuggestionsForType,
 } from './modules/catalog-lookups.js';
@@ -106,6 +106,8 @@ waitForFirebaseReady().then(() => {
       const { doc, getDoc } = fns();
       const snap = await getDoc(doc(db(), 'users', user.uid));
       if (snap.exists() && snap.data().status === 'approved'){
+        // Picks business vs pre-business data paths before anything loads.
+        await loadActiveBusiness(snap.data());
         showApp();
         await initLiveCatalog();
       } else {

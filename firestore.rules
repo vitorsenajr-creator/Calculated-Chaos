@@ -25,6 +25,22 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'approved';
     }
 
+    // Multi-business (v3.17.0, docs/multi-tenant.md): a member of a
+    // business reads and writes its data under businesses/{bizId}/…
+    function isMember(bizId) {
+      return isApproved() &&
+        exists(/databases/$(database)/documents/businesses/$(bizId)/members/$(request.auth.uid));
+    }
+    // The pre-business root collections stay readable, but writes stop
+    // once the user's business is live, so a device still running the old
+    // paths gets an error instead of writing to the old place.
+    function rootWritable() {
+      let bizId = get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('activeBizId', '');
+      return bizId == '' ||
+        !exists(/databases/$(database)/documents/businesses/$(bizId)) ||
+        get(/databases/$(database)/documents/businesses/$(bizId)).data.get('live', false) != true;
+    }
+
     // A new account can only create its own doc as 'pending' (admins may
     // create 'approved' ones, e.g. employee logins). Only admins approve,
     // change roles or delete.
@@ -36,24 +52,39 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
-    match /items/{itemId} { allow read, write: if isApproved(); }
+    // Business doc and member list: written only by the server.
+    match /businesses/{bizId} {
+      allow read: if isMember(bizId) || isAdmin();
+      allow write: if false;
+      match /members/{uid} {
+        allow read: if isMember(bizId) || isAdmin();
+        allow write: if false;
+      }
+      match /{sub}/{docId} {
+        allow read, write: if isMember(bizId) &&
+          sub in ['items', 'drafts', 'liveSessions', 'liveItems', 'options', 'counters', 'config', 'ebay_error_log'];
+      }
+    }
+
+    match /items/{itemId} { allow read: if isApproved(); allow write: if isApproved() && rootWritable(); }
     // eBay tokens since v3.16.0: server only (Firebase Admin ignores rules).
     match /ebay_connections/{docId} { allow read, write: if false; }
-    match /app_config/{docId} { allow read, write: if isApproved(); }
+    match /app_config/{docId} { allow read: if isApproved(); allow write: if isApproved() && rootWritable(); }
+    // Global (not business data): eBay category lookups shared by everyone.
     match /ebay_category_cache/{docId} { allow read, write: if isApproved(); }
-    match /drafts/{draftId} { allow read, write: if isApproved(); }
+    match /drafts/{draftId} { allow read: if isApproved(); allow write: if isApproved() && rootWritable(); }
 
     // Product-code counter (app_settings/productCodeCounter). Missing before
     // v3.14.2, so every reservation was denied and the app silently fell
     // back to a per-device "max + 1" guess.
-    match /app_settings/{docId} { allow read, write: if isApproved(); }
+    match /app_settings/{docId} { allow read: if isApproved(); allow write: if isApproved() && rootWritable(); }
 
     // eBay error library (src/modules/ebay-error-log.js). Missing before
     // v3.14.2, so nothing was ever saved.
-    match /ebay_error_log/{docId} { allow read, write: if isApproved(); }
+    match /ebay_error_log/{docId} { allow read: if isApproved(); allow write: if isApproved() && rootWritable(); }
 
-    match /liveSessions/{id} { allow read, write: if isApproved(); }
-    match /liveItems/{id} { allow read, write: if isApproved(); }
-    match /live_catalog_options/{id} { allow read, write: if isApproved(); }
+    match /liveSessions/{id} { allow read: if isApproved(); allow write: if isApproved() && rootWritable(); }
+    match /liveItems/{id} { allow read: if isApproved(); allow write: if isApproved() && rootWritable(); }
+    match /live_catalog_options/{id} { allow read: if isApproved(); allow write: if isApproved() && rootWritable(); }
   }
 }

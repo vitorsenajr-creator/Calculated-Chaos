@@ -1,6 +1,6 @@
 import './config/firebase.js';
 import { APP_VERSION, APP_VERSION_DATE } from './modules/version.js';
-import { bizCol, bizDoc } from './modules/biz.js';
+import { bizCol, bizDoc, loadActiveBusiness } from './modules/biz.js';
 import {
   loadEbayConnection, ensureEbayConnected,
   checkEbaySalesNow, endEbayListingIfSold, listItemOnEbay, showBulkEbayPreflight,
@@ -7260,6 +7260,8 @@ EBAY_MERCHANT_LOCATION_KEY=${escapeHtml(data.results.merchantLocationKey)}</div>
         }
         if (snap.data().status === 'approved'){
           currentUserRole = snap.data().role === 'employee' ? 'employee' : 'owner';
+          // Picks business vs pre-business data paths before anything loads.
+          await loadActiveBusiness(snap.data());
           showApp();
           applyRoleRestrictions();
           waitForFirebaseThenLoad();

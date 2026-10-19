@@ -29,15 +29,15 @@
 //     Returns: { explanation, fieldToChange, suggestedValue }
 
 import { requireApprovedUser } from './_requireApprovedUser.js';
-import { getEbayAccessToken } from './_ebayToken.js';
+import { getEbayAccessToken, ebayConnectionId } from './_ebayToken.js';
 
 const EBAY_SANDBOX = process.env.EBAY_SANDBOX === 'true';
 const EBAY_API_BASE = EBAY_SANDBOX ? 'https://api.sandbox.ebay.com' : 'https://api.ebay.com';
 const CATEGORY_TREE_ID = '0'; // eBay's default/shared tree ID for EBAY_US
 
-async function handleAspects(req, res) {
+async function handleAspects(req, res, authCheck) {
   const { category_id } = req.body || {};
-  const ebayToken = await getEbayAccessToken();
+  const ebayToken = await getEbayAccessToken(ebayConnectionId(authCheck));
   if (!ebayToken.ok) return res.status(ebayToken.status).json({ error: ebayToken.error });
   const access_token = ebayToken.token;
   if (!category_id) return res.status(400).json({ error: 'Missing category_id' });
@@ -212,7 +212,7 @@ export default async function handler(req, res) {
     if (req.body?.mode === 'explain_error') {
       return await handleExplainError(req, res);
     }
-    return await handleAspects(req, res);
+    return await handleAspects(req, res, authCheck);
   } catch (e) {
     console.error('ebay-item-aspects error:', e);
     return res.status(500).json({ error: 'Request failed', detail: String(e) });

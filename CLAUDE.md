@@ -88,8 +88,9 @@ renaming them needs a data migration of every saved item.
   - `state.js`: shared `items`/`appSettings`.
   - `biz.js`: `bizCol()`/`bizDoc()`. **All business data goes through
     them** (items, drafts, Live Catalog, counters, settings, eBay error
-    log) by logical name. They still resolve to the root collections until
-    the multi-business switch. Global data (`users`,
+    log) by logical name. `loadActiveBusiness()` at sign-in picks
+    `businesses/{bizId}/…` when the user's business is live, else the
+    pre-business root collections. Global data (`users`,
     `ebay_category_cache`) and the Developer Panel don't use them.
   - `constants.js`, `pricing.js`, `settings.js`.
   - `ai-item.js`: ✨ analysis prompt + schema (imported by the server).
@@ -150,12 +151,14 @@ renaming them needs a data migration of every saved item.
     The pre-v3.16.0 `ebay_tokens/main` copy and its rule were removed in
     v3.16.1. `ebay_oauth_states/*`: one-time connect codes (v3.16.2),
     server only too.
-  - Multi-business copy (v3.16.5, not used by the app yet):
-    `businesses/{bizId}/…` (items, drafts, liveSessions, liveItems,
-    ebay_error_log, options/main, counters/*, config/settings, members/*),
-    `ebay_connections/{bizId}`, `users.activeBizId`, and
-    `platform/migration` (the fixed bizId, `lastCopiedAt`, later
-    `switchedAt`). All server-written; no client rules yet.
+  - Multi-business (v3.17.0): `businesses/{bizId}` (`live` = the switch;
+    server-written) with `items`, `drafts`, `liveSessions`, `liveItems`,
+    `ebay_error_log`, `options/main`, `counters/*`, `config/settings`
+    (members read/write) and `members/*` (server-written);
+    `ebay_connections/{bizId}`; `users.activeBizId`; `platform/migration`
+    (fixed bizId, `lastCopiedAt`, `switchedAt`; server only). Once live,
+    the root business collections are read-only for that business's
+    members (`rootWritable()` in the rules).
   - Live Catalog: `liveSessions`, `liveItems`, `live_catalog_options/*`.
   - Security rules: the live copy is in the Firebase Console; `firestore.rules`
     is a versioned copy (no deploy step). Change both together.
@@ -196,8 +199,13 @@ renaming them needs a data migration of every saved item.
 
 ## Open items
 
-- **Multi-business (paid, for new sellers)**: design accepted, no code yet.
-  See `docs/multi-tenant.md` for the data model, AI credits and PR order.
+- **Multi-business (paid, for new sellers)**: data model built and
+  switchable (v3.17.0); onboarding, invites, credits and billing are
+  next. See `docs/multi-tenant.md`. Planned right after the switch is
+  confirmed: split `main.js` (docs/modularization.md phases 1-3) before
+  the step-4 onboarding work, which touches Settings and sign-in.
+- **After the switch**: the Developer Panel's Backup and eBay errors tabs
+  still read the root collections; point them at the business data.
 - **General eBay review**: Vitor plans to review the whole eBay flow soon
   (2026-10-19). The shipping-policy bug is considered resolved; see
   `docs/ebay-shipping-policy.md`.
@@ -234,10 +242,12 @@ on any of these:
   fix (a repeat load shows the first load's result) is tested only with a
   stubbed Firestore and eBay (18 handler tests, including a simultaneous
   double load).
-- Business migration copy (v3.16.5): 18 handler tests on an in-memory
-  Firestore (450 items in pages, mapped docs, members/roles, activeBizId,
-  sources unchanged, idempotent re-run, switch guard). Not yet run on the
-  real Firestore; `count()` and paging are the parts to watch.
+- Business migration (v3.16.5 copy ran in production 2026-10-19: 1,442
+  items, all counts matched). The v3.17.0 switch is tested only offline:
+  29 migration tests (prune, switch, switch back, members after switch),
+  11 auth/biz/eBay-connection tests, and 24 Firestore-emulator rules
+  tests (the emulator logs "evaluation error" on denials from functions
+  that call get(); the decisions are right). The real switch is pending.
 - Server-built AI prompts (v3.15.3): golden test (prompt text identical)
   and handler tests with a mocked fetch; ✨ analyze, rewrite and both
   narration flows are unconfirmed against the real API.
@@ -250,44 +260,17 @@ on any of these:
   sizing (v3.13.102-105), inspection flag icon (v3.13.114).
 - Live Catalog label printing on a real Avery sheet / phone (v3.13.45/47).
 
-## Pending changelog entry (since v3.16.0)
+## Pending changelog entry (since v3.17.0)
 
-- **v3.16.0** (already in `CHANGELOG.md`): eBay tokens moved to the server.
-  `api/_ebayToken.js` reads/refreshes `ebay_connections/main` with
-  Firebase Admin and copies `ebay_tokens/main` on first use. Endpoints
-  ignore any `access_token` in the body. `ebay-auth` actions: `status`,
-  `save_tokens`, `username` (`markTested`), `disconnect`; `refresh`
-  returns 410. Client: `ebayConnection` / `loadEbayConnection()` /
-  `ensureEbayConnected()` in `src/ebay-api.js`. The status call is a POST
-  because `public/sw.js` caches every same-origin GET.
-- **v3.16.1**: removed the legacy `ebay_tokens/main` path. The rule is
-  gone from `firestore.rules`, and `api/_ebayToken.js` no longer copies
-  that doc on first use or deletes it on disconnect.
-- **v3.16.2**: connect eBay without copy-paste. `action=url` (owners only,
-  now a POST) stores a one-time `state` in `ebay_oauth_states/{state}`;
-  the callback consumes it, stores the tokens with `connectedBy` and
-  `authorizedAt`, and shows only "eBay connected as …". The app waits for
-  a newer `authorizedAt` in the status (focus, every 4 s for 5 min, or the
-  "I've finished" button). `save_tokens`, the paste box and
-  `applyEbayTokenPaste` are gone.
-- **v3.16.3**: the eBay callback can load twice (seen in production: the
-  first load connected, the second said "already used"). The state is now
-  marked `usedAt` instead of deleted, and the first load records its
-  `result`. A repeat load within the 10 minutes waits up to ~8 s for that
-  result and shows it, with no second token exchange. Used states are
-  pruned with the expired ones.
-- **v3.16.4**: `src/modules/biz.js` (`bizCol`/`bizDoc`) with logical names
-  (`counters/productCode`, `counters/liveSku`, `config/settings`,
-  `options/main`, …). 31 call sites in `main.js`, `live-catalog.js`,
-  `product-code-bank.js`, `ebay-error-log.js` and `ebay-audit.js` use it.
-  Same Firestore paths as before (no data moves).
-- **v3.16.5**: business migration, copy only. `api/_migration.js` +
-  `platform.js` actions `migrate_status` (counts root vs business, lists
-  unmapped docs) and `migrate_copy` (steps: setup → each collection in
-  pages of 100 → mapped docs + eBay connection; returns the next
-  step/cursor). The bizId is fixed in `platform/migration`; re-runs
-  rewrite the same docs; copying is refused once `switchedAt` is set.
-  Developer Panel → App → "Business migration" card.
+- **v3.17.0** (already in `CHANGELOG.md`): the multi-business switch.
+  `businesses/{bizId}.live` drives everything: `loadActiveBusiness()` in
+  `biz.js` (called at sign-in in `main.js` and `live-catalog.js`),
+  `requireApprovedUser()` → `bizId` → `ebayConnectionId(auth)` in every
+  eBay endpoint, and `rootWritable()` in `firestore.rules`.
+  `_migration.js`: `migrationSwitch()` (live on/off), prune on the last
+  page of each collection, only `setup` (members) after the switch.
+  Panel buttons: Copy, Switch to business data (final copy first), Sync
+  members, Switch back.
 
 ## Backlog (not started)
 

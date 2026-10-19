@@ -3,6 +3,32 @@
 Version history for Calculated Chaos. The current version is also shown in
 the badge at the top of the app (`APP_VERSION` in `src/modules/version.js`).
 
+## v3.17.0 — 2026-10-19
+
+Rolls up v3.16.1 – v3.16.5 and moves the app's data into a business
+(`docs/multi-tenant.md`), switchable from the Developer Panel.
+
+- **Business data, behind a switch.** The catalog, drafts, Live Catalog,
+  counters, settings, eBay error library and eBay connection are copied
+  into `businesses/{bizId}/…` (Developer Panel → App → "Business
+  migration": counts, copy, switch, switch back, sync members). The copy
+  never deletes the original data, can be re-run, and removes from the
+  business anything deleted since an earlier copy. After the switch the
+  app, the server (eBay endpoints use the business's connection) and the
+  Firestore rules all follow one field, `businesses/{bizId}.live`.
+- **Old data locked after the switch.** The rules keep the pre-business
+  collections readable but block writes for a live business's members, so
+  a device still running an old page can't save to the old place.
+- **All business data goes through `bizCol()`/`bizDoc()`**
+  (`src/modules/biz.js`, v3.16.4), which pick the business or the
+  pre-business paths at sign-in.
+- **Connect eBay without copy-paste** (v3.16.2–v3.16.3): the eBay sign-in
+  tab finishes the connection itself using a one-time `state` code; the
+  tokens are never shown or pasted. A sign-in page loaded twice shows the
+  first result instead of an error.
+- **Legacy eBay token removed** (v3.16.1): `ebay_tokens/main` and its rule
+  are gone.
+
 ## v3.16.0 — 2026-10-19
 
 Rolls up v3.15.1 – v3.15.5 and moves the eBay connection to the server.
