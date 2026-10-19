@@ -232,8 +232,8 @@ Enforcement:
      (`isVerified()`), the server (`requireApprovedUser`) and a "Verify
      your email" screen, switched on once both accounts were verified.
      Invites (step 5) only accept a verified email.
-   - Firebase Auth: one account per email (link Google and password
-     sign-ins); authorized domains limited to production.
+   - [ ] Firebase Console / Google Cloud settings (no code; checklist
+     below, written 2026-10-19).
    - [x] Developer Panel "Remove" also disables the Firebase Auth account
      (Admin SDK), not only the Firestore user doc (v3.18.2,
      `api/_users.js`; reversible with Restore; Deny deletes the login;
@@ -260,3 +260,47 @@ Enforcement:
 9. [ ] Billing (e.g. Stripe), plan → credit limit.
 10. [ ] Vercel Pro, error monitoring, staging, Terms of Service and
     Privacy Policy, README.
+
+## Console checklist (step 4a, no code)
+
+Settings applied by hand in the Firebase Console and Google Cloud Console,
+safest first. Test the app after each one. Mark each item when applied.
+Production domain: `calculated-chaos-deploy1-1.vercel.app` (from the eBay
+redirect URLs); add any other domain the app is served from.
+
+1. [ ] **One account per email.** Firebase → Authentication → Settings →
+   User account linking → "Link accounts that use the same email" (the
+   default). Once Google sign-in exists, a password user signing in with
+   Google lands on the same account (same uid, same data).
+2. [ ] **User actions.** Authentication → Settings → User actions:
+   - "Enable create (sign-up)": on (sellers sign themselves up).
+   - "Enable delete": **off**. Otherwise any signed-in user can delete
+     their own Auth account through the API, leaving a `users` doc with
+     no login; removing goes through the Developer Panel only.
+   - "Email enumeration protection": on. Sign-in errors become generic,
+     so the sign-in form can't be used to find out which emails have an
+     account.
+3. [ ] **Authorized domains.** Authentication → Settings → Authorized
+   domains. Keep the production domain, `calculated-chaos-4027a.firebaseapp.com`
+   (the email verification link opens a page there),
+   `calculated-chaos-4027a.web.app`, and `localhost` only if the app is
+   run locally. Remove anything unknown. These apply to popup/redirect
+   sign-in (Google) and email action links, not to password sign-in;
+   Vercel preview deploys won't be able to use Google sign-in.
+4. [ ] **Restrict the browser API key.** Google Cloud Console (project
+   `calculated-chaos-4027a`) → APIs & Services → Credentials → "Browser
+   key (auto created by Firebase)" (the key in `src/config/firebase.js`):
+   - Application restrictions → Websites:
+     `https://calculated-chaos-deploy1-1.vercel.app/*`,
+     `https://calculated-chaos-4027a.firebaseapp.com/*`, and
+     `http://localhost:5173/*` only for local runs.
+   - API restrictions: leave "Don't restrict key" for now; a wrong API
+     list breaks sign-in with no clear message.
+   - Takes up to 5 minutes. To undo, set Application restrictions back to
+     None.
+   The key isn't secret (it ships in the page; the security rules are the
+   real boundary), but unrestricted, any site or script can use it, e.g.
+   to create accounts in bulk. The server (`api/`) doesn't use this key.
+   A future Capacitor app sends no website referrer, so it will need an
+   Android/iOS-restricted key of its own.
+
