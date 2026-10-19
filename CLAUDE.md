@@ -199,11 +199,14 @@ renaming them needs a data migration of every saved item.
 
 ## Open items
 
-- **Multi-business (paid, for new sellers)**: data model built and
-  switchable (v3.17.0); onboarding, invites, credits and billing are
-  next. See `docs/multi-tenant.md`. Planned right after the switch is
-  confirmed: split `main.js` (docs/modularization.md phases 1-3) before
-  the step-4 onboarding work, which touches Settings and sign-in.
+- **Multi-business (paid, for new sellers)**: the app runs on business
+  data since 2026-10-19 (v3.17.0 switch confirmed in production).
+  Next, in order: split `main.js` (docs/modularization.md phases 1-3),
+  auth hardening (`docs/multi-tenant.md` step 4a: admin custom claim,
+  email verification, one account per email, disable Auth on Remove,
+  then Google sign-in, App Check, admin 2FA), then onboarding/invites
+  (step 5). The root collections stay, read-only for the business's
+  members, until Vitor confirms removing them.
 - **After the switch**: the Developer Panel's Backup and eBay errors tabs
   still read the root collections; point them at the business data.
 - **General eBay review**: Vitor plans to review the whole eBay flow soon
@@ -223,7 +226,8 @@ renaming them needs a data migration of every saved item.
   before doing them.
 - **Watch the Vercel logs** for `ai-usage` lines with `"structured":false`
   (the structured-output fallback ran on `analyze-photo.js`).
-- `email_verified` is deliberately not in `isAdmin()` (`firestore.rules`):
+- `email_verified` is deliberately not in `isAdmin()` (`firestore.rules`;
+  step 4a replaces the email list with a custom claim):
   the app never sends verification emails, so the admin accounts are
   likely unverified and would lock out.
 
@@ -242,12 +246,6 @@ on any of these:
   fix (a repeat load shows the first load's result) is tested only with a
   stubbed Firestore and eBay (18 handler tests, including a simultaneous
   double load).
-- Business migration (v3.16.5 copy ran in production 2026-10-19: 1,442
-  items, all counts matched). The v3.17.0 switch is tested only offline:
-  29 migration tests (prune, switch, switch back, members after switch),
-  11 auth/biz/eBay-connection tests, and 24 Firestore-emulator rules
-  tests (the emulator logs "evaluation error" on denials from functions
-  that call get(); the decisions are right). The real switch is pending.
 - Server-built AI prompts (v3.15.3): golden test (prompt text identical)
   and handler tests with a mocked fetch; ✨ analyze, rewrite and both
   narration flows are unconfirmed against the real API.
@@ -270,7 +268,10 @@ on any of these:
   `_migration.js`: `migrationSwitch()` (live on/off), prune on the last
   page of each collection, only `setup` (members) after the switch.
   Panel buttons: Copy, Switch to business data (final copy first), Sync
-  members, Switch back.
+  members, Switch back. Switch confirmed in production on 2026-10-19
+  (catalog, saves, codes, Settings, Live Catalog, eBay Test connection).
+  Rules are tested in the Firestore emulator; it logs "evaluation error"
+  on denials from functions that call get(), but the decisions are right.
 
 ## Backlog (not started)
 

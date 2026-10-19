@@ -197,38 +197,49 @@ Enforcement:
    `FIREBASE_SERVICE_ACCOUNT` env var; ID tokens verified in
    `_requireApprovedUser.js`; `api/platform.js` (last Hobby function slot)
    for platform actions, starting with `health`.
-3. [~] eBay tokens server-side. Done in v3.16.0: tokens in
-   `ebay_connections/main` (server only), refreshed by the server, every
-   endpoint reads them there. Done in v3.16.2: the OAuth callback writes
-   the connection itself. `action=url` stores a one-time code in
-   `ebay_oauth_states/{state}` (uid, email, `connectionId`, 10-minute
-   expiry) and the callback consumes it, so no tokens are shown or
-   pasted. Still to do: the doc id becomes the business id. That's one
-   line: `action=url` passes the user's business id as `connectionId`,
-   and the callback already writes to whatever the code says.
-4. [~] Business-scoped data paths. Done in v3.16.4: `src/modules/biz.js`
-   (`bizCol()`/`bizDoc()`) used by all 31 business-data call sites, still
-   resolving to the root collections. Done in v3.17.0: the switch
-   (`businesses/{bizId}.live`, see step 6). Decided (2026-10-19): the current
-   business gets a random id (name in a field), and settings live in
-   `businesses/{bizId}/config/settings`. Still to do: the copy migration
-   (Developer Panel dry run + copy, step 6), then the switch (rules,
-   `bizCol` → `businesses/{activeBizId}/…`, eBay endpoints per business).
+3. [x] eBay tokens server-side. v3.16.0: tokens in `ebay_connections/*`
+   (server only), refreshed by the server. v3.16.2: the OAuth callback
+   writes the connection itself via a one-time `state` code
+   (`ebay_oauth_states/{state}`: uid, email, `connectionId`, 10-minute
+   expiry); no tokens are shown or pasted. v3.17.0: every eBay endpoint
+   uses `ebay_connections/{bizId}` for a live business
+   (`ebayConnectionId(auth)`).
+4. [x] Business-scoped data paths. v3.16.4: `src/modules/biz.js`
+   (`bizCol()`/`bizDoc()`) at all 31 business-data call sites. v3.17.0:
+   `loadActiveBusiness()` picks `businesses/{bizId}/…` when the business
+   is live. Decided (2026-10-19): the current business has a random id
+   (name in a field), and settings live in
+   `businesses/{bizId}/config/settings`.
+4a. [ ] **Auth hardening, before step 5** (planned 2026-10-19). New
+   sellers sign themselves up, so the sign-in side needs to be ready
+   first. Small fixes first, in this order:
+   - Platform admin as a custom claim set by `api/platform.js`, instead
+     of the email lists in `isAdmin()` / `ADMIN_EMAILS` /
+     `PLATFORM_ADMIN_EMAILS`. The rules trust `token.email` without
+     `email_verified`, and a password sign-up can use any email address.
+   - Send verification emails for password sign-ups; invites (step 5)
+     only accept a verified email.
+   - Firebase Auth: one account per email (link Google and password
+     sign-ins); authorized domains limited to production.
+   - Developer Panel "Remove" also disables the Firebase Auth account
+     (Admin SDK), not only the Firestore user doc.
+   Then Google sign-in: the OAuth consent screen needs the Privacy and
+   Terms links (step 10), and the iOS home-screen app needs popup sign-in
+   or an auth domain served from the app's own domain. Then App Check
+   (reCAPTCHA) against bot sign-ups and AI-endpoint abuse, and 2FA for
+   admins (needs Identity Platform).
 5. [ ] "Create your business" onboarding, members/roles, owner invites
    employees; new rules.
-6. [~] Migration script: copy current data into `businesses/<current>/…`.
-   Built in v3.16.5 (`api/_migration.js`, Developer Panel → App →
-   "Business migration"; not run yet). The eBay connection copy goes
-   stale on the access token as the server keeps refreshing `main`, so
-   copy again right before the switch. v3.17.0 adds the switch: the
-   panel's "Switch to business data" runs a final copy (which also
-   removes business docs deleted at the root since an earlier copy) and
-   sets `live: true`; the app, the eBay endpoints and the rules follow
-   that field, and "Switch back" sets it to false.
-   Copy, never move: the old collections stay until Vitor confirms the
-   new ones, then get removed in a separate step. Before running it:
-   Developer Panel → Backup (JSON download) plus a Google Cloud managed
-   export (the project is on Blaze).
+6. [x] Migration (v3.16.5 copy, v3.17.0 switch; `api/_migration.js`,
+   Developer Panel → App → "Business migration"). The copy ran on
+   2026-10-19 (1,442 items, all counts matched) and the switch was
+   confirmed in production the same day. "Switch to business data" runs
+   a final copy (which also removes business docs deleted at the root
+   since an earlier copy) and sets `businesses/{bizId}.live`; the app,
+   the eBay endpoints and the rules follow that field, and "Switch back"
+   sets it to false. Copy, never move: the root collections stay
+   (read-only for the business's members) until Vitor confirms they can
+   be removed, in a separate step with a fresh backup first.
 7. [ ] eBay policies per business (reuse `ebay-setup.js` listing).
 8. [ ] Server-side prompts + AI credits + usage UI (with backlog item 1).
 9. [ ] Billing (e.g. Stripe), plan → credit limit.
