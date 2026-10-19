@@ -215,7 +215,11 @@ Enforcement:
    `bizCol` → `businesses/{activeBizId}/…`, eBay endpoints per business).
 5. [ ] "Create your business" onboarding, members/roles, owner invites
    employees; new rules.
-6. [ ] Migration script: copy current data into `businesses/<current>/…`.
+6. [~] Migration script: copy current data into `businesses/<current>/…`.
+   Built in v3.16.5 (`api/_migration.js`, Developer Panel → App →
+   "Business migration"; not run yet). The eBay connection copy goes
+   stale on the access token as the server keeps refreshing `main`, so
+   copy again right before the switch.
    Copy, never move: the old collections stay until Vitor confirms the
    new ones, then get removed in a separate step. Before running it:
    Developer Panel → Backup (JSON download) plus a Google Cloud managed

@@ -409,6 +409,17 @@ function renderApp(){
       <div id="adHealthResult" class="ad-empty">Checking…</div>
       <button class="ad-btn secondary" id="adHealthBtn" style="margin-top:10px;">Check again</button>
     </div>
+    <div class="ad-card">
+      <h3>Business migration</h3>
+      <div class="ad-desc">Copies today's catalog, drafts, Live Catalog, counters, settings, eBay error library and eBay connection into one business (businesses/{id}). <b>Copy, never move:</b> the app keeps using the current data until the switch, and nothing is deleted. Safe to run again.</div>
+      <div class="ad-desc">Before copying: download a backup in the Backup tab and run a Google Cloud export.</div>
+      <div id="adMigrationStatus" class="ad-empty">Loading…</div>
+      <div id="adMigrationProgress" class="ad-meta" style="margin-top:8px;"></div>
+      <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="ad-btn secondary" id="adMigrationRefreshBtn">Refresh counts</button>
+        <button class="ad-btn" id="adMigrationCopyBtn" disabled>Copy to business</button>
+      </div>
+    </div>
     <div class="ad-card ad-links">
       <h3>Links</h3>
       <a href="https://vercel.com/dashboard" target="_blank" rel="noopener">Vercel dashboard (deploys, logs)</a>
@@ -419,6 +430,77 @@ function renderApp(){
     </div>`;
   document.getElementById('adHealthBtn').addEventListener('click', runHealthCheck);
   runHealthCheck();
+  document.getElementById('adMigrationRefreshBtn').addEventListener('click', loadMigrationStatus);
+  document.getElementById('adMigrationCopyBtn').addEventListener('click', runMigrationCopy);
+  loadMigrationStatus();
+}
+
+// ---------- Business migration (api/_migration.js) ----------
+async function platformAction(body){
+  const res = await fetch('/api/platform', { method: 'POST', headers: await jsonAuthHeaders(), body: JSON.stringify(body) });
+  const data = await res.json().catch(() => null);
+  if (!res.ok || !data) throw new Error((data && data.error) || `HTTP ${res.status}`);
+  return data;
+}
+
+async function loadMigrationStatus(){
+  const el = document.getElementById('adMigrationStatus');
+  const copyBtn = document.getElementById('adMigrationCopyBtn');
+  copyBtn.disabled = true;
+  el.innerHTML = '<div class="ad-empty">Counting…</div>';
+  try{
+    const s = await platformAction({ action: 'migrate_status' });
+    const mark = (ok) => ok ? '✅' : '⏳';
+    const rows = s.collections.map(c => `
+      <div class="ad-row" style="display:block;">
+        <div class="ad-main-text">${mark(c.target === c.source)} ${escapeHtml(c.name)}</div>
+        <div class="ad-meta">Current: ${c.source} · Copied: ${c.target}</div>
+      </div>`).join('') + s.docs.map(d => `
+      <div class="ad-row" style="display:block;">
+        <div class="ad-main-text">${d.source ? mark(d.target) : '—'} ${escapeHtml(d.from)} → ${escapeHtml(d.to)}</div>
+        <div class="ad-meta">${d.source ? (d.target ? 'Copied' : 'Not copied yet') : 'Doesn\'t exist (nothing to copy)'}</div>
+      </div>`).join('') + `
+      <div class="ad-row" style="display:block;">
+        <div class="ad-main-text">${mark(s.members.target >= s.members.source)} Members</div>
+        <div class="ad-meta">Approved users: ${s.members.source} · Members: ${s.members.target}</div>
+      </div>`;
+    el.innerHTML = `
+      <dl class="ad-kv">
+        <dt>Business id</dt><dd>${s.bizId ? escapeHtml(s.bizId) : 'Not created yet (the first copy creates it)'}</dd>
+        <dt>Last copy</dt><dd>${s.lastCopiedAt ? fmtDate(s.lastCopiedAt) : 'Never'}</dd>
+      </dl>
+      ${s.switchedAt ? '<div class="ebay-status-box success">The app already uses the business data; copying again is blocked.</div>' : ''}
+      ${s.unmapped.length ? `<div class="ebay-status-box error">⚠️ These docs won't be copied (no business home yet): ${s.unmapped.map(escapeHtml).join(', ')}</div>` : ''}
+      ${rows}`;
+    copyBtn.disabled = !!s.switchedAt;
+  }catch(e){
+    el.innerHTML = `<div class="ebay-status-box error">❌ Could not load the migration status: ${escapeHtml(e.message || String(e))}</div>`;
+  }
+}
+
+async function runMigrationCopy(){
+  if (!confirm('Copy the current data into the business now?\n\nNothing is deleted and the app keeps using the current data. Did you download a fresh backup first?')) return;
+  const progress = document.getElementById('adMigrationProgress');
+  const copyBtn = document.getElementById('adMigrationCopyBtn');
+  const refreshBtn = document.getElementById('adMigrationRefreshBtn');
+  copyBtn.disabled = true;
+  refreshBtn.disabled = true;
+  const totals = {};
+  let next = { step: 0, cursor: null };
+  try{
+    while (next){
+      const r = await platformAction({ action: 'migrate_copy', step: next.step, cursor: next.cursor });
+      totals[r.step] = (totals[r.step] || 0) + (r.copied || 0);
+      progress.textContent = 'Copying… ' + Object.entries(totals).map(([k, v]) => `${k}: ${v}`).join(' · ');
+      next = r.next;
+    }
+    progress.textContent = '✅ Copy finished. ' + Object.entries(totals).map(([k, v]) => `${k}: ${v}`).join(' · ');
+  }catch(e){
+    progress.textContent = `❌ Copy stopped: ${e.message || e}. It's safe to press Copy again; it starts over and rewrites the same docs.`;
+  }finally{
+    refreshBtn.disabled = false;
+    await loadMigrationStatus();
+  }
 }
 
 // api/platform.js action:'health' — see that file for what each check means.
