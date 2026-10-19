@@ -9,8 +9,10 @@
 //     can't be reached through it: forward the caller's own ID token to the
 //     Firestore REST API to read their own user doc. Firestore verifies the
 //     token itself, so a forged or expired token is still rejected.
-// Returns { ok:true, uid, email, role, via:'admin'|'rest' } or
-// { ok:false, status, error }.
+// Returns { ok:true, uid, email, role, bizId, via:'admin'|'rest' } or
+// { ok:false, status, error }. bizId is the user's business only once that
+// business is live (v3.17.0, docs/multi-tenant.md); before the switch, or
+// for a user without one, it's null and callers use the pre-business data.
 import { getFirebaseAdmin, FIREBASE_PROJECT_ID } from './_firebaseAdmin.js';
 
 let warnedNoAdmin = false;
@@ -36,7 +38,12 @@ async function checkWithAdmin(admin, idToken){
   if (data.status !== 'approved'){
     return { ok: false, status: 403, error: 'Account pending approval.' };
   }
-  return { ok: true, uid: decoded.uid, email: decoded.email || null, role: data.role || null, via: 'admin' };
+  let bizId = null;
+  if (data.activeBizId){
+    const biz = await admin.db.collection('businesses').doc(data.activeBizId).get();
+    if (biz.exists && biz.data().live === true) bizId = data.activeBizId;
+  }
+  return { ok: true, uid: decoded.uid, email: decoded.email || null, role: data.role || null, bizId, via: 'admin' };
 }
 
 async function checkWithRest(idToken){
@@ -60,8 +67,17 @@ async function checkWithRest(idToken){
     if (status !== 'approved'){
       return { ok: false, status: 403, error: 'Account pending approval.' };
     }
+    // The business doc is readable by its members (firestore.rules); any
+    // failure here just means "not live" for this request.
+    let bizId = null;
+    const activeBizId = doc.fields?.activeBizId?.stringValue;
+    if (activeBizId){
+      const b = await fetch(`https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/businesses/${encodeURIComponent(activeBizId)}`, { headers: { 'Authorization': `Bearer ${idToken}` } }).catch(() => null);
+      const bizDoc = b && b.ok ? await b.json().catch(() => null) : null;
+      if (bizDoc?.fields?.live?.booleanValue === true) bizId = activeBizId;
+    }
     // Firestore accepted the token, so its payload (email included) is genuine.
-    return { ok: true, uid, email: payload.email || null, role: doc.fields?.role?.stringValue || null, via: 'rest' };
+    return { ok: true, uid, email: payload.email || null, role: doc.fields?.role?.stringValue || null, bizId, via: 'rest' };
   }catch(e){
     console.error('requireApprovedUser Firestore check failed:', e);
     return { ok: false, status: 500, error: 'Could not verify account.' };

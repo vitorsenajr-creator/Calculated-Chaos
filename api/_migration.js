@@ -7,9 +7,17 @@
 // using them until the switch (step 3c), so running this changes nothing
 // the app sees. Re-running is safe: the business id is fixed in
 // platform/migration and every doc keeps its id, so a second run rewrites
-// the same docs instead of duplicating them. Once the switch happens
-// (switchedAt is set), copying is refused so old root data can never
-// overwrite newer business data.
+// the same docs instead of duplicating them, and the last page of each
+// collection deletes business docs whose root doc is gone (deleted since
+// an earlier run). Once the switch happens (switchedAt is set), copying is
+// refused so old root data can never overwrite newer business data; only
+// the 'setup' step (members and activeBizId for newly approved users)
+// still runs.
+//
+// The switch (v3.17.0) is one field: businesses/{bizId}.live. The app,
+// the server (requireApprovedUser → bizId) and firestore.rules (root
+// writes blocked for a live business's members) all follow it, so
+// switching back is the same field set to false.
 //
 // The copy runs in steps and pages (PAGE_SIZE docs per request) because
 // the Hobby plan cuts long functions; the panel loops until done.
@@ -88,6 +96,7 @@ export async function migrationStatus(db){
     bizId: bizId || null,
     businessExists: biz ? (await biz.get()).exists : false,
     switchedAt: (marker && marker.switchedAt) || null,
+    live: biz ? ((await biz.get()).data() || {}).live === true : false,
     lastCopiedAt: (marker && marker.lastCopiedAt) || null,
     collections,
     docs,
@@ -153,6 +162,21 @@ async function copyCollectionPage(db, bizId, name, cursor){
   return { copied: snap.size, nextCursor: snap.size < PAGE_SIZE ? null : last };
 }
 
+// Deletes business docs whose root doc no longer exists, so something
+// deleted after an earlier copy doesn't come back at the switch.
+async function pruneCollection(db, bizId, name){
+  const target = db.collection('businesses').doc(bizId).collection(name);
+  const [src, dst] = await Promise.all([db.collection(name).select().get(), target.select().get()]);
+  const keep = new Set(src.docs.map(d => d.id));
+  const stale = dst.docs.filter(d => !keep.has(d.id));
+  for (let i = 0; i < stale.length; i += 400){
+    const batch = db.batch();
+    stale.slice(i, i + 400).forEach(d => batch.delete(d.ref));
+    await batch.commit();
+  }
+  return stale.length;
+}
+
 async function copyDocs(db, bizId){
   const biz = db.collection('businesses').doc(bizId);
   const batch = db.batch();
@@ -177,12 +201,13 @@ async function copyDocs(db, bizId){
 // (step null = finished). The panel starts at step 0 and loops.
 export async function migrationCopy(db, auth, body){
   const marker = await readMarker(db);
-  if (marker && marker.switchedAt){
-    return { ok: false, status: 409, error: 'The app already uses the business data, so copying the old data again is blocked.' };
-  }
   const step = Number(body.step) || 0;
   const name = STEPS[step];
   if (!name) return { ok: false, status: 400, error: 'Unknown migration step.' };
+  const switched = !!(marker && marker.switchedAt);
+  if (switched && name !== 'setup'){
+    return { ok: false, status: 409, error: 'The app already uses the business data, so copying the old data again is blocked.' };
+  }
   const bizId = await ensureBizId(db);
 
   let result;
@@ -198,11 +223,14 @@ export async function migrationCopy(db, auth, body){
     if (result.nextCursor){
       nextStep = step;
       nextCursor = result.nextCursor;
+    }else{
+      result.removed = await pruneCollection(db, bizId, name);
     }
   }
 
-  const finished = nextStep >= STEPS.length;
-  if (finished){
+  // After the switch only the members step runs, and it isn't a copy.
+  const finished = nextStep >= STEPS.length || switched;
+  if (finished && !switched){
     await db.collection(MARKER[0]).doc(MARKER[1]).set({ lastCopiedAt: Date.now(), lastCopiedBy: auth.email || auth.uid }, { merge: true });
   }
   return {
@@ -210,6 +238,27 @@ export async function migrationCopy(db, auth, body){
     bizId,
     step: name,
     copied: result.copied,
+    removed: result.removed || 0,
     next: finished ? null : { step: nextStep, cursor: nextCursor },
   };
+}
+
+// Turns the business data on (live: true) or back off. Switching on needs
+// a finished copy; the panel runs a fresh copy right before calling this.
+export async function migrationSwitch(db, auth, body){
+  const marker = await readMarker(db);
+  if (!marker || !marker.bizId || !marker.lastCopiedAt){
+    return { ok: false, status: 409, error: 'Copy the data to the business first.' };
+  }
+  const live = body.live === true;
+  const biz = db.collection('businesses').doc(marker.bizId);
+  if (!(await biz.get()).exists){
+    return { ok: false, status: 409, error: 'The business doc is missing. Copy the data again.' };
+  }
+  const who = auth.email || auth.uid;
+  await biz.set({ live, liveChangedAt: Date.now(), liveChangedBy: who }, { merge: true });
+  await db.collection(MARKER[0]).doc(MARKER[1]).set(live
+    ? { switchedAt: Date.now(), switchedBy: who }
+    : { switchedAt: null, switchedBackAt: Date.now(), switchedBackBy: who }, { merge: true });
+  return { ok: true, bizId: marker.bizId, live };
 }

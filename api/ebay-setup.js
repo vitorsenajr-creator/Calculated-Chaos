@@ -14,7 +14,7 @@
 // EBAY_RETURN_POLICY_ID, EBAY_MERCHANT_LOCATION_KEY — then redeploy.
 
 import { requireApprovedUser } from './_requireApprovedUser.js';
-import { getEbayAccessToken } from './_ebayToken.js';
+import { getEbayAccessToken, ebayConnectionId } from './_ebayToken.js';
 
 const EBAY_SANDBOX = process.env.EBAY_SANDBOX === 'true';
 const API_BASE = EBAY_SANDBOX ? 'https://api.sandbox.ebay.com' : 'https://api.ebay.com';
@@ -82,7 +82,7 @@ export default async function handler(req, res){
   if (!authCheck.ok){
     return res.status(authCheck.status).json({ error: authCheck.error });
   }
-  const ebayToken = await getEbayAccessToken();
+  const ebayToken = await getEbayAccessToken(ebayConnectionId(authCheck));
   if (!ebayToken.ok) return res.status(ebayToken.status).json({ error: ebayToken.error });
   const access_token = ebayToken.token;
 

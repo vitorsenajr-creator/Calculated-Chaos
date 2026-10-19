@@ -417,7 +417,10 @@ function renderApp(){
       <div id="adMigrationProgress" class="ad-meta" style="margin-top:8px;"></div>
       <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
         <button class="ad-btn secondary" id="adMigrationRefreshBtn">Refresh counts</button>
-        <button class="ad-btn" id="adMigrationCopyBtn" disabled>Copy to business</button>
+        <button class="ad-btn secondary" id="adMigrationCopyBtn" disabled>Copy to business</button>
+        <button class="ad-btn" id="adMigrationSwitchBtn" disabled>Switch to business data</button>
+        <button class="ad-btn secondary" id="adMigrationMembersBtn" style="display:none;">Sync members</button>
+        <button class="ad-btn danger" id="adMigrationBackBtn" style="display:none;">Switch back</button>
       </div>
     </div>
     <div class="ad-card ad-links">
@@ -432,6 +435,9 @@ function renderApp(){
   runHealthCheck();
   document.getElementById('adMigrationRefreshBtn').addEventListener('click', loadMigrationStatus);
   document.getElementById('adMigrationCopyBtn').addEventListener('click', runMigrationCopy);
+  document.getElementById('adMigrationSwitchBtn').addEventListener('click', runMigrationSwitch);
+  document.getElementById('adMigrationMembersBtn').addEventListener('click', runMembersSync);
+  document.getElementById('adMigrationBackBtn').addEventListener('click', runMigrationSwitchBack);
   loadMigrationStatus();
 }
 
@@ -443,10 +449,16 @@ async function platformAction(body){
   return data;
 }
 
+function migrationButtons(){
+  return ['adMigrationRefreshBtn', 'adMigrationCopyBtn', 'adMigrationSwitchBtn', 'adMigrationMembersBtn', 'adMigrationBackBtn']
+    .map(id => document.getElementById(id));
+}
+
 async function loadMigrationStatus(){
   const el = document.getElementById('adMigrationStatus');
-  const copyBtn = document.getElementById('adMigrationCopyBtn');
+  const [refreshBtn, copyBtn, switchBtn, membersBtn, backBtn] = migrationButtons();
   copyBtn.disabled = true;
+  switchBtn.disabled = true;
   el.innerHTML = '<div class="ad-empty">Counting…</div>';
   try{
     const s = await platformAction({ action: 'migrate_status' });
@@ -468,39 +480,103 @@ async function loadMigrationStatus(){
       <dl class="ad-kv">
         <dt>Business id</dt><dd>${s.bizId ? escapeHtml(s.bizId) : 'Not created yet (the first copy creates it)'}</dd>
         <dt>Last copy</dt><dd>${s.lastCopiedAt ? fmtDate(s.lastCopiedAt) : 'Never'}</dd>
+        <dt>App uses</dt><dd>${s.live ? '<b>Business data</b> (live)' : 'Pre-business data'}</dd>
       </dl>
-      ${s.switchedAt ? '<div class="ebay-status-box success">The app already uses the business data; copying again is blocked.</div>' : ''}
+      ${s.live ? '<div class="ebay-status-box success">The app uses the business data; copying the old data again is blocked. "Sync members" adds newly approved users to the business.</div>' : ''}
       ${s.unmapped.length ? `<div class="ebay-status-box error">⚠️ These docs won't be copied (no business home yet): ${s.unmapped.map(escapeHtml).join(', ')}</div>` : ''}
       ${rows}`;
-    copyBtn.disabled = !!s.switchedAt;
+    copyBtn.disabled = s.live;
+    copyBtn.style.display = s.live ? 'none' : '';
+    switchBtn.disabled = s.live || !s.lastCopiedAt;
+    switchBtn.style.display = s.live ? 'none' : '';
+    membersBtn.style.display = s.live ? '' : 'none';
+    backBtn.style.display = s.live ? '' : 'none';
+    refreshBtn.disabled = false;
   }catch(e){
     el.innerHTML = `<div class="ebay-status-box error">❌ Could not load the migration status: ${escapeHtml(e.message || String(e))}</div>`;
+  }
+}
+
+// Runs every copy step (after the switch, only the members step runs).
+// Returns a "name: count" summary; throws on the first failed step.
+async function copyAllSteps(label){
+  const progress = document.getElementById('adMigrationProgress');
+  const totals = {};
+  let removed = 0;
+  const summary = () => Object.entries(totals).map(([k, v]) => `${k}: ${v}`).join(' · ') + (removed ? ` · removed: ${removed}` : '');
+  let next = { step: 0, cursor: null };
+  while (next){
+    const r = await platformAction({ action: 'migrate_copy', step: next.step, cursor: next.cursor });
+    totals[r.step] = (totals[r.step] || 0) + (r.copied || 0);
+    removed += r.removed || 0;
+    progress.textContent = `${label}… ${summary()}`;
+    next = r.next;
+  }
+  return summary();
+}
+
+// Disables every button while `work` runs, then reloads the status.
+async function withMigrationBusy(work){
+  migrationButtons().forEach(b => { b.disabled = true; });
+  try{
+    await work();
+  }finally{
+    await loadMigrationStatus();
   }
 }
 
 async function runMigrationCopy(){
   if (!confirm('Copy the current data into the business now?\n\nNothing is deleted and the app keeps using the current data. Did you download a fresh backup first?')) return;
   const progress = document.getElementById('adMigrationProgress');
-  const copyBtn = document.getElementById('adMigrationCopyBtn');
-  const refreshBtn = document.getElementById('adMigrationRefreshBtn');
-  copyBtn.disabled = true;
-  refreshBtn.disabled = true;
-  const totals = {};
-  let next = { step: 0, cursor: null };
-  try{
-    while (next){
-      const r = await platformAction({ action: 'migrate_copy', step: next.step, cursor: next.cursor });
-      totals[r.step] = (totals[r.step] || 0) + (r.copied || 0);
-      progress.textContent = 'Copying… ' + Object.entries(totals).map(([k, v]) => `${k}: ${v}`).join(' · ');
-      next = r.next;
+  await withMigrationBusy(async () => {
+    try{
+      progress.textContent = `✅ Copy finished. ${await copyAllSteps('Copying')}`;
+    }catch(e){
+      progress.textContent = `❌ Copy stopped: ${e.message || e}. It's safe to press Copy again; it starts over and rewrites the same docs.`;
     }
-    progress.textContent = '✅ Copy finished. ' + Object.entries(totals).map(([k, v]) => `${k}: ${v}`).join(' · ');
-  }catch(e){
-    progress.textContent = `❌ Copy stopped: ${e.message || e}. It's safe to press Copy again; it starts over and rewrites the same docs.`;
-  }finally{
-    refreshBtn.disabled = false;
-    await loadMigrationStatus();
-  }
+  });
+}
+
+// Final copy (picks up everything changed since the last one, including
+// the refreshed eBay token), then turns the business data on.
+async function runMigrationSwitch(){
+  if (!confirm('Switch the app to the business data now?\n\n1. Ask everyone to stop using the app for a few minutes.\n2. A final copy runs first, then the switch.\n3. Afterwards, reload the app on every device.\n\nYou can switch back from here, but anything saved after the switch stays only in the business data.')) return;
+  const progress = document.getElementById('adMigrationProgress');
+  await withMigrationBusy(async () => {
+    try{
+      const copied = await copyAllSteps('Final copy');
+      progress.textContent = `Final copy done (${copied}). Switching…`;
+      await platformAction({ action: 'migrate_switch', live: true });
+      progress.textContent = `✅ Switched. The app now uses the business data. Reload the app on every device. Final copy: ${copied}`;
+    }catch(e){
+      progress.textContent = `❌ Not switched: ${e.message || e}. The app still uses the pre-business data.`;
+    }
+  });
+}
+
+async function runMigrationSwitchBack(){
+  if (!confirm('Switch the app back to the pre-business data?\n\nAnything saved since the switch stays only in the business data and will NOT be in the app after switching back. Reload the app on every device afterwards.')) return;
+  const progress = document.getElementById('adMigrationProgress');
+  await withMigrationBusy(async () => {
+    try{
+      await platformAction({ action: 'migrate_switch', live: false });
+      progress.textContent = '↩️ Switched back. The app uses the pre-business data again. Reload the app on every device.';
+    }catch(e){
+      progress.textContent = `❌ Could not switch back: ${e.message || e}`;
+    }
+  });
+}
+
+// After the switch: adds newly approved users to the business.
+async function runMembersSync(){
+  const progress = document.getElementById('adMigrationProgress');
+  await withMigrationBusy(async () => {
+    try{
+      progress.textContent = `✅ Members synced. ${await copyAllSteps('Syncing members')}`;
+    }catch(e){
+      progress.textContent = `❌ Could not sync members: ${e.message || e}`;
+    }
+  });
 }
 
 // api/platform.js action:'health' — see that file for what each check means.

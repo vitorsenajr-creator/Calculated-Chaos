@@ -17,7 +17,7 @@
 import { requireApprovedUser } from './_requireApprovedUser.js';
 import {
   getEbayAccessToken, getEbayConnectionStatus, saveEbayConnection,
-  updateEbayConnection, deleteEbayConnection, createOAuthState, consumeOAuthState,
+  updateEbayConnection, deleteEbayConnection, createOAuthState, consumeOAuthState, ebayConnectionId,
   finishOAuthState, waitOAuthStateResult,
   EBAY_TOKEN_URL as TOKEN_URL, EBAY_SCOPES as SCOPES, ebayBasicAuthHeader as basicAuthHeader,
 } from './_ebayToken.js';
@@ -98,13 +98,13 @@ export default async function handler(req, res){
 
   // ---------- Connection status (no tokens) ----------
   if (action === 'status'){
-    const status = await getEbayConnectionStatus();
+    const status = await getEbayConnectionStatus(ebayConnectionId(authCheck));
     return res.status(status.ok ? 200 : status.status).json(status.ok ? status : { error: status.error });
   }
 
   // ---------- Disconnect ----------
   if (action === 'disconnect'){
-    const del = await deleteEbayConnection();
+    const del = await deleteEbayConnection(ebayConnectionId(authCheck));
     if (!del.ok) return res.status(del.status).json({ error: del.error });
     return res.status(200).json({ ok: true, connected: false });
   }
@@ -114,7 +114,7 @@ export default async function handler(req, res){
     if (!EBAY_CLIENT_ID || !EBAY_REDIRECT_URI){
       return res.status(500).json({ error: 'eBay credentials not configured on server.' });
     }
-    const started = await createOAuthState(authCheck);
+    const started = await createOAuthState(authCheck, ebayConnectionId(authCheck));
     if (!started.ok) return res.status(started.status).json({ error: started.error });
     const params = new URLSearchParams({
       client_id: EBAY_CLIENT_ID,
@@ -197,13 +197,13 @@ export default async function handler(req, res){
   // Used to backfill the display name for accounts that connected before this
   // feature existed, without requiring a full disconnect/reconnect.
   if (action === 'username'){
-    const ebayToken = await getEbayAccessToken();
+    const ebayToken = await getEbayAccessToken(ebayConnectionId(authCheck));
     if (!ebayToken.ok) return res.status(ebayToken.status).json({ error: ebayToken.error });
     const sellerUsername = await fetchSellerUsername(ebayToken.token);
     const fields = {};
     if (sellerUsername) fields.sellerUsername = sellerUsername;
     if (req.body && req.body.markTested) fields.lastTestedAt = Date.now();
-    if (Object.keys(fields).length) await updateEbayConnection(fields);
+    if (Object.keys(fields).length) await updateEbayConnection(fields, ebayConnectionId(authCheck));
     return res.status(200).json({ sellerUsername });
   }
 

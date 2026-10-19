@@ -20,12 +20,17 @@
 //   action: 'migrate_copy', step, cursor
 //     -> copies one step/page into businesses/{bizId} (copy, never move)
 //        and returns the next { step, cursor }, or next: null when done.
+//        After the switch only the members step ('setup') runs.
+//
+//   action: 'migrate_switch', live: true | false
+//     -> turns the business data on for the app, server and rules
+//        (businesses/{bizId}.live), or back off.
 //
 // Platform admins only (PLATFORM_ADMIN_EMAILS in _firebaseAdmin.js).
 
 import { requireApprovedUser } from './_requireApprovedUser.js';
 import { getFirebaseAdmin, isPlatformAdminEmail, FIREBASE_PROJECT_ID } from './_firebaseAdmin.js';
-import { migrationStatus, migrationCopy } from './_migration.js';
+import { migrationStatus, migrationCopy, migrationSwitch } from './_migration.js';
 
 async function handleHealth(auth){
   const checks = [];
@@ -74,12 +79,12 @@ export default async function handler(req, res){
   const { action } = req.body || {};
   try{
     if (action === 'health') return res.status(200).json(await handleHealth(auth));
-    if (action === 'migrate_status' || action === 'migrate_copy'){
+    if (action === 'migrate_status' || action === 'migrate_copy' || action === 'migrate_switch'){
       const admin = getFirebaseAdmin();
       if (!admin.ok) return res.status(503).json({ error: admin.error });
-      const result = action === 'migrate_status'
-        ? await migrationStatus(admin.db)
-        : await migrationCopy(admin.db, auth, req.body || {});
+      const result = action === 'migrate_status' ? await migrationStatus(admin.db)
+        : action === 'migrate_copy' ? await migrationCopy(admin.db, auth, req.body || {})
+        : await migrationSwitch(admin.db, auth, req.body || {});
       return res.status(result.ok ? 200 : result.status).json(result.ok ? result : { error: result.error });
     }
     return res.status(400).json({ error: 'Unknown action' });

@@ -208,7 +208,8 @@ Enforcement:
    and the callback already writes to whatever the code says.
 4. [~] Business-scoped data paths. Done in v3.16.4: `src/modules/biz.js`
    (`bizCol()`/`bizDoc()`) used by all 31 business-data call sites, still
-   resolving to the root collections. Decided (2026-10-19): the current
+   resolving to the root collections. Done in v3.17.0: the switch
+   (`businesses/{bizId}.live`, see step 6). Decided (2026-10-19): the current
    business gets a random id (name in a field), and settings live in
    `businesses/{bizId}/config/settings`. Still to do: the copy migration
    (Developer Panel dry run + copy, step 6), then the switch (rules,
@@ -219,7 +220,11 @@ Enforcement:
    Built in v3.16.5 (`api/_migration.js`, Developer Panel → App →
    "Business migration"; not run yet). The eBay connection copy goes
    stale on the access token as the server keeps refreshing `main`, so
-   copy again right before the switch.
+   copy again right before the switch. v3.17.0 adds the switch: the
+   panel's "Switch to business data" runs a final copy (which also
+   removes business docs deleted at the root since an earlier copy) and
+   sets `live: true`; the app, the eBay endpoints and the rules follow
+   that field, and "Switch back" sets it to false.
    Copy, never move: the old collections stay until Vitor confirms the
    new ones, then get removed in a separate step. Before running it:
    Developer Panel → Backup (JSON download) plus a Google Cloud managed

@@ -42,6 +42,12 @@ export const DEFAULT_CONNECTION_ID = 'main';
 const OAUTH_STATES = 'ebay_oauth_states';
 const STATE_TTL_MS = 10 * 60 * 1000;
 
+// Which connection a request uses: the caller's live business, or 'main'
+// before the switch (auth comes from requireApprovedUser).
+export function ebayConnectionId(auth){
+  return (auth && auth.bizId) || DEFAULT_CONNECTION_ID;
+}
+
 // Refresh a minute early so a token can't expire mid-request.
 const EXPIRY_MARGIN_MS = 60 * 1000;
 

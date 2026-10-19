@@ -7,7 +7,7 @@ import { normalizeSizeForEbay } from '../src/modules/ebay-size.js';
 import { conformAspectsToAllowedValues } from '../src/modules/ebay-aspect-match.js';
 import { suggestEbayTypeValue, isTypeAspect } from '../src/modules/ebay-type-map.js';
 import { requireApprovedUser } from './_requireApprovedUser.js';
-import { getEbayAccessToken } from './_ebayToken.js';
+import { getEbayAccessToken, ebayConnectionId } from './_ebayToken.js';
 
 const EBAY_SANDBOX = process.env.EBAY_SANDBOX === 'true';
 
@@ -644,7 +644,7 @@ export default async function handler(req, res){
 
   const { item, imageUrls } = req.body || {};
 
-  const ebayToken = await getEbayAccessToken();
+  const ebayToken = await getEbayAccessToken(ebayConnectionId(authCheck));
   if (!ebayToken.ok) return res.status(ebayToken.status).json({ error: ebayToken.error });
   const access_token = ebayToken.token;
   if (!item){ return res.status(400).json({ error: 'Missing item data' }); }
