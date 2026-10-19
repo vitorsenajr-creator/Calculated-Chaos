@@ -6748,8 +6748,7 @@ export const app = (function(){
   };
 
   // Fully disconnects the eBay account: the server deletes the stored
-  // connection (and the pre-v3.16.0 ebay_tokens/main copy), then the
-  // in-memory status is cleared.
+  // connection, then the in-memory status is cleared.
   window.disconnectEbay = async function(){
     if (!confirm('Disconnect this eBay account? You\'ll need to log in again before publishing.')) return;
     try{

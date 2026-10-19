@@ -37,10 +37,6 @@ service cloud.firestore {
     }
 
     match /items/{itemId} { allow read, write: if isApproved(); }
-    // Pre-v3.16.0 browser-readable eBay tokens. The server copies them into
-    // ebay_connections on first use; this rule (and the doc) go away once
-    // that's confirmed.
-    match /ebay_tokens/{docId} { allow read, write: if isApproved(); }
     // eBay tokens since v3.16.0: server only (Firebase Admin ignores rules).
     match /ebay_connections/{docId} { allow read, write: if false; }
     match /app_config/{docId} { allow read, write: if isApproved(); }
