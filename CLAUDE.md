@@ -91,7 +91,8 @@ renaming them needs a data migration of every saved item.
     storage boxes, Stock Transfer (v3.17.3).
   - `domain/product-code-match.js`: typed digits → item.
   - `platform/print.js` (`printHtml`, keep it synchronous) and
-    `platform/files.js` (`saveOrShareFile`).
+    `platform/files.js` (`saveOrShareFile`, `downloadBlob`,
+    `downloadUrl`). `main.js` saves no file by itself (v3.17.4).
 - `src/ebay-api.js`: client side of eBay publish/bulk publish/error box.
 - `src/live-catalog.js` + `live-catalog.html`: separate Vite entry (see
   `docs/live-catalog.md`).
@@ -215,8 +216,8 @@ renaming them needs a data migration of every saved item.
 
 - **Multi-business (paid, for new sellers)**: the app runs on business
   data since 2026-10-19 (v3.17.0 switch confirmed in production).
-  Next, in order: split `main.js` (docs/modularization.md phase 2b, then
-  phase 3; phases 1-2 done in v3.17.2-3),
+  Next, in order: split `main.js` (docs/modularization.md phase 3,
+  Settings; phases 1-2b done in v3.17.2-4),
   auth hardening (`docs/multi-tenant.md` step 4a: admin custom claim,
   email verification, one account per email, disable Auth on Remove,
   then Google sign-in, App Check, admin 2FA), then onboarding/invites
@@ -270,6 +271,9 @@ on any of these:
   clean load of the built app. Unconfirmed on real devices: printing and
   saving item/batch/box labels and the wall marker, Quick Labels (queue
   and PDF), storage boxes in Settings, Stock Transfer.
+- File saving on the platform adapter (v3.17.4): old vs new test (19
+  entries identical); unconfirmed on a phone: measure tool "save labeled
+  photo", photo download (one and "save all"), the three CSV exports.
 - Server-built AI prompts (v3.15.3): golden test (prompt text identical)
   and handler tests with a mocked fetch; ✨ analyze, rewrite and both
   narration flows are unconfirmed against the real API.
@@ -316,6 +320,11 @@ on any of these:
   `main.js`'s IIFE functions through `init…(deps)`. The print modal takes
   a `session` (`title`, `onClose`) instead of reading the Quick Labels
   queue. `main.js` 6,726 → 5,998 lines. No behavior change.
+- **v3.17.4**: `main.js` split, phase 2b. The measure tool's labeled
+  photo, the photo downloads and the CSV exports go through
+  `platform/files.js` (`saveOrShareFile`, new `downloadUrl`, now-exported
+  `downloadBlob`). Only difference: the CSV's object URL is revoked after
+  2 s instead of immediately.
 
 ## Backlog (not started)
 

@@ -1,9 +1,8 @@
 # Modularization and app readiness
 
-> **Current state (2026-10-19, v3.17.3):** `main.js` is ~6,000 lines, one
-> IIFE (`export const app = (function(){ ... })()`). Phases 1 and 2 below
-> are done (phase 2 except moving the last three file downloads onto the
-> file adapter); phases 3-4 are not started. The goal is a smaller `main.js` **and** a
+> **Current state (2026-10-19, v3.17.4):** `main.js` is ~6,000 lines, one
+> IIFE (`export const app = (function(){ ... })()`). Phases 1, 2 and 2b
+> below are done; phases 3-4 are not started. The goal is a smaller `main.js` **and** a
 > codebase that can ship as a phone app without a rewrite.
 
 ## The three layers (2026-10-19)
@@ -109,11 +108,23 @@ only when they're touched for another reason; no mass move.
 
 `main.js`: 6,726 → 5,998 lines.
 
+## Phase 2b (done, v3.17.4)
+
+The rest of `main.js`'s file saving moved onto `platform/files.js`:
+- the measure tool's "save labeled photo" → `saveOrShareFile` (the same
+  share-or-download code it had inline);
+- the item photo download (one and "save all") → `downloadUrl(url,
+  filename)` (a `data:` photo or a Storage URL, as before);
+- the CSV exports → `downloadBlob(blob, filename)`. One intended
+  difference: the object URL is now revoked 2 s after the click, like
+  every other download, instead of right away (an immediate revoke can
+  cancel a download that starts asynchronously).
+
+`main.js` no longer touches `navigator.share` or `<a download>` itself.
+Old vs new characterization test: 19 recorded entries, identical.
+
 ## Next phases (safest first)
 
-2b. **The remaining file downloads onto `platform/files.js`**: the measure
-   tool's "save labeled photo" (same share-or-download code), the item
-   photo download and the CSV export (download only). Small, separate PR.
 3. **Settings** (~950 lines: `renderSettings()` and the
    `window.save*Settings` handlers) into `src/ui/settings/…`. Do this
    before the onboarding work (docs/multi-tenant.md step 5), which adds

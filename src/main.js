@@ -8,6 +8,7 @@ import { initStorageBoxes } from './ui/labels/storage-boxes.js';
 import { initQuickLabels } from './ui/labels/quick-labels.js';
 import { initStockTransfer, refreshStockTransferBoxListIfOpen } from './ui/labels/stock-transfer.js';
 import { initPrint } from './platform/print.js';
+import { saveOrShareFile, downloadBlob, downloadUrl } from './platform/files.js';
 import {
   loadEbayConnection, ensureEbayConnected,
   checkEbaySalesNow, endEbayListingIfSold, listItemOnEbay, showBulkEbayPreflight,
@@ -1324,11 +1325,7 @@ export const app = (function(){
     const allRows = [...rows, [], [`Exported from Calculated Chaos ${APP_VERSION} (${APP_VERSION_DATE})`]];
     const csv = allRows.map(row => row.map(csvEscape).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = filename;
-    document.body.appendChild(a); a.click(); a.remove();
-    URL.revokeObjectURL(url);
+    downloadBlob(blob, filename);
   }
 
   function wireReportButtons(){
@@ -3090,16 +3087,7 @@ export const app = (function(){
         if (!blob) return;
         const code = document.getElementById('fProductCode')?.value || 'measurement';
         const filename = `${code.replace(/[^a-z0-9-_]/gi, '_')}-measurements.png`;
-        const file = new File([blob], filename, { type: 'image/png' });
-        if (navigator.canShare && navigator.canShare({ files: [file] })){
-          try{ await navigator.share({ files: [file], title: filename }); return; }
-          catch(err){ if (err && err.name === 'AbortError') return; }
-        }
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = filename;
-        document.body.appendChild(a); a.click(); a.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 2000);
+        await saveOrShareFile(blob, filename, 'image/png');
       }, 'image/png');
     }catch(e){ console.error('save labeled photo failed', e); }
   });
@@ -3348,13 +3336,8 @@ export const app = (function(){
   // src/ui/lightbox.js; its listeners are wired here, where they used to be.
   initLightbox();
   function downloadPhoto(idx){
-    const a = document.createElement('a');
-    a.href = currentPhotos[idx];
     const nameField = document.getElementById('fName').value || 'item';
-    a.download = nameField.replace(/[^a-z0-9]+/gi,'_').toLowerCase() + '_photo_' + (idx+1) + '.jpg';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    downloadUrl(currentPhotos[idx], nameField.replace(/[^a-z0-9]+/gi,'_').toLowerCase() + '_photo_' + (idx+1) + '.jpg');
   }
 
   document.getElementById('saveAllPhotosBtn').addEventListener('click', async () => {
