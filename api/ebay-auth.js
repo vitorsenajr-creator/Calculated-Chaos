@@ -18,6 +18,7 @@ import { requireApprovedUser } from './_requireApprovedUser.js';
 import {
   getEbayAccessToken, getEbayConnectionStatus, saveEbayConnection,
   updateEbayConnection, deleteEbayConnection, createOAuthState, consumeOAuthState,
+  finishOAuthState, waitOAuthStateResult,
   EBAY_TOKEN_URL as TOKEN_URL, EBAY_SCOPES as SCOPES, ebayBasicAuthHeader as basicAuthHeader,
 } from './_ebayToken.js';
 
@@ -135,8 +136,22 @@ export default async function handler(req, res){
     if (!code){
       return sendCallbackPage(res, 400, false, 'eBay didn\'t send an authorization code. Start again from Settings → eBay.');
     }
-    const started = await consumeOAuthState(req.query.state);
+    const state = req.query.state;
+    const started = await consumeOAuthState(state);
     if (!started.ok) return sendCallbackPage(res, started.status, false, started.error);
+    if (started.repeat){
+      // The same callback loaded twice: show what the first load did.
+      const first = await waitOAuthStateResult(state);
+      const result = first.ok && first.result;
+      if (result && result.ok) return sendCallbackPage(res, 200, true, result.sellerUsername || null);
+      if (result) return sendCallbackPage(res, 400, false, result.error);
+      return sendCallbackPage(res, 409, false, 'Still finishing the eBay sign-in. Go back to the app; it updates by itself in a few seconds.');
+    }
+    // Every path below records its outcome for a possible repeat load.
+    const fail = async (status, message) => {
+      await finishOAuthState(state, { ok: false, error: message });
+      return sendCallbackPage(res, status, false, message);
+    };
     try{
       const body = new URLSearchParams({
         grant_type: 'authorization_code',
@@ -154,7 +169,7 @@ export default async function handler(req, res){
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data.access_token || !data.refresh_token){
         console.error('eBay token exchange error:', JSON.stringify(data));
-        return sendCallbackPage(res, 502, false, `eBay didn't accept the sign-in (${data.error_description || data.error || `HTTP ${response.status}`}). Start again from Settings → eBay.`);
+        return fail(502, `eBay didn't accept the sign-in (${data.error_description || data.error || `HTTP ${response.status}`}). Start again from Settings → eBay.`);
       }
       const sellerUsername = await fetchSellerUsername(data.access_token);
       const saved = await saveEbayConnection({
@@ -169,11 +184,12 @@ export default async function handler(req, res){
         sellerUsername: sellerUsername || null,
         connectedBy: started.email || started.uid,
       }, started.connectionId);
-      if (!saved.ok) return sendCallbackPage(res, saved.status, false, saved.error);
+      if (!saved.ok) return fail(saved.status, saved.error);
+      await finishOAuthState(state, { ok: true, sellerUsername: sellerUsername || null });
       return sendCallbackPage(res, 200, true, sellerUsername);
     }catch(err){
       console.error('eBay callback error:', err);
-      return sendCallbackPage(res, 500, false, 'Server error during eBay authorization. Start again from Settings → eBay.');
+      return fail(500, 'Server error during eBay authorization. Start again from Settings → eBay.');
     }
   }
 

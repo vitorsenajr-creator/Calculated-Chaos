@@ -165,8 +165,12 @@ async function createOAuthStateUnsafe(user, connectionId = DEFAULT_CONNECTION_ID
   return { ok: true, state };
 }
 
-// Checks a code from the callback and deletes it, so it works only once.
-// Returns { ok:true, uid, email, connectionId }.
+// Checks a code from the callback and marks it used, so it connects only
+// once. Browsers sometimes load the callback twice (v3.16.3: the second
+// load said "already used" although the first had connected), so a repeat
+// isn't an error: it gets { ok:true, repeat:true } and the callback shows
+// the first load's result instead of exchanging again.
+// Returns { ok:true, uid, email, connectionId } for the first load.
 async function consumeOAuthStateUnsafe(state){
   if (typeof state !== 'string' || !/^[0-9a-f]{64}$/.test(state)){
     return { ok: false, status: 400, error: 'This eBay sign-in didn\'t come from the app. Start again from Settings → eBay.' };
@@ -177,16 +181,40 @@ async function consumeOAuthStateUnsafe(state){
   const data = await admin.db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
     if (!snap.exists) return null;
-    tx.delete(ref);
-    return snap.data();
+    const d = snap.data();
+    if (!d.usedAt) tx.update(ref, { usedAt: Date.now() });
+    return d;
   });
   if (!data){
-    return { ok: false, status: 400, error: 'This eBay sign-in link was already used. Start again from Settings → eBay.' };
+    return { ok: false, status: 400, error: 'This eBay sign-in link is unknown or too old. Start again from Settings → eBay.' };
   }
   if (!(data.expiresAt > Date.now())){
     return { ok: false, status: 400, error: 'This eBay sign-in took longer than 10 minutes. Start again from Settings → eBay.' };
   }
+  if (data.usedAt) return { ok: true, repeat: true };
   return { ok: true, uid: data.uid, email: data.email || null, connectionId: data.connectionId || DEFAULT_CONNECTION_ID };
+}
+
+// Records how the first load of a callback ended, for a repeat load to show.
+async function finishOAuthStateUnsafe(state, result){
+  const { admin, error } = adminOrError();
+  if (error) return error;
+  await admin.db.collection(OAUTH_STATES).doc(state).set({ result }, { merge: true });
+  return { ok: true };
+}
+
+// A repeat load waits (up to ~8 s) for the first one to finish, since both
+// can arrive at the same moment. Returns the first load's result or null.
+async function waitOAuthStateResultUnsafe(state){
+  const { admin, error } = adminOrError();
+  if (error) return error;
+  for (let i = 0; i < 16; i++){
+    const snap = await admin.db.collection(OAUTH_STATES).doc(state).get();
+    const result = snap.exists ? snap.data().result : null;
+    if (result) return { ok: true, result };
+    await new Promise(r => setTimeout(r, 500));
+  }
+  return { ok: true, result: null };
 }
 
 // Every export returns { ok:false, status, error } instead of throwing
@@ -210,3 +238,5 @@ export const updateEbayConnection = neverThrows(updateEbayConnectionUnsafe, 'upd
 export const deleteEbayConnection = neverThrows(deleteEbayConnectionUnsafe, 'remove');
 export const createOAuthState = neverThrows(createOAuthStateUnsafe, 'start');
 export const consumeOAuthState = neverThrows(consumeOAuthStateUnsafe, 'finish');
+export const finishOAuthState = neverThrows(finishOAuthStateUnsafe, 'finish');
+export const waitOAuthStateResult = neverThrows(waitOAuthStateResultUnsafe, 'finish');

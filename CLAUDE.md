@@ -216,11 +216,12 @@ on any of these:
 - eBay tokens on the server (v3.16.0): Vitor confirmed Test connection,
   publish, offers and audit in production (2026-10-19). Still unconfirmed:
   mark as sold → end listing, check sales, setup.
-- eBay connect without copy-paste (v3.16.2): 16 handler tests with a
-  stubbed Firestore and eBay (state stored, consumed once, expired,
-  unknown, missing, employee blocked, no tokens on the page, a failed
-  exchange keeps the current connection) and a headless page load. A real
-  Connect / switch account is unconfirmed.
+- eBay connect without copy-paste (v3.16.2): a real reconnect worked
+  (`authorizedAt` saved, Test connection OK, 2026-10-19), but the tab
+  showed "already used" because the callback loaded twice. The v3.16.3
+  fix (a repeat load shows the first load's result) is tested only with a
+  stubbed Firestore and eBay (18 handler tests, including a simultaneous
+  double load).
 - Server-built AI prompts (v3.15.3): golden test (prompt text identical)
   and handler tests with a mocked fetch; ✨ analyze, rewrite and both
   narration flows are unconfirmed against the real API.
@@ -253,6 +254,12 @@ on any of these:
   a newer `authorizedAt` in the status (focus, every 4 s for 5 min, or the
   "I've finished" button). `save_tokens`, the paste box and
   `applyEbayTokenPaste` are gone.
+- **v3.16.3**: the eBay callback can load twice (seen in production: the
+  first load connected, the second said "already used"). The state is now
+  marked `usedAt` instead of deleted, and the first load records its
+  `result`. A repeat load within the 10 minutes waits up to ~8 s for that
+  result and shows it, with no second token exchange. Used states are
+  pruned with the expired ones.
 
 ## Backlog (not started)
 
