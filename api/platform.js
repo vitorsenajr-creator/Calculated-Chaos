@@ -12,10 +12,20 @@
 //        caller's sign-in, can read Firestore).
 //     Returns: { ok, checks: [{ name, ok, detail }] }
 //
+//   action: 'migrate_status'
+//     -> read-only counts for the business migration (_migration.js):
+//        root vs businesses/{bizId} per collection, the mapped single docs,
+//        docs that wouldn't be copied, members.
+//
+//   action: 'migrate_copy', step, cursor
+//     -> copies one step/page into businesses/{bizId} (copy, never move)
+//        and returns the next { step, cursor }, or next: null when done.
+//
 // Platform admins only (PLATFORM_ADMIN_EMAILS in _firebaseAdmin.js).
 
 import { requireApprovedUser } from './_requireApprovedUser.js';
 import { getFirebaseAdmin, isPlatformAdminEmail, FIREBASE_PROJECT_ID } from './_firebaseAdmin.js';
+import { migrationStatus, migrationCopy } from './_migration.js';
 
 async function handleHealth(auth){
   const checks = [];
@@ -64,6 +74,14 @@ export default async function handler(req, res){
   const { action } = req.body || {};
   try{
     if (action === 'health') return res.status(200).json(await handleHealth(auth));
+    if (action === 'migrate_status' || action === 'migrate_copy'){
+      const admin = getFirebaseAdmin();
+      if (!admin.ok) return res.status(503).json({ error: admin.error });
+      const result = action === 'migrate_status'
+        ? await migrationStatus(admin.db)
+        : await migrationCopy(admin.db, auth, req.body || {});
+      return res.status(result.ok ? 200 : result.status).json(result.ok ? result : { error: result.error });
+    }
     return res.status(400).json({ error: 'Unknown action' });
   }catch(err){
     console.error('platform function error:', err);

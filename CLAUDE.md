@@ -103,8 +103,9 @@ renaming them needs a data migration of every saved item.
   needs Vercel Pro. Underscore files (`_requireApprovedUser.js`,
   `_firebaseAdmin.js`) don't count.
   - `platform.js`: platform-admin actions for the Developer Panel
-    (`health` today). New platform operations (businesses, credits,
-    admin claims) go here as new actions.
+    (`health`, `migrate_status`, `migrate_copy`). New platform operations
+    (businesses, credits, admin claims) go here as new actions; put the
+    logic in an underscore file like `_migration.js`.
   - `_ebayToken.js`: the server-only eBay connection (v3.16.0). Every eBay
     endpoint calls `getEbayAccessToken()`; never accept an eBay token from
     the browser again.
@@ -149,6 +150,12 @@ renaming them needs a data migration of every saved item.
     The pre-v3.16.0 `ebay_tokens/main` copy and its rule were removed in
     v3.16.1. `ebay_oauth_states/*`: one-time connect codes (v3.16.2),
     server only too.
+  - Multi-business copy (v3.16.5, not used by the app yet):
+    `businesses/{bizId}/…` (items, drafts, liveSessions, liveItems,
+    ebay_error_log, options/main, counters/*, config/settings, members/*),
+    `ebay_connections/{bizId}`, `users.activeBizId`, and
+    `platform/migration` (the fixed bizId, `lastCopiedAt`, later
+    `switchedAt`). All server-written; no client rules yet.
   - Live Catalog: `liveSessions`, `liveItems`, `live_catalog_options/*`.
   - Security rules: the live copy is in the Firebase Console; `firestore.rules`
     is a versioned copy (no deploy step). Change both together.
@@ -227,6 +234,10 @@ on any of these:
   fix (a repeat load shows the first load's result) is tested only with a
   stubbed Firestore and eBay (18 handler tests, including a simultaneous
   double load).
+- Business migration copy (v3.16.5): 18 handler tests on an in-memory
+  Firestore (450 items in pages, mapped docs, members/roles, activeBizId,
+  sources unchanged, idempotent re-run, switch guard). Not yet run on the
+  real Firestore; `count()` and paging are the parts to watch.
 - Server-built AI prompts (v3.15.3): golden test (prompt text identical)
   and handler tests with a mocked fetch; ✨ analyze, rewrite and both
   narration flows are unconfirmed against the real API.
@@ -270,6 +281,13 @@ on any of these:
   `options/main`, …). 31 call sites in `main.js`, `live-catalog.js`,
   `product-code-bank.js`, `ebay-error-log.js` and `ebay-audit.js` use it.
   Same Firestore paths as before (no data moves).
+- **v3.16.5**: business migration, copy only. `api/_migration.js` +
+  `platform.js` actions `migrate_status` (counts root vs business, lists
+  unmapped docs) and `migrate_copy` (steps: setup → each collection in
+  pages of 100 → mapped docs + eBay connection; returns the next
+  step/cursor). The bizId is fixed in `platform/migration`; re-runs
+  rewrite the same docs; copying is refused once `switchedAt` is set.
+  Developer Panel → App → "Business migration" card.
 
 ## Backlog (not started)
 
