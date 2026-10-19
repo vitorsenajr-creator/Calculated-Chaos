@@ -10,6 +10,7 @@
 
 import { escapeHtml } from './format-utils.js';
 import { EBAY_ERROR_LIBRARY } from './ebay-error-hints.js';
+import { bizCol, bizDoc } from './biz.js';
 
 const COLLECTION = 'ebay_error_log';
 
@@ -40,7 +41,7 @@ export async function logEbayFailure(result, item, errors){
       : [{ code: null, message: (result && (result.error || result.message)) || 'Unknown failure', key: null }];
     const now = new Date().toISOString();
     for (const e of list){
-      const ref = fns.doc(window.db, COLLECTION, logDocId(e.code, e.message));
+      const ref = bizDoc(COLLECTION, logDocId(e.code, e.message));
       await fns.runTransaction(window.db, async (tx) => {
         const snap = await tx.get(ref);
         const prev = snap.exists() ? snap.data() : null;
@@ -71,7 +72,7 @@ export async function saveAiExplanationToLog(errors, explanation){
     const fns = window.firestoreFns;
     if (!fns || !window.db || !errors || !errors.length) return;
     for (const e of errors){
-      await fns.setDoc(fns.doc(window.db, COLLECTION, logDocId(e.code, e.message)), { aiExplanation: explanation }, { merge: true });
+      await fns.setDoc(bizDoc(COLLECTION, logDocId(e.code, e.message)), { aiExplanation: explanation }, { merge: true });
     }
   }catch(e){
     console.warn('Saving AI explanation to eBay error log failed (non-blocking):', e);
@@ -80,7 +81,7 @@ export async function saveAiExplanationToLog(errors, explanation){
 
 async function loadEbayErrorLog(){
   const fns = window.firestoreFns;
-  const snap = await fns.getDocs(fns.collection(window.db, COLLECTION));
+  const snap = await fns.getDocs(bizCol(COLLECTION));
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 

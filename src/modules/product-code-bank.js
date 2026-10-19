@@ -28,12 +28,13 @@
 // renumberDuplicateProductCode) to find and fix any duplicates that were
 // already saved before this existed.
 import { items } from './state.js';
+import { bizCol, bizDoc } from './biz.js';
 import { escapeHtml } from './format-utils.js';
 import { maxProductCodeNumber } from './catalog-lookups.js';
 
 export async function reserveNextProductCode(){
-  const { doc, runTransaction } = window.firestoreFns;
-  const counterRef = doc(window.db, 'app_settings', 'productCodeCounter');
+  const { runTransaction } = window.firestoreFns;
+  const counterRef = bizDoc('counters', 'productCode');
   // Floor from the currently-loaded catalog — covers the very first call
   // ever (no counter doc yet) and self-heals if the counter ever fell
   // behind (e.g. an item saved with a manually-typed higher number).
@@ -53,8 +54,8 @@ export async function reserveNextProductCode(){
 // that this browser hasn't loaded/refreshed yet.
 export async function findItemsWithProductCode(code, excludeId){
   if (!code) return [];
-  const { collection, query, where, getDocs } = window.firestoreFns;
-  const snap = await getDocs(query(collection(window.db, 'items'), where('productCode', '==', code)));
+  const { query, where, getDocs } = window.firestoreFns;
+  const snap = await getDocs(query(bizCol('items'), where('productCode', '==', code)));
   const matches = [];
   snap.forEach(d => { if (d.id !== excludeId) matches.push({ id: d.id, ...d.data() }); });
   return matches;
@@ -115,8 +116,8 @@ export async function renumberDuplicateProductCode(itemId){
   if (area) area.innerHTML = `<div class="ebay-status-box pending">⏳ Assigning a new number to "${escapeHtml(item.name || itemId)}"…</div>`;
   try{
     const newCode = await reserveNextProductCode();
-    const { doc, updateDoc } = window.firestoreFns;
-    await updateDoc(doc(window.db, 'items', item.id), { productCode: newCode });
+    const { updateDoc } = window.firestoreFns;
+    await updateDoc(bizDoc('items', item.id), { productCode: newCode });
     item.productCode = newCode;
     renderDuplicateAuditReport();
   }catch(e){

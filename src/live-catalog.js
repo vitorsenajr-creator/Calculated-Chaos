@@ -5,6 +5,7 @@
 // `items` collection. Still behind the same Firebase login/project.
 import '../src/config/firebase.js';
 import { items, setItems } from './modules/state.js';
+import { bizCol, bizDoc } from './modules/biz.js';
 import {
   getAllClothingTypes, getAllBrands, getSizeSuggestionsForType,
 } from './modules/catalog-lookups.js';
@@ -46,8 +47,8 @@ function formatLiveSku(n){
   return `LV-${String(n).padStart(4, '0')}`;
 }
 async function nextLiveSku(){
-  const { doc, runTransaction } = fns();
-  const counterRef = doc(db(), 'live_catalog_options', 'skuCounter');
+  const { runTransaction } = fns();
+  const counterRef = bizDoc('counters', 'liveSku');
   const n = await runTransaction(db(), async (tx) => {
     const snap = await tx.get(counterRef);
     const current = snap.exists() ? (snap.data().next || 1) : 1;
@@ -122,14 +123,14 @@ waitForFirebaseReady().then(() => {
 // ---------- INIT: load real catalog items (for suggestions) + custom options ----------
 async function initLiveCatalog(){
   try{
-    const { collection, getDocs, doc, getDoc } = fns();
-    const itemsSnap = await getDocs(collection(db(), 'items'));
+    const { getDocs, getDoc } = fns();
+    const itemsSnap = await getDocs(bizCol('items'));
     setItems(itemsSnap.docs.map(d => d.data()));
   }catch(e){ console.warn('Could not load catalog items for suggestions:', e); setItems([]); }
 
   try{
-    const { doc, getDoc } = fns();
-    const optSnap = await getDoc(doc(db(), 'live_catalog_options', 'main'));
+    const { getDoc } = fns();
+    const optSnap = await getDoc(bizDoc('options', 'main'));
     if (optSnap.exists()) customOptions = { tipos:[], brands:[], sizes:[], colors:[], fabrics:[], measureLabels:[], ...optSnap.data() };
     if (customOptions.labelConfig) labelConfig = customOptions.labelConfig;
   }catch(e){ console.warn('Could not load saved Live Catalog options:', e); }
@@ -143,8 +144,8 @@ async function initLiveCatalog(){
 
 async function saveCustomOptions(){
   try{
-    const { doc, setDoc } = fns();
-    await setDoc(doc(db(), 'live_catalog_options', 'main'), customOptions);
+    const { setDoc } = fns();
+    await setDoc(bizDoc('options', 'main'), customOptions);
   }catch(e){ console.warn('Could not save new option:', e); }
 }
 
@@ -190,8 +191,8 @@ document.getElementById('lcTipo').addEventListener('input', renderFieldOptions);
 async function renderSessionList(){
   const area = document.getElementById('sessionListArea');
   try{
-    const { collection, getDocs } = fns();
-    const snap = await getDocs(collection(db(), 'liveSessions'));
+    const { getDocs } = fns();
+    const snap = await getDocs(bizCol('liveSessions'));
     const sessions = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => (b.createdAt||0) - (a.createdAt||0));
     area.innerHTML = sessions.length ? sessions.map(s => `
       <div class="lc-session-card">
@@ -232,10 +233,10 @@ document.getElementById('lcCreateSessionBtn').addEventListener('click', async ()
     const platform = document.getElementById('lcNewSessionPlatform').value || 'poshmark';
     const date = document.getElementById('lcNewSessionDate').value || new Date().toISOString().slice(0,10);
     const startNum = parseInt(document.getElementById('lcNewSessionStart').value, 10) || 1;
-    const { doc, setDoc } = fns();
+    const { setDoc } = fns();
     const id = `live_${Date.now()}`;
     const session = { name, platform, date, startNum, nextNum: startNum, itemCount: 0, createdAt: Date.now() };
-    await setDoc(doc(db(), 'liveSessions', id), session);
+    await setDoc(bizDoc('liveSessions', id), session);
     openSession({ id, ...session });
   }catch(e){
     console.error('Failed to create live session:', e);
@@ -376,8 +377,8 @@ async function removeLivePhoto(idx){
   const photos = [...(item.photos || [])];
   photos.splice(idx, 1);
   try{
-    const { doc, updateDoc } = fns();
-    await updateDoc(doc(db(), 'liveItems', photoEditItemId), { photos });
+    const { updateDoc } = fns();
+    await updateDoc(bizDoc('liveItems', photoEditItemId), { photos });
     item.photos = photos;
     renderPhotoEditThumbs();
     renderLiveItemsTableRows();
@@ -403,8 +404,8 @@ function initPhotoEditWidget(){
       }
       const newUrls = await uploadLivePhotos(photoEditItemId, compressed);
       const photos = [...existing, ...newUrls];
-      const { doc, updateDoc } = fns();
-      await updateDoc(doc(db(), 'liveItems', photoEditItemId), { photos });
+      const { updateDoc } = fns();
+      await updateDoc(bizDoc('liveItems', photoEditItemId), { photos });
       item.photos = photos;
       renderPhotoEditThumbs();
       renderLiveItemsTableRows();
@@ -470,7 +471,7 @@ document.getElementById('lcAddItemBtn').addEventListener('click', async () => {
     measurements.forEach(m => rememberIfNew('measureLabels', m.label));
     renderMeasureLabelOptions();
 
-    const { doc, setDoc, updateDoc } = fns();
+    const { setDoc, updateDoc } = fns();
     const itemId = `${currentSession.id}_${Date.now()}`;
 
     if (photosToUpload.length){ btn.textContent = `Uploading photos… (0/${photosToUpload.length})`; }
@@ -479,14 +480,14 @@ document.getElementById('lcAddItemBtn').addEventListener('click', async () => {
     const sku = await nextLiveSku();
 
     const itemDoc = { sessionId: currentSession.id, num, sku, tipo, brand, size, color, fabric, prepNotes, measurements, photos, createdAt: Date.now() };
-    await setDoc(doc(db(), 'liveItems', itemId), itemDoc);
+    await setDoc(bizDoc('liveItems', itemId), itemDoc);
 
     // If she edited the number to something higher than the running
     // counter (continuing a previous live's numbering), the sequence
     // picks up from there for the next item — per her spec.
     currentSession.nextNum = Math.max(currentSession.nextNum, num + 1);
     currentSession.itemCount = (currentSession.itemCount || 0) + 1;
-    await updateDoc(doc(db(), 'liveSessions', currentSession.id), { nextNum: currentSession.nextNum, itemCount: currentSession.itemCount });
+    await updateDoc(bizDoc('liveSessions', currentSession.id), { nextNum: currentSession.nextNum, itemCount: currentSession.itemCount });
 
     liveItemsCache.push({ id: itemId, ...itemDoc });
     renderLiveItemsTableRows();
@@ -503,8 +504,8 @@ document.getElementById('lcAddItemBtn').addEventListener('click', async () => {
 // ---------- LIVE ITEMS TABLE ----------
 async function renderLiveItemsTable(){
   try{
-    const { collection, query, where, getDocs } = fns();
-    const snap = await getDocs(query(collection(db(), 'liveItems'), where('sessionId', '==', currentSession.id)));
+    const { query, where, getDocs } = fns();
+    const snap = await getDocs(query(bizCol('liveItems'), where('sessionId', '==', currentSession.id)));
     liveItemsCache = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => (a.num||0) - (b.num||0));
   }catch(e){
     console.error('Failed to load live items:', e);
@@ -576,8 +577,8 @@ function renderLiveItemsTableRows(){
       const field = input.dataset.field;
       const value = field === 'num' ? (parseInt(input.value, 10) || 0) : input.value.trim();
       try{
-        const { doc, updateDoc } = fns();
-        await updateDoc(doc(db(), 'liveItems', itemId), { [field]: value });
+        const { updateDoc } = fns();
+        await updateDoc(bizDoc('liveItems', itemId), { [field]: value });
         const cached = liveItemsCache.find(i => i.id === itemId);
         if (cached) cached[field] = value;
         if (field === 'tipo' || field === 'brand' || field === 'size' || field === 'color' || field === 'fabric'){
@@ -602,8 +603,8 @@ function renderLiveItemsTableRows(){
       if (!cached) return;
       const sold = !cached.sold;
       try{
-        const { doc, updateDoc } = fns();
-        await updateDoc(doc(db(), 'liveItems', itemId), { sold });
+        const { updateDoc } = fns();
+        await updateDoc(bizDoc('liveItems', itemId), { sold });
         cached.sold = sold;
         renderLiveItemsTableRows();
       }catch(e){ console.error('Failed to update sold status:', e); }
@@ -614,11 +615,11 @@ function renderLiveItemsTableRows(){
       if (!confirm('Delete this item from the live list?')) return;
       const itemId = btn.dataset.deleteItem;
       try{
-        const { doc, deleteDoc, updateDoc } = fns();
-        await deleteDoc(doc(db(), 'liveItems', itemId));
+        const { deleteDoc, updateDoc } = fns();
+        await deleteDoc(bizDoc('liveItems', itemId));
         liveItemsCache = liveItemsCache.filter(i => i.id !== itemId);
         currentSession.itemCount = Math.max(0, (currentSession.itemCount || 1) - 1);
-        await updateDoc(doc(db(), 'liveSessions', currentSession.id), { itemCount: currentSession.itemCount });
+        await updateDoc(bizDoc('liveSessions', currentSession.id), { itemCount: currentSession.itemCount });
         renderLiveItemsTableRows();
       }catch(e){ console.error('Failed to delete item:', e); }
     });

@@ -86,6 +86,11 @@ renaming them needs a data migration of every saved item.
   library, backup, server health). New platform-admin features go here, not in Settings.
 - `src/modules/`: pure helpers and small controllers. Key ones:
   - `state.js`: shared `items`/`appSettings`.
+  - `biz.js`: `bizCol()`/`bizDoc()`. **All business data goes through
+    them** (items, drafts, Live Catalog, counters, settings, eBay error
+    log) by logical name. They still resolve to the root collections until
+    the multi-business switch. Global data (`users`,
+    `ebay_category_cache`) and the Developer Panel don't use them.
   - `constants.js`, `pricing.js`, `settings.js`.
   - `ai-item.js`: ✨ analysis prompt + schema (imported by the server).
   - `narration-prompts.js`: narration extract prompts (server-side).
@@ -260,6 +265,11 @@ on any of these:
   `result`. A repeat load within the 10 minutes waits up to ~8 s for that
   result and shows it, with no second token exchange. Used states are
   pruned with the expired ones.
+- **v3.16.4**: `src/modules/biz.js` (`bizCol`/`bizDoc`) with logical names
+  (`counters/productCode`, `counters/liveSku`, `config/settings`,
+  `options/main`, …). 31 call sites in `main.js`, `live-catalog.js`,
+  `product-code-bank.js`, `ebay-error-log.js` and `ebay-audit.js` use it.
+  Same Firestore paths as before (no data moves).
 
 ## Backlog (not started)
 

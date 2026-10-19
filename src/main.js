@@ -1,5 +1,6 @@
 import './config/firebase.js';
 import { APP_VERSION, APP_VERSION_DATE } from './modules/version.js';
+import { bizCol, bizDoc } from './modules/biz.js';
 import {
   loadEbayConnection, ensureEbayConnected,
   checkEbaySalesNow, endEbayListingIfSold, listItemOnEbay, showBulkEbayPreflight,
@@ -198,8 +199,8 @@ export const app = (function(){
   // so a large catalog (with photos) never approaches Firestore's 1MB-per-document limit.
   async function loadItems(){
     try{
-      const { collection, getDocs } = window.firestoreFns;
-      const snap = await getDocs(collection(window.db, 'items'));
+      const { getDocs } = window.firestoreFns;
+      const snap = await getDocs(bizCol('items'));
       setItems(snap.docs.map(d => d.data()));
       // Migration: the listing title/description fields used to be named
       // poshmarkTitle/poshmarkDescription (back when eBay had its own
@@ -233,8 +234,8 @@ export const app = (function(){
 
   async function saveItem(itemData){
     try{
-      const { doc, setDoc } = window.firestoreFns;
-      await setDoc(doc(window.db, 'items', itemData.id), itemData);
+      const { setDoc } = window.firestoreFns;
+      await setDoc(bizDoc('items', itemData.id), itemData);
     }catch(e){
       console.error('Save error', e);
       const reason = (e && e.message) ? e.message : String(e);
@@ -245,8 +246,8 @@ export const app = (function(){
 
   async function deleteItemFromDb(itemId){
     try{
-      const { doc, deleteDoc } = window.firestoreFns;
-      await deleteDoc(doc(window.db, 'items', itemId));
+      const { deleteDoc } = window.firestoreFns;
+      await deleteDoc(bizDoc('items', itemId));
     }catch(e){
       console.error('Delete error', e);
       alert("Couldn't delete right now — please check your connection and try again.");
@@ -257,8 +258,8 @@ export const app = (function(){
   // ---------- PHOTO SESSION DRAFTS (own Firestore collection) ----------
   async function loadDrafts(){
     try{
-      const { collection, getDocs } = window.firestoreFns;
-      const snap = await getDocs(collection(window.db, 'drafts'));
+      const { getDocs } = window.firestoreFns;
+      const snap = await getDocs(bizCol('drafts'));
       draftItems = snap.docs.map(d => d.data());
     }catch(e){
       console.error('Load drafts error', e);
@@ -268,8 +269,8 @@ export const app = (function(){
 
   async function saveDraftToDb(draft){
     try{
-      const { doc, setDoc } = window.firestoreFns;
-      await setDoc(doc(window.db, 'drafts', draft.id), draft);
+      const { setDoc } = window.firestoreFns;
+      await setDoc(bizDoc('drafts', draft.id), draft);
     }catch(e){
       console.error('Save draft error', e);
       const reason = (e && e.message) ? e.message : String(e);
@@ -280,8 +281,8 @@ export const app = (function(){
 
   async function deleteDraftFromDb(draftId){
     try{
-      const { doc, deleteDoc } = window.firestoreFns;
-      await deleteDoc(doc(window.db, 'drafts', draftId));
+      const { deleteDoc } = window.firestoreFns;
+      await deleteDoc(bizDoc('drafts', draftId));
     }catch(e){
       console.error('Delete draft error', e);
     }
@@ -6097,8 +6098,8 @@ export const app = (function(){
     // be treated as "no settings yet" — see the 2026-09-16 bug below.
     let loadSucceeded = false;
     try{
-      const { doc, getDoc } = window.firestoreFns;
-      const snap = await getDoc(doc(window.db, 'app_config', 'settings'));
+      const { getDoc } = window.firestoreFns;
+      const snap = await getDoc(bizDoc('config', 'settings'));
       if (snap.exists()){
         setAppSettings({ ...DEFAULT_SETTINGS, ...snap.data() });
         // Migration: renamed from poshmarkStandardText.
@@ -6127,12 +6128,12 @@ export const app = (function(){
 
   async function saveSettings(){
     try{
-      const { doc, setDoc } = window.firestoreFns;
+      const { setDoc } = window.firestoreFns;
       // merge:true — belt-and-suspenders alongside the loadSettings() fix
       // above: even if appSettings is ever incomplete in memory for some
       // other reason, a save can no longer blank out fields it doesn't
       // know about instead of actually overwriting them.
-      await setDoc(doc(window.db, 'app_config', 'settings'), appSettings, { merge: true });
+      await setDoc(bizDoc('config', 'settings'), appSettings, { merge: true });
     }catch(e){ console.error('Failed to save settings', e); }
   }
 
