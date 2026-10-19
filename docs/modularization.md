@@ -1,8 +1,8 @@
 # Modularization and app readiness
 
-> **Current state (2026-10-19, v3.17.5):** `main.js` is ~6,000 lines, one
-> IIFE (`export const app = (function(){ ... })()`). Phases 1, 2 and 2b
-> below are done, and phase 3 is half done (3a); phase 4 is not started. The goal is a smaller `main.js` **and** a
+> **Current state (2026-10-19, v3.17.6):** `main.js` is ~5,000 lines, one
+> IIFE (`export const app = (function(){ ... })()`). Phases 1-3 below are
+> done; phase 4 is not started. The goal is a smaller `main.js` **and** a
 > codebase that can ship as a phone app without a rewrite.
 
 ## The three layers (2026-10-19)
@@ -142,15 +142,45 @@ failure with no save, scheduled reset due / not due, save failure, counter
 increments and reset), 49 recorded entries identical; removing the
 read-failure guard or `merge: true` makes it fail.
 
+## Phase 3b (done, v3.17.6)
+
+The Settings screen moved to `src/ui/settings/`, unchanged:
+- `settings-view.js`: `renderSettings()`, its ~325-line template kept
+  byte for byte.
+- `admin-panels.js`: pending access requests, employee accounts.
+- `ebay-panel.js`: `renderEbayConnectionStatus()`, username backfill, Test
+  connection, Disconnect, setup, offers to watchers (6 `fetch('/api/…')`
+  calls, for the future `apiUrl()`).
+- `platforms-panel.js`: platform list, flat/tiered fees, custom platforms,
+  "🔍 Suggest %".
+- `forms.js`: the `window.save*Settings` handlers, carriers, AI counter
+  resets, `showSaveMsg()`.
+- `index.js`: what `main.js` imports. Loading it registers every
+  Settings `window.*` handler (including the audit tools that live in
+  `modules/`) and re-exports `renderSettings` and
+  `renderEbayConnectionStatus`.
+
+Two techniques were new here:
+- **Indentation without changing output.** The code lost one indent level
+  (it no longer sits inside the IIFE) through a small script built on the
+  TypeScript parser that dedents every line except those inside a
+  template literal, so the generated HTML stays byte for byte.
+- **Import maps in the test.** `ebay-api.js` imports `main.js`, which
+  boots the whole app, so the characterization page maps `ebay-api.js`,
+  the audit modules and `api-auth.js` to small fakes (an `importmap`),
+  for the old and the new code alike.
+
+Characterization test in Chromium on the real `index.html` markup: ~100
+steps (render as admin/non-admin, eBay connected/not/unknown, every save
+handler, the platform fee editor, every eBay action with OK/error/throw
+responses, employee creation, sign-out), 204 recorded entries (75 full
+snapshots of the Settings HTML), identical. Removing one space inside the
+template makes 75 entries differ.
+
+`main.js`: 5,911 → 4,956 lines.
+
 ## Next phases (safest first)
 
-3b. **The Settings screen** (~960 lines) into `src/ui/settings/`:
-   `settings-view.js` (`renderSettings`, its template kept byte for byte),
-   `admin-panels.js`, `ebay-panel.js` (the eBay status and actions, with
-   their 6 `fetch('/api/…')` calls), `platforms-panel.js`, `forms.js` (the
-   `window.save*Settings` handlers and resets). Do this before the
-   onboarding work (docs/multi-tenant.md step 5), which adds business
-   settings and sign-in screens.
 4. **Leave for last / maybe never:** the item modal open/save/delete and
    eBay category search (~650 lines), the most state-coupled section.
    Also the measure tool (~550 lines, self-contained) and the ✨ AI flows
