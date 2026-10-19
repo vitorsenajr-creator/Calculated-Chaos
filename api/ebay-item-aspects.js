@@ -11,7 +11,7 @@
 //     not apply") for anything it wasn't explicitly given — see
 //     ebay-list.js's fillMissingRequiredAspects, which stays in place as a
 //     last-resort safety net, not the primary path.
-//     POST body: { access_token, category_id }
+//     POST body: { category_id }  (eBay token from the server, _ebayToken.js)
 //     Returns: { success, aspects: [{ name, required, selectionOnly, allowedValues }] }
 //
 //   mode: 'suggest_fee' — asks the AI for a rough estimate of a resale
@@ -29,14 +29,17 @@
 //     Returns: { explanation, fieldToChange, suggestedValue }
 
 import { requireApprovedUser } from './_requireApprovedUser.js';
+import { getEbayAccessToken } from './_ebayToken.js';
 
 const EBAY_SANDBOX = process.env.EBAY_SANDBOX === 'true';
 const EBAY_API_BASE = EBAY_SANDBOX ? 'https://api.sandbox.ebay.com' : 'https://api.ebay.com';
 const CATEGORY_TREE_ID = '0'; // eBay's default/shared tree ID for EBAY_US
 
 async function handleAspects(req, res) {
-  const { access_token, category_id } = req.body || {};
-  if (!access_token) return res.status(400).json({ error: 'Missing access_token' });
+  const { category_id } = req.body || {};
+  const ebayToken = await getEbayAccessToken();
+  if (!ebayToken.ok) return res.status(ebayToken.status).json({ error: ebayToken.error });
+  const access_token = ebayToken.token;
   if (!category_id) return res.status(400).json({ error: 'Missing category_id' });
 
   const url = `${EBAY_API_BASE}/commerce/taxonomy/v1/category_tree/${CATEGORY_TREE_ID}/get_item_aspects_for_category?category_id=${encodeURIComponent(category_id)}`;

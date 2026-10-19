@@ -1,9 +1,9 @@
 import './config/firebase.js';
 import { APP_VERSION, APP_VERSION_DATE } from './modules/version.js';
 import {
-  loadEbayTokens, saveEbayTokens, ebayTokenIsValid, getValidEbayToken,
+  loadEbayConnection, ensureEbayConnected,
   checkEbaySalesNow, endEbayListingIfSold, listItemOnEbay, showBulkEbayPreflight,
-  ebayTokens, clearEbayTokens, ebayConnectFlowPending,
+  ebayConnection, clearEbayConnection, ebayConnectFlowPending,
   ebayPostSoldMessageLines,
 } from './ebay-api.js';
 import {
@@ -1773,13 +1773,13 @@ export const app = (function(){
     const container = document.getElementById('ebayAspectsContainer');
     container.innerHTML = `<div style="font-size:12px; opacity:0.6;">Checking what this category requires…</div>`;
     try{
-      const token = await getValidEbayToken();
-      if (!token){ container.innerHTML = ''; return; }
+      const ebayReady = await ensureEbayConnected();
+      if (!ebayReady){ container.innerHTML = ''; return; }
       const idToken = await window.auth.currentUser.getIdToken();
       const res = await fetch('/api/ebay-item-aspects', {
         method: 'POST',
         headers: {'Content-Type':'application/json', 'Authorization': `Bearer ${idToken}`},
-        body: JSON.stringify({ access_token: token, category_id: categoryId })
+        body: JSON.stringify({ category_id: categoryId })
       });
       const data = await res.json();
       if (!data.success){ container.innerHTML = ''; return; }
@@ -1917,12 +1917,12 @@ export const app = (function(){
 
   async function fetchEbayValidConditions(categoryId){
     try{
-      const token = await getValidEbayToken();
-      if (!token) return null;
+      const ebayReady = await ensureEbayConnected();
+      if (!ebayReady) return null;
       const res = await fetch('/api/ebay-listing-tools', {
         method: 'POST',
         headers: await jsonAuthHeaders(),
-        body: JSON.stringify({ access_token: token, action: 'condition_policies', category_id: categoryId })
+        body: JSON.stringify({ action: 'condition_policies', category_id: categoryId })
       });
       const data = await res.json();
       if (data.success && Array.isArray(data.conditions) && data.conditions.length){
@@ -1956,15 +1956,15 @@ export const app = (function(){
 
     // 2. Live search fallback via eBay's real category tree.
     try{
-      const token = await getValidEbayToken();
-      if (!token){
+      const ebayReady = await ensureEbayConnected();
+      if (!ebayReady){
         resultsEl.innerHTML = '<div style="font-size:12px; color:var(--danger);">Connect your eBay account (Settings) to search categories.</div>';
         return;
       }
       const res = await fetch('/api/ebay-category-search', {
         method: 'POST',
         headers: await jsonAuthHeaders(),
-        body: JSON.stringify({ access_token: token, query: q })
+        body: JSON.stringify({ query: q })
       });
       const data = await res.json();
       if (!data.success || !data.suggestions || !data.suggestions.length){
@@ -6593,12 +6593,22 @@ export const app = (function(){
     const testBox = lastConnectionTestResult
       ? `<div class="ebay-status-box ${lastConnectionTestResult.ok ? 'success' : 'error'}" style="margin-top:8px;">${lastConnectionTestResult.message}</div>`
       : '';
-    if (ebayTokens && ebayTokens.access_token){
-      const connectedDate = ebayTokens.connected_at ? new Date(ebayTokens.connected_at).toLocaleString('en-US') : 'unknown';
-      const lastTestedDate = ebayTokens.lastTestedAt ? new Date(ebayTokens.lastTestedAt).toLocaleString('en-US') : null;
+    // Status comes from the server (the tokens never reach the app since
+    // v3.16.0); null = not loaded yet or the status call failed.
+    if (ebayConnection === null){
+      el.innerHTML = `<div style="font-size:12px; opacity:0.7;">Checking eBay connection…</div>`;
+      loadEbayConnection().then(conn => {
+        if (conn) renderEbayConnectionStatus();
+        else el.innerHTML = `<div class="ebay-status-box error">❌ Couldn't check the eBay connection right now. Reload the app to try again.</div>`;
+      });
+      return;
+    }
+    if (ebayConnection.connected){
+      const connectedDate = ebayConnection.connected_at ? new Date(ebayConnection.connected_at).toLocaleString('en-US') : 'unknown';
+      const lastTestedDate = ebayConnection.lastTestedAt ? new Date(ebayConnection.lastTestedAt).toLocaleString('en-US') : null;
       el.innerHTML = `
         <div class="ebay-status-box success">
-          ✅ Connected${ebayTokens.sellerUsername ? ` as <b>${escapeHtml(ebayTokens.sellerUsername)}</b>` : ' <span style="opacity:0.7;">(fetching username…)</span>'}
+          ✅ Connected${ebayConnection.sellerUsername ? ` as <b>${escapeHtml(ebayConnection.sellerUsername)}</b>` : ' <span style="opacity:0.7;">(fetching username…)</span>'}
           <br><small>Since: ${connectedDate}${lastTestedDate ? ` · Last tested: ${lastTestedDate}` : ''}</small>
           <br><br>
           <button onclick="connectEbay()" style="background:var(--terracotta); color:white; border:none; border-radius:8px; padding:8px 14px; font-size:12px; cursor:pointer; margin-right:8px;">🔄 Connect / switch account</button>
@@ -6606,7 +6616,7 @@ export const app = (function(){
           <button onclick="disconnectEbay()" style="background:transparent; border:1px solid var(--danger); color:var(--danger); border-radius:8px; padding:8px 14px; font-size:12px; cursor:pointer;">Disconnect</button>
           <div id="ebayTestResult">${testBox}</div>
         </div>`;
-      if (!ebayTokens.sellerUsername) backfillSellerUsername();
+      if (!ebayConnection.sellerUsername) backfillSellerUsername();
     } else {
       el.innerHTML = `
         <div class="ebay-status-box pending">
@@ -6626,16 +6636,16 @@ export const app = (function(){
     if (usernameBackfillInFlight) return;
     usernameBackfillInFlight = true;
     try{
-      const token = await getValidEbayToken();
-      if (!token) return;
+      if (!(await ensureEbayConnected())) return;
+      // The server looks the username up with its own token and saves it.
       const res = await fetch('/api/ebay-auth?action=username', {
         method: 'POST',
         headers: await jsonAuthHeaders(),
-        body: JSON.stringify({ access_token: token })
+        body: JSON.stringify({})
       });
       const data = await res.json();
       if (data.sellerUsername){
-        await saveEbayTokens({ ...ebayTokens, sellerUsername: data.sellerUsername });
+        ebayConnection.sellerUsername = data.sellerUsername;
         renderEbayConnectionStatus();
       }
     }catch(e){ console.warn('Username backfill failed:', e); }
@@ -6646,15 +6656,15 @@ export const app = (function(){
     const resultEl = document.getElementById('ebayOffersResult');
     if (resultEl) resultEl.innerHTML = `<span style="opacity:0.7;">Checking for interested buyers…</span>`;
     try{
-      const token = await getValidEbayToken();
-      if (!token){
+      const ebayReady = await ensureEbayConnected();
+      if (!ebayReady){
         if (resultEl) resultEl.innerHTML = `<div class="ebay-status-box error">❌ Connect your eBay account first.</div>`;
         return;
       }
       const res = await fetch('/api/ebay-listing-tools', {
         method: 'POST',
         headers: await jsonAuthHeaders(),
-        body: JSON.stringify({ access_token: token, action: 'find_eligible' })
+        body: JSON.stringify({ action: 'find_eligible' })
       });
       const data = await res.json();
       if (!data.success){
@@ -6688,11 +6698,10 @@ export const app = (function(){
     const pct = parseFloat(pctInput?.value) || 10;
     const row = document.querySelector(`[data-offer-item="${itemId}"]`);
     try{
-      const token = await getValidEbayToken();
       const res = await fetch('/api/ebay-listing-tools', {
         method: 'POST',
         headers: await jsonAuthHeaders(),
-        body: JSON.stringify({ access_token: token, action: 'send_offer', listing_id: listingId, discount_percentage: pct })
+        body: JSON.stringify({ action: 'send_offer', listing_id: listingId, discount_percentage: pct })
       });
       const data = await res.json();
       if (data.success){
@@ -6713,25 +6722,24 @@ export const app = (function(){
     lastConnectionTestResult = { ok: true, message: '<span style="opacity:0.7;">Testing…</span>' };
     renderEbayConnectionStatus();
     try{
-      const token = await getValidEbayToken();
-      if (!token){
-        lastConnectionTestResult = { ok: false, message: '❌ No valid token — try reconnecting.' };
+      if (!(await ensureEbayConnected())){
+        lastConnectionTestResult = { ok: false, message: '❌ eBay is not connected — connect it first.' };
         renderEbayConnectionStatus();
         return;
       }
+      // The server tests its own token (refreshing it if needed) and
+      // records lastTestedAt.
       const res = await fetch('/api/ebay-auth?action=username', {
         method: 'POST',
         headers: await jsonAuthHeaders(),
-        body: JSON.stringify({ access_token: token })
+        body: JSON.stringify({ markTested: true })
       });
-      const data = await res.json();
-      ebayTokens.lastTestedAt = Date.now();
-      if (data.sellerUsername){
-        await saveEbayTokens({ ...ebayTokens, sellerUsername: data.sellerUsername, lastTestedAt: Date.now() });
+      const data = await res.json().catch(() => ({}));
+      await loadEbayConnection();
+      if (res.ok && data.sellerUsername){
         lastConnectionTestResult = { ok: true, message: `✅ Connection OK — logged in as <b>${escapeHtml(data.sellerUsername)}</b>` };
       } else {
-        await saveEbayTokens({ ...ebayTokens, lastTestedAt: Date.now() });
-        lastConnectionTestResult = { ok: false, message: '❌ Token didn\'t work. Try "Connect / switch account" to reconnect.' };
+        lastConnectionTestResult = { ok: false, message: `❌ ${data.error ? escapeHtml(data.error) : 'The connection didn\'t work.'} Try "Connect / switch account" to reconnect.` };
       }
     }catch(e){
       lastConnectionTestResult = { ok: false, message: `❌ Test failed: ${escapeHtml(String(e.message || e))}` };
@@ -6739,17 +6747,23 @@ export const app = (function(){
     renderEbayConnectionStatus();
   };
 
-  // Fully disconnects the eBay account: clears the in-memory token (the
-  // actual cause of the earlier wrong-account mixup — deleting only the
-  // Firestore doc wasn't enough while the tab stayed open and the token
-  // was still valid in memory) AND removes it from Firestore.
+  // Fully disconnects the eBay account: the server deletes the stored
+  // connection (and the pre-v3.16.0 ebay_tokens/main copy), then the
+  // in-memory status is cleared.
   window.disconnectEbay = async function(){
     if (!confirm('Disconnect this eBay account? You\'ll need to log in again before publishing.')) return;
     try{
-      const { doc, deleteDoc } = window.firestoreFns;
-      await deleteDoc(doc(window.db, 'ebay_tokens', 'main'));
-    }catch(e){ console.warn('Failed to delete stored eBay token:', e); }
-    clearEbayTokens();
+      const res = await fetch('/api/ebay-auth?action=disconnect', { method: 'POST', headers: await jsonAuthHeaders(), body: '{}' });
+      if (!res.ok){
+        const data = await res.json().catch(() => ({}));
+        alert(`Could not disconnect eBay: ${data.error || `HTTP ${res.status}`}`);
+        return;
+      }
+    }catch(e){
+      alert(`Could not disconnect eBay: ${e.message || e}`);
+      return;
+    }
+    clearEbayConnection();
     renderEbayConnectionStatus();
     alert('Disconnected. To switch to a different eBay account, also sign out of ebay.com in your browser before reconnecting.');
   };
@@ -6759,15 +6773,15 @@ export const app = (function(){
     const area = document.getElementById('ebaySetupResult');
     area.innerHTML = `<div class="ebay-status-box pending">⏳ Creating business policies and location on eBay…</div>`;
     try{
-      const token = await getValidEbayToken();
-      if (!token){
+      const ebayReady = await ensureEbayConnected();
+      if (!ebayReady){
         area.innerHTML = `<div class="ebay-status-box error">❌ Connect your eBay account first (in an item's "List on eBay" panel), then come back here.</div>`;
         return;
       }
       const res = await fetch('/api/ebay-setup', {
         method: 'POST',
         headers: await jsonAuthHeaders(),
-        body: JSON.stringify({ access_token: token })
+        body: JSON.stringify({})
       });
       const data = await res.json();
       if (data.success){
@@ -7103,7 +7117,7 @@ EBAY_MERCHANT_LOCATION_KEY=${escapeHtml(data.results.merchantLocationKey)}</div>
   setupSizeAutocomplete();
   async function waitForFirebaseThenLoad(){
     if (window.firebaseReady){
-      await Promise.all([loadSettings(), loadItems(), loadEbayTokens(), loadDrafts()]);
+      await Promise.all([loadSettings(), loadItems(), loadEbayConnection(), loadDrafts()]);
       checkEbaySalesNow(); // best-effort, silent unless it finds something
       // Desktop (sidebar visible, same breakpoint as style.css) lands on the
       // Dashboard; mobile keeps Catalog as the starting tab, unchanged.

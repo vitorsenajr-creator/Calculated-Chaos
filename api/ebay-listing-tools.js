@@ -8,7 +8,7 @@
 // ebay-auth.js are), so merging them is safe — unlike those two, which
 // must never move.
 //
-// POST body: { access_token, action, ...action-specific fields }
+// POST body: { action, ...action-specific fields }  (eBay token from the server, _ebayToken.js)
 //
 //   action: 'condition_policies'  { category_id }
 //     -> which condition values eBay allows for a category (getItemConditionPolicies).
@@ -110,6 +110,7 @@
 
 import { XMLParser, XMLBuilder } from 'fast-xml-parser';
 import { requireApprovedUser } from './_requireApprovedUser.js';
+import { getEbayAccessToken } from './_ebayToken.js';
 
 const EBAY_SANDBOX = process.env.EBAY_SANDBOX === 'true';
 const API_BASE = EBAY_SANDBOX
@@ -685,8 +686,10 @@ export default async (req, res) => {
   }
 
   try{
-    const { access_token, action } = req.body || {};
-    if (!access_token) return res.status(400).json({ error: 'Missing access_token' });
+    const { action } = req.body || {};
+    const ebayToken = await getEbayAccessToken();
+    if (!ebayToken.ok) return res.status(ebayToken.status).json({ error: ebayToken.error });
+    const access_token = ebayToken.token;
 
     if (action === 'condition_policies') return await handleConditionPolicies(req, res, access_token);
     if (action === 'find_eligible') return await handleFindEligible(req, res, access_token);

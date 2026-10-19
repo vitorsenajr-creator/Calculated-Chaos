@@ -25,13 +25,16 @@
   import { normalizeSizeForEbay } from './modules/ebay-size.js';
   import { jsonAuthHeaders } from './modules/api-auth.js';
 
-  // eBay tokens are stored in Firestore under 'ebay_tokens/main' so both users share the same connection
-  export let ebayTokens = null; // { access_token, refresh_token, connected_at, expires_in }
+  // Since v3.16.0 the eBay tokens live only on the server
+  // (api/_ebayToken.js, Firestore ebay_connections/*, unreadable from the
+  // browser). The app only knows the connection's status:
+  // { connected, sellerUsername, connected_at, expires_in, lastTestedAt }
+  // or null while unknown (not loaded yet, or the status call failed).
+  export let ebayConnection = null;
 
-  // main.js's disconnectEbay needs to clear this — a plain `ebayTokens = null`
-  // there won't work since imported bindings are read-only from the
-  // importer's side; this is the one legal way to do it from outside.
-  export function clearEbayTokens(){ ebayTokens = null; }
+  // main.js's disconnectEbay needs to clear this — imported bindings are
+  // read-only from the importer's side, so this is the way to do it.
+  export function clearEbayConnection(){ ebayConnection = { connected: false }; }
 
   // True while the "open eBay tab -> copy token -> paste it back" flow is
   // waiting on the user (the paste textarea is showing but nothing's saved
@@ -42,51 +45,43 @@
   // Settings so the pending paste UI survives.
   export let ebayConnectFlowPending = false;
 
- export async function loadEbayTokens(){
+ export async function loadEbayConnection(){
     try{
-      const { doc, getDoc } = window.firestoreFns;
-      const snap = await getDoc(doc(window.db, 'ebay_tokens', 'main'));
-      if (snap.exists()) ebayTokens = snap.data();
-    }catch(e){ ebayTokens = null; }
+      // POST, not GET: public/sw.js caches every same-origin GET, API calls included.
+      const res = await fetch('/api/ebay-auth?action=status', { method: 'POST', headers: await jsonAuthHeaders(), body: '{}' });
+      const data = await res.json().catch(() => null);
+      ebayConnection = (res.ok && data) ? data : null;
+    }catch(e){ ebayConnection = null; }
+    return ebayConnection;
   }
 
-  export async function saveEbayTokens(tokens){
-    try{
-      const { doc, setDoc } = window.firestoreFns;
-      await setDoc(doc(window.db, 'ebay_tokens', 'main'), tokens);
-      ebayTokens = tokens;
-      return { ok: true };
-    }catch(e){
-      console.error('Failed to save eBay tokens', e);
-      return { ok: false, error: (e && e.message) || String(e) };
-    }
+  export function ebayIsConnected(){
+    return !!(ebayConnection && ebayConnection.connected);
   }
 
-  export function ebayTokenIsValid(){
-    if (!ebayTokens || !ebayTokens.access_token) return false;
-    const ageMs = Date.now() - (ebayTokens.connected_at || 0);
-    const expiresMs = (ebayTokens.expires_in || 7200) * 1000;
-    return ageMs < expiresMs - 60000; // 1 min buffer
+  // What the call sites that used to fetch a token now ask: is eBay
+  // connected? Loads the status first if it isn't known yet. The server
+  // picks the token (and refreshes it) on its own.
+  export async function ensureEbayConnected(){
+    if (!ebayConnection) await loadEbayConnection();
+    return ebayIsConnected();
   }
 
-  export async function getValidEbayToken(){
-    if (ebayTokenIsValid()) return ebayTokens.access_token;
-    if (!ebayTokens || !ebayTokens.refresh_token) return null;
-    // Try to refresh
+  // Stores a connection pasted from the eBay callback page on the server.
+  export async function saveEbayConnection(tokens){
     try{
-      const res = await fetch('/api/ebay-auth?action=refresh', {
+      const res = await fetch('/api/ebay-auth?action=save_tokens', {
         method: 'POST',
         headers: await jsonAuthHeaders(),
-        body: JSON.stringify({ refresh_token: ebayTokens.refresh_token })
+        body: JSON.stringify({ tokens }),
       });
-      const data = await res.json();
-      if (data.access_token){
-        const updated = { ...ebayTokens, ...data };
-        await saveEbayTokens(updated);
-        return data.access_token;
-      }
-    }catch(e){ console.error('Token refresh failed', e); }
-    return null;
+      const data = await res.json().catch(() => null);
+      if (!res.ok) return { ok: false, error: (data && data.error) || `HTTP ${res.status}` };
+      ebayConnection = data;
+      return { ok: true };
+    }catch(e){
+      return { ok: false, error: (e && e.message) || String(e) };
+    }
   }
 
   // Checks recent eBay orders and auto-marks matching items as Sold — this
@@ -96,16 +91,14 @@
   // unless it actually finds something or hits a real error — this should
   // never interrupt normal use of the app.
   export async function checkEbaySalesNow(showUi){
-    if (!ebayTokens || !ebayTokens.access_token) return { checked: false };
+    if (!(await ensureEbayConnected())) return { checked: false };
     const statusEl = showUi ? document.getElementById('ebaySalesCheckResult') : null;
     if (statusEl) statusEl.innerHTML = `<span style="opacity:0.7;">Checking recent eBay orders…</span>`;
     try{
-      const token = await getValidEbayToken();
-      if (!token) return { checked: false };
       const res = await fetch('/api/ebay-check-sales', {
         method: 'POST',
         headers: await jsonAuthHeaders(),
-        body: JSON.stringify({ access_token: token })
+        body: JSON.stringify({})
       });
       const data = await res.json();
       if (!data.success){
@@ -181,12 +174,11 @@
       return { ended: false, reason: 'no_offer_id' };
     }
     try{
-      const token = await getValidEbayToken();
-      if (!token) return { ended: false, reason: 'not_connected' };
+      if (!(await ensureEbayConnected())) return { ended: false, reason: 'not_connected' };
       const res = await fetch('/api/ebay-end-listing', {
         method: 'POST',
         headers: await jsonAuthHeaders(),
-        body: JSON.stringify({ access_token: token, offer_id: itemData.ebayOfferId })
+        body: JSON.stringify({ offer_id: itemData.ebayOfferId })
       });
       const data = await res.json();
       if (data.success){
@@ -316,7 +308,7 @@
     try{
       const tokens = JSON.parse(raw);
       if (!tokens.access_token || !tokens.refresh_token) throw new Error('Invalid token format');
-      const result = await saveEbayTokens(tokens);
+      const result = await saveEbayConnection(tokens);
       ebayConnectFlowPending = false;
       if (result.ok){
         area.innerHTML = `
@@ -325,7 +317,7 @@
         setTimeout(() => { if (document.getElementById('ebayConnectionStatus')) app.renderEbayConnectionStatus(); }, 1500);
       } else {
         area.innerHTML = `
-          <div class="ebay-status-box error">❌ Token was valid but could not be saved to the database.<br>Error: ${app.escapeHtml(result.error || 'unknown')}<br>This is likely a Firestore permissions issue — the "ebay_tokens" collection may need to be allowed in your security rules.</div>`;
+          <div class="ebay-status-box error">❌ Could not save the eBay connection.<br>Error: ${app.escapeHtml(result.error || 'unknown')}</div>`;
       }
     }catch(e){
       alert('Could not read the token data. Please try connecting again and make sure you copied the full text.');
@@ -391,8 +383,8 @@
     if (missingFields.length){
       return { skipped: true, reason: 'missing_fields', missingFields };
     }
-    const token = await getValidEbayToken();
-    if (!token){
+    const ebayReady = await ensureEbayConnected();
+    if (!ebayReady){
       return { success: false, step: 'auth', error: 'eBay account not connected' };
     }
     try{
@@ -406,11 +398,10 @@
         await app.saveItem({ ...item, hostedPhotoUrls });
       }
 
-      const freshToken = await getValidEbayToken();
       const res = await fetch('/api/ebay-list', {
         method: 'POST',
         headers: await jsonAuthHeaders(),
-        body: JSON.stringify({ access_token: freshToken, item, imageUrls: hostedPhotoUrls })
+        body: JSON.stringify({ item, imageUrls: hostedPhotoUrls })
       });
       const data = await res.json();
       if (!data.success){
@@ -700,8 +691,8 @@ ${esc(JSON.stringify(result.debugPolicyIdsSent, null, 2))}</div>`;
     }
 
     // Check eBay connection
-    const token = await getValidEbayToken();
-    if (!token){
+    const ebayReady = await ensureEbayConnected();
+    if (!ebayReady){
       area.innerHTML = `<div class="ebay-status-box pending">
         🔗 eBay account not connected yet.
         <br><button onclick="connectEbay()" style="margin-top:8px; background:#E53238; color:white; border:none; border-radius:8px; padding:9px 16px; font-size:13px; font-weight:600; cursor:pointer; width:100%;">Connect my eBay account</button>
@@ -841,8 +832,8 @@ ${esc(JSON.stringify(result.debugPolicyIdsSent, null, 2))}</div>`;
     updateAlready = !!updateAlready;
 
     statusEl.innerHTML = `<div style="opacity:0.7;">Checking eBay connection…</div>`;
-    const token = await getValidEbayToken();
-    if (!token){
+    const ebayReady = await ensureEbayConnected();
+    if (!ebayReady){
       statusEl.innerHTML = `<div class="ebay-status-box pending">
         🔗 eBay account not connected yet.
         <br><button onclick="connectEbay()" style="margin-top:8px; background:#E53238; color:white; border:none; border-radius:8px; padding:9px 16px; font-size:13px; font-weight:600; cursor:pointer;">Connect my eBay account</button>

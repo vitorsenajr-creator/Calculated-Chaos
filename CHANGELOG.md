@@ -3,6 +3,25 @@
 Version history for Calculated Chaos. The current version is also shown in
 the badge at the top of the app (`APP_VERSION` in `src/modules/version.js`).
 
+## v3.16.0 — 2026-10-19
+
+Rolls up v3.15.1 – v3.15.5 and moves the eBay connection to the server.
+
+- **eBay tokens live only on the server** (`ebay_connections/main`,
+  readable only through Firebase Admin). Every eBay endpoint uses the
+  server's token and refreshes it itself; the app only sees the
+  connection's status. The existing connection is copied over on first
+  use, so no reconnect is needed. Connecting and disconnecting are for
+  owners only; employees can still end listings when marking items sold.
+- **Server-side security** (v3.15.1–v3.15.4): every eBay endpoint requires
+  a signed-in, approved user; the ✨ analysis and narration prompts are
+  built on the server (text unchanged, verified byte for byte); Firebase
+  Admin verifies sign-in tokens, with a health check in the Developer
+  Panel.
+- **Developer Panel**: a button next to "Sign out" for admins (v3.15.2)
+  and a Backup tab that downloads every collection as JSON, plus steps
+  for a Google Cloud export (v3.15.5).
+
 ## v3.15.0 — 2026-10-19
 
 Rolls up v3.14.1 – v3.14.2 and starts the work toward offering the app to

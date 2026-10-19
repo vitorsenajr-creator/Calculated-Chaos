@@ -7,13 +7,14 @@
 // (e.g. from a prior partial run), eBay's "duplicate" error already includes
 // the existing policy's ID, so we just reuse it instead of failing.
 //
-// POST body: { access_token }
+// POST body: {}  (the eBay token comes from the server, _ebayToken.js)
 // Response: { fulfillmentPolicyId, paymentPolicyId, returnPolicyId, merchantLocationKey }
 // After calling, copy these 4 values into the matching Vercel environment
 // variables: EBAY_FULFILLMENT_POLICY_ID, EBAY_PAYMENT_POLICY_ID,
 // EBAY_RETURN_POLICY_ID, EBAY_MERCHANT_LOCATION_KEY — then redeploy.
 
 import { requireApprovedUser } from './_requireApprovedUser.js';
+import { getEbayAccessToken } from './_ebayToken.js';
 
 const EBAY_SANDBOX = process.env.EBAY_SANDBOX === 'true';
 const API_BASE = EBAY_SANDBOX ? 'https://api.sandbox.ebay.com' : 'https://api.ebay.com';
@@ -81,8 +82,9 @@ export default async function handler(req, res){
   if (!authCheck.ok){
     return res.status(authCheck.status).json({ error: authCheck.error });
   }
-  const { access_token } = req.body || {};
-  if (!access_token){ return res.status(400).json({ error: 'Missing access_token' }); }
+  const ebayToken = await getEbayAccessToken();
+  if (!ebayToken.ok) return res.status(ebayToken.status).json({ error: ebayToken.error });
+  const access_token = ebayToken.token;
 
   const results = {};
   const errors = {};

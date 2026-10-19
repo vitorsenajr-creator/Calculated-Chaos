@@ -25,7 +25,7 @@ import { items } from './state.js';
 import { escapeHtml, uid } from './format-utils.js';
 import { nextProductCode } from './catalog-lookups.js';
 import { ebayErrorShortMessages } from './ebay-error-hints.js';
-import { getValidEbayToken, publishItemToEbayCore } from '../ebay-api.js';
+import { ensureEbayConnected, publishItemToEbayCore } from '../ebay-api.js';
 import { jsonAuthHeaders } from './api-auth.js';
 
 function itemForSku(sku){
@@ -259,7 +259,6 @@ function renderAuditReport(data){
       }
 
       importBtn.disabled = true;
-      const token = await getValidEbayToken();
       const results = [];
       for (let i = 0; i < selected.length; i++){
         const { row, itemId, sku } = selected[i];
@@ -268,7 +267,7 @@ function renderAuditReport(data){
           progressEl.innerHTML = `<div style="font-size:13px; opacity:0.8;">⏳ Importing ${i+1} of ${selected.length}: ${escapeHtml(listing?.title || itemId)}…</div>`;
         }
         try{
-          const migrateData = await postAuditAction(token, { action: 'migrate_listing', listingId: itemId, sku });
+          const migrateData = await postAuditAction({ action: 'migrate_listing', listingId: itemId, sku });
           if (!migrateData.success){
             results.push({ row, itemId, sku, ok: false, error: migrateData.error || 'eBay rejected the migration', detail: migrateData.detail });
             continue;
@@ -359,11 +358,12 @@ function renderAuditReport(data){
   }
 }
 
-async function postAuditAction(token, body){
+// The eBay token is the server's own (api/_ebayToken.js, v3.16.0).
+async function postAuditAction(body){
   const res = await fetch('/api/ebay-listing-tools', {
     method: 'POST',
     headers: await jsonAuthHeaders(),
-    body: JSON.stringify({ access_token: token, ...body }),
+    body: JSON.stringify(body),
   });
   return res.json();
 }
@@ -382,14 +382,14 @@ export async function runEbayAudit(){
   area.innerHTML = `<div class="ebay-status-box pending">⏳ Checking eBay connection…</div>`;
 
   try{
-    const token = await getValidEbayToken();
-    if (!token){
+    const ebayReady = await ensureEbayConnected();
+    if (!ebayReady){
       area.innerHTML = `<div class="ebay-status-box error">❌ Connect your eBay account first.</div>`;
       return;
     }
 
     area.innerHTML = `<div class="ebay-status-box pending">⏳ Listing every SKU on your eBay account…</div>`;
-    const listData = await postAuditAction(token, { action: 'audit_list_skus' });
+    const listData = await postAuditAction({ action: 'audit_list_skus' });
     if (!listData.success){
       area.innerHTML = `
         <div class="ebay-status-box error">
@@ -406,7 +406,7 @@ export async function runEbayAudit(){
     for (let i = 0; i < skus.length; i += CHUNK_SIZE){
       const chunk = skus.slice(i, i + CHUNK_SIZE);
       area.innerHTML = `<div class="ebay-status-box pending">⏳ Checking listings — ${Math.min(i + CHUNK_SIZE, skus.length)} of ${skus.length} SKUs…</div>`;
-      const chunkData = await postAuditAction(token, { action: 'audit_check_skus', knownItems, skus: chunk });
+      const chunkData = await postAuditAction({ action: 'audit_check_skus', knownItems, skus: chunk });
       if (!chunkData.success){
         area.innerHTML = `
           <div class="ebay-status-box error">
@@ -432,7 +432,7 @@ export async function runEbayAudit(){
     let invisibleListings = [];
     let legacyScanError = null;
     try{
-      const legacyData = await postAuditAction(token, { action: 'legacy_scan' });
+      const legacyData = await postAuditAction({ action: 'legacy_scan' });
       if (!legacyData.success){
         legacyScanError = legacyData.error || 'unknown error';
       }else{
@@ -469,12 +469,12 @@ export async function runListFulfillmentPolicies(){
   if (!area) return;
   area.innerHTML = `<div class="ebay-status-box pending">⏳ Checking eBay connection…</div>`;
   try{
-    const token = await getValidEbayToken();
-    if (!token){
+    const ebayReady = await ensureEbayConnected();
+    if (!ebayReady){
       area.innerHTML = `<div class="ebay-status-box error">❌ Connect your eBay account first.</div>`;
       return;
     }
-    const data = await postAuditAction(token, { action: 'list_fulfillment_policies' });
+    const data = await postAuditAction({ action: 'list_fulfillment_policies' });
     if (!data.success){
       area.innerHTML = `
         <div class="ebay-status-box error">
@@ -523,8 +523,8 @@ export async function runBackfillDescriptions(){
 
   area.innerHTML = `<div class="ebay-status-box pending">⏳ Checking eBay connection…</div>`;
   try{
-    const token = await getValidEbayToken();
-    if (!token){
+    const ebayReady = await ensureEbayConnected();
+    if (!ebayReady){
       area.innerHTML = `<div class="ebay-status-box error">❌ Connect your eBay account first.</div>`;
       return;
     }
@@ -537,7 +537,7 @@ export async function runBackfillDescriptions(){
     for (let i = 0; i < listingIds.length; i += BACKFILL_CHUNK_SIZE){
       const chunk = listingIds.slice(i, i + BACKFILL_CHUNK_SIZE);
       area.innerHTML = `<div class="ebay-status-box pending">⏳ Fetching descriptions — ${Math.min(i + BACKFILL_CHUNK_SIZE, listingIds.length)} of ${listingIds.length}…</div>`;
-      const data = await postAuditAction(token, { action: 'backfill_descriptions', listingIds: chunk });
+      const data = await postAuditAction({ action: 'backfill_descriptions', listingIds: chunk });
       if (!data.success){
         area.innerHTML = `
           <div class="ebay-status-box error">

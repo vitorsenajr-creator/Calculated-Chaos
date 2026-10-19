@@ -10,10 +10,11 @@
 // so it COULD be relisted later with publishOffer if ever needed — nothing
 // is deleted.
 //
-// POST body: { access_token, offer_id }
+// POST body: { offer_id }  (the eBay token comes from the server, _ebayToken.js)
 // Returns: { success, listingId? }
 
 import { requireApprovedUser } from './_requireApprovedUser.js';
+import { getEbayAccessToken } from './_ebayToken.js';
 
 const EBAY_SANDBOX = process.env.EBAY_SANDBOX === 'true';
 const API_BASE = EBAY_SANDBOX
@@ -31,8 +32,10 @@ export default async (req, res) => {
   }
 
   try{
-    const { access_token, offer_id } = req.body || {};
-    if (!access_token) return res.status(400).json({ error: 'Missing access_token' });
+    const { offer_id } = req.body || {};
+    const ebayToken = await getEbayAccessToken();
+    if (!ebayToken.ok) return res.status(ebayToken.status).json({ error: ebayToken.error });
+    const access_token = ebayToken.token;
     if (!offer_id) return res.status(400).json({ error: 'Missing offer_id' });
 
     const r = await fetch(`${API_BASE}/sell/inventory/v1/offer/${encodeURIComponent(offer_id)}/withdraw`, {

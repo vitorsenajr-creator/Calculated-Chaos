@@ -197,9 +197,11 @@ Enforcement:
    `FIREBASE_SERVICE_ACCOUNT` env var; ID tokens verified in
    `_requireApprovedUser.js`; `api/platform.js` (last Hobby function slot)
    for platform actions, starting with `health`.
-3. [ ] eBay tokens server-side: OAuth callback writes
-   `ebay_connections/{bizId}` directly (no copy-paste); every eBay endpoint
-   reads the token on the server and requires auth.
+3. [~] eBay tokens server-side. Done in v3.16.0: tokens in
+   `ebay_connections/main` (server only), refreshed by the server, every
+   endpoint reads them there. Still to do: the OAuth callback writes the
+   connection directly (no copy-paste, `state` tied to the user), and the
+   doc id becomes the business id.
 4. [ ] Business-scoped data paths: a `bizCol()`/`bizDoc()` helper used by
    all ~40 call sites; per-business counters.
 5. [ ] "Create your business" onboarding, members/roles, owner invites
