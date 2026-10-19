@@ -163,11 +163,12 @@ renaming them needs a data migration of every saved item.
   `EBAY_DELETION_VERIFICATION_TOKEN`, `FIREBASE_SERVICE_ACCOUNT` (the
   whole service-account .json; secret, never paste it in chat or the repo).
   Optional: `FIREBASE_PROJECT_ID` (defaults to `calculated-chaos-4027a`).
-- The admin email list lives in three places that must match:
-  `ADMIN_EMAILS` in `src/config/firebase.js`, `isAdmin()` in
-  `firestore.rules`, `PLATFORM_ADMIN_EMAILS` in `api/_firebaseAdmin.js`.
-  Since v3.18.0 the rules also accept the `platformAdmin` claim
-  (`api/_adminClaims.js`); the lists go away in step 4a's second PR.
+- Platform admins (v3.18.1): Vitor and Jasmine, listed by uid in
+  `PLATFORM_ADMIN_UIDS` (`api/_firebaseAdmin.js`), the only list.
+  Developer Panel → App → "Sync admin access" copies it onto the accounts
+  as the `platformAdmin` custom claim (`api/_adminClaims.js`); the rules
+  (`isAdmin()`) and the app (`src/modules/admin-claim.js`) read only the
+  claim. After changing the list, run the sync.
 - Firestore collections and docs:
   - Catalog and app data: `items`, `drafts`, `users` (role/status),
     `app_config/settings`, `app_settings/productCodeCounter`,
@@ -230,8 +231,9 @@ renaming them needs a data migration of every saved item.
   4 is "when next touched"). Next, in order: auth hardening
   (`docs/multi-tenant.md` step 4a, decided 2026-10-19: Vitor and Jasmine
   stay platform admins; Remove disables the account; only verified
-  emails get access). PRs: (1) claim, first half (v3.18.0); (2) drop the
-  email lists, admins listed by UID; (3) Remove/Deny through the server;
+  emails get access). PRs: (1) claim, first half (v3.18.0, synced in
+  production); (2) only the claim, admins by UID (v3.18.1); (3)
+  Remove/Deny through the server;
   (4) send verification emails; (5) require a verified email. Then
   Google sign-in, App Check, admin 2FA, then onboarding/invites (step 5). The root collections stay, read-only for the business's
   members, until Vitor confirms removing them.
@@ -252,18 +254,21 @@ renaming them needs a data migration of every saved item.
   before doing them.
 - **Watch the Vercel logs** for `ai-usage` lines with `"structured":false`
   (the structured-output fallback ran on `analyze-photo.js`).
-- `email_verified` is deliberately not in `isAdmin()` (`firestore.rules`;
-  step 4a replaces the email list with a custom claim):
-  the app never sends verification emails, so the admin accounts are
-  likely unverified and would lock out.
+- `email_verified` is deliberately not required yet: the app never sent
+  verification emails, and the Developer Panel shows both admin accounts
+  as unverified (2026-10-19). Step 4a's PRs 4-5 send them first, then
+  require them.
 
 ### Unverified in production (build-verified only)
 
 Last known status per the v3.13 notes. Confirm with Vitor before relying
 on any of these:
-- Admin claim (v3.18.0): handler test with a fake Firebase Auth (4
-  cases) and 14 emulator rules tests; the real "Sync admin access" run is
-  unconfirmed.
+- Admin claim only (v3.18.1): 18 emulator rules tests (an admin email
+  without the claim is denied), handler test with a fake Firebase Auth,
+  clean build and page loads. Unconfirmed in production: the Developer
+  Panel opening, the Developer Panel button and pending count in
+  Settings, approving a user, for both admins. (v3.18.0's sync itself
+  was confirmed: both accounts show the claim.)
 - ✨ analysis on Sonnet 5.5 / low effort, refusal fallback and the new
   "declined" message (v3.14.1).
 - eBay tokens on the server (v3.16.0): Vitor confirmed Test connection,
@@ -315,7 +320,13 @@ on any of these:
   `platform.js`) sets `platformAdmin: true` on the accounts that own
   `PLATFORM_ADMIN_EMAILS`; `isAdmin()` in the rules accepts the claim OR
   the email list. The app's UI checks still use `ADMIN_EMAILS` until the
-  second half.
+  second half. Sync confirmed in production (both admins have the claim).
+- **v3.18.1**: admin claim, second half. Admins by uid
+  (`PLATFORM_ADMIN_UIDS`); `isAdmin()` is the claim only; the app reads
+  the claim at sign-in (`src/modules/admin-claim.js`, `loadAdminClaim()` /
+  `isPlatformAdmin()`), and `ADMIN_EMAILS`/`isAdminEmail` are gone. A new
+  account is always `pending` (an admin email is no longer approved on
+  sight). `platform.js` checks the caller's uid.
 
 ## Backlog (not started)
 

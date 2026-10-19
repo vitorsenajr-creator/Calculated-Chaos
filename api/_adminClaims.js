@@ -10,18 +10,18 @@
 // Firebase puts it in that account's sign-in token, where the rules and
 // the app can read it.
 //
-// The change is done in two halves ("expand, then contract"):
-//  - v3.18.0 (this): the server sets `platformAdmin: true` on the accounts
-//    that own PLATFORM_ADMIN_EMAILS today, and the rules accept the claim
-//    OR the email list. Nothing can lock out yet.
-//  - next: the rules, the app and the server keep only the claim, and the
-//    admins are listed by uid (shown on the card) instead of by email.
+// The change was done in two halves ("expand, then contract"):
+//  - v3.18.0: the server set `platformAdmin: true` on the accounts that
+//    owned the admin emails, and the rules accepted the claim OR the email
+//    list, so nothing could lock out.
+//  - v3.18.1: the admins are listed by uid (PLATFORM_ADMIN_UIDS), and the
+//    rules, the app and the server keep only the claim.
 //
 // A signed-in browser only sees a new claim once its token is refreshed:
 // the card forces that for the caller, other admins get it within an hour
 // (Firebase refreshes tokens hourly) or on their next sign-in.
 
-import { PLATFORM_ADMIN_EMAILS } from './_firebaseAdmin.js';
+import { PLATFORM_ADMIN_UIDS } from './_firebaseAdmin.js';
 
 export const ADMIN_CLAIM = 'platformAdmin';
 
@@ -41,15 +41,13 @@ async function accountsWithClaim(auth){
   return found;
 }
 
-// The accounts that should be admins: the ones that own the listed emails.
-// These accounts already exist (created in 2026-07), so an email can't be
-// claimed by a new sign-up while they do.
+// The accounts that should be admins (PLATFORM_ADMIN_UIDS).
 async function listedAccounts(auth){
-  return Promise.all(PLATFORM_ADMIN_EMAILS.map(async (email) => {
+  return Promise.all(PLATFORM_ADMIN_UIDS.map(async (uid) => {
     try{
-      return { email, user: await auth.getUserByEmail(email) };
+      return { uid, user: await auth.getUser(uid) };
     }catch(e){
-      if (e && e.code === 'auth/user-not-found') return { email, user: null };
+      if (e && e.code === 'auth/user-not-found') return { uid, user: null };
       throw e;
     }
   }));
@@ -59,13 +57,13 @@ function describe(listed, extra){
   return {
     ok: true,
     claim: ADMIN_CLAIM,
-    admins: listed.map(({ email, user }) => user ? {
-      email,
-      uid: user.uid,
+    admins: listed.map(({ uid, user }) => user ? {
+      email: user.email || null,
+      uid,
       hasClaim: user.customClaims?.[ADMIN_CLAIM] === true,
       emailVerified: user.emailVerified === true,
       disabled: user.disabled === true,
-    } : { email, uid: null, hasClaim: false, missing: true }),
+    } : { email: null, uid, hasClaim: false, missing: true }),
     // Accounts that have the claim but aren't listed (should be none).
     extra: extra.map(u => ({ uid: u.uid, email: u.email || null })),
   };
