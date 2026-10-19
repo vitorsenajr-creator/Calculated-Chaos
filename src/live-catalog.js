@@ -13,6 +13,7 @@ import { PRESET_CLOTHING_TYPES, PRESET_COLORS, PLATFORM_LABEL } from './modules/
 import { escapeHtml } from './modules/format-utils.js';
 import { compressImage } from './modules/image-compression.js';
 import { initLiveNarration } from './modules/live-narration.js';
+import { tokenEmailVerified } from './modules/email-verification.js';
 
 // Common garment measurement labels — same vocabulary the main app's
 // measure tool already uses (Top/Pants/Dress/Outerwear categories,
@@ -105,6 +106,13 @@ waitForFirebaseReady().then(() => {
     try{
       const { doc, getDoc } = fns();
       const snap = await getDoc(doc(db(), 'users', user.uid));
+      if (snap.exists() && snap.data().status === 'approved' && !(await tokenEmailVerified(user))){
+        // Verified emails are required (v3.18.4). Not signing out: the
+        // session is shared with the main app, where they can verify.
+        setAuthError('Verify your email first: open the main app (Settings → Account), then reload this page.');
+        showAuthForm();
+        return;
+      }
       if (snap.exists() && snap.data().status === 'approved'){
         // Picks business vs pre-business data paths before anything loads.
         await loadActiveBusiness(snap.data());

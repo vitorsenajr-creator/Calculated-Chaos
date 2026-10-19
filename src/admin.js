@@ -15,6 +15,7 @@ import { EBAY_ERROR_LIBRARY } from './modules/ebay-error-hints.js';
 import { APP_VERSION, APP_VERSION_DATE } from './modules/version.js';
 import { jsonAuthHeaders } from './modules/api-auth.js';
 import { loadAdminClaim } from './modules/admin-claim.js';
+import { tokenEmailVerified } from './modules/email-verification.js';
 
 function db(){ return window.db; }
 function fns(){ return window.firestoreFns; }
@@ -77,8 +78,11 @@ waitForFirebaseReady().then(() => {
     hideAuthOverlay();
     // Not signing a non-admin out here: the session is shared with the main
     // app on the same origin, so that would log them out of it too.
-    if (!(await loadAdminClaim(user))){
+    const verified = await tokenEmailVerified(user);
+    if (!(await loadAdminClaim(user)) || !verified){
       document.getElementById('adDeniedEmail').textContent = user.email || user.uid;
+      // Verified emails are required for admins too (v3.18.4).
+      if (!verified) document.getElementById('adDeniedEmail').textContent += ' (email not verified: verify it in the app under Settings → Account, then reload)';
       document.getElementById('adDenied').style.display = 'block';
       return;
     }

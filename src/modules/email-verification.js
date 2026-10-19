@@ -4,8 +4,8 @@
 // address. Firebase sends it from its default sender, with the template in
 // Firebase Console → Authentication → Templates.
 //
-// Requiring a verified email comes later (step 4a, PR 5), once the
-// Developer Panel shows every account as verified.
+// Since v3.18.4 a verified email is required: the rules (isVerified()),
+// the server (requireApprovedUser) and the app's sign-in gates check it.
 
 function errorText(e){
   const code = String(e && e.code || '');
@@ -39,5 +39,22 @@ export async function refreshEmailVerified(user){
   }catch(e){
     console.error('Could not refresh email verification:', e);
     return null;
+  }
+}
+
+// What the security rules and the server will see: email_verified in the
+// sign-in token (required since v3.18.4). The token can be older than the
+// account (verified on another device, or in another tab), so when the
+// account says verified but the token doesn't, get a fresh token.
+export async function tokenEmailVerified(user){
+  if (!user) return false;
+  try{
+    if ((await user.getIdTokenResult()).claims.email_verified === true) return true;
+    if (!user.emailVerified) await user.reload();
+    if (!user.emailVerified) return false;
+    return (await user.getIdTokenResult(true)).claims.email_verified === true;
+  }catch(e){
+    console.error('Could not check email verification:', e);
+    return false;
   }
 }

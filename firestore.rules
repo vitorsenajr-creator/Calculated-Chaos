@@ -8,17 +8,25 @@
 // token (v3.18.1). Only the server sets it (api/_adminClaims.js, from
 // PLATFORM_ADMIN_UIDS in api/_firebaseAdmin.js), so it can't be obtained
 // by signing up with an admin's email the way the old email list could.
+//
+// Since v3.18.4 every data access also needs a verified email
+// (email_verified in the sign-in token): an unverified address may not even
+// belong to the person using it. Pending accounts only touch their own
+// users doc, so they can still sign up and wait for approval.
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     function isSignedIn() {
       return request.auth != null;
     }
+    function isVerified() {
+      return isSignedIn() && request.auth.token.get('email_verified', false) == true;
+    }
     function isAdmin() {
-      return isSignedIn() && request.auth.token.get('platformAdmin', false) == true;
+      return isVerified() && request.auth.token.get('platformAdmin', false) == true;
     }
     function isApproved() {
-      return isSignedIn() &&
+      return isVerified() &&
         exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'approved';
     }
