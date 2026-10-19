@@ -24,6 +24,9 @@ let currentUid = null;
 // Admins' uids, from the "Admin access" card (only the server can list
 // other accounts' claims); marks them in the Users tab.
 let adminUids = new Set();
+// Sign-in details per uid from the server (api/_users.js): emailVerified,
+// disabled, lastSignIn. Empty if that call fails; the lists still work.
+let authInfo = {};
 
 const fmtDate = (v) => {
   if (!v) return '—';
@@ -139,6 +142,10 @@ async function loadUsers(){
     const snap = await getDocs(collection(db(), 'users'));
     users = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     users.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    authInfo = await platformAction({ action: 'users_auth_info' }).then(r => r.users || {}).catch(e => {
+      console.error('Failed to load sign-in details:', e);
+      return {};
+    });
   }catch(e){
     console.error('Failed to load users:', e);
     approvalsEl.innerHTML = `<div class="ad-card"><div class="ebay-status-box error">Could not load users: ${escapeHtml(e.message || String(e))}</div></div>`;
@@ -150,8 +157,16 @@ async function loadUsers(){
 }
 
 function statusPill(u){
+  if (u.status === 'removed') return '<span class="ad-pill unknown">removed</span>';
   const status = u.status === 'approved' ? 'approved' : 'pending';
   return `<span class="ad-pill ${status}">${status}</span>`;
+}
+// " · email verified · last sign-in …" from the server's details.
+function authMeta(u){
+  const a = authInfo[u.id];
+  if (!a) return '';
+  if (a.missing) return ' · no login (deleted)';
+  return ` · email ${a.emailVerified ? 'verified' : 'not verified'}${a.disabled ? ' · login disabled' : ''}${a.lastSignIn ? ` · last sign-in ${escapeHtml(fmtDate(a.lastSignIn))}` : ''}`;
 }
 function rolePill(u){
   return u.role === 'employee' ? '<span class="ad-pill employee">employee</span>' : '';
@@ -159,7 +174,7 @@ function rolePill(u){
 
 function renderApprovals(){
   const el = document.getElementById('panelApprovals');
-  const pending = users.filter(u => u.status !== 'approved');
+  const pending = users.filter(u => u.status !== 'approved' && u.status !== 'removed');
   const badge = document.getElementById('adPendingBadge');
   badge.textContent = String(pending.length);
   badge.style.display = pending.length ? 'inline-block' : 'none';
@@ -167,12 +182,12 @@ function renderApprovals(){
   el.innerHTML = `
     <div class="ad-card">
       <h3>Access requests</h3>
-      <div class="ad-desc">People who created an account and are waiting for access. Denying removes their request; they can sign up again later.</div>
+      <div class="ad-desc">People who created an account and are waiting for access. Denying deletes their request and their login; they can sign up again later.</div>
       ${pending.length ? pending.map(u => `
         <div class="ad-row">
           <div>
             <div class="ad-main-text">${escapeHtml(u.email || u.id)}</div>
-            <div class="ad-meta">Requested ${escapeHtml(fmtDate(u.createdAt))}</div>
+            <div class="ad-meta">Requested ${escapeHtml(fmtDate(u.createdAt))}${authMeta(u)}</div>
           </div>
           <div class="ad-actions">
             <button class="ad-btn" data-approve="${escapeHtml(u.id)}">Approve</button>
@@ -184,29 +199,35 @@ function renderApprovals(){
   el.querySelectorAll('[data-approve]').forEach(btn => btn.addEventListener('click', () =>
     updateUser(btn, btn.dataset.approve, { status: 'approved' })));
   el.querySelectorAll('[data-deny]').forEach(btn => btn.addEventListener('click', () => {
-    if (!confirm('Deny this request? They will need to sign up again to request access.')) return;
-    deleteUser(btn, btn.dataset.deny);
+    if (!confirm('Deny this request? Their login is deleted; they can sign up again later.')) return;
+    userAction(btn, 'user_deny', btn.dataset.deny);
   }));
 }
 
 function renderUsers(){
   const el = document.getElementById('panelUsers');
   const approvedCount = users.filter(u => u.status === 'approved').length;
+  const removedCount = users.filter(u => u.status === 'removed').length;
   el.innerHTML = `
     <div class="ad-card">
       <h3>Users (${users.length})</h3>
-      <div class="ad-desc">${approvedCount} approved · ${users.length - approvedCount} pending. Employees only see the Catalog tab. Removing a user deletes their access record, not their login; signing in again puts them back in the approval queue.</div>
+      <div class="ad-desc">${approvedCount} approved · ${users.length - approvedCount - removedCount} pending${removedCount ? ` · ${removedCount} removed` : ''}. Employees only see the Catalog tab. Remove disables the login and signs it out everywhere; Restore undoes it.</div>
       ${users.length ? users.map(u => {
         const isSelf = u.id === currentUid;
         const isApproved = u.status === 'approved';
         const isEmployee = u.role === 'employee';
+        const isRemoved = u.status === 'removed';
+        const isAdmin = adminUids.has(u.id);
         return `
         <div class="ad-row">
           <div>
             <div class="ad-main-text">${escapeHtml(u.email || u.id)}${statusPill(u)}${rolePill(u)}${isSelf ? ' <span class="ad-meta">(you)</span>' : ''}</div>
-            <div class="ad-meta">Created ${escapeHtml(fmtDate(u.createdAt))}${adminUids.has(u.id) ? ' · admin' : ''}</div>
+            <div class="ad-meta">Created ${escapeHtml(fmtDate(u.createdAt))}${isAdmin ? ' · admin' : ''}${authMeta(u)}</div>
           </div>
-          ${isSelf ? '' : `
+          ${isSelf || isAdmin ? '' : isRemoved ? `
+          <div class="ad-actions">
+            <button class="ad-btn secondary" data-restore="${escapeHtml(u.id)}">Restore</button>
+          </div>` : `
           <div class="ad-actions">
             ${isApproved
               ? `<button class="ad-btn secondary" data-revoke="${escapeHtml(u.id)}">Revoke access</button>`
@@ -227,9 +248,11 @@ function renderUsers(){
   el.querySelectorAll('[data-role]').forEach(btn => btn.addEventListener('click', () =>
     updateUser(btn, btn.dataset.role, { role: btn.dataset.nextRole })));
   el.querySelectorAll('[data-remove]').forEach(btn => btn.addEventListener('click', () => {
-    if (!confirm('Remove this user? Their login still exists; signing in again puts them back in the approval queue.')) return;
-    deleteUser(btn, btn.dataset.remove);
+    if (!confirm('Remove this user? Their login is disabled and signed out on every device. Nothing is deleted; Restore undoes it.')) return;
+    userAction(btn, 'user_remove', btn.dataset.remove);
   }));
+  el.querySelectorAll('[data-restore]').forEach(btn => btn.addEventListener('click', () =>
+    userAction(btn, 'user_restore', btn.dataset.restore)));
 }
 
 async function updateUser(btn, uid, fields){
@@ -244,15 +267,16 @@ async function updateUser(btn, uid, fields){
   }
 }
 
-async function deleteUser(btn, uid){
+// Remove / Restore / Deny go through the server (api/_users.js): only
+// Firebase Admin can disable or delete a login.
+async function userAction(btn, action, uid){
   btn.disabled = true;
   try{
-    const { doc, deleteDoc } = fns();
-    await deleteDoc(doc(db(), 'users', uid));
+    await platformAction({ action, uid });
     await loadUsers();
   }catch(e){
     btn.disabled = false;
-    alert(`Could not remove this user: ${e.message || e}`);
+    alert(`Could not update this user: ${e.message || e}`);
   }
 }
 

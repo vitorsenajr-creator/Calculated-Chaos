@@ -233,7 +233,7 @@ renaming them needs a data migration of every saved item.
   stay platform admins; Remove disables the account; only verified
   emails get access). PRs: (1) claim, first half (v3.18.0, synced in
   production); (2) only the claim, admins by UID (v3.18.1); (3)
-  Remove/Deny through the server;
+  Remove/Deny/employee creation through the server (v3.18.2);
   (4) send verification emails; (5) require a verified email. Then
   Google sign-in, App Check, admin 2FA, then onboarding/invites (step 5). The root collections stay, read-only for the business's
   members, until Vitor confirms removing them.
@@ -263,6 +263,11 @@ renaming them needs a data migration of every saved item.
 
 Last known status per the v3.13 notes. Confirm with Vitor before relying
 on any of these:
+- User management on the server (v3.18.2): handler test with a fake
+  Firestore and Auth (10 cases: remove/restore order and round trip,
+  guards, deny, employee create with rollback, sign-in details).
+  Unconfirmed in production: Remove/Restore/Deny in the Developer Panel,
+  creating an employee in Settings, the sign-in details column.
 - Admin claim only (v3.18.1): 18 emulator rules tests (an admin email
   without the claim is denied), handler test with a fake Firebase Auth,
   clean build and page loads. Unconfirmed in production: the Developer
@@ -327,6 +332,16 @@ on any of these:
   `isPlatformAdmin()`), and `ADMIN_EMAILS`/`isAdminEmail` are gone. A new
   account is always `pending` (an admin email is no longer approved on
   sight). `platform.js` checks the caller's uid.
+- **v3.18.2**: user management on the server (`api/_users.js`, new
+  `platform.js` actions). Remove = `status: 'removed'` (doc first, so the
+  rules cut access at once) + login disabled + sessions revoked + business
+  membership deleted; Restore undoes it (back to the old status/role).
+  Deny deletes a pending request and its login. `employee_create` makes
+  the login, the approved doc and the membership; the old browser flow
+  (`window.createEmployeeAccount`, secondary Firebase app) is gone, and it
+  had been failing since the rules allow only self-created user docs. The
+  Developer Panel shows email verified / login disabled / last sign-in
+  (`users_auth_info`). A removed account sees a "removed" message.
 
 ## Backlog (not started)
 

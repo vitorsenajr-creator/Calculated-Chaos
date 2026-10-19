@@ -31,12 +31,24 @@
 //        an admin and who has the claim; sync gives it to the listed
 //        accounts and removes it from any other.
 //
+//   action: 'users_auth_info'
+//     -> sign-in details per user (email verified, login disabled, last
+//        sign-in), which only Firebase Admin can read (_users.js).
+//
+//   action: 'user_remove' | 'user_restore' | 'user_deny', uid
+//     -> Remove disables the login (reversible, status 'removed'), Restore
+//        undoes it, Deny deletes a pending request and its login.
+//
+//   action: 'employee_create', email, password
+//     -> a Catalog-only login, approved and added to the caller's business.
+//
 // Platform admins only (PLATFORM_ADMIN_UIDS in _firebaseAdmin.js).
 
 import { requireApprovedUser } from './_requireApprovedUser.js';
 import { getFirebaseAdmin, isPlatformAdminUid, FIREBASE_PROJECT_ID } from './_firebaseAdmin.js';
 import { migrationStatus, migrationCopy, migrationSwitch } from './_migration.js';
 import { adminClaimsStatus, adminClaimsSync } from './_adminClaims.js';
+import { usersAuthInfo, userRemove, userRestore, userDeny, employeeCreate } from './_users.js';
 
 async function handleHealth(auth){
   const checks = [];
@@ -99,6 +111,14 @@ export default async function handler(req, res){
       const result = action === 'admin_claims' ? await adminClaimsStatus(admin.auth) : await adminClaimsSync(admin.auth);
       if (action === 'admin_claims_sync') console.log('admin-claims-sync', JSON.stringify({ by: auth.uid, admins: result.admins.map(a => a.uid) }));
       return res.status(200).json(result);
+    }
+    const userActions = { user_remove: userRemove, user_restore: userRestore, user_deny: userDeny, employee_create: employeeCreate };
+    if (action === 'users_auth_info' || userActions[action]){
+      const admin = getFirebaseAdmin();
+      if (!admin.ok) return res.status(503).json({ error: admin.error });
+      const result = action === 'users_auth_info' ? await usersAuthInfo(admin) : await userActions[action](admin, auth, req.body || {});
+      if (action !== 'users_auth_info') console.log('platform-user-action', JSON.stringify({ action, by: auth.uid, target: (req.body || {}).uid || null, ok: result.ok }));
+      return res.status(result.ok ? 200 : result.status).json(result.ok ? result : { error: result.error });
     }
     return res.status(400).json({ error: 'Unknown action' });
   }catch(err){

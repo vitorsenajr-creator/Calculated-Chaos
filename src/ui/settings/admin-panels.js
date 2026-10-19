@@ -2,6 +2,7 @@
 // the pending access-request count and the employee account list. Moved
 // out of main.js unchanged.
 import { escapeHtml } from '../../modules/format-utils.js';
+import { jsonAuthHeaders } from '../../modules/api-auth.js';
 
 // Settings only shows how many sign-ups are waiting; approving/denying
 // moved to the Developer Panel (admin.html, src/admin.js) in v3.15.0.
@@ -29,10 +30,25 @@ export async function renderAuthorizeAccessPanel(){
 // Lets the admin create a login for someone who should only see Catalog
 // (a Poshmark-only helper, e.g.) — writes role:'employee' on their user
 // doc, which is what applyRoleRestrictions() checks after sign-in to hide
-// everything else. Uses a throwaway secondary Firebase app instance to
-// create the auth user (see window.createEmployeeAccount in
-// config/firebase.js) so it doesn't sign the admin out of their own
-// session — createUserWithEmailAndPassword normally does that.
+// everything else. The server creates the login, the approved user doc
+// and the business membership (api/_users.js, v3.18.2). The browser used
+// to create the login on a secondary Firebase app and then write the doc,
+// which the rules deny (only a user may create their own doc).
+export async function createEmployeeLogin(email, password){
+  try{
+    const res = await fetch('/api/platform', {
+      method: 'POST',
+      headers: await jsonAuthHeaders(),
+      body: JSON.stringify({ action: 'employee_create', email, password }),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data) return { ok: false, error: (data && data.error) || `HTTP ${res.status}` };
+    return { ok: true };
+  }catch(e){
+    return { ok: false, error: e.message || String(e) };
+  }
+}
+
 export async function renderEmployeeAccountsPanel(){
   const section = document.getElementById('employeeAccountsSection');
   const listEl = document.getElementById('employeeAccountsList');
