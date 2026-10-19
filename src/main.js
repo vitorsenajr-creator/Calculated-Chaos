@@ -76,7 +76,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.13.118';
+  const APP_VERSION = 'v3.14.0';
   const APP_VERSION_DATE = '2026-10-19';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
