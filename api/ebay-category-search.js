@@ -4,10 +4,11 @@
 // antiques, appliances, clothing, etc). This replaces guessing at category
 // IDs with a real lookup against eBay's actual category tree.
 //
-// POST body: { access_token, query }
+// POST body: { query }  (the eBay token comes from the server, _ebayToken.js)
 // Returns: { success, suggestions: [{ id, name, path }] }
 
 import { requireApprovedUser } from './_requireApprovedUser.js';
+import { getEbayAccessToken } from './_ebayToken.js';
 
 const EBAY_SANDBOX = process.env.EBAY_SANDBOX === 'true';
 const API_BASE = EBAY_SANDBOX
@@ -26,8 +27,10 @@ export default async (req, res) => {
   }
 
   try{
-    const { access_token, query } = req.body || {};
-    if (!access_token) return res.status(400).json({ error: 'Missing access_token' });
+    const { query } = req.body || {};
+    const ebayToken = await getEbayAccessToken();
+    if (!ebayToken.ok) return res.status(ebayToken.status).json({ error: ebayToken.error });
+    const access_token = ebayToken.token;
     const q = (query || '').trim();
     if (!q) return res.status(400).json({ error: 'Missing query' });
 

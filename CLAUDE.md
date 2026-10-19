@@ -100,6 +100,9 @@ renaming them needs a data migration of every saved item.
   - `platform.js`: platform-admin actions for the Developer Panel
     (`health` today). New platform operations (businesses, credits,
     admin claims) go here as new actions.
+  - `_ebayToken.js`: the server-only eBay connection (v3.16.0). Every eBay
+    endpoint calls `getEbayAccessToken()`; never accept an eBay token from
+    the browser again.
   - `_firebaseAdmin.js`: Firebase Admin from `FIREBASE_SERVICE_ACCOUNT`
     (never throws; returns `{ ok:false, error }`). `_requireApprovedUser.js`
     verifies tokens with it and falls back to the old Firestore-REST check
@@ -115,7 +118,9 @@ renaming them needs a data migration of every saved item.
   - `ebay-listing-tools.js`: audit, legacy scan/migrate, backfill,
     policies, offers.
   - `ebay-list.js`: publish, with the adapt-and-retry loop.
-  - `ebay-setup.js`, `ebay-auth.js`, `ebay-category-search.js`,
+  - `ebay-auth.js`: OAuth (`url`, `callback`) plus `status`,
+    `save_tokens`, `username`, `disconnect` on the server-held connection.
+  - `ebay-setup.js`, `ebay-category-search.js`,
     `ebay-check-sales.js`, `ebay-end-listing.js`.
   - `ebay-account-deletion.js` and `ebay-auth.js` have URLs registered in
     eBay's developer portal. **Never rename or merge them.**
@@ -133,7 +138,10 @@ renaming them needs a data migration of every saved item.
 - Firestore collections and docs:
   - Catalog and app data: `items`, `drafts`, `users` (role/status),
     `app_config/settings`, `app_settings/productCodeCounter`,
-    `ebay_tokens/main`, `ebay_error_log`.
+    `ebay_error_log`.
+  - `ebay_connections/main`: eBay tokens, server only (no client rule).
+    `ebay_tokens/main` is the pre-v3.16.0 copy, still readable by approved
+    users until it's removed (see Open items).
   - Live Catalog: `liveSessions`, `liveItems`, `live_catalog_options/*`.
   - Security rules: the live copy is in the Firebase Console; `firestore.rules`
     is a versioned copy (no deploy step). Change both together.
@@ -179,9 +187,17 @@ renaming them needs a data migration of every saved item.
 - **General eBay review**: Vitor plans to review the whole eBay flow soon
   (2026-10-19). The shipping-policy bug is considered resolved; see
   `docs/ebay-shipping-policy.md`.
-- **Employee accounts are UI-restricted only**. Firestore rules in the
-  Console must enforce the role to make this real
+- **Employee accounts are mostly UI-restricted**. Since v3.16.0 the server
+  blocks employees from connecting/disconnecting eBay, but Firestore rules
+  still let them read/write the catalog and settings
   (`docs/employee-accounts.md`).
+- **Remove the legacy eBay token** once v3.16.0 is confirmed in
+  production (Developer Panel → eBay shows the connection, publishing
+  works): drop the `ebay_tokens` rule from `firestore.rules` + the
+  Console, and delete the `ebay_tokens/main` doc.
+- **`public/sw.js` caches every same-origin GET, `/api/` included**, and
+  answers `index.html` offline. All API calls are POST today, so nothing
+  breaks, but it should skip `/api/` (separate change).
 - **Model update**: `analyze-photo.js` moved to `claude-sonnet-5-5` at
   `effort: low` (v3.14.1). `suggest_fee` still uses `claude-sonnet-4-6`
   and `narration.js` extract uses `claude-haiku-4-5`; those switches are
@@ -189,11 +205,9 @@ renaming them needs a data migration of every saved item.
   before doing them.
 - **Watch the Vercel logs** for `ai-usage` lines with `"structured":false`
   (the structured-output fallback ran on `analyze-photo.js`).
-- **Firestore rules v3.14.2 must be pasted into the Console** (adds
-  `app_settings` and `ebay_error_log`). Until then the product-code counter
-  and the eBay error library keep failing silently. `email_verified` was
-  deliberately not added to `isAdmin()`: the app never sends verification
-  emails, so the admin accounts are likely unverified and would lock out.
+- `email_verified` is deliberately not in `isAdmin()` (`firestore.rules`):
+  the app never sends verification emails, so the admin accounts are
+  likely unverified and would lock out.
 
 ### Unverified in production (build-verified only)
 
@@ -201,14 +215,12 @@ Last known status per the v3.13 notes. Confirm with Vitor before relying
 on any of these:
 - ✨ analysis on Sonnet 5.5 / low effort, refusal fallback and the new
   "declined" message (v3.14.1).
-- Developer Panel (v3.15.0): tested headless with a stubbed Firebase
-  only; real Firestore reads/writes and the rules are unconfirmed.
-- Backup download (v3.15.5): tested headless with a stubbed Firestore;
-  a real backup of the production data is unconfirmed.
-- Firebase Admin (v3.15.4): key handling tested with missing, invalid,
-  partial, wrong-project and a locally generated key (forged token → 401);
-  the real key in Vercel is unconfirmed until Developer Panel → App shows
-  "✅ Working".
+- eBay tokens on the server (v3.16.0): 15 server tests with a stubbed
+  Firestore (migration, refresh, refresh failure, status without tokens,
+  server token used over a body token, employee limits, disconnect) and a
+  headless client run (status, Test connection, no token in any request).
+  Real eBay calls (publish, check sales, end listing, offers, setup,
+  audit/import, connect via paste) are unconfirmed.
 - Server-built AI prompts (v3.15.3): golden test (prompt text identical)
   and handler tests with a mocked fetch; ✨ analyze, rewrite and both
   narration flows are unconfirmed against the real API.
@@ -222,45 +234,16 @@ on any of these:
   sizing (v3.13.102-105), inspection flag icon (v3.13.114).
 - Live Catalog label printing on a real Avery sheet / phone (v3.13.45/47).
 
-## Pending changelog entry (since v3.15.0)
+## Pending changelog entry (since v3.16.0)
 
-- **v3.15.1**: every eBay endpoint now requires a signed-in, approved
-  user (`requireApprovedUser`), like the AI endpoints already did:
-  `ebay-category-search`, `ebay-check-sales`, `ebay-end-listing`,
-  `ebay-list`, `ebay-listing-tools`, `ebay-setup`, and `ebay-auth` except
-  its `callback` (eBay's own redirect). `ebay-account-deletion` stays open
-  (eBay calls it). The client sends the ID token through
-  `jsonAuthHeaders()` (`src/modules/api-auth.js`) on all 16 eBay calls.
-  The Firebase project ID in `_requireApprovedUser.js` can be overridden
-  with an optional `FIREBASE_PROJECT_ID` env var.
-- **v3.15.2**: admins get a "🛠️ Developer Panel" button next to "Sign
-  out" in Settings → Account (the old link lower down was removed; that
-  section now only shows the pending-request count).
-- **v3.15.3**: AI prompts are built on the server. `analyze-photo.js`
-  takes `{ mode, imageBlocks, input }` (raw item fields, closing-line
-  choice, price history, `aiFacts`) and builds prompt + schema with
-  `buildItemAiRequest()` in `src/modules/ai-item.js`; any `promptText` /
-  `outputSchema` from the browser is ignored. Inputs are type-checked and
-  length-capped, image blocks are filtered (max 5, base64 or http(s) URL).
-  `narration.js` `extract` takes `{ kind: 'item' | 'live', transcript }`;
-  the two prompts moved verbatim to `src/modules/narration-prompts.js`.
-  `LISTING_DESC_LIMIT` and `buildClosingLineInstruction()` moved from
-  `main.js` to `ai-item.js`. A golden test confirmed the prompt text is
-  byte-identical to v3.15.2 for the analyze, rewrite and both narration
-  prompts, so AI output shouldn't change.
-- **v3.15.4**: Firebase Admin on the server (`firebase-admin` 13,
-  `api/_firebaseAdmin.js`, key from `FIREBASE_SERVICE_ACCOUNT`).
-  `requireApprovedUser` now verifies the ID token's signature itself and
-  reads the user doc with admin rights, falling back to the old REST
-  check if the key is missing/broken. New `api/platform.js` (12th and
-  last Hobby function) with an admin-only `health` action, shown in
-  Developer Panel → App → "Server admin access".
-- **v3.15.5**: Developer Panel → Backup tab. "Download full backup" saves
-  every app collection as one JSON file (Timestamps tagged as
-  `{ __timestamp }`), leaving out `ebay_tokens` (a credential) and
-  `ebay_category_cache`. Read-only, no restore button by design. The tab
-  also has the steps for a Google Cloud managed export (project is on
-  Blaze).
+- **v3.16.0** (already in `CHANGELOG.md`): eBay tokens moved to the server.
+  `api/_ebayToken.js` reads/refreshes `ebay_connections/main` with
+  Firebase Admin and copies `ebay_tokens/main` on first use. Endpoints
+  ignore any `access_token` in the body. `ebay-auth` actions: `status`,
+  `save_tokens`, `username` (`markTested`), `disconnect`; `refresh`
+  returns 410. Client: `ebayConnection` / `loadEbayConnection()` /
+  `ensureEbayConnected()` in `src/ebay-api.js`. The status call is a POST
+  because `public/sw.js` caches every same-origin GET.
 
 ## Backlog (not started)
 

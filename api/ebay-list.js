@@ -1,12 +1,13 @@
 // /api/ebay-list.js — eBay listing publisher
 // Creates or updates a listing on eBay using the Inventory + Offer APIs (modern approach)
-// POST body: { access_token, item, refresh_token }
+// POST body: { item, imageUrls }  (the eBay token comes from the server, _ebayToken.js)
 
 import { estimateShipping } from '../src/modules/pricing.js';
 import { normalizeSizeForEbay } from '../src/modules/ebay-size.js';
 import { conformAspectsToAllowedValues } from '../src/modules/ebay-aspect-match.js';
 import { suggestEbayTypeValue, isTypeAspect } from '../src/modules/ebay-type-map.js';
 import { requireApprovedUser } from './_requireApprovedUser.js';
+import { getEbayAccessToken } from './_ebayToken.js';
 
 const EBAY_SANDBOX = process.env.EBAY_SANDBOX === 'true';
 
@@ -641,9 +642,11 @@ export default async function handler(req, res){
     return res.status(authCheck.status).json({ error: authCheck.error });
   }
 
-  const { access_token, item, imageUrls } = req.body || {};
+  const { item, imageUrls } = req.body || {};
 
-  if (!access_token){ return res.status(400).json({ error: 'Missing access_token' }); }
+  const ebayToken = await getEbayAccessToken();
+  if (!ebayToken.ok) return res.status(ebayToken.status).json({ error: ebayToken.error });
+  const access_token = ebayToken.token;
   if (!item){ return res.status(400).json({ error: 'Missing item data' }); }
   if (!item.listPrice){ return res.status(400).json({ error: 'Item must have a listing price before publishing to eBay.' }); }
 

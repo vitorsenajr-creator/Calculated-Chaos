@@ -1,37 +1,32 @@
-// /api/ebay-auth.js — eBay OAuth handler
-// Handles three operations via ?action= query param:
-//   ?action=url      → returns the eBay authorization URL to redirect the user to
-//   ?action=callback → exchanges the authorization code for access + refresh tokens
-//   ?action=refresh  → uses the refresh token to get a new access token
+// /api/ebay-auth.js — eBay OAuth handler and the app's view of the
+// server-held eBay connection (v3.16.0: the tokens live only on the server,
+// see _ebayToken.js). Operations via ?action= query param:
+//   ?action=url        → the eBay authorization URL to send the user to
+//   ?action=callback   → eBay's redirect: exchanges the code for tokens
+//   ?action=status     → { connected, sellerUsername, connected_at, ... }
+//                        (never the tokens)
+//   ?action=save_tokens → POST { tokens }: stores a connection pasted from
+//                        the callback page (owners only)
+//   ?action=username   → POST { markTested }: looks up the seller's
+//                        username with the server's token; with markTested
+//                        it's the Settings "Test connection" check
+//   ?action=disconnect → removes the connection (owners only)
+// The old ?action=refresh is gone: the server refreshes tokens itself.
 
 import { requireApprovedUser } from './_requireApprovedUser.js';
+import {
+  getEbayAccessToken, getEbayConnectionStatus, saveEbayConnection,
+  updateEbayConnection, deleteEbayConnection,
+  EBAY_TOKEN_URL as TOKEN_URL, EBAY_SCOPES as SCOPES, ebayBasicAuthHeader as basicAuthHeader,
+} from './_ebayToken.js';
 
 const EBAY_CLIENT_ID     = process.env.EBAY_CLIENT_ID;
-const EBAY_CLIENT_SECRET = process.env.EBAY_CLIENT_SECRET;
 const EBAY_REDIRECT_URI  = process.env.EBAY_REDIRECT_URI; // e.g. https://calculated-chaos-deploy1-1.vercel.app/api/ebay-auth?action=callback
 const EBAY_SANDBOX       = process.env.EBAY_SANDBOX === 'true'; // set to 'true' while testing
 
 const BASE_AUTH_URL = EBAY_SANDBOX
   ? 'https://auth.sandbox.ebay.com/oauth2/authorize'
   : 'https://auth.ebay.com/oauth2/authorize';
-
-const TOKEN_URL = EBAY_SANDBOX
-  ? 'https://api.sandbox.ebay.com/identity/v1/oauth2/token'
-  : 'https://api.ebay.com/identity/v1/oauth2/token';
-
-const SCOPES = [
-  'https://api.ebay.com/oauth/api_scope',
-  'https://api.ebay.com/oauth/api_scope/sell.inventory',
-  'https://api.ebay.com/oauth/api_scope/sell.inventory.readonly',
-  'https://api.ebay.com/oauth/api_scope/sell.marketing',
-  'https://api.ebay.com/oauth/api_scope/sell.account',
-  'https://api.ebay.com/oauth/api_scope/commerce.identity.readonly',
-  // Added for auto-detecting eBay sales (getOrders) and sending discount
-  // offers to watchers (Negotiation API) — existing connected accounts
-  // need to reconnect once to pick up these new scopes.
-  'https://api.ebay.com/oauth/api_scope/sell.fulfillment',
-  'https://api.ebay.com/oauth/api_scope/sell.fulfillment.readonly',
-].join(' ');
 
 const IDENTITY_BASE = EBAY_SANDBOX
   ? 'https://apiz.sandbox.ebay.com'
@@ -55,9 +50,6 @@ async function fetchSellerUsername(accessToken){
   }
 }
 
-function basicAuthHeader(){
-  return 'Basic ' + Buffer.from(`${EBAY_CLIENT_ID}:${EBAY_CLIENT_SECRET}`).toString('base64');
-}
 
 export default async function handler(req, res){
   // eBay's redirect only appends "?code=..." to whatever "Auth accepted URL"
@@ -68,11 +60,48 @@ export default async function handler(req, res){
 
   // Every action except the callback needs a signed-in, approved user. The
   // callback is eBay's own browser redirect, so it carries no Firebase token.
+  let authCheck = null;
   if (action !== 'callback'){
-    const authCheck = await requireApprovedUser(req);
+    authCheck = await requireApprovedUser(req);
     if (!authCheck.ok){
       return res.status(authCheck.status).json({ error: authCheck.error });
     }
+  }
+  // Connecting or disconnecting eBay is for owners, not employee logins.
+  if ((action === 'save_tokens' || action === 'disconnect') && authCheck.role === 'employee'){
+    return res.status(403).json({ error: 'Only the account owner can connect or disconnect eBay.' });
+  }
+
+  // ---------- Connection status (no tokens) ----------
+  if (action === 'status'){
+    const status = await getEbayConnectionStatus();
+    return res.status(status.ok ? 200 : status.status).json(status.ok ? status : { error: status.error });
+  }
+
+  // ---------- Store a connection pasted from the callback page ----------
+  if (action === 'save_tokens'){
+    const t = (req.body && req.body.tokens) || {};
+    if (typeof t.access_token !== 'string' || typeof t.refresh_token !== 'string' || !t.access_token || !t.refresh_token){
+      return res.status(400).json({ error: 'That doesn\'t look like the eBay connection data. Connect again and copy the whole text.' });
+    }
+    const saved = await saveEbayConnection({
+      access_token: t.access_token,
+      refresh_token: t.refresh_token,
+      expires_in: Number(t.expires_in) || 7200,
+      token_type: typeof t.token_type === 'string' ? t.token_type : 'User Access Token',
+      connected_at: Number(t.connected_at) || Date.now(),
+      sellerUsername: typeof t.sellerUsername === 'string' ? t.sellerUsername.slice(0, 100) : null,
+      connectedBy: authCheck.email || authCheck.uid,
+    });
+    if (!saved.ok) return res.status(saved.status).json({ error: saved.error });
+    return res.status(200).json(await getEbayConnectionStatus());
+  }
+
+  // ---------- Disconnect ----------
+  if (action === 'disconnect'){
+    const del = await deleteEbayConnection();
+    if (!del.ok) return res.status(del.status).json({ error: del.error });
+    return res.status(200).json({ ok: true, connected: false });
   }
 
   // ---------- Return the eBay authorization URL ----------
@@ -157,46 +186,20 @@ export default async function handler(req, res){
   // Used to backfill the display name for accounts that connected before this
   // feature existed, without requiring a full disconnect/reconnect.
   if (action === 'username'){
-    const { access_token } = req.body || {};
-    if (!access_token) return res.status(400).json({ error: 'Missing access_token.' });
-    const sellerUsername = await fetchSellerUsername(access_token);
+    const ebayToken = await getEbayAccessToken();
+    if (!ebayToken.ok) return res.status(ebayToken.status).json({ error: ebayToken.error });
+    const sellerUsername = await fetchSellerUsername(ebayToken.token);
+    const fields = {};
+    if (sellerUsername) fields.sellerUsername = sellerUsername;
+    if (req.body && req.body.markTested) fields.lastTestedAt = Date.now();
+    if (Object.keys(fields).length) await updateEbayConnection(fields);
     return res.status(200).json({ sellerUsername });
   }
 
-  // ---------- Refresh access token ----------
+  // ---------- Removed: the server refreshes tokens itself ----------
   if (action === 'refresh'){
-    const { refresh_token } = req.body || {};
-    if (!refresh_token){
-      return res.status(400).json({ error: 'Missing refresh_token.' });
-    }
-    try{
-      const body = new URLSearchParams({
-        grant_type: 'refresh_token',
-        refresh_token,
-        scope: SCOPES,
-      });
-      const response = await fetch(TOKEN_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Authorization': basicAuthHeader(),
-        },
-        body: body.toString(),
-      });
-      const data = await response.json();
-      if (!response.ok){
-        return res.status(500).json({ error: 'Token refresh failed', detail: data });
-      }
-      return res.status(200).json({
-        access_token: data.access_token,
-        expires_in: data.expires_in,
-        refreshed_at: Date.now(),
-      });
-    }catch(err){
-      console.error('eBay refresh error:', err);
-      return res.status(500).json({ error: 'Server error during token refresh.' });
-    }
+    return res.status(410).json({ error: 'This app version is out of date. Reload the app to get the latest version.' });
   }
 
-  return res.status(400).json({ error: 'Unknown action. Use ?action=url, ?action=callback, or ?action=refresh' });
+  return res.status(400).json({ error: 'Unknown action.' });
 }

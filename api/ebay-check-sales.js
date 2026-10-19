@@ -5,12 +5,13 @@
 // Uses the Fulfillment API's getOrders call:
 //   GET /sell/fulfillment/v1/order?filter=creationdate:[since..]
 //
-// POST body: { access_token, since_iso }  (since_iso optional — defaults to
+// POST body: { since_iso }  (since_iso optional — defaults to
 // last 14 days, which comfortably covers "checked every time the app opens"
 // without pulling the full 90-day default every time)
 // Returns: { success, sales: [{ sku, legacyItemId, orderId, total, creationDate }] }
 
 import { requireApprovedUser } from './_requireApprovedUser.js';
+import { getEbayAccessToken } from './_ebayToken.js';
 
 const EBAY_SANDBOX = process.env.EBAY_SANDBOX === 'true';
 const API_BASE = EBAY_SANDBOX
@@ -28,8 +29,10 @@ export default async (req, res) => {
   }
 
   try{
-    const { access_token, since_iso } = req.body || {};
-    if (!access_token) return res.status(400).json({ error: 'Missing access_token' });
+    const { since_iso } = req.body || {};
+    const ebayToken = await getEbayAccessToken();
+    if (!ebayToken.ok) return res.status(ebayToken.status).json({ error: ebayToken.error });
+    const access_token = ebayToken.token;
 
     const since = since_iso || new Date(Date.now() - 14 * 86400000).toISOString();
     const url = `${API_BASE}/sell/fulfillment/v1/order?filter=${encodeURIComponent(`creationdate:[${since}..]`)}&limit=200`;

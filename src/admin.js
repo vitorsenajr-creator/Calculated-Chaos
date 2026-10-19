@@ -234,16 +234,18 @@ async function deleteUser(btn, uid){
 async function renderEbay(){
   const el = document.getElementById('panelEbay');
   el.innerHTML = '<div class="ad-card ad-empty">Loading…</div>';
+  // Since v3.16.0 the tokens live only on the server; this asks it for the
+  // connection's status (api/ebay-auth.js action=status).
   let t = null;
   try{
-    const { doc, getDoc } = fns();
-    const snap = await getDoc(doc(db(), 'ebay_tokens', 'main'));
-    t = snap.exists() ? snap.data() : null;
+    const res = await fetch('/api/ebay-auth?action=status', { method: 'POST', headers: await jsonAuthHeaders(), body: '{}' });
+    t = await res.json().catch(() => null);
+    if (!res.ok) throw new Error((t && t.error) || `HTTP ${res.status}`);
   }catch(e){
     el.innerHTML = `<div class="ad-card"><div class="ebay-status-box error">Could not load the eBay connection: ${escapeHtml(e.message || String(e))}</div></div>`;
     return;
   }
-  if (!t || !t.access_token){
+  if (!t || !t.connected){
     el.innerHTML = `<div class="ad-card"><h3>eBay connection</h3><div class="ebay-status-box pending">Not connected. Connect from the main app: Settings → eBay.</div></div>`;
     return;
   }
@@ -252,13 +254,13 @@ async function renderEbay(){
   el.innerHTML = `
     <div class="ad-card">
       <h3>eBay connection</h3>
-      <div class="ad-desc">One shared connection for the whole app today (ebay_tokens/main). Per-business connections come with the multi-business work.</div>
+      <div class="ad-desc">One connection for the whole app today, held on the server (ebay_connections/main; the app never sees the tokens). Per-business connections come with the multi-business work.</div>
       <dl class="ad-kv">
         <dt>Account</dt><dd>${escapeHtml(t.sellerUsername || 'unknown')}</dd>
-        <dt>Access token</dt><dd>${accessValid ? `valid until ${escapeHtml(fmtDate(expiresAt))}` : 'expired (the app refreshes it on next use)'}</dd>
+        <dt>Access token</dt><dd>${accessValid ? `valid until ${escapeHtml(fmtDate(expiresAt))}` : 'expired (the server refreshes it on next use)'}</dd>
         <dt>Last issued</dt><dd>${escapeHtml(fmtDate(t.connected_at))}</dd>
         <dt>Last connection test</dt><dd>${escapeHtml(fmtDate(t.lastTestedAt))}</dd>
-        <dt>Refresh token</dt><dd>${t.refresh_token ? 'present' : '<b style="color:var(--danger);">missing — reconnect eBay</b>'}</dd>
+        ${t.connectedBy ? `<dt>Connected by</dt><dd>${escapeHtml(t.connectedBy)}</dd>` : ''}
       </dl>
     </div>`;
 }
@@ -338,7 +340,7 @@ function renderBackup(){
       <ol style="font-size:13px; color:var(--plum); padding-left:20px; margin:0;">
         <li>Open <a href="https://console.cloud.google.com/firestore/databases/-default-/import-export?project=${escapeHtml(window.db?.app?.options?.projectId || '')}" target="_blank" rel="noopener">Firestore Import/Export</a> in Google Cloud (same Google account as Firebase).</li>
         <li>Click <b>Export</b>, choose <b>Export entire database</b>.</li>
-        <li>Pick a bucket (create one if asked, same region as the database), then <b>Export</b>.</li>
+        <li>Pick a bucket in the <b>us</b> multi-region, then <b>Export</b>. Don't use the photos bucket (…firebasestorage.app): it's in us-east1 and the export is rejected. To create one: Cloud Storage → Buckets → Create → Multi-region → us.</li>
         <li>It shows up under the bucket in a few minutes. Storage costs cents per month.</li>
       </ol>
     </div>`;
