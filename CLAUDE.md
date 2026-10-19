@@ -92,7 +92,8 @@ renaming them needs a data migration of every saved item.
 - `api/`: **11 route functions; the Vercel Hobby cap is 12**. Prefer
   adding an `action`/`mode` to an existing file over a new file.
   Underscore files (`_requireApprovedUser.js`) don't count.
-  - `analyze-photo.js`: ✨ analysis, `mode: full | listing_only`, Sonnet 4.6.
+  - `analyze-photo.js`: ✨ analysis, `mode: full | listing_only`, Sonnet 5.5
+    at `effort: low`, with server-side refusal `fallbacks`.
   - `narration.js`: `transcribe` (Deepgram) / `extract` (Haiku 4.5).
   - `ebay-item-aspects.js`: category aspects, `suggest_fee`,
     `explain_error`.
@@ -159,10 +160,11 @@ renaming them needs a data migration of every saved item.
 - **Employee accounts are UI-restricted only**. Firestore rules in the
   Console must enforce the role to make this real
   (`docs/employee-accounts.md`).
-- **Model update**: `analyze-photo.js` and `suggest_fee` still use
-  `claude-sonnet-4-6`, and `narration.js` extract uses `claude-haiku-4-5`.
-  The switch to current models was deliberately left for a separate
-  change. Check the `claude-api` skill for current IDs before doing it.
+- **Model update**: `analyze-photo.js` moved to `claude-sonnet-5-5` at
+  `effort: low` (v3.14.1). `suggest_fee` still uses `claude-sonnet-4-6`
+  and `narration.js` extract uses `claude-haiku-4-5`; those switches are
+  left for a separate change. Check the `claude-api` skill for current IDs
+  before doing them.
 - **Watch the Vercel logs** for `ai-usage` lines with `"structured":false`
   (the structured-output fallback ran on `analyze-photo.js`).
 - `ebay_error_log` may need adding to the Firestore rules if they
@@ -173,6 +175,8 @@ renaming them needs a data migration of every saved item.
 
 Last known status per the v3.13 notes. Confirm with Vitor before relying
 on any of these:
+- ✨ analysis on Sonnet 5.5 / low effort, refusal fallback and the new
+  "declined" message (v3.14.1).
 - ✨ analyze + auto-apply + Redo (v3.13.115-117), NWT checkbox (v3.13.116).
 - eBay error library, AI explanation, aspect matching, Type auto-fill
   (v3.13.108-110), publish-step retry loop (v3.13.51).
@@ -182,7 +186,16 @@ on any of these:
 
 ## Pending changelog entry (since v3.14.0)
 
-_Empty._
+- **v3.14.1**: `api/analyze-photo.js` switched from `claude-sonnet-4-6` to
+  `claude-sonnet-5-5` at `effort: low` (Vitor's choice after an Opus 5.5
+  vs Sonnet 5.5 evaluation; photo error rate was already near zero, so
+  cost/latency won). Thinking is always on for this model (adaptive), so
+  `max_tokens` went from 3000/1800 to 16000/8000 to leave room for it.
+  Added `fallbacks: "default"` (beta `server-side-fallback-2026-07-01`) so
+  a classifier refusal re-runs on Anthropic's fallback model, and a
+  client message when `stop_reason` is `refusal`. `ai-usage` logs now
+  include `effort` and `stop_details`. Expected cost ~$0.03-0.04/item
+  (estimate; confirm from `ai-usage` logs).
 
 ## Backlog (not started)
 

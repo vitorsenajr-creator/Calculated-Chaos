@@ -76,7 +76,7 @@ export const app = (function(){
   // ⬇ Bump this with every meaningful update, and update the date.
   // This is what shows in the badge at the top of the app, and in CSV exports —
   // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.14.0';
+  const APP_VERSION = 'v3.14.1';
   const APP_VERSION_DATE = '2026-10-19';
 
   setAppSettings({ ...DEFAULT_SETTINGS });
@@ -4747,6 +4747,9 @@ export const app = (function(){
       return { ok:false, message: `Couldn't reach the AI (server said: HTTP ${response.status}${detail ? ' — ' + escapeHtml(String(detail)) : ''}). Try again in a moment — if it keeps happening, tell Vitor this exact message.` };
     }
     const data = await response.json();
+    if (data.stop_reason === 'refusal'){
+      return { ok:false, message: `The AI declined to analyze this item. Please try again — if it keeps happening, tell Vitor.` };
+    }
     if (data.stop_reason === 'max_tokens'){
       return { ok:false, message: `The AI's answer was cut off before it finished. Please try again.` };
     }

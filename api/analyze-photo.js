@@ -15,24 +15,35 @@
 
 import { requireApprovedUser } from './_requireApprovedUser.js';
 
-const MODEL = 'claude-sonnet-4-6';
-const MAX_TOKENS = { full: 3000, listing_only: 1800 };
+// Sonnet 5.5 at low effort (v3.14.1). Thinking is always on for this model
+// (adaptive); effort is the control for how much it thinks, and low keeps
+// latency and cost close to the old Sonnet 4.6 call. Thinking tokens count
+// toward max_tokens, so the limits leave room for it on top of the JSON.
+const MODEL = 'claude-sonnet-5-5';
+const EFFORT = 'low';
+const MAX_TOKENS = { full: 16000, listing_only: 8000 };
 
 async function callAnthropic(apiKey, { content, maxTokens, outputSchema }){
   const body = {
     model: MODEL,
     max_tokens: maxTokens,
+    thinking: { type: 'adaptive' },
+    output_config: { effort: EFFORT },
+    // If a safety classifier declines the request, the API re-runs it on
+    // Anthropic's recommended fallback model in the same call.
+    fallbacks: 'default',
     messages: [{ role: 'user', content }],
   };
   if (outputSchema){
-    body.output_config = { format: { type: 'json_schema', schema: outputSchema } };
+    body.output_config.format = { type: 'json_schema', schema: outputSchema };
   }
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01'
+      'anthropic-version': '2023-06-01',
+      'anthropic-beta': 'server-side-fallback-2026-07-01'
     },
     body: JSON.stringify(body)
   });
@@ -98,7 +109,8 @@ export default async function handler(req, res) {
     // estimates in the v3.13.115 analysis with measured numbers.
     console.log('ai-usage', JSON.stringify({
       mode, model: data.model, structured, images: safeImageBlocks.length,
-      stop_reason: data.stop_reason, usage: data.usage,
+      effort: EFFORT, stop_reason: data.stop_reason, stop_details: data.stop_details || null,
+      usage: data.usage,
     }));
 
     return res.status(200).json({ ...data, structured });
