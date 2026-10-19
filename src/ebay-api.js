@@ -36,13 +36,10 @@
   // read-only from the importer's side, so this is the way to do it.
   export function clearEbayConnection(){ ebayConnection = { connected: false }; }
 
-  // True while the "open eBay tab -> copy token -> paste it back" flow is
-  // waiting on the user (the paste textarea is showing but nothing's saved
-  // yet). Switching app tabs (e.g. back to Settings after authorizing on
-  // eBay) used to fully rebuild the Settings section and silently wipe that
-  // textarea out from under her — she'd get back from authorizing and find
-  // no paste box at all. main.js checks this flag before rebuilding
-  // Settings so the pending paste UI survives.
+  // True while the connect flow is waiting on the eBay tab (the "authorize
+  // in the new tab" box is showing). Switching app tabs used to fully
+  // rebuild the Settings section and wipe that box out; main.js checks this
+  // flag before rebuilding Settings so it survives.
   export let ebayConnectFlowPending = false;
 
  export async function loadEbayConnection(){
@@ -65,23 +62,6 @@
   export async function ensureEbayConnected(){
     if (!ebayConnection) await loadEbayConnection();
     return ebayIsConnected();
-  }
-
-  // Stores a connection pasted from the eBay callback page on the server.
-  export async function saveEbayConnection(tokens){
-    try{
-      const res = await fetch('/api/ebay-auth?action=save_tokens', {
-        method: 'POST',
-        headers: await jsonAuthHeaders(),
-        body: JSON.stringify({ tokens }),
-      });
-      const data = await res.json().catch(() => null);
-      if (!res.ok) return { ok: false, error: (data && data.error) || `HTTP ${res.status}` };
-      ebayConnection = data;
-      return { ok: true };
-    }catch(e){
-      return { ok: false, error: (e && e.message) || String(e) };
-    }
   }
 
   // Checks recent eBay orders and auto-marks matching items as Sold — this
@@ -260,6 +240,79 @@
   return document.getElementById('ebayConnectionStatus') || modalArea;
 }
 
+  // Connect flow (v3.16.2): the eBay tab's callback stores the connection on
+  // the server by itself, so the app only waits for the status to show a
+  // newer authorization. It checks when the app regains focus, every few
+  // seconds for up to 5 minutes, and on the "I've finished" button.
+  const CONNECT_POLL_MS = 4000;
+  const CONNECT_WAIT_MS = 5 * 60 * 1000;
+  let connectWatch = null;
+
+  function stopConnectWatch(){
+    if (!connectWatch) return;
+    clearInterval(connectWatch.timer);
+    document.removeEventListener('visibilitychange', connectWatch.onReturn);
+    window.removeEventListener('focus', connectWatch.onReturn);
+    connectWatch = null;
+  }
+
+  function startConnectWatch(){
+    stopConnectWatch();
+    const watch = {
+      // What the status said before this flow; the callback stamps a new
+      // authorizedAt (server clock), so a bigger one means it went through.
+      prevAuthorizedAt: (ebayConnection && ebayConnection.authorizedAt) || 0,
+      startedAt: Date.now(),
+      checking: false,
+      onReturn: () => { if (document.visibilityState === 'visible') checkEbayConnectFinished(false); },
+    };
+    watch.timer = setInterval(() => {
+      if (Date.now() - watch.startedAt > CONNECT_WAIT_MS){
+        stopConnectWatch();
+        const area = ebayTargetArea();
+        const note = area && area.querySelector('#ebayConnectWaitNote');
+        if (note) note.textContent = 'Stopped checking automatically. If you finished on eBay, tap the button below.';
+        return;
+      }
+      checkEbayConnectFinished(false);
+    }, CONNECT_POLL_MS);
+    document.addEventListener('visibilitychange', watch.onReturn);
+    window.addEventListener('focus', watch.onReturn);
+    connectWatch = watch;
+  }
+
+  // `manual` = the "I've finished" button: also says so when nothing's there yet.
+  async function checkEbayConnectFinished(manual){
+    const watch = connectWatch;
+    const prev = watch ? watch.prevAuthorizedAt : 0;
+    if (watch){
+      if (watch.checking) return;
+      watch.checking = true;
+    }
+    try{
+      await loadEbayConnection();
+    }finally{
+      if (watch) watch.checking = false;
+    }
+    const area = ebayTargetArea();
+    if (ebayIsConnected() && (ebayConnection.authorizedAt || 0) > prev){
+      stopConnectWatch();
+      ebayConnectFlowPending = false;
+      const name = ebayConnection.sellerUsername;
+      if (area) area.innerHTML = `<div class="ebay-status-box success">✅ eBay account connected successfully${name ? ` as <b>${app.escapeHtml(name)}</b>` : ''}!</div>`;
+      // If this happened from Settings, refresh the fuller status box after a beat.
+      setTimeout(() => { if (document.getElementById('ebayConnectionStatus')) app.renderEbayConnectionStatus(); }, 1500);
+      return;
+    }
+    if (manual){
+      const note = area && area.querySelector('#ebayConnectWaitNote');
+      if (note) note.textContent = 'Not connected yet. Finish signing in on the eBay tab (it should say "eBay connected"), then tap the button again.';
+      if (!connectWatch) startConnectWatch();
+    }
+  }
+
+  window.checkEbayConnectFinished = () => checkEbayConnectFinished(true);
+
   window.connectEbay = async function connectEbay(){
     const area = ebayTargetArea();
     area.innerHTML = `<div class="ebay-status-box pending">⏳ Opening eBay authorization page…</div>`;
@@ -270,57 +323,37 @@
     // browsers silently block the popup — which is why nothing seemed to happen.
     const authTab = window.open('about:blank', '_blank');
     try{
-      const res = await fetch('/api/ebay-auth?action=url', { headers: await jsonAuthHeaders() });
-      const data = await res.json();
-      if (!data.url) throw new Error('No auth URL returned');
+      // POST, not GET: public/sw.js caches every same-origin GET, and each
+      // URL carries a fresh one-time state code.
+      const res = await fetch('/api/ebay-auth?action=url', { method: 'POST', headers: await jsonAuthHeaders(), body: '{}' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.url) throw new Error(data.error || `HTTP ${res.status}`);
+      startConnectWatch();
+      const waitBox = (intro) => `
+        <div class="ebay-connect-box">
+          <div class="ec-title">${intro}</div>
+          <div class="ec-sub" id="ebayConnectWaitNote">Sign in and tap "Agree" on eBay. When the eBay tab says "eBay connected", come back here; the app picks it up by itself.</div>
+          <button onclick="checkEbayConnectFinished()" style="margin-top:8px; background:var(--terracotta); color:white; border:none; border-radius:8px; padding:10px 18px; font-size:13px; font-weight:600; cursor:pointer; width:100%;">
+            I've finished — check connection
+          </button>
+        </div>`;
       if (authTab && !authTab.closed){
         authTab.location.href = data.url;
+        area.innerHTML = waitBox('Authorize in the new tab');
       } else {
         // Popup was blocked despite opening it synchronously (rare, but some
         // mobile browsers/settings still block). Fall back to a manual link.
         area.innerHTML = `
           <div class="ebay-status-box error">
             ⚠️ Your browser blocked the popup. Tap the link below to continue:
-            <br><a href="${data.url}" target="_blank" style="color:var(--terracotta); font-weight:600;">Open eBay authorization</a>
-          </div>`;
-        return;
+            <br><a href="${data.url}" target="_blank" rel="noopener" style="color:var(--terracotta); font-weight:600;">Open eBay authorization</a>
+          </div>` + waitBox('Then authorize on eBay');
       }
-      area.innerHTML = `
-        <div class="ebay-connect-box">
-          <div class="ec-title">Authorize in the new tab, then paste here</div>
-          <div class="ec-sub">After authorizing, the eBay page will show a "Copy to clipboard" button. Click it, then paste the result below:</div>
-          <textarea id="ebayTokenPaste" style="width:100%; height:80px; border:1px solid var(--line); border-radius:8px; padding:10px; font-size:12px; font-family:'JetBrains Mono',monospace;" placeholder='Paste the token JSON here…'></textarea>
-          <button onclick="applyEbayTokenPaste()" style="margin-top:8px; background:var(--terracotta); color:white; border:none; border-radius:8px; padding:10px 18px; font-size:13px; font-weight:600; cursor:pointer; width:100%;">
-            ✓ Connect my eBay account
-          </button>
-        </div>`;
     }catch(err){
       ebayConnectFlowPending = false;
+      stopConnectWatch();
       if (authTab && !authTab.closed) authTab.close();
-      area.innerHTML = `<div class="ebay-status-box error">❌ Could not start eBay authorization. Make sure the app is deployed and configured correctly.</div>`;
-    }
-  }
-
-  window.applyEbayTokenPaste = async function(){
-    const raw = document.getElementById('ebayTokenPaste')?.value?.trim();
-    if (!raw){ alert('Please paste the token data first.'); return; }
-    const area = ebayTargetArea();
-    try{
-      const tokens = JSON.parse(raw);
-      if (!tokens.access_token || !tokens.refresh_token) throw new Error('Invalid token format');
-      const result = await saveEbayConnection(tokens);
-      ebayConnectFlowPending = false;
-      if (result.ok){
-        area.innerHTML = `
-          <div class="ebay-status-box success">✅ eBay account connected successfully${tokens.sellerUsername ? ` as <b>${app.escapeHtml(tokens.sellerUsername)}</b>` : ''}!</div>`;
-        // If this happened from Settings, refresh the fuller status box after a beat.
-        setTimeout(() => { if (document.getElementById('ebayConnectionStatus')) app.renderEbayConnectionStatus(); }, 1500);
-      } else {
-        area.innerHTML = `
-          <div class="ebay-status-box error">❌ Could not save the eBay connection.<br>Error: ${app.escapeHtml(result.error || 'unknown')}</div>`;
-      }
-    }catch(e){
-      alert('Could not read the token data. Please try connecting again and make sure you copied the full text.');
+      area.innerHTML = `<div class="ebay-status-box error">❌ Could not start eBay authorization: ${app.escapeHtml(err.message || String(err))}</div>`;
     }
   };
 
@@ -1021,7 +1054,7 @@ ${esc(JSON.stringify(result.debugPolicyIdsSent, null, 2))}</div>`;
 
   // These specific functions are also called from inline onclick="…" HTML
   // strings built elsewhere (checkEbaySalesNow, connectEbay,
-  // applyEbayTokenPaste, disconnectEbay) — inline handlers resolve against
+  // checkEbayConnectFinished, disconnectEbay) — inline handlers resolve against
   // `window`, not module scope, so they have to live there regardless of
   // being real module exports too. No mocking, no fetch interception —
   // real functions only.

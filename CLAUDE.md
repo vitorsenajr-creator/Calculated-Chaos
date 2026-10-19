@@ -118,8 +118,9 @@ renaming them needs a data migration of every saved item.
   - `ebay-listing-tools.js`: audit, legacy scan/migrate, backfill,
     policies, offers.
   - `ebay-list.js`: publish, with the adapt-and-retry loop.
-  - `ebay-auth.js`: OAuth (`url`, `callback`) plus `status`,
-    `save_tokens`, `username`, `disconnect` on the server-held connection.
+  - `ebay-auth.js`: OAuth (`url` + `callback`, linked by a one-time
+    `state` code; the callback stores the tokens itself) plus `status`,
+    `username`, `disconnect` on the server-held connection.
   - `ebay-setup.js`, `ebay-category-search.js`,
     `ebay-check-sales.js`, `ebay-end-listing.js`.
   - `ebay-account-deletion.js` and `ebay-auth.js` have URLs registered in
@@ -141,7 +142,8 @@ renaming them needs a data migration of every saved item.
     `ebay_error_log`.
   - `ebay_connections/main`: eBay tokens, server only (no client rule).
     The pre-v3.16.0 `ebay_tokens/main` copy and its rule were removed in
-    v3.16.1.
+    v3.16.1. `ebay_oauth_states/*`: one-time connect codes (v3.16.2),
+    server only too.
   - Live Catalog: `liveSessions`, `liveItems`, `live_catalog_options/*`.
   - Security rules: the live copy is in the Firebase Console; `firestore.rules`
     is a versioned copy (no deploy step). Change both together.
@@ -213,7 +215,12 @@ on any of these:
   "declined" message (v3.14.1).
 - eBay tokens on the server (v3.16.0): Vitor confirmed Test connection,
   publish, offers and audit in production (2026-10-19). Still unconfirmed:
-  mark as sold → end listing, check sales, setup, connect via paste.
+  mark as sold → end listing, check sales, setup.
+- eBay connect without copy-paste (v3.16.2): 16 handler tests with a
+  stubbed Firestore and eBay (state stored, consumed once, expired,
+  unknown, missing, employee blocked, no tokens on the page, a failed
+  exchange keeps the current connection) and a headless page load. A real
+  Connect / switch account is unconfirmed.
 - Server-built AI prompts (v3.15.3): golden test (prompt text identical)
   and handler tests with a mocked fetch; ✨ analyze, rewrite and both
   narration flows are unconfirmed against the real API.
@@ -239,6 +246,13 @@ on any of these:
 - **v3.16.1**: removed the legacy `ebay_tokens/main` path. The rule is
   gone from `firestore.rules`, and `api/_ebayToken.js` no longer copies
   that doc on first use or deletes it on disconnect.
+- **v3.16.2**: connect eBay without copy-paste. `action=url` (owners only,
+  now a POST) stores a one-time `state` in `ebay_oauth_states/{state}`;
+  the callback consumes it, stores the tokens with `connectedBy` and
+  `authorizedAt`, and shows only "eBay connected as …". The app waits for
+  a newer `authorizedAt` in the status (focus, every 4 s for 5 min, or the
+  "I've finished" button). `save_tokens`, the paste box and
+  `applyEbayTokenPaste` are gone.
 
 ## Backlog (not started)
 

@@ -199,9 +199,13 @@ Enforcement:
    for platform actions, starting with `health`.
 3. [~] eBay tokens server-side. Done in v3.16.0: tokens in
    `ebay_connections/main` (server only), refreshed by the server, every
-   endpoint reads them there. Still to do: the OAuth callback writes the
-   connection directly (no copy-paste, `state` tied to the user), and the
-   doc id becomes the business id.
+   endpoint reads them there. Done in v3.16.2: the OAuth callback writes
+   the connection itself. `action=url` stores a one-time code in
+   `ebay_oauth_states/{state}` (uid, email, `connectionId`, 10-minute
+   expiry) and the callback consumes it, so no tokens are shown or
+   pasted. Still to do: the doc id becomes the business id. That's one
+   line: `action=url` passes the user's business id as `connectionId`,
+   and the callback already writes to whatever the code says.
 4. [ ] Business-scoped data paths: a `bizCol()`/`bizDoc()` helper used by
    all ~40 call sites; per-business counters.
 5. [ ] "Create your business" onboarding, members/roles, owner invites
