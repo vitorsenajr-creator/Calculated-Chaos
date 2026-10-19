@@ -234,7 +234,10 @@ renaming them needs a data migration of every saved item.
   emails get access). PRs: (1) claim, first half (v3.18.0, synced in
   production); (2) only the claim, admins by UID (v3.18.1); (3)
   Remove/Deny/employee creation through the server (v3.18.2);
-  (4) send verification emails; (5) require a verified email. Then
+  (4) verification on request (v3.18.3; **never send verification
+  emails automatically**, Vitor 2026-10-19: only the person's own click
+  sends one); (5) require a verified email, only once the Developer Panel
+  shows every account verified. Then
   Google sign-in, App Check, admin 2FA, then onboarding/invites (step 5). The root collections stay, read-only for the business's
   members, until Vitor confirms removing them.
 - **General eBay review**: Vitor plans to review the whole eBay flow soon
@@ -254,15 +257,19 @@ renaming them needs a data migration of every saved item.
   before doing them.
 - **Watch the Vercel logs** for `ai-usage` lines with `"structured":false`
   (the structured-output fallback ran on `analyze-photo.js`).
-- `email_verified` is deliberately not required yet: the app never sent
-  verification emails, and the Developer Panel shows both admin accounts
-  as unverified (2026-10-19). Step 4a's PRs 4-5 send them first, then
-  require them.
+- `email_verified` is deliberately not required yet: both admin accounts
+  were unverified on 2026-10-19. Since v3.18.3 each person can verify
+  from the "Awaiting approval" screen or Settings → Account; step 4a's
+  PR 5 requires it once the Developer Panel shows everyone verified.
 
 ### Unverified in production (build-verified only)
 
 Last known status per the v3.13 notes. Confirm with Vitor before relying
 on any of these:
+- Email verification on request (v3.18.3): helper unit test with a fake
+  user, a Chromium screenshot of the pending screen, clean build and page
+  loads. Unconfirmed in production: the email arriving, the link, "I've
+  verified it" and the Developer Panel column turning to verified.
 - User management on the server (v3.18.2): handler test with a fake
   Firestore and Auth (10 cases: remove/restore order and round trip,
   guards, deny, employee create with rollback, sign-in details).
@@ -342,6 +349,12 @@ on any of these:
   had been failing since the rules allow only self-created user docs. The
   Developer Panel shows email verified / login disabled / last sign-in
   (`users_auth_info`). A removed account sees a "removed" message.
+- **v3.18.3**: email verification on request
+  (`src/modules/email-verification.js`). "Send verification email" + "I've
+  verified it" on the "Awaiting approval" screen and in Settings → Account
+  (only while unverified); nothing is sent automatically. "I've verified
+  it" reloads the account and refreshes the token (for PR 5's rules).
+  Approving an unverified user asks first.
 
 ## Backlog (not started)
 

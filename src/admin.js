@@ -196,8 +196,7 @@ function renderApprovals(){
         </div>`).join('') : '<div class="ad-empty">No pending requests.</div>'}
     </div>`;
 
-  el.querySelectorAll('[data-approve]').forEach(btn => btn.addEventListener('click', () =>
-    updateUser(btn, btn.dataset.approve, { status: 'approved' })));
+  el.querySelectorAll('[data-approve]').forEach(btn => btn.addEventListener('click', () => approveUser(btn, btn.dataset.approve)));
   el.querySelectorAll('[data-deny]').forEach(btn => btn.addEventListener('click', () => {
     if (!confirm('Deny this request? Their login is deleted; they can sign up again later.')) return;
     userAction(btn, 'user_deny', btn.dataset.deny);
@@ -239,8 +238,7 @@ function renderUsers(){
       }).join('') : '<div class="ad-empty">No users yet.</div>'}
     </div>`;
 
-  el.querySelectorAll('[data-approve]').forEach(btn => btn.addEventListener('click', () =>
-    updateUser(btn, btn.dataset.approve, { status: 'approved' })));
+  el.querySelectorAll('[data-approve]').forEach(btn => btn.addEventListener('click', () => approveUser(btn, btn.dataset.approve)));
   el.querySelectorAll('[data-revoke]').forEach(btn => btn.addEventListener('click', () => {
     if (!confirm('Revoke access? They go back to "pending" and lose access until approved again.')) return;
     updateUser(btn, btn.dataset.revoke, { status: 'pending' });
@@ -253,6 +251,16 @@ function renderUsers(){
   }));
   el.querySelectorAll('[data-restore]').forEach(btn => btn.addEventListener('click', () =>
     userAction(btn, 'user_restore', btn.dataset.restore)));
+}
+
+// Approving someone whose email isn't verified asks first (v3.18.3):
+// verified emails will be required, and an unverified address may not
+// even belong to them.
+function approveUser(btn, uid){
+  const a = authInfo[uid];
+  if (a && !a.missing && !a.emailVerified &&
+      !confirm("This person hasn't verified their email yet. Approve anyway?\n\nOnce verified emails are required, they'll need to verify it (from the app) before they can use it.")) return;
+  updateUser(btn, uid, { status: 'approved' });
 }
 
 async function updateUser(btn, uid, fields){

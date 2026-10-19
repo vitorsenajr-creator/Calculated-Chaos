@@ -965,6 +965,10 @@
   #authOverlay .auth-error{ margin-top:12px; font-size:13px; color:var(--danger, #C0392B); }
   #authOverlay .auth-pending{ text-align:center; }
   #authOverlay .auth-pending button{ margin-top:18px; background:transparent; border:1px solid var(--line, #E4D9CE); border-radius:8px; padding:9px 16px; font-size:13px; cursor:pointer; color:var(--plum, #2B241E); }
+  #authOverlay .auth-verify{ margin-top:4px; padding-top:14px; border-top:1px solid var(--line, #E4D9CE); }
+  #authOverlay .auth-verify p.auth-sub{ margin-bottom:0; }
+  #authOverlay .auth-verify button{ margin:12px 4px 0; }
+  #authOverlay .auth-verify-msg{ margin-top:10px; font-size:12px; color:var(--plum-soft, #6E5F4E); }
   /* header/.tabs/main now live inside .app-shell > .app-column (added for
      the desktop sidebar layout) instead of directly under body — this has
      to hide the whole shell, not the old direct-child selectors, or the

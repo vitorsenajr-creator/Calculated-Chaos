@@ -78,6 +78,7 @@ import {
 } from './modules/product-code-bank.js';
 import { jsonAuthHeaders } from './modules/api-auth.js';
 import { loadAdminClaim } from './modules/admin-claim.js';
+import { sendVerificationEmail, refreshEmailVerified } from './modules/email-verification.js';
 
 export const app = (function(){
   // APP_VERSION / APP_VERSION_DATE live in modules/version.js (shared with
@@ -4812,6 +4813,18 @@ export const app = (function(){
     document.getElementById('authFormState').style.display = 'none';
     document.getElementById('authPendingState').style.display = 'block';
     document.body.classList.add('auth-locked');
+    renderPendingVerification();
+  }
+  // Email verification on the "Awaiting approval" screen (v3.18.3).
+  // Nothing is sent unless the person clicks the button.
+  function renderPendingVerification(msg = ''){
+    const user = window.auth.currentUser;
+    const verified = !!(user && user.emailVerified);
+    document.getElementById('authVerifyText').textContent = verified
+      ? `✅ Your email (${user.email}) is verified.`
+      : `Please also verify your email (${user ? user.email : ''}): send yourself a verification email, click the link in it, then tap "I've verified it".`;
+    document.getElementById('authVerifyActions').style.display = verified ? 'none' : 'block';
+    document.getElementById('authVerifyMsg').textContent = msg;
   }
   function showApp(){
     document.getElementById('authOverlay').style.display = 'none';
@@ -4888,6 +4901,18 @@ export const app = (function(){
 
   document.getElementById('authSignOutBtn').addEventListener('click', async () => {
     await window.authFns.signOut(window.auth);
+  });
+  document.getElementById('authVerifySendBtn').addEventListener('click', async (e) => {
+    e.target.disabled = true;
+    const r = await sendVerificationEmail(window.auth.currentUser);
+    e.target.disabled = false;
+    renderPendingVerification(r.ok ? `Sent to ${window.auth.currentUser?.email}. Check your inbox (and spam), click the link, then tap "I've verified it".` : `❌ ${r.error}`);
+  });
+  document.getElementById('authVerifyCheckBtn').addEventListener('click', async (e) => {
+    e.target.disabled = true;
+    const verified = await refreshEmailVerified(window.auth.currentUser);
+    e.target.disabled = false;
+    renderPendingVerification(verified === null ? '❌ Could not check right now. Try again.' : verified ? '' : 'Not verified yet. Click the link in the email first.');
   });
 
   function waitForFirebaseReady(){
