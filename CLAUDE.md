@@ -93,9 +93,17 @@ renaming them needs a data migration of every saved item.
   - `ebay-audit.js`, `ebay-error-hints.js`/`-log.js`/`-ai.js`,
     `ebay-size.js`, `ebay-aspect-match.js`, `ebay-type-map.js`.
   - `product-code-bank.js`, `sold-confirm.js`, `dashboard.js`.
-- `api/`: **11 route functions; the Vercel Hobby cap is 12**. Prefer
-  adding an `action`/`mode` to an existing file over a new file.
-  Underscore files (`_requireApprovedUser.js`) don't count.
+- `api/`: **12 route functions = the Vercel Hobby cap (full since
+  v3.15.4)**. Add an `action`/`mode` to an existing file; a new file
+  needs Vercel Pro. Underscore files (`_requireApprovedUser.js`,
+  `_firebaseAdmin.js`) don't count.
+  - `platform.js`: platform-admin actions for the Developer Panel
+    (`health` today). New platform operations (businesses, credits,
+    admin claims) go here as new actions.
+  - `_firebaseAdmin.js`: Firebase Admin from `FIREBASE_SERVICE_ACCOUNT`
+    (never throws; returns `{ ok:false, error }`). `_requireApprovedUser.js`
+    verifies tokens with it and falls back to the old Firestore-REST check
+    if it's unavailable.
   - `analyze-photo.js`: ✨ analysis, `mode: full | listing_only`, Sonnet 5.5
     at `effort: low`, with server-side refusal `fallbacks`. Builds the
     prompt itself from item data (`buildItemAiRequest()`); never accept a
@@ -116,8 +124,12 @@ renaming them needs a data migration of every saved item.
   `EBAY_FULFILLMENT_POLICY_ID`, `EBAY_FULFILLMENT_POLICY_ID_BUYER_PAYS`,
   `EBAY_PAYMENT_POLICY_ID`, `EBAY_RETURN_POLICY_ID`,
   `EBAY_MERCHANT_LOCATION_KEY`, `EBAY_DELETION_ENDPOINT_URL`,
-  `EBAY_DELETION_VERIFICATION_TOKEN`. Optional: `FIREBASE_PROJECT_ID`
-  (defaults to `calculated-chaos-4027a`).
+  `EBAY_DELETION_VERIFICATION_TOKEN`, `FIREBASE_SERVICE_ACCOUNT` (the
+  whole service-account .json; secret, never paste it in chat or the repo).
+  Optional: `FIREBASE_PROJECT_ID` (defaults to `calculated-chaos-4027a`).
+- The admin email list lives in three places that must match:
+  `ADMIN_EMAILS` in `src/config/firebase.js`, `isAdmin()` in
+  `firestore.rules`, `PLATFORM_ADMIN_EMAILS` in `api/_firebaseAdmin.js`.
 - Firestore collections and docs:
   - Catalog and app data: `items`, `drafts`, `users` (role/status),
     `app_config/settings`, `app_settings/productCodeCounter`,
@@ -191,6 +203,10 @@ on any of these:
   "declined" message (v3.14.1).
 - Developer Panel (v3.15.0): tested headless with a stubbed Firebase
   only; real Firestore reads/writes and the rules are unconfirmed.
+- Firebase Admin (v3.15.4): key handling tested with missing, invalid,
+  partial, wrong-project and a locally generated key (forged token → 401);
+  the real key in Vercel is unconfirmed until Developer Panel → App shows
+  "✅ Working".
 - Server-built AI prompts (v3.15.3): golden test (prompt text identical)
   and handler tests with a mocked fetch; ✨ analyze, rewrite and both
   narration flows are unconfirmed against the real API.
@@ -230,6 +246,13 @@ on any of these:
   `main.js` to `ai-item.js`. A golden test confirmed the prompt text is
   byte-identical to v3.15.2 for the analyze, rewrite and both narration
   prompts, so AI output shouldn't change.
+- **v3.15.4**: Firebase Admin on the server (`firebase-admin` 13,
+  `api/_firebaseAdmin.js`, key from `FIREBASE_SERVICE_ACCOUNT`).
+  `requireApprovedUser` now verifies the ID token's signature itself and
+  reads the user doc with admin rights, falling back to the old REST
+  check if the key is missing/broken. New `api/platform.js` (12th and
+  last Hobby function) with an admin-only `health` action, shown in
+  Developer Panel → App → "Server admin access".
 
 ## Backlog (not started)
 
