@@ -21,7 +21,6 @@
 //   pattern used everywhere else in this app for destructive actions —
 //   most relevant when she's already run photo analysis on the same item.
 import { escapeHtml } from './format-utils.js';
-import { PRESET_COLORS, PRESET_CLOTHING_TYPES } from './constants.js';
 
 const MAX_RECORDING_MS = 120000; // 2 min safety cutoff — auto-stop if she forgets to tap stop
 
@@ -232,29 +231,10 @@ export function initNarrationCapture(){
 
       area.innerHTML = `<div class="ai-loading">Pulling out the details…</div>`;
 
-      const promptText = `You are helping catalog a secondhand item for resale on eBay/Mercari/Poshmark from a spoken narration. The seller described the item out loud while holding it. Here is the transcript:
-
-"${transcript.replace(/"/g, '\\"')}"
-
-Respond with ONLY a JSON object (no markdown fences, no preamble), with this exact shape — use an empty string "" (or null for price) for anything not mentioned or not confidently inferable. Do not guess just to fill a field:
-{
-  "name": "short item name/description, e.g. 'Levi's 501 denim jacket', or empty string if unclear",
-  "brand": "brand name if mentioned, else empty string",
-  "gender": "one of: Women's, Men's, Girls', Boys', Unisex — or empty string if not mentioned/not applicable",
-  "clothing_type": "if this is clothing/shoes/bag/accessory, one of: ${PRESET_CLOTHING_TYPES.join(', ')}, or another specific type if none fit. Empty string if not applicable or not mentioned.",
-  "color": "one of: ${PRESET_COLORS.join(', ')}, or another specific color if none fit. Empty string if not mentioned.",
-  "size": "size exactly as mentioned, e.g. 'M', '32x30', '8.5' — empty string if not mentioned",
-  "category": "a short general category, e.g. Clothing, Shoes, Home Goods — empty string if unclear",
-  "condition": "one of: novo_etiqueta (still has tags/new with tags), novo_sem_etiqueta (new without tags), excelente (used, excellent condition), bom (used, good condition), aceitavel (used, fair condition, visible wear), defeito (flawed, for parts/repair) — only if something about condition/tags/wear was actually said, else empty string",
-  "price": number or null (asking/listing price in USD, only if a specific price was explicitly said out loud),
-  "notes": "anything else mentioned that doesn't fit above — fabric/material, measurements, flaws, care instructions, etc., combined into one short readable note. Empty string if nothing extra was said."
-}
-Respond with the JSON object only. Do not include any text, explanation, or markdown formatting before or after it. Your entire response must be parseable as JSON.`;
-
       const extractRes = await fetch('/api/narration', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
-        body: JSON.stringify({ action: 'extract', promptText }),
+        body: JSON.stringify({ action: 'extract', kind: 'item', transcript }),
       });
       if (!extractRes.ok){
         const errData = await extractRes.json().catch(() => null);

@@ -65,8 +65,7 @@ import { matchAllowedValue, isSizeAspect } from './modules/ebay-aspect-match.js'
 import { suggestEbayTypeValue, isTypeAspect } from './modules/ebay-type-map.js';
 import { runEbayErrorLibrary } from './modules/ebay-error-log.js';
 import {
-  buildAnalyzeAndWritePrompt, buildAnalyzeAndWriteSchema, buildRewritePrompt, buildRewriteSchema,
-  normalizeStyleTags, AI_GENDER_VALUES, AI_SIZE_TYPE_VALUES,
+  normalizeStyleTags, AI_GENDER_VALUES, AI_SIZE_TYPE_VALUES, LISTING_DESC_LIMIT,
 } from './modules/ai-item.js';
 import {
   reserveNextProductCode, findItemsWithProductCode,
@@ -4730,12 +4729,14 @@ export const app = (function(){
 
   // Shared caller for /api/analyze-photo. Returns {ok, result, usage} or
   // {ok:false, message} with the server's real error text when it fails.
-  async function callAiItemEndpoint({ mode, imageBlocks, promptText, outputSchema }){
+  // `input` is the raw item data; the server builds the prompt and schema
+  // from it (buildItemAiRequest() in modules/ai-item.js, v3.15.3).
+  async function callAiItemEndpoint({ mode, imageBlocks, input }){
     const idToken = await window.auth.currentUser.getIdToken();
     const response = await fetch('/api/analyze-photo', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
-      body: JSON.stringify({ mode, imageBlocks, promptText, outputSchema })
+      body: JSON.stringify({ mode, imageBlocks, input })
     });
     if (!response.ok){
       let detail = '';
@@ -4787,16 +4788,6 @@ export const app = (function(){
   // The closet/bundle blurb only makes sense for clothing — she can
   // uncheck "Include my standard closing line" for anything else (e.g. a
   // pencil got "check my closet!" tacked on before this existed).
-  function buildClosingLineInstruction(useStandardClosing){
-    const standardText = (appSettings.listingStandardText || '').trim();
-    if (useStandardClosing === false){
-      return `one short, factual closing line appropriate for this specific item (not a styling/pairing suggestion) — do NOT reference a "closet" or wardrobe, and do NOT mention bundling clothing, since this item may not be clothing`;
-    }
-    return standardText
-      ? `a closing line that is EXACTLY this seller-provided text, verbatim, only trimmed at the end if needed to fit the ${LISTING_DESC_LIMIT}-character limit: "${standardText}"`
-      : `a line saying 'Bundle discount available — check my closet!'`;
-  }
-
   function priceHistoryByCategory(){
     const history = {};
     CATEGORY_OPTIONS.forEach(c => {
@@ -4863,15 +4854,16 @@ export const app = (function(){
       // Same idea for the price: only replaced if empty or still the AI's.
       const currentPrice = document.getElementById('fListPrice').value.trim();
       const priceIsAiOrEmpty = !parseFloat(currentPrice) || (prev && sameText(currentPrice, prev.applied.price));
-      const promptText = buildAnalyzeAndWritePrompt({
-        f,
-        conditionLabel: LISTING_CONDITION_LABEL[f.condition] || f.condition,
-        descLimit: LISTING_DESC_LIMIT,
-        closingLineInstruction: buildClosingLineInstruction(f.useStandardClosing),
-        categoryOptions: CATEGORY_OPTIONS,
-        priceHistory: priceHistoryByCategory(),
+      const res = await callAiItemEndpoint({
+        mode: 'full',
+        imageBlocks,
+        input: {
+          fields: f,
+          useStandardClosing: f.useStandardClosing,
+          standardClosingText: appSettings.listingStandardText || '',
+          priceHistory: priceHistoryByCategory(),
+        },
       });
-      const res = await callAiItemEndpoint({ mode: 'full', imageBlocks, promptText, outputSchema: buildAnalyzeAndWriteSchema() });
       if (!res.ok){
         area.innerHTML = `<div class="ai-error">${res.message}</div>`;
         return;
@@ -5318,7 +5310,6 @@ export const app = (function(){
   // truncated her longer GPT-written descriptions in practice, so this is a
   // generous working limit rather than a confirmed platform maximum. Bump
   // this single number if a longer description ever gets rejected.
-  const LISTING_DESC_LIMIT = 1500;
 
   function buildListingTitle({ brand, clothingType, category, gender, size, color, condition }){
     // Search-term order (same formula the AI title prompt uses): Brand +
@@ -5494,18 +5485,15 @@ export const app = (function(){
   // rewrite) or else `imageBlocks` (photos, the pre-v3.13.115 behavior).
   async function requestAiListingDescription(f){
     const aiFacts = f.aiFacts || null;
-    const promptText = buildRewritePrompt({
-      f,
-      conditionLabel: LISTING_CONDITION_LABEL[f.condition] || f.condition,
-      descLimit: LISTING_DESC_LIMIT,
-      closingLineInstruction: buildClosingLineInstruction(f.useStandardClosing),
-      aiFacts,
-    });
     const res = await callAiItemEndpoint({
       mode: 'listing_only',
       imageBlocks: aiFacts ? [] : (f.imageBlocks || []),
-      promptText,
-      outputSchema: buildRewriteSchema(),
+      input: {
+        fields: f,
+        useStandardClosing: f.useStandardClosing,
+        standardClosingText: appSettings.listingStandardText || '',
+        aiFacts,
+      },
     });
     if (!res.ok) return res;
     return {

@@ -8,7 +8,6 @@
 // wiring don't overlap enough to share cleanly — same reasoning that kept
 // sold-confirm.js and dashboard.js as separate modules from day one.
 import { escapeHtml } from './format-utils.js';
-import { PRESET_COLORS } from './constants.js';
 
 const MAX_RECORDING_MS = 120000; // 2 min safety cutoff, same as the main modal's narration
 
@@ -151,26 +150,10 @@ export function initLiveNarration({ rememberIfNew, addMeasureRow }){
 
       area.innerHTML = `<div class="ai-loading">Pulling out the details…</div>`;
 
-      const promptText = `You are helping catalog an item for a live-sale "lot list" (Poshmark/similar live shopping) from a spoken narration. The seller described the item out loud while holding it, right before presenting it live. Here is the transcript:
-
-"${transcript.replace(/"/g, '\\"')}"
-
-Respond with ONLY a JSON object (no markdown fences, no preamble), with this exact shape — use an empty string "" for anything not mentioned or not confidently inferable, and an empty array for measurements if none were mentioned. Do not guess just to fill a field:
-{
-  "tipo": "the item type, e.g. 'Sweater', 'Jeans', 'Dress' — empty string if unclear",
-  "brand": "brand name if mentioned, else empty string",
-  "size": "size exactly as mentioned, e.g. 'M', '32x30' — empty string if not mentioned",
-  "color": "one of: ${PRESET_COLORS.join(', ')}, or another specific color if none fit. Empty string if not mentioned.",
-  "fabric": "fabric/material composition if mentioned, e.g. '100% cotton', '80% polyester 20% spandex' — empty string if not mentioned",
-  "measurements": [{"label": "e.g. Pit to pit, Length, Waist, Sleeve length", "value": "e.g. 20 in"}] — one entry per measurement actually stated, empty array if none,
-  "notes": "anything else mentioned that doesn't fit above — flaws, condition, styling notes, etc. Empty string if nothing extra was said."
-}
-Respond with the JSON object only. Do not include any text, explanation, or markdown formatting before or after it. Your entire response must be parseable as JSON.`;
-
       const extractRes = await fetch('/api/narration', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
-        body: JSON.stringify({ action: 'extract', promptText }),
+        body: JSON.stringify({ action: 'extract', kind: 'live', transcript }),
       });
       if (!extractRes.ok){
         const errData = await extractRes.json().catch(() => null);

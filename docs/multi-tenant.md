@@ -26,7 +26,8 @@ business:
 - **AI calls are an open proxy.** `api/analyze-photo.js` and
   `api/narration.js` accept a browser-built `promptText` (and
   `outputSchema`) with no per-user limit. Any approved user can spend the
-  server's Anthropic/Deepgram keys without bound.
+  server's Anthropic/Deepgram keys without bound. (Prompts are built on the
+  server since v3.15.3; the per-user limit is still open.)
 - **Hardcoded single-business values.** Firebase project ID in
   `api/_requireApprovedUser.js`, admin emails in `src/config/firebase.js`
   and in the Console rules.
