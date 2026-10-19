@@ -26,6 +26,7 @@ import { escapeHtml, uid } from './format-utils.js';
 import { nextProductCode } from './catalog-lookups.js';
 import { ebayErrorShortMessages } from './ebay-error-hints.js';
 import { getValidEbayToken, publishItemToEbayCore } from '../ebay-api.js';
+import { jsonAuthHeaders } from './api-auth.js';
 
 function itemForSku(sku){
   return items.find(i => (i.productCode || i.id) === sku) || null;
@@ -361,7 +362,7 @@ function renderAuditReport(data){
 async function postAuditAction(token, body){
   const res = await fetch('/api/ebay-listing-tools', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: await jsonAuthHeaders(),
     body: JSON.stringify({ access_token: token, ...body }),
   });
   return res.json();

@@ -72,6 +72,7 @@ import {
   reserveNextProductCode, findItemsWithProductCode,
   runDuplicateProductCodeAudit, renumberDuplicateProductCode,
 } from './modules/product-code-bank.js';
+import { jsonAuthHeaders } from './modules/api-auth.js';
 
 export const app = (function(){
   // APP_VERSION / APP_VERSION_DATE live in modules/version.js (shared with
@@ -1921,7 +1922,7 @@ export const app = (function(){
       if (!token) return null;
       const res = await fetch('/api/ebay-listing-tools', {
         method: 'POST',
-        headers: {'Content-Type':'application/json'},
+        headers: await jsonAuthHeaders(),
         body: JSON.stringify({ access_token: token, action: 'condition_policies', category_id: categoryId })
       });
       const data = await res.json();
@@ -1963,7 +1964,7 @@ export const app = (function(){
       }
       const res = await fetch('/api/ebay-category-search', {
         method: 'POST',
-        headers: {'Content-Type':'application/json'},
+        headers: await jsonAuthHeaders(),
         body: JSON.stringify({ access_token: token, query: q })
       });
       const data = await res.json();
@@ -6639,7 +6640,7 @@ export const app = (function(){
       if (!token) return;
       const res = await fetch('/api/ebay-auth?action=username', {
         method: 'POST',
-        headers: {'Content-Type':'application/json'},
+        headers: await jsonAuthHeaders(),
         body: JSON.stringify({ access_token: token })
       });
       const data = await res.json();
@@ -6662,7 +6663,7 @@ export const app = (function(){
       }
       const res = await fetch('/api/ebay-listing-tools', {
         method: 'POST',
-        headers: {'Content-Type':'application/json'},
+        headers: await jsonAuthHeaders(),
         body: JSON.stringify({ access_token: token, action: 'find_eligible' })
       });
       const data = await res.json();
@@ -6700,7 +6701,7 @@ export const app = (function(){
       const token = await getValidEbayToken();
       const res = await fetch('/api/ebay-listing-tools', {
         method: 'POST',
-        headers: {'Content-Type':'application/json'},
+        headers: await jsonAuthHeaders(),
         body: JSON.stringify({ access_token: token, action: 'send_offer', listing_id: listingId, discount_percentage: pct })
       });
       const data = await res.json();
@@ -6730,7 +6731,7 @@ export const app = (function(){
       }
       const res = await fetch('/api/ebay-auth?action=username', {
         method: 'POST',
-        headers: {'Content-Type':'application/json'},
+        headers: await jsonAuthHeaders(),
         body: JSON.stringify({ access_token: token })
       });
       const data = await res.json();
@@ -6775,7 +6776,7 @@ export const app = (function(){
       }
       const res = await fetch('/api/ebay-setup', {
         method: 'POST',
-        headers: {'Content-Type':'application/json'},
+        headers: await jsonAuthHeaders(),
         body: JSON.stringify({ access_token: token })
       });
       const data = await res.json();

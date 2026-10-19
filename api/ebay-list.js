@@ -6,6 +6,7 @@ import { estimateShipping } from '../src/modules/pricing.js';
 import { normalizeSizeForEbay } from '../src/modules/ebay-size.js';
 import { conformAspectsToAllowedValues } from '../src/modules/ebay-aspect-match.js';
 import { suggestEbayTypeValue, isTypeAspect } from '../src/modules/ebay-type-map.js';
+import { requireApprovedUser } from './_requireApprovedUser.js';
 
 const EBAY_SANDBOX = process.env.EBAY_SANDBOX === 'true';
 
@@ -633,6 +634,11 @@ function buildDescription(item){
 export default async function handler(req, res){
   if (req.method !== 'POST'){
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  const authCheck = await requireApprovedUser(req);
+  if (!authCheck.ok){
+    return res.status(authCheck.status).json({ error: authCheck.error });
   }
 
   const { access_token, item, imageUrls } = req.body || {};

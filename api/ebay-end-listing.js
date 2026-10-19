@@ -13,6 +13,8 @@
 // POST body: { access_token, offer_id }
 // Returns: { success, listingId? }
 
+import { requireApprovedUser } from './_requireApprovedUser.js';
+
 const EBAY_SANDBOX = process.env.EBAY_SANDBOX === 'true';
 const API_BASE = EBAY_SANDBOX
   ? 'https://api.sandbox.ebay.com'
@@ -21,6 +23,11 @@ const API_BASE = EBAY_SANDBOX
 export default async (req, res) => {
   if (req.method !== 'POST'){
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  const authCheck = await requireApprovedUser(req);
+  if (!authCheck.ok){
+    return res.status(authCheck.status).json({ error: authCheck.error });
   }
 
   try{
