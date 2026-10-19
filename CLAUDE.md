@@ -115,8 +115,8 @@ renaming them needs a data migration of every saved item.
     `app_config/settings`, `app_settings/productCodeCounter`,
     `ebay_tokens/main`, `ebay_error_log`.
   - Live Catalog: `liveSessions`, `liveItems`, `live_catalog_options/*`.
-  - Security rules exist only in the Firebase Console. This repo has no
-    rules file.
+  - Security rules: the live copy is in the Firebase Console; `firestore.rules`
+    is a versioned copy (no deploy step). Change both together.
 
 ## Gotchas (each one caused a real bug)
 
@@ -156,8 +156,6 @@ renaming them needs a data migration of every saved item.
 
 - **Multi-business (paid, for new sellers)**: design accepted, no code yet.
   See `docs/multi-tenant.md` for the data model, AI credits and PR order.
-  It also records two live Firestore rules gaps: `app_settings` (product
-  code counter) and `ebay_error_log` have no rule, so they're denied.
 - **General eBay review**: Vitor plans to review the whole eBay flow soon
   (2026-10-19). The shipping-policy bug is considered resolved; see
   `docs/ebay-shipping-policy.md`.
@@ -171,9 +169,11 @@ renaming them needs a data migration of every saved item.
   before doing them.
 - **Watch the Vercel logs** for `ai-usage` lines with `"structured":false`
   (the structured-output fallback ran on `analyze-photo.js`).
-- `ebay_error_log` may need adding to the Firestore rules if they
-  whitelist collections. Settings → "eBay error library" shows a load
-  error if so.
+- **Firestore rules v3.14.2 must be pasted into the Console** (adds
+  `app_settings` and `ebay_error_log`). Until then the product-code counter
+  and the eBay error library keep failing silently. `email_verified` was
+  deliberately not added to `isAdmin()`: the app never sends verification
+  emails, so the admin accounts are likely unverified and would lock out.
 
 ### Unverified in production (build-verified only)
 
@@ -200,6 +200,11 @@ on any of these:
   client message when `stop_reason` is `refusal`. `ai-usage` logs now
   include `effort` and `stop_details`. Expected cost ~$0.03-0.04/item
   (estimate; confirm from `ai-usage` logs).
+- **v3.14.2**: Firestore rules now versioned in `firestore.rules`. Added
+  the missing `app_settings` (product-code counter; every reservation had
+  been denied, and the app fell back to a per-device guess, so duplicate
+  numbers across devices were possible) and `ebay_error_log` (the eBay
+  error library never saved). No app code changes besides the version.
 
 ## Backlog (not started)
 

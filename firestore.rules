@@ -1,0 +1,58 @@
+// Firestore security rules for Calculated Chaos.
+//
+// The live rules are the ones in the Firebase Console (Firestore Database →
+// Rules); there is no deploy step that reads this file. This is a versioned
+// copy: change it here in a PR, then paste the same text into the Console.
+//
+// The admin email list must stay in sync with ADMIN_EMAILS in
+// src/config/firebase.js (that one only drives the UI; these rules are what
+// actually enforce it).
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.email in [
+        'vitor.sena.jr@gmail.com',
+        'insuredbyjasmine@gmail.com'
+      ];
+    }
+    function isApproved() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'approved';
+    }
+
+    // A new account can only create its own doc as 'pending' (admins may
+    // create 'approved' ones, e.g. employee logins). Only admins approve,
+    // change roles or delete.
+    match /users/{userId} {
+      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow create: if isSignedIn() && request.auth.uid == userId &&
+        (request.resource.data.status == 'pending' ||
+         (request.resource.data.status == 'approved' && isAdmin()));
+      allow update, delete: if isAdmin();
+    }
+
+    match /items/{itemId} { allow read, write: if isApproved(); }
+    match /ebay_tokens/{docId} { allow read, write: if isApproved(); }
+    match /app_config/{docId} { allow read, write: if isApproved(); }
+    match /ebay_category_cache/{docId} { allow read, write: if isApproved(); }
+    match /drafts/{draftId} { allow read, write: if isApproved(); }
+
+    // Product-code counter (app_settings/productCodeCounter). Missing before
+    // v3.14.2, so every reservation was denied and the app silently fell
+    // back to a per-device "max + 1" guess.
+    match /app_settings/{docId} { allow read, write: if isApproved(); }
+
+    // eBay error library (src/modules/ebay-error-log.js). Missing before
+    // v3.14.2, so nothing was ever saved.
+    match /ebay_error_log/{docId} { allow read, write: if isApproved(); }
+
+    match /liveSessions/{id} { allow read, write: if isApproved(); }
+    match /liveItems/{id} { allow read, write: if isApproved(); }
+    match /live_catalog_options/{id} { allow read, write: if isApproved(); }
+  }
+}
