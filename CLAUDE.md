@@ -207,8 +207,6 @@ renaming them needs a data migration of every saved item.
   then Google sign-in, App Check, admin 2FA), then onboarding/invites
   (step 5). The root collections stay, read-only for the business's
   members, until Vitor confirms removing them.
-- **After the switch**: the Developer Panel's Backup and eBay errors tabs
-  still read the root collections; point them at the business data.
 - **General eBay review**: Vitor plans to review the whole eBay flow soon
   (2026-10-19). The shipping-policy bug is considered resolved; see
   `docs/ebay-shipping-policy.md`.
@@ -246,6 +244,9 @@ on any of these:
   fix (a repeat load shows the first load's result) is tested only with a
   stubbed Firestore and eBay (18 handler tests, including a simultaneous
   double load).
+- Developer Panel on business data (v3.17.1): build, headless load and
+  rules emulator only; the real backup download and eBay errors tab are
+  unconfirmed (they need the v3.17.1 rules pasted in the Console).
 - Server-built AI prompts (v3.15.3): golden test (prompt text identical)
   and handler tests with a mocked fetch; ✨ analyze, rewrite and both
   narration flows are unconfirmed against the real API.
@@ -272,6 +273,13 @@ on any of these:
   (catalog, saves, codes, Settings, Live Catalog, eBay Test connection).
   Rules are tested in the Firestore emulator; it logs "evaluation error"
   on denials from functions that call get(), but the decisions are right.
+- **v3.17.1**: the Developer Panel reads the business. `loadAdminBusiness()`
+  (the admin's own live `activeBizId`) drives the eBay errors tab and the
+  Backup tab: the main backup is `businesses/{id}` + its subcollections
+  (members included) + `users`; the frozen root collections have a
+  secondary "pre-business" button. Rules: `isBusinessData(sub)`, and
+  platform admins may read (not write) any business's data. 27 emulator
+  rules tests.
 
 ## Backlog (not started)
 
