@@ -189,6 +189,9 @@ Enforcement:
    `firestore.rules` (Console stays the source of truth). `email_verified`
    on `isAdmin()` is deferred until the app sends verification emails, or
    it would lock out the current (likely unverified) admin accounts.
+1a. [x] **Developer Panel v1 (v3.15.0):** `admin.html` with Approvals,
+   Users, eBay status, eBay errors and App tabs. Later sections:
+   Businesses (after step 5) and Credits & cost (with step 8).
 2. [ ] Server foundation: `firebase-admin` + service account env var;
    verify ID tokens properly in `_requireApprovedUser.js`.
 3. [ ] eBay tokens server-side: OAuth callback writes

@@ -1,7 +1,26 @@
 # Changelog
 
 Version history for Calculated Chaos. The current version is also shown in
-the badge at the top of the app (`APP_VERSION` in `src/main.js`).
+the badge at the top of the app (`APP_VERSION` in `src/modules/version.js`).
+
+## v3.15.0 — 2026-10-19
+
+Rolls up v3.14.1 – v3.14.2 and starts the work toward offering the app to
+other businesses (see `docs/multi-tenant.md`).
+
+- **Developer Panel** (`/admin.html`, admins only): access requests,
+  users (approve, revoke, switch employee/full access, remove), the eBay
+  connection status (never the tokens) and the eBay error library ranked
+  by frequency. Settings now shows only the pending-request count and a
+  link to the panel.
+- **Firestore rules versioned** in `firestore.rules`, with the missing
+  `app_settings` (product-code counter) and `ebay_error_log` collections
+  added. Before this, every product-code reservation was denied and the
+  app silently fell back to a per-device guess, and the eBay error library
+  never saved.
+- **✨ analysis on Claude Sonnet 5.5** at low effort, with a server-side
+  refusal fallback and a clear message when the request is declined.
+- `APP_VERSION` moved to `src/modules/version.js`.
 
 ## v3.14.0 — 2026-10-19
 
