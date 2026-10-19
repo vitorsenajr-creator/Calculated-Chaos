@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Developer Panel — Calculated Chaos</title>
+  <meta name="theme-color" content="#2B241E" />
+  <meta name="robots" content="noindex" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+  <link rel="stylesheet" href="/src/style.css" />
+  <style>
+    /* ---------- DEVELOPER PANEL (v3.15.0) ----------
+       Platform-admin page, separate from the main app like the Live
+       Catalog. Only ADMIN_EMAILS get past the gate in src/admin.js, and the
+       Firestore rules enforce the same thing server-side. Reuses
+       style.css's tokens. */
+    body{ padding-bottom:40px; }
+    .ad-header{
+      padding:20px 22px 16px; background:linear-gradient(180deg, var(--blush) 0%, var(--cream) 100%);
+      border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
+    }
+    .ad-header h1{ font-family:'Fraunces',serif; font-style:italic; font-weight:500; font-size:24px; margin:0; color:var(--plum); }
+    .ad-header .ad-sub{ font-size:12.5px; color:var(--plum-soft); margin-top:2px; }
+    .ad-back{ font-size:12.5px; font-weight:600; color:var(--terracotta-deep); text-decoration:underline; }
+    .ad-tabs{ display:flex; gap:6px; flex-wrap:wrap; max-width:1000px; margin:16px auto 0; padding:0 22px; }
+    .ad-tab{
+      background:var(--white); border:1px solid var(--line); border-radius:999px; padding:7px 14px;
+      font-size:13px; font-weight:600; color:var(--plum-soft); cursor:pointer;
+    }
+    .ad-tab.active{ background:var(--plum); border-color:var(--plum); color:var(--white); }
+    .ad-tab .ad-badge{
+      display:inline-block; min-width:18px; padding:0 5px; margin-left:4px; border-radius:999px;
+      background:var(--danger); color:#fff; font-size:11px; line-height:18px; text-align:center;
+    }
+    main.ad-main{ max-width:1000px; margin:0 auto; padding:16px 22px 60px; }
+    .ad-card{ background:var(--white); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:12px; }
+    .ad-card h3{ margin:0 0 4px; font-size:15px; color:var(--plum); }
+    .ad-desc{ font-size:12.5px; color:var(--plum-soft); margin-bottom:12px; }
+    .ad-row{
+      display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;
+      padding:10px 0; border-bottom:1px solid var(--line);
+    }
+    .ad-row:last-child{ border-bottom:none; }
+    .ad-row .ad-main-text{ font-size:13.5px; color:var(--plum); font-weight:600; word-break:break-all; }
+    .ad-row .ad-meta{ font-size:11.5px; color:var(--plum-soft); margin-top:2px; }
+    .ad-actions{ display:flex; gap:6px; flex-wrap:wrap; }
+    .ad-btn{
+      background:var(--plum); color:var(--white); border:1px solid var(--plum); border-radius:8px;
+      padding:6px 12px; font-size:12.5px; font-weight:600; cursor:pointer;
+    }
+    .ad-btn.secondary{ background:transparent; color:var(--plum); border-color:var(--line); }
+    .ad-btn.danger{ background:transparent; color:var(--danger); border-color:var(--danger); }
+    .ad-btn:disabled{ opacity:0.5; cursor:default; }
+    .ad-pill{ display:inline-block; font-size:11px; font-weight:600; padding:1px 8px; border-radius:999px; margin-left:6px; vertical-align:middle; }
+    .ad-pill.approved{ background:rgba(127,150,120,0.18); color:var(--sage-deep); }
+    .ad-pill.pending{ background:rgba(201,163,95,0.2); color:var(--amber-deep); }
+    .ad-pill.employee{ background:var(--cream-soft); color:var(--plum-soft); }
+    .ad-pill.unknown{ background:rgba(181,86,74,0.12); color:var(--danger); }
+    .ad-kv{ display:grid; grid-template-columns:max-content 1fr; gap:6px 14px; font-size:13px; }
+    .ad-kv dt{ color:var(--plum-soft); }
+    .ad-kv dd{ margin:0; color:var(--plum); word-break:break-word; }
+    .ad-err-msg{ font-size:12.5px; color:var(--plum); margin-top:4px; white-space:pre-wrap; word-break:break-word; }
+    .ad-empty{ font-size:12.5px; color:var(--plum-soft); }
+    .ad-links a{ display:block; font-size:13px; color:var(--terracotta-deep); padding:5px 0; }
+    .ad-denied{ max-width:420px; margin:60px auto; text-align:center; color:var(--plum); }
+  </style>
+</head>
+<body class="auth-locked">
+
+<div id="authOverlay" style="display:flex;">
+  <div class="auth-card">
+    <div id="authCheckingState" style="text-align:center; padding:20px 0; color:var(--plum-soft); font-size:13px;">Checking your session…</div>
+    <div id="authFormState" style="display:none;">
+    <h2>Developer Panel</h2>
+    <p class="auth-sub">Sign in with an admin account.</p>
+    <form id="authForm">
+      <label for="authEmail">Email</label>
+      <input type="email" id="authEmail" autocomplete="username" required>
+      <label for="authPassword">Password</label>
+      <input type="password" id="authPassword" autocomplete="current-password" required minlength="6">
+      <button type="submit" class="auth-submit" id="authSubmitBtn">Sign in</button>
+    </form>
+    <div class="auth-error" id="authError" style="display:none;"></div>
+    </div>
+  </div>
+</div>
+
+<div class="ad-header">
+  <div>
+    <h1>🛠️ Developer Panel</h1>
+    <div class="ad-sub" id="adHeaderSub">Platform administration</div>
+  </div>
+  <a href="/" class="ad-back">← Back to Calculated Chaos</a>
+</div>
+
+<div id="adDenied" class="ad-denied" style="display:none;">
+  <h2>Admins only</h2>
+  <p style="font-size:13px; color:var(--plum-soft);">This page is for the platform admin. You're signed in as <b id="adDeniedEmail"></b>.</p>
+  <p><a href="/" class="ad-back">← Back to Calculated Chaos</a></p>
+</div>
+
+<nav class="ad-tabs" id="adTabs" style="display:none;">
+  <button class="ad-tab active" data-tab="approvals">Approvals <span class="ad-badge" id="adPendingBadge" style="display:none;"></span></button>
+  <button class="ad-tab" data-tab="users">Users</button>
+  <button class="ad-tab" data-tab="ebay">eBay</button>
+  <button class="ad-tab" data-tab="errors">eBay errors</button>
+  <button class="ad-tab" data-tab="app">App</button>
+</nav>
+
+<main class="ad-main" id="adMain" style="display:none;">
+  <section data-panel="approvals" id="panelApprovals"></section>
+  <section data-panel="users" id="panelUsers" style="display:none;"></section>
+  <section data-panel="ebay" id="panelEbay" style="display:none;"></section>
+  <section data-panel="errors" id="panelErrors" style="display:none;"></section>
+  <section data-panel="app" id="panelApp" style="display:none;"></section>
+</main>
+
+<script type="module" src="/src/admin.js"></script>
+</body>
+</html>

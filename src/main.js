@@ -1,4 +1,5 @@
 import './config/firebase.js';
+import { APP_VERSION, APP_VERSION_DATE } from './modules/version.js';
 import {
   loadEbayTokens, saveEbayTokens, ebayTokenIsValid, getValidEbayToken,
   checkEbaySalesNow, endEbayListingIfSold, listItemOnEbay, showBulkEbayPreflight,
@@ -73,11 +74,8 @@ import {
 } from './modules/product-code-bank.js';
 
 export const app = (function(){
-  // ⬇ Bump this with every meaningful update, and update the date.
-  // This is what shows in the badge at the top of the app, and in CSV exports —
-  // it's the single source of truth for "which version is this?"
-  const APP_VERSION = 'v3.14.2';
-  const APP_VERSION_DATE = '2026-10-19';
+  // APP_VERSION / APP_VERSION_DATE live in modules/version.js (shared with
+  // the Developer Panel) — bump them there.
 
   setAppSettings({ ...DEFAULT_SETTINGS });
   let itemsLoaded = false; // true once the initial Firestore fetch in loadItems() resolves
@@ -6196,9 +6194,10 @@ export const app = (function(){
 
       <!-- AUTHORIZE ACCESS (admin only) -->
       <div class="settings-section" id="authorizeAccessSection" style="display:none;">
-        <h3>Authorize access</h3>
-        <div class="ss-desc">Approve or deny people who created an account and are waiting for access.</div>
+        <h3>Developer Panel</h3>
+        <div class="ss-desc">Access requests, users, the eBay connection and the eBay error library now live in the Developer Panel.</div>
         <div id="authorizeAccessBox"></div>
+        <a href="/admin.html" class="settings-save-btn" style="display:inline-block; width:auto; padding:8px 14px; margin:8px 0 0; text-decoration:none;">Open Developer Panel →</a>
       </div>
 
       <!-- EMPLOYEE ACCOUNTS (admin only) -->
@@ -6546,50 +6545,26 @@ export const app = (function(){
     }
   }
 
-  // Lists pending sign-ups and lets the admin approve or deny each one.
-  // Only reachable from Settings when signed in as one of window.ADMIN_EMAILS —
-  // the Firestore rules independently enforce this server-side too (see README).
+  // Settings only shows how many sign-ups are waiting; approving/denying
+  // moved to the Developer Panel (admin.html, src/admin.js) in v3.15.0.
+  // Only reachable when signed in as one of window.ADMIN_EMAILS — the
+  // Firestore rules (firestore.rules) independently enforce this.
   async function renderAuthorizeAccessPanel(){
     const section = document.getElementById('authorizeAccessSection');
     const box = document.getElementById('authorizeAccessBox');
     if (!section || !box) return;
     section.style.display = 'block';
-    box.innerHTML = '<div style="font-size:12px; opacity:0.6;">Loading…</div>';
     try{
-      const { collection, getDocs, doc, setDoc, deleteDoc } = window.firestoreFns;
+      const { collection, getDocs } = window.firestoreFns;
       const snap = await getDocs(collection(window.db, 'users'));
-      const all = [];
-      snap.forEach(d => all.push({ id: d.id, ...d.data() }));
-      const pending = all.filter(u => u.status === 'pending');
-      const approved = all.filter(u => u.status === 'approved');
-
-      box.innerHTML = (pending.length
-        ? pending.map(u => `
-          <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; padding:10px 0; border-bottom:1px solid var(--line);">
-            <span style="font-size:13px;">${escapeHtml(u.email || u.id)}</span>
-            <div style="display:flex; gap:6px;">
-              <button class="settings-save-btn" style="width:auto; padding:6px 12px; margin:0;" data-approve-uid="${u.id}">Approve</button>
-              <button style="background:transparent; border:1px solid var(--danger); color:var(--danger); border-radius:8px; padding:6px 12px; font-size:13px; cursor:pointer;" data-deny-uid="${u.id}">Deny</button>
-            </div>
-          </div>`).join('')
-        : '<div style="font-size:12px; color:var(--plum-soft);">No pending requests.</div>'
-      ) + (approved.length
-        ? `<div style="margin-top:14px; font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:var(--plum-soft);">Approved (${approved.length})</div>` +
-          approved.map(u => `<div style="font-size:13px; padding:6px 0;">${escapeHtml(u.email || u.id)}</div>`).join('')
-        : '');
-
-      box.querySelectorAll('[data-approve-uid]').forEach(btn => btn.addEventListener('click', async () => {
-        await setDoc(doc(window.db, 'users', btn.dataset.approveUid), { status: 'approved' }, { merge: true });
-        renderAuthorizeAccessPanel();
-      }));
-      box.querySelectorAll('[data-deny-uid]').forEach(btn => btn.addEventListener('click', async () => {
-        if (!confirm('Deny this request? They will need to sign up again to request access.')) return;
-        await deleteDoc(doc(window.db, 'users', btn.dataset.denyUid));
-        renderAuthorizeAccessPanel();
-      }));
+      let pending = 0;
+      snap.forEach(d => { if (d.data().status === 'pending') pending++; });
+      box.innerHTML = pending
+        ? `<div class="ebay-status-box pending">⏳ ${pending} access request${pending === 1 ? '' : 's'} waiting for approval.</div>`
+        : '<div style="font-size:12px; color:var(--plum-soft);">No pending access requests.</div>';
     }catch(e){
       console.error('Failed to load access requests:', e);
-      box.innerHTML = '<div style="font-size:12px; color:var(--danger);">Failed to load — try again.</div>';
+      box.innerHTML = '';
     }
   }
 

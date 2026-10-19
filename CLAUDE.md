@@ -39,7 +39,7 @@ wait.
 
 ### Versioning
 
-- `APP_VERSION` / `APP_VERSION_DATE` in `src/main.js`, format
+- `APP_VERSION` / `APP_VERSION_DATE` in `src/modules/version.js`, format
   `vMAJOR.MINOR.PATCH`. Bump with every meaningful change.
 - `CHANGELOG.md` gets one entry per **minor** version, not per patch. Track patch changes in "Pending
   changelog entry" below. **Bump the minor every ~10-15 patches or when a
@@ -81,6 +81,9 @@ renaming them needs a data migration of every saved item.
 - `src/ebay-api.js`: client side of eBay publish/bulk publish/error box.
 - `src/live-catalog.js` + `live-catalog.html`: separate Vite entry (see
   `docs/live-catalog.md`).
+- `src/admin.js` + `admin.html`: Developer Panel, a separate Vite entry
+  for admins only (access requests, users, eBay status, eBay error
+  library). New platform-admin features go here, not in Settings.
 - `src/modules/`: pure helpers and small controllers. Key ones:
   - `state.js`: shared `items`/`appSettings`.
   - `constants.js`, `pricing.js`, `settings.js`.
@@ -181,6 +184,8 @@ Last known status per the v3.13 notes. Confirm with Vitor before relying
 on any of these:
 - ✨ analysis on Sonnet 5.5 / low effort, refusal fallback and the new
   "declined" message (v3.14.1).
+- Developer Panel (v3.15.0): tested headless with a stubbed Firebase
+  only; real Firestore reads/writes and the rules are unconfirmed.
 - ✨ analyze + auto-apply + Redo (v3.13.115-117), NWT checkbox (v3.13.116).
 - eBay error library, AI explanation, aspect matching, Type auto-fill
   (v3.13.108-110), publish-step retry loop (v3.13.51).
@@ -188,23 +193,9 @@ on any of these:
   sizing (v3.13.102-105), inspection flag icon (v3.13.114).
 - Live Catalog label printing on a real Avery sheet / phone (v3.13.45/47).
 
-## Pending changelog entry (since v3.14.0)
+## Pending changelog entry (since v3.15.0)
 
-- **v3.14.1**: `api/analyze-photo.js` switched from `claude-sonnet-4-6` to
-  `claude-sonnet-5-5` at `effort: low` (Vitor's choice after an Opus 5.5
-  vs Sonnet 5.5 evaluation; photo error rate was already near zero, so
-  cost/latency won). Thinking is always on for this model (adaptive), so
-  `max_tokens` went from 3000/1800 to 16000/8000 to leave room for it.
-  Added `fallbacks: "default"` (beta `server-side-fallback-2026-07-01`) so
-  a classifier refusal re-runs on Anthropic's fallback model, and a
-  client message when `stop_reason` is `refusal`. `ai-usage` logs now
-  include `effort` and `stop_details`. Expected cost ~$0.03-0.04/item
-  (estimate; confirm from `ai-usage` logs).
-- **v3.14.2**: Firestore rules now versioned in `firestore.rules`. Added
-  the missing `app_settings` (product-code counter; every reservation had
-  been denied, and the app fell back to a per-device guess, so duplicate
-  numbers across devices were possible) and `ebay_error_log` (the eBay
-  error library never saved). No app code changes besides the version.
+(none yet)
 
 ## Backlog (not started)
 
