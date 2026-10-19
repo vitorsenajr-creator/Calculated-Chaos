@@ -11,8 +11,8 @@
 // Fix has two layers:
 //   1. reserveNextProductCode() — an atomic Firestore counter
 //      (app_settings/productCodeCounter, incremented via runTransaction,
-//      same pattern Live Catalog's SKU counter already uses — see
-//      formatLiveSku()/skuCounter in live-catalog.js). Two terminals
+//      the same pattern the removed Live Catalog used for its SKU counter).
+//      Two terminals
 //      calling this at the same instant are serialized by Firestore's
 //      transaction retry, so they can never walk away with the same
 //      number. main.js's save flow calls this instead of trusting the

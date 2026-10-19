@@ -1,8 +1,9 @@
 # Voice narration capture (added v3.13.8, 2026-08-10)
 
 > **Current state (2026-10-19):** `DEEPGRAM_API_KEY` is set and narration works (v3.13.41). Notes now
-> append instead of overwriting. Live Catalog has its own narration since
-> v3.13.44 (`modules/live-narration.js`). The "🔮 Analyze with AI" button
+> append instead of overwriting. Live Catalog had its own narration from
+> v3.13.44 until the Live Catalog was removed in v3.19.0 (the `'live'`
+> extract kind went with it). The "🔮 Analyze with AI" button
 > mentioned below is now "✨ Analyze & write listing", and
 > `api/generate-listing.js` was removed in v3.13.115. `api/` holds **11**
 > route functions now, one slot free under the Hobby cap of 12.

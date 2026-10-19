@@ -1,4 +1,21 @@
-# Live Catalog (added v3.13.6, 2026-08-10)
+# Live Catalog (added v3.13.6, 2026-08-10; removed v3.19.0, 2026-10-19)
+
+> **Historical note.** The Live Catalog was removed in v3.19.0 to keep the
+> app focused on inventory, logistics, listings and finances. The last
+> commit that contains it is `662ca33d68ec` (main, PR #119), tagged
+> `live-catalog-last`; restore the files
+> from there if it's ever needed again (`live-catalog.html`,
+> `src/live-catalog.js`, `src/modules/live-narration.js`, the 🔴 Live links
+> in `index.html`, the `vite.config.js` entry, the `'live'` narration kind
+> and the member rules).
+>
+> Its data was **frozen, not deleted**: `businesses/{bizId}/liveSessions`,
+> `liveItems`, `options/main` and `counters/liveSku`, plus the pre-business
+> root copies (`liveSessions`, `liveItems`, `live_catalog_options/*`).
+> Members can no longer read or write them; platform admins can still read
+> them, so the Developer Panel backup keeps them.
+>
+> Everything below describes the tool as it was.
 
 > **Current state (2026-10-19):** Since this was written the tool also got voice narration, Color, photos
 > (with edit), the `LV-0001` stock SKU and a mobile layout (v3.13.44), label
