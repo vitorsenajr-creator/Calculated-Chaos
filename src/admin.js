@@ -306,8 +306,8 @@ async function renderErrors(){
 // migration (docs/multi-tenant.md step 6). Read-only: there is deliberately
 // no restore button; restoring would be written for the case at hand.
 // Left out on purpose:
-//  - ebay_tokens: it's a credential (refresh token); a stray copy of the
-//    file would give access to the eBay account. Reconnecting eBay replaces it.
+//  - ebay_connections: it's a credential (refresh token), and the browser
+//    can't read it anyway (server only). Reconnecting eBay replaces it.
 //  - ebay_category_cache: rebuilt automatically on use.
 // Photos stay in Firebase Storage; items keep their URLs.
 const BACKUP_COLLECTIONS = [

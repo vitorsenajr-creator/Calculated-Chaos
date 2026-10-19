@@ -140,8 +140,8 @@ renaming them needs a data migration of every saved item.
     `app_config/settings`, `app_settings/productCodeCounter`,
     `ebay_error_log`.
   - `ebay_connections/main`: eBay tokens, server only (no client rule).
-    `ebay_tokens/main` is the pre-v3.16.0 copy, still readable by approved
-    users until it's removed (see Open items).
+    The pre-v3.16.0 `ebay_tokens/main` copy and its rule were removed in
+    v3.16.1.
   - Live Catalog: `liveSessions`, `liveItems`, `live_catalog_options/*`.
   - Security rules: the live copy is in the Firebase Console; `firestore.rules`
     is a versioned copy (no deploy step). Change both together.
@@ -191,10 +191,6 @@ renaming them needs a data migration of every saved item.
   blocks employees from connecting/disconnecting eBay, but Firestore rules
   still let them read/write the catalog and settings
   (`docs/employee-accounts.md`).
-- **Remove the legacy eBay token** once v3.16.0 is confirmed in
-  production (Developer Panel → eBay shows the connection, publishing
-  works): drop the `ebay_tokens` rule from `firestore.rules` + the
-  Console, and delete the `ebay_tokens/main` doc.
 - **`public/sw.js` caches every same-origin GET, `/api/` included**, and
   answers `index.html` offline. All API calls are POST today, so nothing
   breaks, but it should skip `/api/` (separate change).
@@ -215,18 +211,14 @@ Last known status per the v3.13 notes. Confirm with Vitor before relying
 on any of these:
 - ✨ analysis on Sonnet 5.5 / low effort, refusal fallback and the new
   "declined" message (v3.14.1).
-- eBay tokens on the server (v3.16.0): 15 server tests with a stubbed
-  Firestore (migration, refresh, refresh failure, status without tokens,
-  server token used over a body token, employee limits, disconnect) and a
-  headless client run (status, Test connection, no token in any request).
-  Real eBay calls (publish, check sales, end listing, offers, setup,
-  audit/import, connect via paste) are unconfirmed.
+- eBay tokens on the server (v3.16.0): Vitor confirmed Test connection,
+  publish, offers and audit in production (2026-10-19). Still unconfirmed:
+  mark as sold → end listing, check sales, setup, connect via paste.
 - Server-built AI prompts (v3.15.3): golden test (prompt text identical)
   and handler tests with a mocked fetch; ✨ analyze, rewrite and both
   narration flows are unconfirmed against the real API.
-- eBay endpoint auth (v3.15.1): guards tested by calling the handlers
-  without a token (401) and the client headers headless; the full eBay
-  flows (connect, publish, check sales, end listing) are unconfirmed.
+- eBay endpoint auth (v3.15.1): publish works in production (see
+  v3.16.0); connect, check sales and end listing are unconfirmed.
 - ✨ analyze + auto-apply + Redo (v3.13.115-117), NWT checkbox (v3.13.116).
 - eBay error library, AI explanation, aspect matching, Type auto-fill
   (v3.13.108-110), publish-step retry loop (v3.13.51).
@@ -244,6 +236,9 @@ on any of these:
   returns 410. Client: `ebayConnection` / `loadEbayConnection()` /
   `ensureEbayConnected()` in `src/ebay-api.js`. The status call is a POST
   because `public/sw.js` caches every same-origin GET.
+- **v3.16.1**: removed the legacy `ebay_tokens/main` path. The rule is
+  gone from `firestore.rules`, and `api/_ebayToken.js` no longer copies
+  that doc on first use or deletes it on disconnect.
 
 ## Backlog (not started)
 

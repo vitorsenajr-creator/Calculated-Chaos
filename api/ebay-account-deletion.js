@@ -45,7 +45,7 @@ export default async function handler(req, res) {
   if (req.method === 'POST') {
     // Step 2: a real account deletion/closure notification. eBay just needs
     // a 200 response quickly — we log it and, since this app currently shares
-    // one eBay connection (ebay_tokens/main), we don't hold per-customer data
+    // one eBay connection (ebay_connections/main), we don't hold per-customer data
     // tied to individual eBay usernames yet. When multi-tenant support is
     // added, this is where we'd delete that specific user's stored data.
     console.log('eBay account deletion notification received:', JSON.stringify(req.body));

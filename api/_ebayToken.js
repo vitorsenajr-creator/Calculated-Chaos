@@ -8,9 +8,9 @@
 // expires. Until businesses exist (docs/multi-tenant.md) there is one
 // connection, 'main'; the migration renames it to the business's id.
 //
-// First use copies the old browser-readable ebay_tokens/main doc into the
-// new place, so nobody has to reconnect eBay. The old doc is left alone and
-// removed later (and its Firestore rule dropped) once this is confirmed.
+// Before v3.16.0 the tokens sat in ebay_tokens/main, readable by the
+// browser. v3.16.0 copied them here on first use; v3.16.1 dropped that
+// copy step and the doc's Firestore rule once production was confirmed.
 import { getFirebaseAdmin } from './_firebaseAdmin.js';
 
 const EBAY_SANDBOX = process.env.EBAY_SANDBOX === 'true';
@@ -33,7 +33,6 @@ export const EBAY_SCOPES = [
 ].join(' ');
 
 const CONNECTIONS = 'ebay_connections';
-const LEGACY_DOC = ['ebay_tokens', 'main'];
 export const DEFAULT_CONNECTION_ID = 'main';
 
 // Refresh a minute early so a token can't expire mid-request.
@@ -51,21 +50,11 @@ function adminOrError(){
   return { admin };
 }
 
-// Reads the connection doc, migrating it from ebay_tokens/main on first use.
-// Returns the data or null when eBay isn't connected.
+// Reads the connection doc. Returns the data or null when eBay isn't
+// connected.
 async function readConnection(admin, connectionId){
-  const ref = admin.db.collection(CONNECTIONS).doc(connectionId);
-  const snap = await ref.get();
-  if (snap.exists) return snap.data();
-  if (connectionId !== DEFAULT_CONNECTION_ID) return null;
-
-  const legacy = await admin.db.collection(LEGACY_DOC[0]).doc(LEGACY_DOC[1]).get();
-  const old = legacy.exists ? legacy.data() : null;
-  if (!old || !old.access_token || !old.refresh_token) return null;
-  const migrated = { ...old, migratedFromLegacyAt: Date.now() };
-  await ref.set(migrated);
-  console.log('ebay-connection: copied ebay_tokens/main into ebay_connections/main');
-  return migrated;
+  const snap = await admin.db.collection(CONNECTIONS).doc(connectionId).get();
+  return snap.exists ? snap.data() : null;
 }
 
 async function refreshAccessToken(refreshToken){
@@ -141,15 +130,11 @@ async function updateEbayConnectionUnsafe(fields, connectionId = DEFAULT_CONNECT
   return { ok: true };
 }
 
-// Disconnect: removes the connection and the legacy copy, so the
-// first-use migration can't bring it back.
+// Disconnect: removes the connection.
 async function deleteEbayConnectionUnsafe(connectionId = DEFAULT_CONNECTION_ID){
   const { admin, error } = adminOrError();
   if (error) return error;
   await admin.db.collection(CONNECTIONS).doc(connectionId).delete();
-  if (connectionId === DEFAULT_CONNECTION_ID){
-    await admin.db.collection(LEGACY_DOC[0]).doc(LEGACY_DOC[1]).delete();
-  }
   return { ok: true };
 }
 
