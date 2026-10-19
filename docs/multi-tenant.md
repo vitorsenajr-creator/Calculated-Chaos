@@ -184,9 +184,11 @@ Enforcement:
 
 ## Action Items (one PR each, in order)
 
-1. [ ] **Rules hotfix for today's single business:** add `app_settings`
-   and `ebay_error_log`, version the rules as `firestore.rules` (Console
-   stays the source of truth), add `email_verified` to `isAdmin()`.
+1. [x] **Rules hotfix for today's single business (v3.14.2):** add
+   `app_settings` and `ebay_error_log`, version the rules as
+   `firestore.rules` (Console stays the source of truth). `email_verified`
+   on `isAdmin()` is deferred until the app sends verification emails, or
+   it would lock out the current (likely unverified) admin accounts.
 2. [ ] Server foundation: `firebase-admin` + service account env var;
    verify ID tokens properly in `_requireApprovedUser.js`.
 3. [ ] eBay tokens server-side: OAuth callback writes
