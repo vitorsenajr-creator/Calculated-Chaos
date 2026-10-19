@@ -2,7 +2,8 @@
 
 > **Historical note.** The Live Catalog was removed in v3.19.0 to keep the
 > app focused on inventory, logistics, listings and finances. The last
-> commit that contains it is tagged `live-catalog-last`; restore the files
+> commit that contains it is `662ca33d68ec` (main, PR #119), tagged
+> `live-catalog-last`; restore the files
 > from there if it's ever needed again (`live-catalog.html`,
 > `src/live-catalog.js`, `src/modules/live-narration.js`, the 🔴 Live links
 > in `index.html`, the `vite.config.js` entry, the `'live'` narration kind

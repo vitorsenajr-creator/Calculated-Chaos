@@ -102,7 +102,8 @@ renaming them needs a data migration of every saved item.
     `platform/files.js` (`saveOrShareFile`, `downloadBlob`,
     `downloadUrl`). `main.js` saves no file by itself (v3.17.4).
 - `src/ebay-api.js`: client side of eBay publish/bulk publish/error box.
-- Live Catalog: **removed in v3.19.0** (git tag `live-catalog-last`,
+- Live Catalog: **removed in v3.19.0** (last in commit `662ca33d68ec`,
+  tag `live-catalog-last`,
   `docs/live-catalog.md`). Its data is frozen, readable only by admins.
 - `src/admin.js` + `admin.html`: Developer Panel, a separate Vite entry
   for admins only (access requests, users, eBay status, eBay error
