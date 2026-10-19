@@ -230,8 +230,10 @@ Enforcement:
      only accept a verified email.
    - Firebase Auth: one account per email (link Google and password
      sign-ins); authorized domains limited to production.
-   - Developer Panel "Remove" also disables the Firebase Auth account
-     (Admin SDK), not only the Firestore user doc.
+   - [x] Developer Panel "Remove" also disables the Firebase Auth account
+     (Admin SDK), not only the Firestore user doc (v3.18.2,
+     `api/_users.js`; reversible with Restore; Deny deletes the login;
+     employee logins are created on the server too).
    Then Google sign-in: the OAuth consent screen needs the Privacy and
    Terms links (step 10), and the iOS home-screen app needs popup sign-in
    or an auth domain served from the app's own domain. Then App Check

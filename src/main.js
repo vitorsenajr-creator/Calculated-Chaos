@@ -4788,6 +4788,9 @@ export const app = (function(){
   // approves them in the Developer Panel. (Before v3.18.1 an admin email
   // was approved on sight; admins are now marked by a server-set claim.)
   let isSignupMode = false;
+  // Shown when an admin removed the account (Developer Panel → Remove
+  // disables the login, v3.18.2).
+  const REMOVED_ACCOUNT_MSG = 'This account has been removed. Contact the person who manages your access.';
 
   // A returning, already-signed-in user still has to wait for Firebase's
   // async onAuthStateChanged callback to fire before showApp() can run —
@@ -4877,7 +4880,7 @@ export const app = (function(){
       }
       // onAuthStateChanged below takes it from here (checks approval status).
     }catch(err){
-      setAuthError(err.message || 'Something went wrong.');
+      setAuthError(err.code === 'auth/user-disabled' ? REMOVED_ACCOUNT_MSG : (err.message || 'Something went wrong.'));
     }finally{
       submitBtn.disabled = false;
     }
@@ -4910,6 +4913,12 @@ export const app = (function(){
           // feature shipped) — default to pending, never to approved.
           await setDoc(userRef, { email: user.email, status: 'pending', createdAt: Date.now() });
           snap = await getDoc(userRef);
+        }
+        if (snap.data().status === 'removed'){
+          // A device still signed in from before the removal.
+          await window.authFns.signOut(window.auth);
+          setAuthError(REMOVED_ACCOUNT_MSG);
+          return;
         }
         if (snap.data().status === 'approved'){
           currentUserRole = snap.data().role === 'employee' ? 'employee' : 'owner';

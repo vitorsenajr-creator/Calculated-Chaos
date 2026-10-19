@@ -9,7 +9,7 @@
 import { appSettings } from '../../modules/state.js';
 import { escapeHtml } from '../../modules/format-utils.js';
 import { aiUsageRemaining, aiUsagePct } from '../../data/settings-store.js';
-import { renderAuthorizeAccessPanel, renderEmployeeAccountsPanel } from './admin-panels.js';
+import { renderAuthorizeAccessPanel, renderEmployeeAccountsPanel, createEmployeeLogin } from './admin-panels.js';
 import { isPlatformAdmin } from '../../modules/admin-claim.js';
 import { renderEbayConnectionStatus } from './ebay-panel.js';
 import { renderPlatformsSettingsList } from './platforms-panel.js';
@@ -378,7 +378,7 @@ export function renderSettings(){
     const btn = document.getElementById('createEmployeeBtn');
     btn.disabled = true;
     resultEl.innerHTML = `<div class="ebay-status-box pending">⏳ Creating account…</div>`;
-    const result = await window.createEmployeeAccount(email, password);
+    const result = await createEmployeeLogin(email, password);
     btn.disabled = false;
     if (result.ok){
       resultEl.innerHTML = `<div class="ebay-status-box success">✅ Employee account created for ${escapeHtml(email)} — Catalog-only access. Share the email/password with them directly; they can sign in right away (no approval step needed).</div>`;
