@@ -29,7 +29,10 @@ export async function saveOrShareFile(blob, filename, type, { onShareError = 'do
   return 'downloaded';
 }
 
-function downloadBlob(blob, filename){
+// Download only, no share sheet (the CSV exports). The object URL is
+// revoked 2 s later, not right after the click: some browsers start the
+// download asynchronously and an immediate revoke can cancel it.
+export function downloadBlob(blob, filename){
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -38,4 +41,15 @@ function downloadBlob(blob, filename){
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+// Downloads a URL the page already has (a data: photo, or a Storage URL)
+// under `filename`. A cross-origin URL ignores `download` and just opens.
+export function downloadUrl(url, filename){
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
 }
