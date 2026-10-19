@@ -154,6 +154,10 @@ renaming them needs a data migration of every saved item.
 
 ## Open items
 
+- **Multi-business (paid, for new sellers)**: design accepted, no code yet.
+  See `docs/multi-tenant.md` for the data model, AI credits and PR order.
+  It also records two live Firestore rules gaps: `app_settings` (product
+  code counter) and `ebay_error_log` have no rule, so they're denied.
 - **General eBay review**: Vitor plans to review the whole eBay flow soon
   (2026-10-19). The shipping-policy bug is considered resolved; see
   `docs/ebay-shipping-policy.md`.
@@ -249,6 +253,7 @@ platforms keep using the tiered editor.
   (root causes, decisions). Historical; names reflect that version.
 - `docs/ebay-shipping-policy.md`: the v3.13.9 buyer-pays shipping bug
   (resolved).
+- `docs/multi-tenant.md`: ADR for offering the app to other businesses.
 - `docs/live-catalog.md`, `docs/narration.md`, `docs/dashboard.md`,
   `docs/employee-accounts.md`, `docs/platform-fees.md`,
   `docs/sold-confirmation.md`, `docs/modularization.md`.
