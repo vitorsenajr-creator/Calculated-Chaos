@@ -236,8 +236,8 @@ renaming them needs a data migration of every saved item.
   Remove/Deny/employee creation through the server (v3.18.2);
   (4) verification on request (v3.18.3; **never send verification
   emails automatically**, Vitor 2026-10-19: only the person's own click
-  sends one); (5) require a verified email, only once the Developer Panel
-  shows every account verified. Then
+  sends one); (5) verified email required (v3.18.4, after both accounts
+  verified). Then
   Google sign-in, App Check, admin 2FA, then onboarding/invites (step 5). The root collections stay, read-only for the business's
   members, until Vitor confirms removing them.
 - **General eBay review**: Vitor plans to review the whole eBay flow soon
@@ -257,15 +257,22 @@ renaming them needs a data migration of every saved item.
   before doing them.
 - **Watch the Vercel logs** for `ai-usage` lines with `"structured":false`
   (the structured-output fallback ran on `analyze-photo.js`).
-- `email_verified` is deliberately not required yet: both admin accounts
-  were unverified on 2026-10-19. Since v3.18.3 each person can verify
-  from the "Awaiting approval" screen or Settings → Account; step 4a's
-  PR 5 requires it once the Developer Panel shows everyone verified.
+- **Verified email required (v3.18.4)**: `isVerified()` in the rules
+  (inside `isApproved()` and `isAdmin()`), `requireApprovedUser()` on the
+  server, and the sign-in gates of the app, Live Catalog and Developer
+  Panel (`tokenEmailVerified()`, which reads the token the rules see).
+  New employees must have a real email: they verify on first sign-in.
 
 ### Unverified in production (build-verified only)
 
 Last known status per the v3.13 notes. Confirm with Vitor before relying
 on any of these:
+- Verified email required (v3.18.4): 19 emulator rules tests, server
+  test of both `requireApprovedUser` paths, `tokenEmailVerified()` unit
+  test, a screenshot of the "Verify your email" screen, clean build and
+  page loads. Unconfirmed in production: both admins still opening the
+  app, Live Catalog and Developer Panel after the rules paste; eBay/AI
+  calls still working; a new employee going through the verify screen.
 - Email verification on request (v3.18.3): helper unit test with a fake
   user, a Chromium screenshot of the pending screen, clean build and page
   loads. Unconfirmed in production: the email arriving, the link, "I've
@@ -355,6 +362,12 @@ on any of these:
   (only while unverified); nothing is sent automatically. "I've verified
   it" reloads the account and refreshes the token (for PR 5's rules).
   Approving an unverified user asks first.
+- **v3.18.4**: verified email required. Rules `isVerified()`
+  (`email_verified` in the token) inside `isApproved()`/`isAdmin()`;
+  `requireApprovedUser()` refuses an unverified token (403) on both the
+  Admin and REST paths; an approved but unverified account sees a "Verify
+  your email" screen (Live Catalog and the Developer Panel point to the
+  app). Pending accounts are unaffected.
 
 ## Backlog (not started)
 

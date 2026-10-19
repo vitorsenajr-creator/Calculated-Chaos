@@ -228,10 +228,10 @@ Enforcement:
      `email_verified`, and a password sign-up can use any email address.
    - [x] Verification emails for password sign-ups (v3.18.3): sent only
      when the person clicks "Send verification email" (never
-     automatically, Vitor 2026-10-19). Next: require a verified email
-     (rules + server + a "verify your email" screen) once the Developer
-     Panel shows every account verified. Invites (step 5) only accept a
-     verified email.
+     automatically, Vitor 2026-10-19). v3.18.4 requires it: the rules
+     (`isVerified()`), the server (`requireApprovedUser`) and a "Verify
+     your email" screen, switched on once both accounts were verified.
+     Invites (step 5) only accept a verified email.
    - Firebase Auth: one account per email (link Google and password
      sign-ins); authorized domains limited to production.
    - [x] Developer Panel "Remove" also disables the Firebase Auth account

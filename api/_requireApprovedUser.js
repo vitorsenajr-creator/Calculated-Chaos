@@ -9,6 +9,8 @@
 //     can't be reached through it: forward the caller's own ID token to the
 //     Firestore REST API to read their own user doc. Firestore verifies the
 //     token itself, so a forged or expired token is still rejected.
+// Since v3.18.4 the account's email must be verified too (email_verified in
+// the token, the same check as the security rules).
 // Returns { ok:true, uid, email, role, bizId, via:'admin'|'rest' } or
 // { ok:false, status, error }. bizId is the user's business only once that
 // business is live (v3.17.0, docs/multi-tenant.md); before the switch, or
@@ -16,6 +18,8 @@
 import { getFirebaseAdmin, FIREBASE_PROJECT_ID } from './_firebaseAdmin.js';
 
 let warnedNoAdmin = false;
+
+const UNVERIFIED = { ok: false, status: 403, error: 'Verify your email first (in the app: Settings → Account).' };
 
 async function checkWithAdmin(admin, idToken){
   let decoded;
@@ -38,6 +42,7 @@ async function checkWithAdmin(admin, idToken){
   if (data.status !== 'approved'){
     return { ok: false, status: 403, error: 'Account pending approval.' };
   }
+  if (decoded.email_verified !== true) return UNVERIFIED;
   let bizId = null;
   if (data.activeBizId){
     const biz = await admin.db.collection('businesses').doc(data.activeBizId).get();
@@ -67,6 +72,8 @@ async function checkWithRest(idToken){
     if (status !== 'approved'){
       return { ok: false, status: 403, error: 'Account pending approval.' };
     }
+    // Firestore accepted this token (the read above), so its payload is genuine.
+    if (payload.email_verified !== true) return UNVERIFIED;
     // The business doc is readable by its members (firestore.rules); any
     // failure here just means "not live" for this request.
     let bizId = null;

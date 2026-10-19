@@ -11,7 +11,9 @@ temporary password. Since v3.18.2 the server does it
 Firebase Auth user, writes `role: 'employee'` and `status: 'approved'` on
 their `users/{uid}` doc (no pending-approval step, since the admin is
 creating it directly), and adds them as an employee member of the admin's
-live business.
+live business. Since v3.18.4 the employee's email must be real: on their
+first sign-in they see "Verify your email" and send themselves the
+verification email before they can use the app.
 
 **How the restriction works**: `applyRoleRestrictions()` in `main.js` runs
 right after login, reads that `role`, and if it's `'employee'`: hides

@@ -78,7 +78,7 @@ import {
 } from './modules/product-code-bank.js';
 import { jsonAuthHeaders } from './modules/api-auth.js';
 import { loadAdminClaim } from './modules/admin-claim.js';
-import { sendVerificationEmail, refreshEmailVerified } from './modules/email-verification.js';
+import { sendVerificationEmail, refreshEmailVerified, tokenEmailVerified } from './modules/email-verification.js';
 
 export const app = (function(){
   // APP_VERSION / APP_VERSION_DATE live in modules/version.js (shared with
@@ -4807,7 +4807,15 @@ export const app = (function(){
     document.getElementById('authPendingState').style.display = 'none';
     document.body.classList.add('auth-locked');
   }
-  function showAuthPending(){
+  // mode 'approval' = waiting for an admin; 'verify' = approved, but the
+  // email isn't verified yet (required since v3.18.4).
+  let pendingMode = 'approval';
+  function showAuthPending(mode = 'approval'){
+    pendingMode = mode;
+    const verifyOnly = mode === 'verify';
+    document.getElementById('authPendingTitle').textContent = verifyOnly ? 'Verify your email' : 'Awaiting approval';
+    document.getElementById('authPendingText').style.display = verifyOnly ? 'none' : '';
+    document.getElementById('authVerifyBox').classList.toggle('auth-verify-only', verifyOnly);
     document.getElementById('authOverlay').style.display = 'flex';
     document.getElementById('authCheckingState').style.display = 'none';
     document.getElementById('authFormState').style.display = 'none';
@@ -4822,7 +4830,9 @@ export const app = (function(){
     const verified = !!(user && user.emailVerified);
     document.getElementById('authVerifyText').textContent = verified
       ? `✅ Your email (${user.email}) is verified.`
-      : `Please also verify your email (${user ? user.email : ''}): send yourself a verification email, click the link in it, then tap "I've verified it".`;
+      : pendingMode === 'verify'
+        ? `Calculated Chaos now needs a verified email. Send yourself a verification email (${user ? user.email : ''}), click the link in it, then tap "I've verified it".`
+        : `Please also verify your email (${user ? user.email : ''}): send yourself a verification email, click the link in it, then tap "I've verified it".`;
     document.getElementById('authVerifyActions').style.display = verified ? 'none' : 'block';
     document.getElementById('authVerifyMsg').textContent = msg;
   }
@@ -4912,6 +4922,8 @@ export const app = (function(){
     e.target.disabled = true;
     const verified = await refreshEmailVerified(window.auth.currentUser);
     e.target.disabled = false;
+    // Approved and now verified: start over through the gate to open the app.
+    if (verified && pendingMode === 'verify'){ window.location.reload(); return; }
     renderPendingVerification(verified === null ? '❌ Could not check right now. Try again.' : verified ? '' : 'Not verified yet. Click the link in the email first.');
   });
 
@@ -4943,6 +4955,11 @@ export const app = (function(){
           // A device still signed in from before the removal.
           await window.authFns.signOut(window.auth);
           setAuthError(REMOVED_ACCOUNT_MSG);
+          return;
+        }
+        if (snap.data().status === 'approved' && !(await tokenEmailVerified(user))){
+          // The rules and the server refuse an unverified email (v3.18.4).
+          showAuthPending('verify');
           return;
         }
         if (snap.data().status === 'approved'){
