@@ -46,12 +46,10 @@ import {
   computeReportsData, buildFullInventoryRows, buildSoldItemsRows,
   buildCategoryReportRows, buildExcelSheetsData,
 } from './modules/reports.js';
+import { DEFAULT_SETTINGS } from './modules/settings.js';
 import {
-  DEFAULT_SETTINGS,
-  aiUsageRemaining as _aiUsageRemaining,
-  aiUsagePct as _aiUsagePct,
-  isScheduledResetDue,
-} from './modules/settings.js';
+  loadSettings, saveSettings, resetAiCounter, incrementAiUsage, aiUsageRemaining, aiUsagePct,
+} from './data/settings-store.js';
 import { items, setItems, appSettings, setAppSettings } from './modules/state.js';
 import {
   isIncomplete, missingFields,
@@ -4763,76 +4761,8 @@ export const app = (function(){
 
 
   // ---------- SETTINGS ----------
-  // DEFAULT_SETTINGS shape and the pure read-only calculations
-  // (aiUsageRemaining/aiUsagePct/isScheduledResetDue) live in
-  // modules/settings.js. `appSettings` itself lives in modules/state.js
-  // (set to DEFAULT_SETTINGS at the top of this file already) — loadSettings/
-  // resetAiCounter below reassign/mutate it via setAppSettings and persist it.
-
-  async function loadSettings(){
-    // Only true when the read itself succeeded (doc existed and parsed, OR
-    // it genuinely doesn't exist yet — a real first-ever run). A thrown
-    // error (offline blip, transient permission hiccup, etc.) must NEVER
-    // be treated as "no settings yet" — see the 2026-09-16 bug below.
-    let loadSucceeded = false;
-    try{
-      const { getDoc } = window.firestoreFns;
-      const snap = await getDoc(bizDoc('config', 'settings'));
-      if (snap.exists()){
-        setAppSettings({ ...DEFAULT_SETTINGS, ...snap.data() });
-        // Migration: renamed from poshmarkStandardText.
-        if (!appSettings.listingStandardText && appSettings.poshmarkStandardText){
-          appSettings.listingStandardText = appSettings.poshmarkStandardText;
-        }
-      }
-      loadSucceeded = true;
-    }catch(e){
-      // Show local defaults so the app isn't stuck blank, but DO NOT persist
-      // them below — a transient read failure used to fall into the
-      // "first time ever" branch, which then called saveSettings() and
-      // permanently overwrote her real saved settings with these defaults.
-      console.error('Failed to load settings — showing local defaults without touching the saved copy:', e);
-      setAppSettings({ ...DEFAULT_SETTINGS });
-    }
-    // Initialize period if first time — gated on the read having actually
-    // succeeded, for the reason above.
-    if (loadSucceeded && !appSettings.aiUsagePeriodStart){
-      appSettings.aiUsagePeriodStart = new Date().toISOString();
-      await saveSettings();
-    }
-    // Check if scheduled reset is due
-    if (loadSucceeded) await checkScheduledReset();
-  }
-
-  async function saveSettings(){
-    try{
-      const { setDoc } = window.firestoreFns;
-      // merge:true — belt-and-suspenders alongside the loadSettings() fix
-      // above: even if appSettings is ever incomplete in memory for some
-      // other reason, a save can no longer blank out fields it doesn't
-      // know about instead of actually overwriting them.
-      await setDoc(bizDoc('config', 'settings'), appSettings, { merge: true });
-    }catch(e){ console.error('Failed to save settings', e); }
-  }
-
-  async function checkScheduledReset(){
-    if (isScheduledResetDue(appSettings)) await resetAiCounter('scheduled');
-  }
-
-  async function resetAiCounter(type){
-    appSettings.aiUsageCount = 0;
-    appSettings.aiUsagePeriodStart = new Date().toISOString();
-    await saveSettings();
-    console.log(`AI counter reset (${type})`);
-  }
-
-  async function incrementAiUsage(){
-    appSettings.aiUsageCount = (appSettings.aiUsageCount || 0) + 1;
-    await saveSettings();
-  }
-
-  function aiUsageRemaining(){ return _aiUsageRemaining(appSettings); }
-  function aiUsagePct(){ return _aiUsagePct(appSettings); }
+  // Loading/saving appSettings and the AI usage counter live in
+  // src/data/settings-store.js; the Settings screen is below.
 
   function renderSettings(){
     const view = document.getElementById('settingsView');

@@ -1,8 +1,8 @@
 # Modularization and app readiness
 
-> **Current state (2026-10-19, v3.17.4):** `main.js` is ~6,000 lines, one
+> **Current state (2026-10-19, v3.17.5):** `main.js` is ~6,000 lines, one
 > IIFE (`export const app = (function(){ ... })()`). Phases 1, 2 and 2b
-> below are done; phases 3-4 are not started. The goal is a smaller `main.js` **and** a
+> below are done, and phase 3 is half done (3a); phase 4 is not started. The goal is a smaller `main.js` **and** a
 > codebase that can ship as a phone app without a rewrite.
 
 ## The three layers (2026-10-19)
@@ -14,6 +14,14 @@ Every new module belongs to one layer, and the folder says which:
 | **Domain** | `src/domain/` | Nothing but its inputs: data in, result out. No DOM, no `window`, no Firebase, no app state (pass settings in as parameters). | Browser, native app, server, tests |
 | **UI** | `src/ui/` | The DOM and the shared app state (`modules/state.js`). No direct device APIs. | Anywhere with an HTML screen (browser, Capacitor WebView) |
 | **Platform** | `src/platform/` | Device and environment APIs: printing, file save/share, clipboard, camera/microphone, opening URLs, the API base URL. | Swapped per environment (web today, native app later) |
+| **Data** | `src/data/` | Firestore reads and writes of business data, always through `bizCol()`/`bizDoc()` (`modules/biz.js`), and the shared state they load into (`modules/state.js`). No DOM. | Browser and native app alike (the Firebase JS SDK runs unchanged in Capacitor, so this layer is not swapped) |
+
+The data layer was added in v3.17.5 (phase 3a). The rules that protect
+saved data (a failed read never leads to a save, settings saves merge)
+then live in one small file that can be tested without a screen, and the
+onboarding work (docs/multi-tenant.md step 5) has a place for its new
+reads and writes. Item, draft and counter loading/saving move here when
+they're next touched.
 
 Why it matters for an app: the cheapest route to the App Store / Play
 Store is **Capacitor**, which wraps this same web app in a native shell and
@@ -123,12 +131,26 @@ The rest of `main.js`'s file saving moved onto `platform/files.js`:
 `main.js` no longer touches `navigator.share` or `<a download>` itself.
 Old vs new characterization test: 19 recorded entries, identical.
 
+## Phase 3a (done, v3.17.5)
+
+`src/data/settings-store.js`: `loadSettings`, `saveSettings`,
+`resetAiCounter`, `incrementAiUsage`, `aiUsageRemaining`, `aiUsagePct`
+(the scheduled-reset check stays private). Moved out of `main.js`
+unchanged. Characterization test in Node with a stubbed Firestore: 10
+scenarios (doc exists, migration of the old text field, first run, read
+failure with no save, scheduled reset due / not due, save failure, counter
+increments and reset), 49 recorded entries identical; removing the
+read-failure guard or `merge: true` makes it fail.
+
 ## Next phases (safest first)
 
-3. **Settings** (~950 lines: `renderSettings()` and the
-   `window.save*Settings` handlers) into `src/ui/settings/…`. Do this
-   before the onboarding work (docs/multi-tenant.md step 5), which adds
-   business settings and sign-in screens.
+3b. **The Settings screen** (~960 lines) into `src/ui/settings/`:
+   `settings-view.js` (`renderSettings`, its template kept byte for byte),
+   `admin-panels.js`, `ebay-panel.js` (the eBay status and actions, with
+   their 6 `fetch('/api/…')` calls), `platforms-panel.js`, `forms.js` (the
+   `window.save*Settings` handlers and resets). Do this before the
+   onboarding work (docs/multi-tenant.md step 5), which adds business
+   settings and sign-in screens.
 4. **Leave for last / maybe never:** the item modal open/save/delete and
    eBay category search (~650 lines), the most state-coupled section.
    Also the measure tool (~550 lines, self-contained) and the ✨ AI flows

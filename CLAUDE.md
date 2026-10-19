@@ -82,7 +82,9 @@ renaming them needs a data migration of every saved item.
   `src/domain/` = pure logic (no DOM, `window`, Firebase or app state;
   settings come in as parameters), `src/ui/` = DOM + shared state,
   `src/platform/` = device/environment APIs (print, files, clipboard,
-  API base URL), so a Capacitor app only swaps the platform layer.
+  API base URL), so a Capacitor app only swaps the platform layer;
+  `src/data/` = Firestore reads/writes through `bizCol()`/`bizDoc()`
+  (v3.17.5).
   Extract with a characterization test (old vs new, identical output).
   - `domain/listing-copy.js`: listing title/description builders.
   - `ui/lightbox.js`: `openLightbox(photos, index)`; its state is private.
@@ -90,6 +92,9 @@ renaming them needs a data migration of every saved item.
   - `ui/labels/`: print modal (`openBatchLabelModal`), Quick Labels,
     storage boxes, Stock Transfer (v3.17.3).
   - `domain/product-code-match.js`: typed digits → item.
+  - `data/settings-store.js`: `loadSettings`/`saveSettings` (the
+    v3.13.96 guards: a failed read never saves, saves merge) and the AI
+    usage counter.
   - `platform/print.js` (`printHtml`, keep it synchronous) and
     `platform/files.js` (`saveOrShareFile`, `downloadBlob`,
     `downloadUrl`). `main.js` saves no file by itself (v3.17.4).
@@ -216,8 +221,8 @@ renaming them needs a data migration of every saved item.
 
 - **Multi-business (paid, for new sellers)**: the app runs on business
   data since 2026-10-19 (v3.17.0 switch confirmed in production).
-  Next, in order: split `main.js` (docs/modularization.md phase 3,
-  Settings; phases 1-2b done in v3.17.2-4),
+  Next, in order: split `main.js` (docs/modularization.md phase 3b, the
+  Settings screen; phases 1-3a done in v3.17.2-5),
   auth hardening (`docs/multi-tenant.md` step 4a: admin custom claim,
   email verification, one account per email, disable Auth on Remove,
   then Google sign-in, App Check, admin 2FA), then onboarding/invites
@@ -274,6 +279,9 @@ on any of these:
 - File saving on the platform adapter (v3.17.4): old vs new test (19
   entries identical); unconfirmed on a phone: measure tool "save labeled
   photo", photo download (one and "save all"), the three CSV exports.
+- Settings store in `src/data/` (v3.17.5): Node test with a stubbed
+  Firestore (49 entries identical); unconfirmed in production: settings
+  load at sign-in, saves from Settings, AI counter increments/reset.
 - Server-built AI prompts (v3.15.3): golden test (prompt text identical)
   and handler tests with a mocked fetch; ✨ analyze, rewrite and both
   narration flows are unconfirmed against the real API.
@@ -325,6 +333,10 @@ on any of these:
   `platform/files.js` (`saveOrShareFile`, new `downloadUrl`, now-exported
   `downloadBlob`). Only difference: the CSV's object URL is revoked after
   2 s instead of immediately.
+- **v3.17.5**: `main.js` split, phase 3a, and a fourth layer, `src/data/`
+  (Firestore reads/writes through `bizCol()`/`bizDoc()`).
+  `data/settings-store.js`: load/save settings and the AI usage counter,
+  moved unchanged. No behavior change.
 
 ## Backlog (not started)
 
