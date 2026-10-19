@@ -268,12 +268,10 @@ renaming them needs a data migration of every saved item.
 
 Last known status per the v3.13 notes. Confirm with Vitor before relying
 on any of these:
-- Live Catalog removed (v3.19.0): 26 emulator rules tests (members denied
-  on the frozen Live data, admins read only, items/counters/config
-  unchanged), clean build without `live-catalog.html`, app and Developer
-  Panel load with no JS errors. Unconfirmed in production: the rules
-  pasted in the Console, the Developer Panel backup still including the
-  Live collections, item narration still working.
+- Live Catalog removed (v3.19.0): rules pasted in the Console, tag
+  `live-catalog-last` on GitHub; Vitor confirmed the app and catalog load
+  and item narration works (2026-10-19). Still unconfirmed: the Developer
+  Panel backup still including the Live collections.
 - Verified email required (v3.18.4): 19 emulator rules tests, server
   test of both `requireApprovedUser` paths, `tokenEmailVerified()` unit
   test, a screenshot of the "Verify your email" screen, clean build and
@@ -381,6 +379,78 @@ Proposal:
 It costs a few cents per click, and it's a rare action. It still returns
 one flat %, so the `note` should say when a fee is tiered; tiered
 platforms keep using the tiered editor.
+
+### 4. Import an existing spreadsheet (CSV or Excel) — next
+
+Decided with Vitor 2026-10-19. Goal: a new seller/business brings the
+Excel sheet they use today as their inventory and sales control, through
+a guided page, with AI analysis of the columns. It's a standalone
+"Import" screen (reachable from Settings now; onboarding, step 5, will
+link to it later).
+
+The guided page, five steps:
+1. **Upload** CSV or Excel, parsed in the browser with SheetJS (already
+   loaded for the Excel export), so it needs no `api/` slot. Pick which
+   sheets to import when there are several.
+2. **AI analysis**: send only the headers and ~10 sample rows. The AI
+   maps each column to an item field (with a confidence, or "ignore")
+   **and maps values too** ("Sold"/"Vendido"/"Y" → `vendido`,
+   "NWT" → `novo_etiqueta`); column mapping alone leaves half the data
+   wrong. A new `mode` in `api/analyze-photo.js` (the Hobby cap is
+   full), prompt built on the server, counted by the AI usage counter.
+3. **Review the mapping**: one dropdown per column, prefilled with the
+   suggestion; the AI only suggests.
+4. **Preview**: the items as they'll be saved, with errors (bad price,
+   empty row), possible duplicates (a warning, never a block; the person
+   ticks which to skip) and totals (in stock, sold, total value).
+5. **Confirm and save**: product codes reserved as one block (a new
+   counter function reserving N codes in one transaction, instead of
+   one transaction per item), batched writes, then a result summary.
+
+Decisions (Vitor, 2026-10-19):
+- Sales history is imported too (sold items with price, date, platform,
+  fees), with net profit from `computeNetProfit`, so the finances are
+  complete from day one.
+- The sheet's own codes are kept in a "legacy code" field, so an item
+  can still be found by its old tag. Every item gets a new app code.
+- A row with a quantity becomes that many items, each with its own code
+  (each piece has its own label).
+- Each item records its import ID, and the screen offers "Undo this
+  import" (removes that import's items).
+- Photos are not imported.
+- Test data: our own catalog (exported, then varied: renamed headers,
+  other languages, other value spellings) has enough fields to stand in
+  for other sellers' sheets.
+
+Layers: parsing and value conversion in `src/domain/` (testable without a
+browser), the screen in `src/ui/import/`, the writes in `src/data/`.
+
+### 5. Import platform reports (sales and payouts) — after item 4
+
+Ideas from the 2026-10-19 discussion, to be decided when it starts:
+- Input: a file or screenshot from any platform (eBay, Poshmark,
+  Mercari, …). Known CSV formats get a fixed parser per platform (no AI,
+  predictable); screenshots, PDFs and unknown formats go through AI
+  extraction (spends AI credits).
+- One common sale record: platform, date, title, order ID, price, fees,
+  shipping, net.
+- Matching to catalog items: exact link when there is one (SKU / eBay
+  listing ID); otherwise a suggested match with a confidence (title +
+  price + date) that the person confirms.
+- A review screen with before → after per item; nothing applied without
+  confirmation. Store the order ID on the item so a report can't be
+  applied twice.
+- Open questions: start with sales and leave payouts (bank deposits
+  that bundle sales, for reconciliation) for later? A sale with no
+  catalog item: create a sold item, skip, or leave it to resolve? An
+  item already marked sold by hand with different values: overwrite, or
+  show the difference and keep the manual values by default? Which
+  platforms she actually uses and what each lets her download (get one
+  real, anonymized sample of each before designing parsers).
+- eBay: the app already reads orders (`ebay-check-sales.js`, Fulfillment
+  API, order totals). Whether to add the `sell.finances` scope (needs a
+  reconnect, and eBay may not grant it without approval) or treat eBay
+  like the other platforms, by report, is open.
 
 ## Docs index
 
