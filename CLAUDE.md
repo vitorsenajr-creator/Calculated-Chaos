@@ -208,6 +208,9 @@ on any of these:
   `jsonAuthHeaders()` (`src/modules/api-auth.js`) on all 16 eBay calls.
   The Firebase project ID in `_requireApprovedUser.js` can be overridden
   with an optional `FIREBASE_PROJECT_ID` env var.
+- **v3.15.2**: admins get a "🛠️ Developer Panel" button next to "Sign
+  out" in Settings → Account (the old link lower down was removed; that
+  section now only shows the pending-request count).
 
 ## Backlog (not started)
 
