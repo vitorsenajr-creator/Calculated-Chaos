@@ -32,7 +32,7 @@
   // or null while unknown (not loaded yet, or the status call failed).
   export let ebayConnection = null;
 
-  // main.js's disconnectEbay needs to clear this — imported bindings are
+  // ui/settings/ebay-panel.js's disconnectEbay needs to clear this — imported bindings are
   // read-only from the importer's side, so this is the way to do it.
   export function clearEbayConnection(){ ebayConnection = { connected: false }; }
 

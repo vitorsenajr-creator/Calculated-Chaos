@@ -75,9 +75,9 @@ renaming them needs a data migration of every saved item.
 
 ## Code map
 
-- `src/main.js`: ~6,000 lines, one IIFE (`export const app = (function(){…})()`).
-  Holds the catalog, item modal, settings, label print modal, measure
-  tool, AI flows and reports UI. See `docs/modularization.md`.
+- `src/main.js`: ~5,000 lines, one IIFE (`export const app = (function(){…})()`).
+  Holds the catalog, item modal, measure tool, AI flows and reports UI.
+  See `docs/modularization.md`.
 - **Layers for new code (v3.17.2, `docs/modularization.md`)**:
   `src/domain/` = pure logic (no DOM, `window`, Firebase or app state;
   settings come in as parameters), `src/ui/` = DOM + shared state,
@@ -95,6 +95,9 @@ renaming them needs a data migration of every saved item.
   - `data/settings-store.js`: `loadSettings`/`saveSettings` (the
     v3.13.96 guards: a failed read never saves, saves merge) and the AI
     usage counter.
+  - `ui/settings/`: the Settings screen (`settings-view.js`), admin
+    panels, eBay panel, platforms/fees, save handlers (`forms.js`);
+    `index.js` registers their `window.*` handlers (v3.17.6).
   - `platform/print.js` (`printHtml`, keep it synchronous) and
     `platform/files.js` (`saveOrShareFile`, `downloadBlob`,
     `downloadUrl`). `main.js` saves no file by itself (v3.17.4).
@@ -221,9 +224,8 @@ renaming them needs a data migration of every saved item.
 
 - **Multi-business (paid, for new sellers)**: the app runs on business
   data since 2026-10-19 (v3.17.0 switch confirmed in production).
-  Next, in order: split `main.js` (docs/modularization.md phase 3b, the
-  Settings screen; phases 1-3a done in v3.17.2-5),
-  auth hardening (`docs/multi-tenant.md` step 4a: admin custom claim,
+  The `main.js` split's planned phases are done (1-3, v3.17.2-6; phase
+  4 is "when next touched"). Next, in order: auth hardening (`docs/multi-tenant.md` step 4a: admin custom claim,
   email verification, one account per email, disable Auth on Remove,
   then Google sign-in, App Check, admin 2FA), then onboarding/invites
   (step 5). The root collections stay, read-only for the business's
@@ -282,6 +284,10 @@ on any of these:
 - Settings store in `src/data/` (v3.17.5): Node test with a stubbed
   Firestore (49 entries identical); unconfirmed in production: settings
   load at sign-in, saves from Settings, AI counter increments/reset.
+- Settings screen in `ui/settings/` (v3.17.6): Chromium test on the real
+  markup (204 entries identical); unconfirmed in production: every
+  Settings section, its save buttons, platform fees/tiers, Suggest %, the
+  eBay buttons (test, disconnect, setup, offers), employee creation.
 - Server-built AI prompts (v3.15.3): golden test (prompt text identical)
   and handler tests with a mocked fetch; ✨ analyze, rewrite and both
   narration flows are unconfirmed against the real API.
@@ -337,6 +343,11 @@ on any of these:
   (Firestore reads/writes through `bizCol()`/`bizDoc()`).
   `data/settings-store.js`: load/save settings and the AI usage counter,
   moved unchanged. No behavior change.
+- **v3.17.6**: `main.js` split, phase 3b. The Settings screen into
+  `ui/settings/` (settings-view, admin-panels, ebay-panel,
+  platforms-panel, forms, index). Template kept byte for byte (dedented
+  with a TypeScript-parser script that skips template literals).
+  `main.js` 5,911 → 4,956 lines. No behavior change.
 
 ## Backlog (not started)
 
