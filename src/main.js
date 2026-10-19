@@ -1173,16 +1173,21 @@ export const app = (function(){
       const cost = list.reduce((s,i)=> s + (parseFloat(i.cost)||0), 0);
       const fees = list.reduce((s,i)=> s + (i.feesTotal||0), 0);
       const shipping = list.reduce((s,i)=> s + (parseFloat(i.shippingCost)||0), 0);
-      const profit = revenue - cost - fees - shipping;
+      const other = list.reduce((s,i)=> s + (parseFloat(i.otherCosts)||0), 0);
+      // Sum the netProfit saved at sale time, like the stats strip, Dashboard
+      // and Reports do. Recomputing it here left out Other costs, so this
+      // screen showed a higher profit than the rest of the app (v3.19.1).
+      const profit = list.reduce((s,i)=> s + (i.netProfit||0), 0);
       const margin = revenue > 0 ? (profit/revenue*100) : 0;
 
       return `<div class="month-card">
         <h3>${monthNames[parseInt(m)-1]} ${y} · ${list.length} ${list.length===1?'item sold':'items sold'}</h3>
         <div class="fin-grid">
-          <div class="fin-item"><div class="label">Gross revenue</div><div class="value">$${revenue.toFixed(2)}</div></div>
+          <div class="fin-item" style="grid-column:1/-1;"><div class="label">Gross revenue</div><div class="value">$${revenue.toFixed(2)}</div></div>
           <div class="fin-item cost"><div class="label">Acquisition cost</div><div class="value">$${cost.toFixed(2)}</div></div>
           <div class="fin-item cost"><div class="label">Platform fees</div><div class="value">$${fees.toFixed(2)}</div></div>
           <div class="fin-item cost"><div class="label">Shipping paid</div><div class="value">$${shipping.toFixed(2)}</div></div>
+          <div class="fin-item cost"><div class="label">Other costs</div><div class="value">$${other.toFixed(2)}</div></div>
           <div class="fin-item highlight"><div class="label">Net profit</div><div class="value">$${profit.toFixed(2)}</div></div>
           <div class="fin-item highlight"><div class="label">Net margin</div><div class="value">${margin.toFixed(1)}%</div></div>
         </div>
