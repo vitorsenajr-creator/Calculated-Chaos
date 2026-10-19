@@ -1,12 +1,13 @@
 // /api/ebay-auth.js — eBay OAuth handler and the app's view of the
 // server-held eBay connection (v3.16.0: the tokens live only on the server,
 // see _ebayToken.js). Operations via ?action= query param:
-//   ?action=url        → the eBay authorization URL to send the user to
-//   ?action=callback   → eBay's redirect: exchanges the code for tokens
+//   ?action=url        → the eBay authorization URL to send the user to,
+//                        with a one-time ?state= code (owners only)
+//   ?action=callback   → eBay's redirect: checks the state code, exchanges
+//                        the code for tokens and stores them (v3.16.2; the
+//                        tokens are never shown or copy-pasted any more)
 //   ?action=status     → { connected, sellerUsername, connected_at, ... }
 //                        (never the tokens)
-//   ?action=save_tokens → POST { tokens }: stores a connection pasted from
-//                        the callback page (owners only)
 //   ?action=username   → POST { markTested }: looks up the seller's
 //                        username with the server's token; with markTested
 //                        it's the Settings "Test connection" check
@@ -16,7 +17,7 @@
 import { requireApprovedUser } from './_requireApprovedUser.js';
 import {
   getEbayAccessToken, getEbayConnectionStatus, saveEbayConnection,
-  updateEbayConnection, deleteEbayConnection,
+  updateEbayConnection, deleteEbayConnection, createOAuthState, consumeOAuthState,
   EBAY_TOKEN_URL as TOKEN_URL, EBAY_SCOPES as SCOPES, ebayBasicAuthHeader as basicAuthHeader,
 } from './_ebayToken.js';
 
@@ -51,6 +52,28 @@ async function fetchSellerUsername(accessToken){
 }
 
 
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// The page the eBay tab lands on after the callback. On success `detail`
+// is the seller's username (or null); on failure it's the message to show.
+function sendCallbackPage(res, status, ok, detail){
+  const message = ok
+    ? `<h2>✅ eBay connected${detail ? ` as <span style="color:#C2705F;">${escapeHtml(detail)}</span>` : ''}</h2>
+       <p>You can close this tab and go back to the Calculated Chaos app.</p>`
+    : `<h2>❌ eBay wasn't connected</h2><p>${escapeHtml(detail || 'Unknown error.')}</p>`;
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-store');
+  return res.status(status).send(`<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>eBay connection</title>
+<style>body{font-family:sans-serif;text-align:center;padding:40px 16px;background:#FBF3E9;} h2{color:#3D2C32;} p{color:#6B5760;}</style>
+</head>
+<body>${message}</body>
+</html>`);
+}
+
 export default async function handler(req, res){
   // eBay's redirect only appends "?code=..." to whatever "Auth accepted URL"
   // was registered for the RuName — it does NOT preserve any extra query
@@ -68,7 +91,7 @@ export default async function handler(req, res){
     }
   }
   // Connecting or disconnecting eBay is for owners, not employee logins.
-  if ((action === 'save_tokens' || action === 'disconnect') && authCheck.role === 'employee'){
+  if ((action === 'url' || action === 'disconnect') && authCheck.role === 'employee'){
     return res.status(403).json({ error: 'Only the account owner can connect or disconnect eBay.' });
   }
 
@@ -76,25 +99,6 @@ export default async function handler(req, res){
   if (action === 'status'){
     const status = await getEbayConnectionStatus();
     return res.status(status.ok ? 200 : status.status).json(status.ok ? status : { error: status.error });
-  }
-
-  // ---------- Store a connection pasted from the callback page ----------
-  if (action === 'save_tokens'){
-    const t = (req.body && req.body.tokens) || {};
-    if (typeof t.access_token !== 'string' || typeof t.refresh_token !== 'string' || !t.access_token || !t.refresh_token){
-      return res.status(400).json({ error: 'That doesn\'t look like the eBay connection data. Connect again and copy the whole text.' });
-    }
-    const saved = await saveEbayConnection({
-      access_token: t.access_token,
-      refresh_token: t.refresh_token,
-      expires_in: Number(t.expires_in) || 7200,
-      token_type: typeof t.token_type === 'string' ? t.token_type : 'User Access Token',
-      connected_at: Number(t.connected_at) || Date.now(),
-      sellerUsername: typeof t.sellerUsername === 'string' ? t.sellerUsername.slice(0, 100) : null,
-      connectedBy: authCheck.email || authCheck.uid,
-    });
-    if (!saved.ok) return res.status(saved.status).json({ error: saved.error });
-    return res.status(200).json(await getEbayConnectionStatus());
   }
 
   // ---------- Disconnect ----------
@@ -109,23 +113,30 @@ export default async function handler(req, res){
     if (!EBAY_CLIENT_ID || !EBAY_REDIRECT_URI){
       return res.status(500).json({ error: 'eBay credentials not configured on server.' });
     }
+    const started = await createOAuthState(authCheck);
+    if (!started.ok) return res.status(started.status).json({ error: started.error });
     const params = new URLSearchParams({
       client_id: EBAY_CLIENT_ID,
       redirect_uri: EBAY_REDIRECT_URI,
       response_type: 'code',
       scope: SCOPES,
       prompt: 'login',
+      state: started.state,
     });
     return res.status(200).json({ url: `${BASE_AUTH_URL}?${params.toString()}` });
   }
 
   // ---------- Exchange auth code for tokens ----------
+  // Opened by eBay in the browser tab, so it answers with a small HTML page.
+  // The one-time state code proves the flow was started from the app by an
+  // owner; the tokens go straight to the server-held connection.
   if (action === 'callback'){
     const code = req.query.code;
     if (!code){
-      // Render a simple HTML error page — this endpoint is opened in a browser tab
-      return res.status(400).send('<h2>Missing authorization code from eBay.</h2>');
+      return sendCallbackPage(res, 400, false, 'eBay didn\'t send an authorization code. Start again from Settings → eBay.');
     }
+    const started = await consumeOAuthState(req.query.state);
+    if (!started.ok) return sendCallbackPage(res, started.status, false, started.error);
     try{
       const body = new URLSearchParams({
         grant_type: 'authorization_code',
@@ -140,45 +151,29 @@ export default async function handler(req, res){
         },
         body: body.toString(),
       });
-      const data = await response.json();
-      if (!response.ok){
-        console.error('eBay token exchange error:', data);
-        return res.status(500).send(`<h2>Token exchange failed: ${data.error_description || JSON.stringify(data)}</h2>`);
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.access_token || !data.refresh_token){
+        console.error('eBay token exchange error:', JSON.stringify(data));
+        return sendCallbackPage(res, 502, false, `eBay didn't accept the sign-in (${data.error_description || data.error || `HTTP ${response.status}`}). Start again from Settings → eBay.`);
       }
-      // Return tokens to the browser — the frontend app will store them in Firestore
-      // (never stored on the server, keeping the architecture stateless)
       const sellerUsername = await fetchSellerUsername(data.access_token);
-      return res.status(200).send(`
-        <!DOCTYPE html>
-        <html>
-        <head><title>eBay Connected!</title>
-        <style>body{font-family:sans-serif;text-align:center;padding:40px;background:#FBF3E9;}
-        h2{color:#3D2C32;} p{color:#6B5760;} .code{background:#fff;padding:20px;border-radius:10px;word-break:break-all;font-family:monospace;font-size:12px;}</style>
-        </head>
-        <body>
-          <h2>✅ eBay authorization successful!</h2>
-          ${sellerUsername ? `<p style="font-size:16px; font-weight:600; color:#C2705F;">Connected as: ${sellerUsername}</p>` : ''}
-          <p>Copy the data below and paste it back into the Calculated Chaos app when prompted.</p>
-          <div class="code" id="tokenData">${JSON.stringify({
-            access_token: data.access_token,
-            refresh_token: data.refresh_token,
-            expires_in: data.expires_in,
-            token_type: data.token_type,
-            connected_at: Date.now(),
-            sellerUsername: sellerUsername || null,
-          })}</div>
-          <br>
-          <button onclick="navigator.clipboard.writeText(document.getElementById('tokenData').textContent).then(()=>this.textContent='✓ Copied!')" 
-            style="padding:12px 24px;background:#C2705F;color:white;border:none;border-radius:8px;font-size:15px;cursor:pointer;">
-            Copy to clipboard
-          </button>
-          <p style="margin-top:20px;font-size:13px;">You can close this tab after copying.</p>
-        </body>
-        </html>
-      `);
+      const saved = await saveEbayConnection({
+        access_token: data.access_token,
+        refresh_token: data.refresh_token,
+        expires_in: Number(data.expires_in) || 7200,
+        token_type: data.token_type || 'User Access Token',
+        connected_at: Date.now(),
+        // Unlike connected_at, refreshes don't touch it: the app compares it
+        // to tell that a new connect flow went through.
+        authorizedAt: Date.now(),
+        sellerUsername: sellerUsername || null,
+        connectedBy: started.email || started.uid,
+      }, started.connectionId);
+      if (!saved.ok) return sendCallbackPage(res, saved.status, false, saved.error);
+      return sendCallbackPage(res, 200, true, sellerUsername);
     }catch(err){
       console.error('eBay callback error:', err);
-      return res.status(500).send('<h2>Server error during eBay authorization. Please try again.</h2>');
+      return sendCallbackPage(res, 500, false, 'Server error during eBay authorization. Start again from Settings → eBay.');
     }
   }
 

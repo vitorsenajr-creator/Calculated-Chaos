@@ -11,6 +11,7 @@
 // Before v3.16.0 the tokens sat in ebay_tokens/main, readable by the
 // browser. v3.16.0 copied them here on first use; v3.16.1 dropped that
 // copy step and the doc's Firestore rule once production was confirmed.
+import crypto from 'node:crypto';
 import { getFirebaseAdmin } from './_firebaseAdmin.js';
 
 const EBAY_SANDBOX = process.env.EBAY_SANDBOX === 'true';
@@ -34,6 +35,12 @@ export const EBAY_SCOPES = [
 
 const CONNECTIONS = 'ebay_connections';
 export const DEFAULT_CONNECTION_ID = 'main';
+
+// One-time codes for the connect flow (v3.16.2), server only like the
+// connections. Each one remembers who started the flow and which
+// connection the callback should write to.
+const OAUTH_STATES = 'ebay_oauth_states';
+const STATE_TTL_MS = 10 * 60 * 1000;
 
 // Refresh a minute early so a token can't expire mid-request.
 const EXPIRY_MARGIN_MS = 60 * 1000;
@@ -108,6 +115,7 @@ async function getEbayConnectionStatusUnsafe(connectionId = DEFAULT_CONNECTION_I
     connected: true,
     sellerUsername: conn.sellerUsername || null,
     connected_at: conn.connected_at || null,
+    authorizedAt: conn.authorizedAt || null,
     expires_in: conn.expires_in || null,
     lastTestedAt: conn.lastTestedAt || null,
     connectedBy: conn.connectedBy || null,
@@ -138,6 +146,49 @@ async function deleteEbayConnectionUnsafe(connectionId = DEFAULT_CONNECTION_ID){
   return { ok: true };
 }
 
+// Starts a connect flow: stores a random one-time code that eBay hands back
+// to the callback as ?state=. Also clears out codes from abandoned flows.
+async function createOAuthStateUnsafe(user, connectionId = DEFAULT_CONNECTION_ID){
+  const { admin, error } = adminOrError();
+  if (error) return error;
+  const now = Date.now();
+  const stale = await admin.db.collection(OAUTH_STATES).where('expiresAt', '<', now).limit(20).get();
+  await Promise.all(stale.docs.map(d => d.ref.delete()));
+  const state = crypto.randomBytes(32).toString('hex');
+  await admin.db.collection(OAUTH_STATES).doc(state).set({
+    uid: user.uid,
+    email: user.email || null,
+    connectionId,
+    createdAt: now,
+    expiresAt: now + STATE_TTL_MS,
+  });
+  return { ok: true, state };
+}
+
+// Checks a code from the callback and deletes it, so it works only once.
+// Returns { ok:true, uid, email, connectionId }.
+async function consumeOAuthStateUnsafe(state){
+  if (typeof state !== 'string' || !/^[0-9a-f]{64}$/.test(state)){
+    return { ok: false, status: 400, error: 'This eBay sign-in didn\'t come from the app. Start again from Settings → eBay.' };
+  }
+  const { admin, error } = adminOrError();
+  if (error) return error;
+  const ref = admin.db.collection(OAUTH_STATES).doc(state);
+  const data = await admin.db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return null;
+    tx.delete(ref);
+    return snap.data();
+  });
+  if (!data){
+    return { ok: false, status: 400, error: 'This eBay sign-in link was already used. Start again from Settings → eBay.' };
+  }
+  if (!(data.expiresAt > Date.now())){
+    return { ok: false, status: 400, error: 'This eBay sign-in took longer than 10 minutes. Start again from Settings → eBay.' };
+  }
+  return { ok: true, uid: data.uid, email: data.email || null, connectionId: data.connectionId || DEFAULT_CONNECTION_ID };
+}
+
 // Every export returns { ok:false, status, error } instead of throwing
 // (e.g. Firestore unreachable), so an endpoint can pass it straight back
 // rather than crash into Vercel's generic error page.
@@ -157,3 +208,5 @@ export const getEbayConnectionStatus = neverThrows(getEbayConnectionStatusUnsafe
 export const saveEbayConnection = neverThrows(saveEbayConnectionUnsafe, 'save');
 export const updateEbayConnection = neverThrows(updateEbayConnectionUnsafe, 'update');
 export const deleteEbayConnection = neverThrows(deleteEbayConnectionUnsafe, 'remove');
+export const createOAuthState = neverThrows(createOAuthStateUnsafe, 'start');
+export const consumeOAuthState = neverThrows(consumeOAuthStateUnsafe, 'finish');
