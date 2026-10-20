@@ -233,9 +233,16 @@ renaming them needs a data migration of every saved item.
     copies), then `legacyCode`, then title words + size + price (unsold
     only, with a confidence and alternatives). Flags: already sold, still
     listed elsewhere, two sales on one item, SKU not in the catalog. Same
-    order line in two screenshots counts once. **Read-only**: answers,
-    the person's picks and the ticks stay on the device
-    (`cc.pick.session`). Marking sold from Pick is the next PR.
+    order line in two screenshots counts once; the skipped lines are
+    listed with their item and both screenshots (v3.24.3). An order whose
+    platform the AI can't tell gets a "Sold on" select under its
+    screenshot, and its delist note never names a platform as "delist it
+    there" until set. **Read-only**: answers, the person's picks, platforms
+    and ticks stay on the device (`cc.pick.session`). Print checklist
+    (v3.24.3, `ui/stock/pick-print.js`): 100 × 210 mm labels through
+    `printHtml()`, black only, fixed row heights in mm so the page breaks
+    are computed before the (synchronous) print, "(cont.)" headings, a
+    "Picked by / Date" line. Marking sold from Pick is the next PR.
   - `ui/lightbox.js`: `openLightbox(photos, index)`; its state is private.
   - `ui/label-render.js`: label preview markup + canvas drawing.
   - `ui/labels/`: print modal (`openBatchLabelModal`), Quick Labels,
@@ -449,7 +456,17 @@ renaming them needs a data migration of every saved item.
 
 Last known status per the v3.13 notes. Confirm with Vitor before relying
 on any of these:
-- Stock → Pick (v3.24.2): Node test (13 cases, built from Vitor's three
+- Pick checklist (v3.24.3): Node tests (15 matching cases incl. box
+  titles and the platform override, pagination of 41 rows on 4 labels
+  with no overflow, flags, the 100 × 210 mm size), Chromium test rerun
+  (13 checks incl. one black-only 100 × 210 mm sheet for 7 items, ticks
+  printed, skipped details, the Sold on select). Unconfirmed: a real
+  print on the thermal printer (the 100 × 210 mm page in iOS and the
+  printer driver, the font sizes on paper).
+- Stock → Pick (v3.24.2): Vitor tried it with real screenshots
+  (2026-10-20): SKUs matched, Love Tree found by name; the 6-item
+  Poshmark order came back with no platform (prompt hint added in
+  v3.24.3). Node test (13 cases, built from Vitor's three
   Poshmark screenshots: code normalization, the server prompt and schema,
   a repeated order counted once, SKU with a leading zero, a sold item, a
   no-SKU item by name over a similar one, legacy code, copies, an exact
@@ -756,6 +773,15 @@ on any of these:
   sizing (v3.13.102-105), inspection flag icon (v3.13.114).
 
 ## Pending changelog entry (since v3.24.0)
+
+- v3.24.3: Pick checklist and clearer details. "Print checklist" prints
+  the pick list on 100 × 210 mm labels (black, a box to tick per piece,
+  warnings like DELIST or ALREADY MARKED SOLD, a "Picked by / Date"
+  line). Lines skipped as repeats now show the item, the order and the
+  two screenshots. An order whose platform wasn't recognized asks "Sold
+  on" instead of telling you to delist it from the platform it may have
+  sold on. Box names that already start with "Box" no longer read "Box
+  Box 2".
 
 - v3.24.2: Stock → Pick. Add screenshots of your sales (Poshmark, eBay,
   Mercari…) and the app lists the sold pieces box by box: found by SKU,

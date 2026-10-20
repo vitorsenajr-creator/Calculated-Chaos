@@ -1575,6 +1575,7 @@ export const app = (function(){
       return r;
     },
     platformLabel: (key) => pickPlatformLabel(key),
+    platformKeys: () => getAllPlatforms().map(p => p.key),
     openItem: (id) => { const item = items.find(i => i.id === id); if (item) openModal(item); },
     searchCatalog: (text) => { searchQuery = text; openCatalogWith({ notSold: true }); },
   });

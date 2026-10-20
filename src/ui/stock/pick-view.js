@@ -3,10 +3,12 @@
 // the AI usage counter); src/domain/sale-match.js matches the lines to
 // items. Nothing is written to Firestore: the screenshots' answers, the
 // person's own picks and the "picked" ticks live on this device only.
-import { items } from '../../modules/state.js';
+import { items, appSettings } from '../../modules/state.js';
 import { escapeHtml } from '../../modules/format-utils.js';
-import { saleLines, buildPickList } from '../../domain/sale-match.js';
+import { saleLines, buildPickList, matchSaleLine, boxTitle } from '../../domain/sale-match.js';
 import { prepareScreenshot } from '../../platform/images.js';
+import { printHtml } from '../../platform/print.js';
+import { pickSheetHtml, SHEET_IN } from './pick-print.js';
 
 const SESSION_KEY = 'cc.pick.session';
 const MAX_SHOTS = 20;
@@ -14,12 +16,15 @@ const MAX_SHOTS = 20;
 let hooks = {
   readSaleScreenshot: async () => ({ ok: false, message: 'Not available.' }),
   platformLabel: (k) => k,
+  platformKeys: () => [],
   openItem: () => {},
   searchCatalog: () => {},
 };
 
 // shots: [{ id, name, status: 'reading'|'done'|'failed'|'skipped', result, message }]
-let st = { shots: [], chosen: {}, picked: [] };
+// chosen: line key → item id; platforms: order ref → platform key (the
+// person's pick when the AI couldn't tell); picked: line keys ticked.
+let st = { shots: [], chosen: {}, platforms: {}, picked: [] };
 let file = null; // the screenshot files, by shot id, for Try again
 
 function load(){
@@ -30,6 +35,7 @@ function load(){
         // A read cut short by a reload can't finish: offer Try again.
         shots: s.shots.map(x => x.status === 'reading' ? { ...x, status: 'failed', message: 'The reading was interrupted.' } : x),
         chosen: s.chosen && typeof s.chosen === 'object' ? s.chosen : {},
+        platforms: s.platforms && typeof s.platforms === 'object' ? s.platforms : {},
         picked: Array.isArray(s.picked) ? s.picked : [],
       };
     }
@@ -105,6 +111,7 @@ async function readShot(id){
 }
 
 let flashText = '';
+let lastList = null; // the pick list on screen, for Print checklist
 function flash(text){ flashText = text; renderPick(); }
 
 function shotSummary(shot){
@@ -134,14 +141,19 @@ function rowNotes(r){
   else if (r.match.how === 'name' && r.match.confidence !== 'high') notes.push('Check this is the right piece.');
   if (r.alreadySold) notes.push('Already marked sold in the app.');
   if (r.soldTwice) notes.push('Another sale in this list points to this same item. Check both orders.');
-  if (r.listedElsewhere.length) notes.push(`Still listed on ${r.listedElsewhere.map(p => escapeHtml(hooks.platformLabel(p))).join(', ')}. Delist it there.`);
+  if (r.listedElsewhere.length){
+    const where = r.listedElsewhere.map(p => escapeHtml(hooks.platformLabel(p))).join(', ');
+    notes.push(r.platformUnknown
+      ? `Listed on ${where}. Delist it from the ones it didn't sell on.`
+      : `Still listed on ${where}. Delist it there.`);
+  }
   if (r.line.partial) notes.push('Part of this line was cut off in the screenshot.');
   return notes.map(n => `<div class="pick-note">${n}</div>`).join('');
 }
 
 function saleLine(line){
   return [
-    line.platform ? escapeHtml(hooks.platformLabel(line.platform)) : '',
+    line.platform ? escapeHtml(hooks.platformLabel(line.platform)) : 'Platform not recognized (set it above)',
     line.price !== null ? money(line.price) : escapeHtml(line.priceText),
     line.size ? `Size ${escapeHtml(line.size)}` : '',
     line.buyer ? escapeHtml(line.buyer) : '',
@@ -175,6 +187,53 @@ function renderRow(r, done){
     </div>`;
 }
 
+// Under a screenshot, one select per order whose platform the AI couldn't
+// tell; it sets the platform for every line of that order. The order ref
+// matches saleLines(): the order number, else screenshot id + position.
+// `shown` keeps an order read from two screenshots to one select.
+function platformPickers(shot, shown){
+  if (shot.status !== 'done') return '';
+  const keys = hooks.platformKeys();
+  return (shot.result.orders || []).map((o, oi) => {
+    if (o.platform && o.platform !== 'unknown') return '';
+    const ref = String(o.orderNumber || '').trim() || `${shot.id}#${oi}`;
+    if (shown.has(ref)) return '';
+    shown.add(ref);
+    const cur = st.platforms[ref] || '';
+    const label = o.orderNumber ? `Order …${escapeHtml(String(o.orderNumber).trim().slice(-6))}` : 'This order';
+    return `
+        <label class="pick-platform">
+          <span>${label}: platform not recognized. Sold on</span>
+          <select data-order-platform="${escapeHtml(ref)}">
+            <option value="">Not sure</option>
+            ${keys.map(k => `<option value="${escapeHtml(k)}" ${cur === k ? 'selected' : ''}>${escapeHtml(hooks.platformLabel(k))}</option>`).join('')}
+          </select>
+        </label>`;
+  }).join('');
+}
+
+// The lines skipped as repeats, with the item each one was and where it
+// was read first.
+function skippedHtml(skipped){
+  if (!skipped.length) return '';
+  const nameOf = (id) => (st.shots.find(s => s.id === id) || {}).name || 'an earlier screenshot';
+  return `
+    <details class="panel pick-skipped">
+      <summary><span class="panel-title">Skipped as repeats</span><span class="panel-meta">${plural(skipped.length, 'line')}</span></summary>
+      <p class="pick-skipped-desc">These lines were already read from another screenshot of the same order, so they're counted once.</p>
+      ${skipped.map(l => {
+        const m = matchSaleLine(l, items);
+        return `
+        <div class="pick-skip-row">
+          <div class="pick-top">${m.item ? `<span class="pick-code">${escapeHtml(m.item.productCode || '')}</span>` : ''}${l.sku ? `<span class="pick-badge">SKU ${escapeHtml(l.sku)}</span>` : ''}</div>
+          <div class="pick-title">${escapeHtml(m.item ? (m.item.name || l.title) : l.title)}</div>
+          <div class="pick-sub">${saleLine(l)}${l.orderNumber ? ` · Order ${escapeHtml(l.orderNumber)}` : ''}</div>
+          <div class="pick-sub">In ${escapeHtml(nameOf(l.source))}; already read from ${escapeHtml(nameOf(l.firstSource))}.</div>
+        </div>`;
+      }).join('')}
+    </details>`;
+}
+
 // Words to search the catalog with for a sale the app couldn't place: the
 // title's first word, plus the second when it's a plain word (usually the
 // brand: "Love Tree", but "John" from "John + Jenn"). The catalog search
@@ -188,16 +247,19 @@ export function renderPick(){
   const pane = document.getElementById('stockPane-pick');
   if (!pane) return;
   const done = st.shots.filter(s => s.status === 'done');
-  const { lines, repeats } = saleLines(done.map(s => ({ source: s.id, result: s.result })));
+  const { lines, skipped } = saleLines(done.map(s => ({ source: s.id, result: s.result })), st.platforms);
   const pl = buildPickList(lines, items, st.chosen);
+  lastList = pl;
   const picked = new Set(st.picked);
   const pickedCount = lines.filter(l => picked.has(l.key)).length;
 
+  const shown = new Set();
   const shotsHtml = st.shots.map(s => `
     <li class="pick-shot">
       <span class="pick-shot-text">
         <span class="pick-shot-name">${escapeHtml(s.name)}</span>
         ${shotSummary(s)}
+        ${platformPickers(s, shown)}
       </span>
       ${s.status === 'failed' ? `<button type="button" class="row-btn" data-retry="${s.id}">Try again</button>` : ''}
       <button type="button" class="row-btn" data-remove-shot="${s.id}" aria-label="Remove ${escapeHtml(s.name)}">Remove</button>
@@ -208,7 +270,7 @@ export function renderPick(){
     return `
       <section class="panel pick-box">
         <div class="panel-head">
-          <h3 class="panel-title">${b.box ? `Box ${escapeHtml(b.box)}` : 'No box'}</h3>
+          <h3 class="panel-title">${escapeHtml(boxTitle(b.box))}</h3>
           <span class="panel-meta">${plural(b.rows.length, 'item')}${n ? ` · ${n} picked` : ''}</span>
         </div>
         ${b.rows.map(r => renderRow(r, picked.has(r.line.key))).join('')}
@@ -239,11 +301,15 @@ export function renderPick(){
     <section class="panel pick-summary">
       <div class="panel-head">
         <h2 class="panel-title">To pick</h2>
-        <span class="panel-meta">${plural(lines.length, 'item')} from ${plural(pl.orders, 'order')}${repeats ? ` · ${plural(repeats, 'repeat')} skipped` : ''}</span>
+        <span class="panel-meta">${plural(lines.length, 'item')} from ${plural(pl.orders, 'order')}${skipped.length ? ` · ${plural(skipped.length, 'repeat')} skipped (below)` : ''}</span>
       </div>
       <div class="pick-progress">
         <progress max="${lines.length}" value="${pickedCount}" aria-label="Picked"></progress>
         <span>${pickedCount} of ${lines.length} picked</span>
+      </div>
+      <div class="pick-print-row">
+        <button type="button" class="secondary-btn" id="pickPrintBtn">Print checklist</button>
+        <span class="pick-hint">100 × 210 mm label, black only</span>
       </div>
     </section>` : '';
 
@@ -262,6 +328,7 @@ export function renderPick(){
     ${summary}
     ${boxesHtml}
     ${unmatchedHtml}
+    ${skippedHtml(skipped)}
     ${!lines.length && done.length && !reading ? '<div class="attn-empty pick-empty">No sold items were found in these screenshots.</div>' : ''}`;
   flashText = '';
   wire(pane);
@@ -275,7 +342,7 @@ function wire(pane){
   });
   pane.querySelector('#pickClearBtn')?.addEventListener('click', () => {
     if (!confirm('Clear the screenshots and the picked marks?')) return;
-    st = { shots: [], chosen: {}, picked: [] };
+    st = { shots: [], chosen: {}, platforms: {}, picked: [] };
     file.clear();
     save();
     renderPick();
@@ -300,6 +367,22 @@ function wire(pane){
     save();
     renderPick();
   }));
+  pane.querySelectorAll('[data-order-platform]').forEach(sel => sel.addEventListener('change', () => {
+    const platforms = { ...st.platforms };
+    if (sel.value) platforms[sel.dataset.orderPlatform] = sel.value; else delete platforms[sel.dataset.orderPlatform];
+    st.platforms = platforms;
+    save();
+    renderPick();
+  }));
+  // Synchronous inside the click: iOS Safari drops print() after an await.
+  pane.querySelector('#pickPrintBtn')?.addEventListener('click', () => {
+    if (!lastList) return;
+    printHtml(pickSheetHtml(lastList, {
+      picked: new Set(st.picked),
+      storeName: (appSettings.storeName || '').trim(),
+      platformLabel: hooks.platformLabel,
+    }), SHEET_IN);
+  });
   pane.querySelectorAll('[data-open-item]').forEach(b => b.addEventListener('click', () => hooks.openItem(b.dataset.openItem)));
   pane.querySelectorAll('[data-search]').forEach(b => b.addEventListener('click', () => hooks.searchCatalog(b.dataset.search)));
 }
