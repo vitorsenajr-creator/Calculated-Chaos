@@ -55,7 +55,7 @@ import { initHomeView, renderHome } from './ui/home/home-view.js';
 import { initStockView, renderStock } from './ui/stock/stock-view.js';
 import { initFinanceView, renderFinance } from './ui/finance/finance-view.js';
 import { initUpdateBanner } from './ui/update-banner.js';
-import { applyTheme, applyLastTheme, currentTheme } from './ui/theme.js';
+import { applyTheme, applyAccent, applyLastTheme, currentTheme } from './ui/theme.js';
 import { CATALOG_SORTS, sortCatalog } from './domain/catalog-sort.js';
 import { WEEK_TAGS, weekTagIndex } from './domain/week-tags.js';
 import { items, setItems, appSettings, setAppSettings } from './modules/state.js';
@@ -1352,16 +1352,20 @@ export const app = (function(){
     });
   }
 
-  // The store's name leads, with "by Calculated Chaos" under it, once a
-  // business has a name of its own (business customization, CLAUDE.md
-  // backlog item 6); until then the product name stands alone.
+  // The store's logo and name lead, with "by Calculated Chaos" under the
+  // name, once a business has a name of its own (Settings > Appearance,
+  // v3.22.1); until then the product name stands alone.
   function renderBrand(){
-    // The business's theme (Settings > Appearance); cheap to reapply.
+    // The business's theme and accent; cheap to reapply. The accent goes
+    // second: its contrast adjustment depends on the theme's colors.
     if (appSettings.theme) applyTheme(appSettings.theme);
+    applyAccent(appSettings.accentColor);
     const storeName = (appSettings.storeName || '').trim();
-    const html = storeName
+    const logo = typeof appSettings.storeLogo === 'string' && appSettings.storeLogo.startsWith('data:image/') ? appSettings.storeLogo : '';
+    const text = storeName
       ? `<span class="brand-name">${escapeHtml(storeName)}</span><span class="brand-by">by Calculated Chaos</span>`
       : `<span class="brand-name">Calculated Chaos</span>`;
+    const html = `${logo ? `<img class="brand-logo" src="${escapeHtml(logo)}" alt="">` : ''}<span class="brand-text">${text}</span>`;
     document.querySelectorAll('[data-brand]').forEach(el => { el.innerHTML = html; });
     // Employees can't open Settings, where Sign out lives, so the header
     // keeps one for them.
@@ -4654,6 +4658,7 @@ export const app = (function(){
   applyLastTheme();
   // Home and Catalog are laid out differently per theme (v3.21.1).
   document.addEventListener('themechange', () => renderAll());
+  document.addEventListener('brandchange', () => renderBrand());
   renderBrand();
   initUpdateBanner(APP_VERSION);
   setupSourceAutocomplete();

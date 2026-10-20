@@ -118,6 +118,13 @@ renaming them needs a data migration of every saved item.
     `data-theme` on `<html>`, loads the theme's font, remembers it on the
     device), Settings → Appearance saves `appSettings.theme`. The token
     sets are in `style.css` (`:root` = Parcel, `:root[data-theme=...]`).
+    `applyAccent()` (v3.22.1) overrides `--brand-2` and `--nav-active`
+    with the business's `appSettings.accentColor`, adjusted for contrast
+    by `domain/accent.js` (per-theme rules); call it after `applyTheme()`.
+  - Store identity (v3.22.1): `appSettings.storeName` and `storeLogo` (a
+    ≤256 px data: URL made by `platform/images.js`, kept in the settings
+    doc, not Storage) drive `renderBrand()` in `main.js`; Settings saves
+    fire `brandchange` to redraw it.
   - `platform/app-update.js` + `ui/update-banner.js`: the new-version
     strip (v3.20.2). `vite.config.js` writes `dist/version.json` from
     `version.js` on every build; nothing to bump by hand.
@@ -293,6 +300,15 @@ renaming them needs a data migration of every saved item.
 
 Last known status per the v3.13 notes. Confirm with Vitor before relying
 on any of these:
+- Store identity (v3.22.1): Node test of `domain/accent.js` (51 color ×
+  theme cases keep 4.5:1 for buttons/links and each theme's marker rule;
+  every preset used as is for buttons), Chromium test (name, logo
+  shrunk to ≤256 px, accent preset, theme default and logo removal all
+  saved and shown), screenshots of the header, sidebar and Appearance in
+  the three themes (phone and desktop) with a dark and a light accent,
+  no page errors, no horizontal scroll, clean build. Unconfirmed in
+  production: the settings saving and loading for the business, a real
+  logo on an iPhone home-screen app, the accent on the old modals.
 - Grouped Settings (v3.22.0): Chromium characterization test on the real
   markup, old vs new template (every old id present, the 35 fields'
   starting values identical, every inline handler kept, the settings
@@ -421,7 +437,14 @@ on any of these:
 
 ## Pending changelog entry (since v3.22.0)
 
-(Nothing yet.)
+- v3.22.1: store identity (backlog item 6). Settings → Appearance gets
+  Store (name and logo, saved as they change; the logo is shrunk to 256
+  px) and Accent color (eight presets, a custom picker, theme default).
+  The header and sidebar show the logo, the store name and "by
+  Calculated Chaos". The accent drives buttons, links, the active tab
+  and the navigation marker in every theme, darkened or lightened where
+  needed so text stays readable; red for urgent and green for profit
+  don't change.
 
 ## Backlog (not started)
 
@@ -535,15 +558,14 @@ Ideas from the 2026-10-19 discussion, to be decided when it starts:
   reconnect, and eBay may not grant it without approval) or treat eBay
   like the other platforms, by report, is open.
 
-### 6. Business customization (after the redesign)
+### 6. Business customization — done in v3.22.1
 
-Asked by Vitor 2026-10-19; not a priority yet, but the redesign must
-prepare for it. Each business sets its store name, uploads a logo and
-picks basic colors (at least the accent); more options can come later.
-The store's name and logo are the main identity in the app, with a
-discreet but always-present "by Calculated Chaos". Preparation now: every
-color in the new design is a CSS variable in one place, and the header
-has a slot for the logo.
+Store name, logo and accent color in Settings → Appearance (decisions,
+Vitor 2026-10-20: the logo lives in the settings doc as a small image,
+the accent covers buttons, links, active tab and nav marker but not the
+shell, presets plus a custom picker). Left for later: a per-business app
+icon and home-screen name (the manifest is static), the store on printed
+labels, the sign-in screen and Developer Panel (stay Calculated Chaos).
 
 ### 7. AI credits counter (paid plans) — wanted
 
@@ -644,12 +666,13 @@ a private claude.ai artifact; Impeccable seed `seed:007b6ac6cba56f1a`):
 - Order: D1 the new shell + Home in Parcel → the other screens in
   Parcel → Appearance (the other two themes, logo, accent).
 - The Appearance switch (theme only) was pulled forward in v3.21.0 so
-  Vitor could try the three themes (2026-10-20). Still to come for item
-  6: the theme features as options, store name, logo and accent color.
+  Vitor could try the three themes (2026-10-20); store name, logo and
+  accent followed in v3.22.1. Theme features stay with their theme
+  (v3.21.1 decision), not options.
 - D2 shipped in v3.20.1 (Catalog + Stock), Finances in v3.21.3 and the
   grouped Settings in v3.22.0, which ends "the other screens". Next:
-  backlog item 6 (store name, logo, accent color in Appearance), then
-  the Nifty P1 items (backlog item 8). Still
+  backlog item 6 (done in v3.22.1), then the Nifty P1 items (backlog
+  item 8). Still
   in the old style for the polish phase: the inside of the Platforms,
   eBay and admin panels in Settings (emojis, inline styles, the fee box
   too narrow for "10.00") and the old modals.

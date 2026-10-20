@@ -19,12 +19,17 @@ import { renderEbayConnectionStatus } from './ebay-panel.js';
 import { renderPlatformsSettingsList } from './platforms-panel.js';
 import { getAllPlatforms } from '../../modules/platforms.js';
 import { APP_VERSION, APP_VERSION_DATE } from '../../modules/version.js';
-import { THEMES, normalizeTheme } from '../theme.js';
+import { THEMES, normalizeTheme, applyAccent } from '../theme.js';
+import { ACCENT_PRESETS, isHexColor } from '../../domain/accent.js';
+import { shrinkImageToDataUrl } from '../../platform/images.js';
 
 const GROUP_KEY = 'cc.settings.group';
 const DESKTOP = '(min-width: 900px)';
 const CARRIER_LABEL = { usps_ground: 'USPS Ground Advantage', usps_priority: 'USPS Priority Mail', ups_ground: 'UPS Ground' };
 const CHEVRON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
+// A saved logo is a small data: URL (≤256 px); this caps what a save may
+// add to the settings doc (Firestore allows 1 MB per document).
+const MAX_LOGO_CHARS = 200000;
 const BACK = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>';
 
 // The open group; null on the phone means the index is showing.
@@ -50,7 +55,7 @@ function settingsGroups(){
   return [
     { heading: 'You', groups: [
       { key: 'account', title: 'Account', summary: window.auth.currentUser?.email || '' },
-      { key: 'appearance', title: 'Appearance', summary: theme ? theme.label : '' },
+      { key: 'appearance', title: 'Appearance', summary: [(appSettings.storeName || '').trim(), theme ? theme.label : ''].filter(Boolean).join(' · ') },
     ] },
     { heading: 'Business', groups: [
       { key: 'pricing', title: 'Pricing & platforms', summary: `${appSettings.targetMarginPct || 40}% margin · ${platformCount} platform${platformCount === 1 ? '' : 's'}` },
@@ -83,6 +88,21 @@ function showGroup(group){
     if (btn.dataset.settingsGroup === group) btn.setAttribute('aria-current', 'page');
     else btn.removeAttribute('aria-current');
   });
+}
+
+function isLogo(v){
+  return typeof v === 'string' && v.startsWith('data:image/');
+}
+
+// Says when the accent was darkened or lightened for contrast.
+function accentNote(){
+  if (!isHexColor(appSettings.accentColor)) return "Using the theme's own colors.";
+  const root = document.documentElement.style;
+  const applied = [root.getPropertyValue('--brand-2').trim(), root.getPropertyValue('--nav-active').trim()];
+  const adjusted = applied.some(v => v && v.toUpperCase() !== appSettings.accentColor.toUpperCase());
+  return adjusted
+    ? `Adjusted where needed so text stays readable: buttons and links use <b>${escapeHtml(applied[0])}</b>, the navigation marker <b>${escapeHtml(applied[1])}</b>.`
+    : `Used as is: <b>${escapeHtml(appSettings.accentColor.toUpperCase())}</b>.`;
 }
 
 // fresh: entering Settings from the nav. The phone starts at the index;
@@ -161,6 +181,44 @@ ${page('account', `
         </div>
       </div>`)}
 ${page('appearance', `
+      <!-- STORE IDENTITY (v3.22.1) -->
+      <div class="settings-section" id="storeSection">
+        <h3>Store</h3>
+        <div class="ss-desc">Your store's name and logo lead the header for everyone in this business, with "by Calculated Chaos" under them. Changes save as you make them.</div>
+        <div class="settings-row">
+          <div><div class="sr-label">Store name</div><div class="sr-sub">Leave blank to show Calculated Chaos</div></div>
+          <input type="text" id="sStoreName" class="wide" maxlength="40" value="${escapeHtml(appSettings.storeName || '')}" placeholder="Your store">
+        </div>
+        <div class="settings-row">
+          <div><div class="sr-label">Logo</div><div class="sr-sub">PNG, JPG, WebP or SVG, shrunk to 256 px</div></div>
+          <div class="logo-field">
+            ${isLogo(appSettings.storeLogo) ? `<img class="logo-preview" src="${escapeHtml(appSettings.storeLogo)}" alt="Current logo">` : '<span class="logo-none">No logo</span>'}
+            <label class="small-btn file-btn">${isLogo(appSettings.storeLogo) ? 'Replace' : 'Upload'}<input type="file" id="sStoreLogo" accept="image/png,image/jpeg,image/webp,image/svg+xml"></label>
+            ${isLogo(appSettings.storeLogo) ? '<button type="button" class="small-btn danger" data-remove-logo>Remove</button>' : ''}
+          </div>
+        </div>
+        <div class="ss-desc settings-error" id="storeLogoError" role="alert"></div>
+        <div class="settings-success" id="storeSaveMsg">Saved</div>
+      </div>
+
+      <!-- ACCENT COLOR (v3.22.1) -->
+      <div class="settings-section" id="accentSection">
+        <h3>Accent color</h3>
+        <div class="ss-desc">Buttons, links, the active tab and the navigation marker, in every theme. Red for urgent and green for profit don't change.</div>
+        <div class="accent-options" role="group" aria-label="Accent color">
+          <button type="button" class="accent-swatch default${isHexColor(appSettings.accentColor) ? '' : ' active'}" data-accent="" aria-pressed="${!isHexColor(appSettings.accentColor)}"><span class="accent-chip" aria-hidden="true"></span>Theme default</button>
+          ${ACCENT_PRESETS.map(p => {
+            const on = (appSettings.accentColor || '').toUpperCase() === p.hex;
+            return `<button type="button" class="accent-swatch${on ? ' active' : ''}" data-accent="${p.hex}" aria-pressed="${on}"><span class="accent-chip" style="background:${p.hex};" aria-hidden="true"></span>${p.name}</button>`;
+          }).join('')}
+          <label class="accent-swatch custom${isHexColor(appSettings.accentColor) && !ACCENT_PRESETS.some(p => p.hex === appSettings.accentColor.toUpperCase()) ? ' active' : ''}">
+            <input type="color" id="sAccentCustom" value="${isHexColor(appSettings.accentColor) ? appSettings.accentColor : '#1E3A7B'}" aria-label="Custom accent color">Custom
+          </label>
+        </div>
+        <div class="ss-desc accent-note" id="accentNote">${accentNote()}</div>
+        <div class="settings-success" id="accentSaveMsg">Saved</div>
+      </div>
+
       <!-- APPEARANCE (v3.21.0) -->
       <div class="settings-section" id="appearanceSection">
         <h3>Theme</h3>
@@ -480,6 +538,26 @@ ${page('data', `
     if (!confirm('Sign out of Calculated Chaos?')) return;
     await window.authFns.signOut(window.auth);
   });
+  // Store identity and accent (v3.22.1): saved as they change.
+  document.getElementById('sStoreName')?.addEventListener('change', (e) => window.saveStoreName(e.target.value));
+  document.getElementById('sStoreLogo')?.addEventListener('change', async (e) => {
+    const file = e.target.files && e.target.files[0];
+    const errEl = document.getElementById('storeLogoError');
+    errEl.textContent = '';
+    if (!file) return;
+    try{
+      const data = await shrinkImageToDataUrl(file, 256);
+      if (data.length > MAX_LOGO_CHARS) throw new Error('That logo is still too large after shrinking. Try a simpler image.');
+      await window.saveStoreLogo(data);
+    }catch(err){
+      errEl.textContent = err.message || "That image couldn't be used.";
+    }
+  });
+  view.querySelector('[data-remove-logo]')?.addEventListener('click', () => window.saveStoreLogo(''));
+  view.querySelectorAll('[data-accent]').forEach(btn => btn.addEventListener('click', () => window.saveAccent(btn.dataset.accent)));
+  const customAccent = document.getElementById('sAccentCustom');
+  customAccent?.addEventListener('input', () => applyAccent(customAccent.value));
+  customAccent?.addEventListener('change', () => window.saveAccent(customAccent.value));
   document.querySelectorAll('input[name="appTheme"]').forEach(input => {
     input.addEventListener('change', () => window.saveAppearance(input.value));
   });
