@@ -722,6 +722,12 @@ it starts:
   shows the balance in Settings → AI usage and near the ✨ buttons.
 - Platform admins set plans and grant credits from the Developer Panel
   (`api/platform.js` actions). Payment provider and prices: not decided.
+- Nifty's model, seen in the app (`docs/nifty-review.md`, Settings →
+  Subscription): balance "[n] remaining of 500" renewing monthly, a
+  usage bar by activity, a ledger Date | Activity | Credits ("Monthly
+  credits +500", "AI listing generation −1"), packs of 200 for $5 that
+  expire after 90 days; costs 1 per listing or background removal, 5
+  per advanced photo edit.
 
 ### 8. Ideas from the Nifty review — after item 6
 
@@ -732,10 +738,27 @@ previous-period comparison); (2) Goals on Home (done in v3.22.3); (3) an Issues 
 the catalog with optional warnings in Settings (done in v3.22.4); (4) an eBay sale tracker
 (log of detected sales and what the app did; gives Home its "eBay sales
 to confirm" row; done in v3.22.5). P1 is complete (rolled up in
-v3.23.0). P2, after Import (item 4): expenses and P&L, pricing
-rules per platform, "similar items" and shipping presets, a Getting
-started checklist. Not to copy: marketplace automation with the user's
-password.
+v3.23.0).
+
+P2, reordered after the in-app map of Nifty (Vitor, 2026-10-20; details
+in `docs/nifty-review.md`):
+1. **Expenses and P&L, accrual only** (decided: the app already counts
+   an item's cost when it sells; no cash method). 2-3 PRs: expenses
+   (Schedule C-style categories with hints, form, list, CSV export); the
+   P&L in Finances with its export; a Sales table with inline cost
+   editing, mileage at the IRS rate and expense CSV import.
+2. AI custom instructions and a description footer for ✨ (server-built
+   prompt; pairs with backlog items 1 and 2).
+3. Pricing rules per platform (needs a price per platform everywhere;
+   its own plan).
+4. Shipping presets; then Home's What's new card and a Dismissed tab.
+
+The Getting started checklist moves to onboarding (multi-tenant step
+5): we design our own. Nifty showed none on an account in use; Vitor
+may check a new free-trial account. Not to copy: marketplace automation
+with the user's password; for now also market-comps pricing, AI photo
+studio, bank import and an assistant (each needs a paid outside
+service or data).
 
 ## Redesign (decisions, 2026-10-19)
 
@@ -836,5 +859,6 @@ a private claude.ai artifact; Impeccable seed `seed:007b6ac6cba56f1a`):
   Home in v3.20.0),
   `docs/employee-accounts.md`, `docs/platform-fees.md`,
   `docs/sold-confirmation.md`, `docs/modularization.md`.
-- `docs/nifty-review.md`: Nifty's structure and tools (2026-10-20) and
-  what to bring in (backlog items 7 and 8).
+- `docs/nifty-review.md`: Nifty's structure and tools (2026-10-20, from
+  the docs and a read-only map of the app) and what to bring in
+  (backlog items 7 and 8).
