@@ -6,6 +6,7 @@
 import { appSettings } from '../../modules/state.js';
 import { saveSettings, resetAiCounter } from '../../data/settings-store.js';
 import { renderSettings } from './settings-view.js';
+import { applyTheme, normalizeTheme } from '../theme.js';
 
 window.savePriceSettings = async function(){
   appSettings.targetMarginPct = parseFloat(document.getElementById('sMarginPct').value) || 40;
@@ -29,6 +30,17 @@ window.saveLabelSettings = async function(){
   };
   await saveSettings();
   showSaveMsg('labelSaveMsg');
+};
+
+// Appearance (v3.21.0): applied at once, then saved for the business.
+window.saveAppearance = async function(key){
+  appSettings.theme = normalizeTheme(key);
+  applyTheme(appSettings.theme);
+  document.querySelectorAll('.theme-option').forEach(el => {
+    el.classList.toggle('active', el.querySelector('input').value === appSettings.theme);
+  });
+  await saveSettings();
+  showSaveMsg('themeSaveMsg');
 };
 
 window.saveWallMarkerSettings = async function(){

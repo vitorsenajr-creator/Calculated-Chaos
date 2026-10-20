@@ -15,6 +15,7 @@ import { sendVerificationEmail, refreshEmailVerified } from '../../modules/email
 import { renderEbayConnectionStatus } from './ebay-panel.js';
 import { renderPlatformsSettingsList } from './platforms-panel.js';
 import { APP_VERSION, APP_VERSION_DATE } from '../../modules/version.js';
+import { THEMES, normalizeTheme } from '../theme.js';
 
 export function renderSettings(){
   const view = document.getElementById('settingsView');
@@ -53,6 +54,23 @@ export function renderSettings(){
           <button id="signOutBtn" class="settings-save-btn" style="width:auto; padding:8px 14px; margin:0;">Sign out</button>
           ${isPlatformAdmin() ? `<a href="/admin.html" class="settings-save-btn" style="display:inline-block; width:auto; padding:8px 14px; margin:0; text-decoration:none;">🛠️ Developer Panel</a>` : ''}
         </div>
+      </div>
+
+      <!-- APPEARANCE (v3.21.0) -->
+      <div class="settings-section" id="appearanceSection">
+        <h3>Appearance</h3>
+        <div class="ss-desc">The look of the app for everyone in this business. It changes as soon as you pick one.</div>
+        <div class="theme-options" role="radiogroup" aria-label="Theme">
+          ${THEMES.map(t => {
+            const on = normalizeTheme(appSettings.theme) === t.key;
+            return `<label class="theme-option${on ? ' active' : ''}">
+              <input type="radio" name="appTheme" value="${t.key}" ${on ? 'checked' : ''}>
+              <span class="theme-swatch" aria-hidden="true">${t.swatches.map(c => `<span style="background:${c};"></span>`).join('')}</span>
+              <span class="theme-text"><b>${t.label}</b><small>${t.note}</small></span>
+            </label>`;
+          }).join('')}
+        </div>
+        <div class="settings-success" id="themeSaveMsg">Saved</div>
       </div>
 
       <!-- AUTHORIZE ACCESS (admin only) -->
@@ -337,6 +355,9 @@ export function renderSettings(){
   document.getElementById('signOutBtn')?.addEventListener('click', async () => {
     if (!confirm('Sign out of Calculated Chaos?')) return;
     await window.authFns.signOut(window.auth);
+  });
+  document.querySelectorAll('input[name="appTheme"]').forEach(input => {
+    input.addEventListener('change', () => window.saveAppearance(input.value));
   });
   // Was the header's refresh button before v3.20.0: a real reload from
   // the server, so a stale cached copy never "refreshes" into itself.

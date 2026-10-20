@@ -104,6 +104,10 @@ renaming them needs a data migration of every saved item.
   - `ui/settings/`: the Settings screen (`settings-view.js`), admin
     panels, eBay panel, platforms/fees, save handlers (`forms.js`);
     `index.js` registers their `window.*` handlers (v3.17.6).
+  - `ui/theme.js`: themes (v3.21.0). `THEMES`, `applyTheme()` (sets
+    `data-theme` on `<html>`, loads the theme's font, remembers it on the
+    device), Settings → Appearance saves `appSettings.theme`. The token
+    sets are in `style.css` (`:root` = Parcel, `:root[data-theme=...]`).
   - `platform/app-update.js` + `ui/update-banner.js`: the new-version
     strip (v3.20.2). `vite.config.js` writes `dist/version.json` from
     `version.js` on every build; nothing to bump by hand.
@@ -274,6 +278,12 @@ renaming them needs a data migration of every saved item.
 
 Last known status per the v3.13 notes. Confirm with Vitor before relying
 on any of these:
+- Themes (v3.21.0): Chromium screenshots of Home, Catalog, Stock and
+  Settings → Appearance in all three themes (phone) and Home on desktop,
+  no page errors, clean build. Unconfirmed: the choice saving and loading
+  for the business in production, the fonts on iPhone, and the old
+  modals (item, labels, sale, eBay) under Tag Week and Concourse, which
+  still have some fixed colors.
 - New-version strip (v3.20.2): Chromium test on the built app with a newer
   `version.json` (strip shows in the app and Developer Panel, X closes it)
   and with the same version (one check, no strip). Unconfirmed: an iPhone
@@ -367,20 +377,9 @@ on any of these:
 - Quick Labels one-by-one queue and PDF export (v3.13.106/107), label font
   sizing (v3.13.102-105), inspection flag icon (v3.13.114).
 
-## Pending changelog entry (since v3.20.0)
+## Pending changelog entry (since v3.21.0)
 
-- v3.20.1 (redesign D2): Catalog in the Parcel look: All / Drafts tabs
-  (photo drafts left the banner), status shortcuts with counts, a sort
-  menu (newest, oldest, price, listed longest), a new item card (code
-  box, box, days, pipeline dots, platforms, profit on sold items with a
-  gray photo; source/weight/size/cost left the card), 2 columns on
-  desktop, a regrouped bulk bar ("More actions", Delete last). Stock got
-  Labels / Transfer / Boxes / Wall markers tabs; Boxes (with item counts
-  that open the catalog) and Wall markers moved out of Settings.
-- v3.20.2: "A new version is available · Update" strip in the app and the
-  Developer Panel (the build writes `version.json`; checked at startup and
-  when the app returns to the foreground). The service worker no longer
-  caches `/api/` calls or `version.json`.
+(none yet)
 
 ## Backlog (not started)
 
@@ -559,6 +558,9 @@ a private claude.ai artifact; Impeccable seed `seed:007b6ac6cba56f1a`):
   the theme's CSS variables, so a theme is one token set.
 - Order: D1 the new shell + Home in Parcel → the other screens in
   Parcel → Appearance (the other two themes, logo, accent).
+- The Appearance switch (theme only) was pulled forward in v3.21.0 so
+  Vitor could try the three themes (2026-10-20). Still to come for item
+  6: the theme features as options, store name, logo and accent color.
 - D2 shipped in v3.20.1 (Catalog + Stock). Next by the order above: the
   Finances screen (Overview, Months, Reports), then a grouped Settings.
 - D1 shipped in v3.20.0. Not in it, for lack of data: a "Shipped" stop in

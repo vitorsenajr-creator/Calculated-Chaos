@@ -3,6 +3,30 @@
 Version history for Calculated Chaos. The current version is also shown in
 the badge at the top of the app (`APP_VERSION` in `src/modules/version.js`).
 
+## v3.21.0 — 2026-10-20
+
+Continues the redesign. Rolls up v3.20.1 – v3.20.2.
+
+- **Three themes.** Settings → Appearance switches the whole app, for
+  everyone in the business, between Parcel (navy and white), Tag Week
+  (black with thrift-store tag colors, Bricolage Grotesque) and
+  Concourse (black, white and signal yellow, Fira Sans). Each theme's
+  typeface loads only when it's in use, and the phone's status bar takes
+  the theme's color. Each theme's extra features (color tags by week,
+  the next-task strip) come later.
+- **Catalog redesigned** (v3.20.1). All / Drafts tabs (photo drafts moved
+  out of the banner), status shortcuts with counts, a sort menu (newest,
+  oldest, price both ways, listed longest), a new item card (product
+  code, box, days, pipeline dots, platforms; sold items show the profit
+  and a gray photo), two columns on a computer, and a regrouped bulk bar
+  with "More actions" and Delete set apart.
+- **Stock screen** (v3.20.1). Labels, Transfer, Boxes and Wall markers
+  tabs. Boxes shows how many items each box holds and opens the catalog
+  filtered by it; Boxes and Wall markers moved out of Settings.
+- **"A new version is available"** (v3.20.2). The app and the Developer
+  Panel notice when the server has a newer version and offer an Update
+  button. The offline cache no longer stores server calls.
+
 ## v3.20.0 — 2026-10-20
 
 The redesign starts (CLAUDE.md, "Redesign"): a new app shell and Home

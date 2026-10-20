@@ -33,6 +33,7 @@
     --on-brand-2: #B8C4DE;
     --urgent: #C8102E;
     --urgent-on-brand: #E8384F;
+    --nav-active: #E8384F;
     --warn-bg: #FFF1D6;
     --warn-ink: #7A4A00;
     --ok: #1F7A4D;
@@ -53,6 +54,60 @@
     --amber-deep: var(--warn-ink);
     --white: var(--surface);
     --danger: var(--urgent);
+  }
+
+  /* Other themes (v3.21.0), chosen per business in Settings > Appearance
+     (ui/theme.js sets data-theme on <html> and loads the font). Each one
+     only overrides values; everything above still applies. */
+  :root[data-theme="tagweek"]{
+    --font-ui: 'Bricolage Grotesque', system-ui, -apple-system, sans-serif;
+    --bg: #F2F2EF;
+    --surface: #FFFFFF;
+    --surface-2: #E7E7E1;
+    --ink: #17171B;
+    --ink-2: #5C5C57;
+    --line: #E2E2DC;
+    --line-soft: #EDEDE8;
+    --brand: #17171B;
+    --brand-2: #17171B;
+    --on-brand: #FFFFFF;
+    --on-brand-2: #B9B9B2;
+    --nav-active: #3D8BEA;
+    --urgent: #B42318;
+    --urgent-on-brand: #F07167;
+    --warn-bg: #FDEBD3;
+    --warn-ink: #8A4B00;
+    --ok: #1F7A3A;
+    --radius: 14px;
+    --radius-sm: 8px;
+    --cream-soft: #EBEBE6;
+    --sage: #2B7A3E;
+    --gold: #8A6416;
+  }
+  :root[data-theme="concourse"]{
+    --font-ui: 'Fira Sans', system-ui, -apple-system, sans-serif;
+    --bg: #FFFFFF;
+    --surface: #FFFFFF;
+    --surface-2: #F1F1EE;
+    --ink: #111111;
+    --ink-2: #5E5E58;
+    --line: #DEDED9;
+    --line-soft: #EBEBE7;
+    --brand: #111111;
+    --brand-2: #111111;
+    --on-brand: #FFFFFF;
+    --on-brand-2: #BDBDB6;
+    --nav-active: #FFC600;
+    --urgent: #C4141F;
+    --urgent-on-brand: #FF5A5F;
+    --warn-bg: #FFE58A;
+    --warn-ink: #4D3A00;
+    --ok: #16703A;
+    --radius: 2px;
+    --radius-sm: 0px;
+    --cream-soft: #F1F1EE;
+    --sage: #16703A;
+    --gold: #6B5300;
   }
 
   *{box-sizing:border-box;}
@@ -105,7 +160,7 @@
     min-height:60px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
     color:var(--on-brand-2); font-size:12px; font-weight:500;
   }
-  .nav-link.bottom.active{color:var(--on-brand); font-weight:600; box-shadow:inset 0 3px 0 var(--urgent-on-brand);}
+  .nav-link.bottom.active{color:var(--on-brand); font-weight:600; box-shadow:inset 0 3px 0 var(--nav-active);}
 
   /* Bottom room so the last card can scroll clear of the "+" button. */
   main{padding:16px 16px 88px; max-width:1120px; margin:0 auto;}
@@ -126,14 +181,31 @@
     .sidebar-spacer{flex:1;}
     .nav-link.side{
       display:flex; align-items:center; gap:12px; text-align:left;
-      padding:10px; border-radius:8px; color:#DCE3F2; font-size:14px; min-height:44px;
+      padding:10px; border-radius:var(--radius-sm); color:var(--on-brand-2); font-size:14px; min-height:44px;
     }
-    .nav-link.side:hover{background:rgba(255,255,255,0.08);}
-    .nav-link.side.active{background:var(--brand-2); color:var(--on-brand); font-weight:600; box-shadow:inset 3px 0 0 var(--urgent-on-brand);}
+    .nav-link.side:hover{background:rgba(255,255,255,0.08); color:var(--on-brand);}
+    .nav-link.side.active{background:rgba(255,255,255,0.12); color:var(--on-brand); font-weight:600; box-shadow:inset 3px 0 0 var(--nav-active);}
     .app-column{flex:1; min-width:0;}
     main{padding:28px 32px 96px;}
     .screen-title{font-size:26px;}
   }
+
+  /* Small per-theme touches from the mockups. */
+  :root[data-theme="tagweek"] .fab{border-radius:50%;}
+  :root[data-theme="concourse"] .fab{color:var(--nav-active);}
+
+  /* ---------- APPEARANCE (Settings, v3.21.0) ---------- */
+  .theme-options{display:grid; gap:8px; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); margin-top:8px;}
+  .theme-option{
+    display:flex; align-items:center; gap:12px; padding:12px; cursor:pointer;
+    border:1px solid var(--line); border-radius:var(--radius); background:var(--surface);
+  }
+  .theme-option.active{border-color:var(--brand-2); box-shadow:inset 0 0 0 1px var(--brand-2);}
+  .theme-option input{width:20px; height:20px; accent-color:var(--brand-2); flex-shrink:0;}
+  .theme-swatch{display:flex; border-radius:6px; overflow:hidden; border:1px solid var(--line); flex-shrink:0;}
+  .theme-swatch span{width:16px; height:32px;}
+  .theme-text{display:flex; flex-direction:column; gap:2px; font-size:14px;}
+  .theme-text small{font-size:12px; color:var(--ink-2);}
 
   /* ---------- NEW VERSION STRIP (v3.20.2) ---------- */
   .update-banner{
@@ -332,7 +404,7 @@
     position:relative; overflow:hidden; display:flex; gap:12px; padding:10px; cursor:pointer;
   }
   .item-card:hover{border-color:var(--brand-2);}
-  .item-card.bulk-selected{border-color:var(--brand-2); box-shadow:inset 0 0 0 1px var(--brand-2); background:#F5F8FD;}
+  .item-card.bulk-selected{border-color:var(--brand-2); box-shadow:inset 0 0 0 1px var(--brand-2); background:color-mix(in srgb, var(--brand-2) 6%, var(--surface));}
   .bulk-check{
     position:absolute; top:6px; left:6px; z-index:5; width:24px; height:24px; border-radius:50%;
     background:var(--surface); border:2px solid var(--ink-2); display:flex; align-items:center; justify-content:center; color:var(--on-brand);
@@ -345,7 +417,7 @@
   .item-photo img{width:100%; height:100%; object-fit:cover;}
   .item-card.is-sold .item-photo img{filter:grayscale(1);}
   .photo-count-badge{
-    position:absolute; bottom:4px; right:4px; background:rgba(14,26,46,0.78); color:var(--on-brand);
+    position:absolute; bottom:4px; right:4px; background:rgba(0,0,0,0.72); color:#FFFFFF;
     font-size:11px; font-weight:700; padding:1px 6px; border-radius:8px;
   }
   .item-body{flex:1; min-width:0; display:flex; flex-direction:column; gap:5px;}
