@@ -13,6 +13,7 @@ import './config/firebase.js';
 import { escapeHtml } from './modules/format-utils.js';
 import { EBAY_ERROR_LIBRARY } from './modules/ebay-error-hints.js';
 import { APP_VERSION, APP_VERSION_DATE } from './modules/version.js';
+import { initUpdateBanner } from './ui/update-banner.js';
 import { jsonAuthHeaders } from './modules/api-auth.js';
 import { loadAdminClaim } from './modules/admin-claim.js';
 import { tokenEmailVerified } from './modules/email-verification.js';
@@ -768,3 +769,5 @@ async function runHealthCheck(){
     btn.disabled = false;
   }
 }
+
+initUpdateBanner(APP_VERSION);
