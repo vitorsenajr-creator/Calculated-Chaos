@@ -109,7 +109,11 @@ renaming them needs a data migration of every saved item.
     usage counter.
   - `ui/settings/`: the Settings screen (`settings-view.js`), admin
     panels, eBay panel, platforms/fees, save handlers (`forms.js`);
-    `index.js` registers their `window.*` handlers (v3.17.6).
+    `index.js` registers their `window.*` handlers (v3.17.6). Since
+    v3.22.0 it's grouped (index → one group; `cc.settings.group` on the
+    device), but every group is still rendered and only the open one is
+    visible, so all ids stay in the page (ebay-api.js looks up
+    `#ebayConnectionStatus`). New Settings sections go in a group.
   - `ui/theme.js`: themes (v3.21.0). `THEMES`, `applyTheme()` (sets
     `data-theme` on `<html>`, loads the theme's font, remembers it on the
     device), Settings → Appearance saves `appSettings.theme`. The token
@@ -284,6 +288,16 @@ renaming them needs a data migration of every saved item.
 
 Last known status per the v3.13 notes. Confirm with Vitor before relying
 on any of these:
+- Grouped Settings (v3.22.0): Chromium characterization test on the real
+  markup, old vs new template (every old id present, the 35 fields'
+  starting values identical, every inline handler kept, the settings
+  written by each save button and by add/remove carrier identical),
+  the new AI Save button, the phone returning to the index and the
+  desktop remembering the group; screenshots of the index and groups in
+  the three themes (phone and desktop), no page errors, no horizontal
+  scroll, clean build. Unconfirmed in production: every save with real
+  settings, the eBay buttons, employee creation (Team), the Developer
+  Panel link.
 - Finances screen (v3.21.3): Node test (monthly totals identical to the
   old `renderFinance()` math on 338 sample sales; period totals, last 12
   months, revenue split), Chromium screenshots of Overview, Months and
@@ -400,33 +414,9 @@ on any of these:
 - Quick Labels one-by-one queue and PDF export (v3.13.106/107), label font
   sizing (v3.13.102-105), inspection flag icon (v3.13.114).
 
-## Pending changelog entry (since v3.21.0)
+## Pending changelog entry (since v3.22.0)
 
-- v3.21.1: each theme has its own layout, as in the mockup. Tag Week:
-  white header, colored active-tab pill, numbers without boxes, "Shelf by
-  tag" (in-stock items by the week they came in, tap a color to filter),
-  photo-grid catalog with a hanging tag in the week's color, color-dot
-  filter. Concourse: white bars with a yellow active marker, a yellow
-  "Next" band with the most urgent task, monumental numbers, a "Then"
-  list, and a catalog list led by big product codes under a yellow scope
-  band. Parcel is unchanged.
-- v3.21.2: fixes from the design re-critique. Same item info on the
-  cards of every theme (tracking line, box, code on the sold tag, Edit);
-  visible focus ring on the dark bars; Tag Week "Pink tags (4+ weeks)"
-  row; dismissible Concourse Next band and detail lines under Then;
-  44px tap targets; the + button no longer covers the last item; the
-  item count shows only for a search or filter; red kept for urgent
-  (Tag Week "Not listed yet", Concourse SOLD chip); contrast fixes
-  (Tag Week green tag and blue pill, Concourse active marker).
-- v3.21.3: Finances screen redesign. Overview (new default sub-tab):
-  Month / Year / All time (remembered on the device, separate from
-  Home), revenue, net profit, margin and items sold, where each dollar
-  of revenue went, profit for the last 12 months (tap a month to open
-  it), revenue by platform and the in-stock projection. Months: one row
-  per month that opens the same breakdown as before. Reports: the same
-  content in the new panels, no emojis, exports in an Export panel at
-  the end. Same layout in all three themes. Code moved out of `main.js`
-  into `domain/finance-summary.js` and `ui/finance/`.
+(Nothing yet.)
 
 ## Backlog (not started)
 
@@ -619,8 +609,12 @@ a private claude.ai artifact; Impeccable seed `seed:007b6ac6cba56f1a`):
 - The Appearance switch (theme only) was pulled forward in v3.21.0 so
   Vitor could try the three themes (2026-10-20). Still to come for item
   6: the theme features as options, store name, logo and accent color.
-- D2 shipped in v3.20.1 (Catalog + Stock), Finances in v3.21.3. Next by
-  the order above: a grouped Settings.
+- D2 shipped in v3.20.1 (Catalog + Stock), Finances in v3.21.3 and the
+  grouped Settings in v3.22.0, which ends "the other screens". Next:
+  backlog item 6 (store name, logo, accent color in Appearance). Still
+  in the old style for the polish phase: the inside of the Platforms,
+  eBay and admin panels in Settings (emojis, inline styles, the fee box
+  too narrow for "10.00") and the old modals.
 - D1 shipped in v3.20.0. Not in it, for lack of data: a "Shipped" stop in
   the pipeline (no shipped status yet; needs "Mark shipped"), the "eBay
   publish errors" row (errors aren't stored per item) and "eBay sales to

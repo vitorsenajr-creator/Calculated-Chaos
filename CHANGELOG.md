@@ -3,6 +3,38 @@
 Version history for Calculated Chaos. The current version is also shown in
 the badge at the top of the app (`APP_VERSION` in `src/modules/version.js`).
 
+## v3.22.0 — 2026-10-20
+
+Finishes the "other screens" phase of the redesign. Rolls up v3.21.1 –
+v3.21.3.
+
+- **Grouped Settings.** Settings opens on an index (Account, Appearance,
+  Pricing & platforms, Shipping, Listings, Labels, AI usage, Team, eBay,
+  Data), each row with a one-line summary. On the phone a group opens on
+  its own page with a Back link; on a computer the index stays on the
+  left and the last group opened comes back. The eBay group is split
+  into Connection, Sales and offers, and Tools. Sections use the new
+  panels, buttons lost their emojis, and every color comes from the
+  theme. AI usage has its own Save button. Saves are unchanged.
+- **Finances redesigned** (v3.21.3). A new Overview tab: Month / Year /
+  All time (remembered on the device, separate from Home), revenue, net
+  profit, margin and items sold, where each dollar of revenue went,
+  profit for the last 12 months (tap a month to open it), revenue by
+  platform and the in-stock projection. Months lists one row per month
+  that opens the same breakdown as before. Reports keeps its content in
+  the new panels, with the exports in an Export panel at the end.
+- **Each theme has its own layout** (v3.21.1). Tag Week: "Shelf by tag"
+  on Home (in-stock items by the week they came in, tap a color to
+  filter), a photo-grid catalog with a hanging tag in the week's color.
+  Concourse: a yellow "Next" band with the most urgent task, monumental
+  numbers, a "Then" list, and a catalog led by big product codes.
+  Parcel is unchanged.
+- **Design re-critique fixes** (v3.21.2). The same item info on the
+  cards of every theme, a visible focus ring on the dark bars, Tag Week
+  "Pink tags (4+ weeks)", a dismissible Concourse Next band, 44px tap
+  targets, the + button no longer covering the last item, and contrast
+  fixes.
+
 ## v3.21.0 — 2026-10-20
 
 Continues the redesign. Rolls up v3.20.1 – v3.20.2.
