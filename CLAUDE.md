@@ -119,7 +119,13 @@ renaming them needs a data migration of every saved item.
     `importedAt` and its sheet code as `legacyCode` (searchable). Limit
     10,000 rows per file. Imported items have their own missing-info
     checks (`issueChecks.imported`, photos off by default) and an
-    "Imported" filter chip.
+    "Imported" filter chip. AI column analysis (v3.23.2):
+    `modules/ai-import.js` (prompt + schema built on the server by
+    `api/analyze-photo.js` mode `import_map` from the headers, ≤10 sample
+    rows and the distinct value words, all clipped; `mergeAiMapping` /
+    `mergeAiValues` on the browser: the AI only replaces a less sure match,
+    never the person's pick). One call per file when the Columns step
+    opens, counted by the AI usage counter, skipped when it's used up.
   - `domain/ebay-sales.js` + `data/ebay-sales-store.js` +
     `ui/settings/ebay-sales-panel.js`: the eBay sale tracker (v3.22.5).
     `checkEbaySalesNow()` still marks a matching unsold item Sold on its
@@ -214,7 +220,8 @@ renaming them needs a data migration of every saved item.
     (never throws; returns `{ ok:false, error }`). `_requireApprovedUser.js`
     verifies tokens with it and falls back to the old Firestore-REST check
     if it's unavailable.
-  - `analyze-photo.js`: ✨ analysis, `mode: full | listing_only`, Sonnet 5.5
+  - `analyze-photo.js`: ✨ analysis, `mode: full | listing_only` (and
+    `import_map` for the spreadsheet import, v3.23.2), Sonnet 5.5
     at `effort: low`, with server-side refusal `fallbacks`. Builds the
     prompt itself from item data (`buildItemAiRequest()`); never accept a
     prompt from the browser again.
@@ -349,6 +356,16 @@ renaming them needs a data migration of every saved item.
 
 Last known status per the v3.13 notes. Confirm with Vitor before relying
 on any of these:
+- Import AI column analysis (v3.23.2): Node test (9 cases: input
+  clipping and limits, prompt and schema, merge rules for columns and
+  values, the handler with a mocked fetch: no photos, schema sent, a
+  browser-sent prompt ignored, other modes unchanged), Chromium test with
+  a stubbed endpoint (a Portuguese sheet the rules half-read: the AI fills
+  the rest, a pick made while it runs stays, one call per file, the
+  counter goes up; a failed call leaves the rules; a used-up limit makes
+  no call), screenshots, clean build. Unconfirmed in production: the real
+  model's answers on real sheets, and its cost per import (watch the
+  `ai-usage` lines with `"mode":"import_map"`).
 - Spreadsheet import (v3.23.1): Node test (16 cases: our own export
   headers, Portuguese and Spanish headers, money in US and Brazilian
   formats, dates incl. Excel serials and day-first detection, value
@@ -548,6 +565,14 @@ on any of these:
 
 ## Pending changelog entry (since v3.23.0)
 
+- v3.23.2: the import's AI column check (backlog item 4, second part).
+  When the Columns step opens, the AI reads the headers, ten sample rows
+  and the status/condition/platform words, and fills in what the column
+  names alone didn't settle (marked "AI"). It never changes a column the
+  person set, only replaces a match it's more sure about, and counts as
+  one AI use; without it (failure or limit reached) the name-based
+  matches stand.
+
 - v3.23.1: Import a spreadsheet (backlog item 4, first part). Settings →
   Data → Import: choose an Excel or CSV file (and its sheets), check how
   each column and value was matched, preview the items with errors and
@@ -598,7 +623,7 @@ It costs a few cents per click, and it's a rare action. It still returns
 one flat %, so the `note` should say when a fee is tiered; tiered
 platforms keep using the tiered editor.
 
-### 4. Import an existing spreadsheet (CSV or Excel) — rule-based import done in v3.23.1; AI column analysis next (v3.23.2)
+### 4. Import an existing spreadsheet (CSV or Excel) — done in v3.23.1 (import) and v3.23.2 (AI column check)
 
 Decided with Vitor 2026-10-19. Goal: a new seller/business brings the
 Excel sheet they use today as their inventory and sales control, through

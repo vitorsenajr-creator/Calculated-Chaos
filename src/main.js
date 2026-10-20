@@ -4767,6 +4767,14 @@ export const app = (function(){
     back: () => { switchToTab('settings'); openSettingsGroup('data'); },
     openImported: (importId) => openCatalogWith({ imported: importId }),
     openWarnings: () => { switchToTab('settings'); openSettingsGroup('warnings', 'warningsImported'); },
+    // The AI column analysis (v3.23.2): one call per file, counted by the
+    // AI usage counter like ✨; skipped when the counter is used up.
+    aiMapColumns: async (input) => {
+      if (aiUsageRemaining() <= 0) return { ok: false, skipped: true, message: 'The AI usage limit for this period is used up.' };
+      const r = await callAiItemEndpoint({ mode: 'import_map', imageBlocks: [], input });
+      if (r.ok) await incrementAiUsage();
+      return r;
+    },
   });
   document.addEventListener('openimport', () => { switchToTab('import'); openImport(); });
   document.addEventListener('openitem', (e) => {

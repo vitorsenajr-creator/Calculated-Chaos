@@ -10,6 +10,11 @@
 //                          visual facts + listing copy, one request).
 //  - mode:'listing_only' → photos optional; rewrites title/description/tags,
 //                          photo-free when the item has saved aiFacts.
+//  - mode:'import_map'   → no photos; maps a spreadsheet's columns and
+//                          value words to item fields for the import
+//                          (v3.23.2, src/modules/ai-import.js). Only the
+//                          headers, up to 10 sample rows and the distinct
+//                          words are sent, each clipped.
 // The prompt and the JSON schema are built HERE (v3.15.3) from the item
 // data the browser sends (`input`), using the pure builders in
 // src/modules/ai-item.js. A prompt or schema sent by the browser is ignored,
@@ -17,6 +22,7 @@
 
 import { requireApprovedUser } from './_requireApprovedUser.js';
 import { buildItemAiRequest } from '../src/modules/ai-item.js';
+import { buildImportMapRequest } from '../src/modules/ai-import.js';
 
 const MAX_IMAGES = 5;
 const IMAGE_MEDIA_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
@@ -45,7 +51,7 @@ function sanitizeImageBlocks(raw){
 // toward max_tokens, so the limits leave room for it on top of the JSON.
 const MODEL = 'claude-sonnet-5-5';
 const EFFORT = 'low';
-const MAX_TOKENS = { full: 16000, listing_only: 8000 };
+const MAX_TOKENS = { full: 16000, listing_only: 8000, import_map: 8000 };
 
 async function callAnthropic(apiKey, { content, maxTokens, outputSchema }){
   const body = {
@@ -111,7 +117,12 @@ export default async function handler(req, res) {
   if (!input || typeof input !== 'object') {
     return res.status(400).json({ error: 'No item data provided. Reload the app to get the latest version.' });
   }
-  const { promptText, schema } = buildItemAiRequest(mode, input);
+  if (mode === 'import_map' && !(Array.isArray(input.headers) && input.headers.length)) {
+    return res.status(400).json({ error: 'No columns provided.' });
+  }
+  const { promptText, schema } = mode === 'import_map' ? buildImportMapRequest(input) : buildItemAiRequest(mode, input);
+  // The import sends no photos.
+  if (mode === 'import_map') safeImageBlocks.length = 0;
 
   try {
     const content = [...safeImageBlocks, { type: 'text', text: promptText }];

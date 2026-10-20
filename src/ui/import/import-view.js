@@ -8,11 +8,12 @@
 import { escapeHtml } from '../../modules/format-utils.js';
 import {
   IMPORT_FIELDS, FIELD_BY_KEY, MAX_IMPORT_ROWS, suggestMapping, suggestValueMap, detectDateOrder,
-  buildImportRows, importTotals, itemsToImport, findHeaderRow, buildImportDocs, importsInCatalog, normalizeText, parseDate,
+  buildImportRows, importTotals, itemsToImport, findHeaderRow, buildImportDocs, importsInCatalog, normalizeText, parseDate, splitList,
 } from '../../domain/import-sheet.js';
 import { readSpreadsheet } from '../../platform/sheetjs.js';
 import { saveImportBatches, undoImport } from '../../data/import-store.js';
 import { reserveProductCodeBlock } from '../../modules/product-code-bank.js';
+import { mergeAiMapping, mergeAiValues, STATUS_KEYS, CONDITION_KEYS, AI_MAX_ROWS, AI_MAX_VALUES } from '../../modules/ai-import.js';
 
 const PAGE = 50;
 const STATUS_OPTIONS = [['catalogado', 'Cataloged (in stock)'], ['anunciado', 'Listed'], ['vendido', 'Sold']];
@@ -31,6 +32,7 @@ let hooks = {
   back: () => {},
   openImported: () => {},       // (importId) → the catalog filtered to it
   openWarnings: () => {},
+  aiMapColumns: null,           // (input) → { ok, result | message, skipped }
 };
 export function initImportView(h){ hooks = { ...hooks, ...h }; }
 
@@ -43,7 +45,7 @@ export function openImport(){
 }
 function fresh(){
   return { step: 'upload', fileName: '', sheets: [], chosen: [], headers: [], rows: [], mapping: [], valueMap: null,
-    userValues: { status: {}, condition: {}, platform: {} }, dateOrder: 'mdy', built: [], skip: new Set(),
+    userValues: { status: {}, condition: {}, platform: {} }, aiValues: [], ai: null, dateOrder: 'mdy', built: [], skip: new Set(),
     filter: 'all', page: 0, importId: null, docs: [], saved: new Set(), progress: 0, error: '', busy: '', undoArm: null, undone: null };
 }
 
@@ -207,14 +209,64 @@ function startMapping(){
   const dateCols = st.mapping.map((m, i) => (m.field && FIELD_BY_KEY[m.field].kind === 'date' ? i : -1)).filter(i => i >= 0);
   st.dateOrder = detectDateOrder(rows.flatMap(r => dateCols.map(i => r[i])));
   st.step = 'map';
+  st.ai = null; st.aiValues = [];
   renderImport();
+  runAiCheck();
 }
 
 // Suggested value words, with the person's own choices on top.
 function refreshValues(){
-  const vm = suggestValueMap(st.rows, st.mapping, hooks.platforms());
+  let vm = suggestValueMap(st.rows, st.mapping, hooks.platforms());
+  if (st.aiValues.length) vm = mergeAiValues(vm, st.aiValues, allowedKeys(), st.userValues).valueMap;
   ['status', 'condition', 'platform'].forEach(k => Object.assign(vm[k], pick(st.userValues[k], Object.keys(vm[k]))));
   st.valueMap = vm;
+}
+function allowedKeys(){
+  return { status: STATUS_KEYS, condition: CONDITION_KEYS, platform: hooks.platforms().map(p => p.key) };
+}
+
+// The AI check of the columns (v3.23.2): runs once per file when the
+// Columns step opens, on the headers, 10 sample rows and the value words.
+// Its answer only replaces matches it's more sure about, never the
+// person's own picks; until it answers, the rule-based matches stand.
+async function runAiCheck(){
+  if (!hooks.aiMapColumns || st.ai) return;
+  const token = {};
+  st.ai = { status: 'running', token };
+  if (st.step === 'map') renderImport();
+  const sampleRows = st.rows.filter(r => r.some(c => String(c ?? '').trim())).slice(0, AI_MAX_ROWS);
+  // Every distinct word in any column a value could come from, so the AI
+  // can map them even if it moves the status/condition/platform column.
+  const words = (fields) => {
+    const set = new Set();
+    st.mapping.forEach((m, i) => {
+      if (!m.field || !fields.includes(m.field)) return;
+      st.rows.forEach(r => (m.field === 'listedPlatforms' ? splitList(r[i]) : [String(r[i] ?? '').trim()]).forEach(w => { if (w) set.add(w); }));
+    });
+    return [...set].slice(0, AI_MAX_VALUES);
+  };
+  const input = {
+    headers: st.headers,
+    rows: sampleRows.map(r => r.map(c => (typeof c === 'number' ? c : String(c ?? '')))),
+    platforms: hooks.platforms(),
+    values: { status: words(['status']), condition: words(['condition']), platform: words(['soldPlatform', 'listedPlatforms']) },
+  };
+  let r;
+  try{ r = await hooks.aiMapColumns(input); }
+  catch(e){ r = { ok: false, message: e.message || String(e) }; }
+  if (!st.ai || st.ai.token !== token) return;
+  if (!r || !r.ok || !r.result){
+    st.ai = { status: r && r.skipped ? 'skipped' : 'failed', token };
+  } else {
+    const m = mergeAiMapping(st.mapping, r.result.columns);
+    st.mapping = m.mapping;
+    st.aiValues = Array.isArray(r.result.values) ? r.result.values : [];
+    const before = JSON.stringify(st.valueMap);
+    refreshValues();
+    const valuesChanged = Object.keys(st.valueMap).reduce((t, k) => t + Object.entries(st.valueMap[k]).filter(([raw, key]) => key && !JSON.parse(before)[k][raw]).length, 0);
+    st.ai = { status: 'done', token, columns: m.changed, values: valuesChanged };
+  }
+  if (st.step === 'map') renderImport();
 }
 function pick(obj, keys){ return Object.fromEntries(Object.entries(obj).filter(([k]) => keys.includes(k))); }
 
@@ -235,6 +287,18 @@ function sample(i){
   }
   return seen;
 }
+function aiNote(){
+  const a = st.ai;
+  if (!a) return '';
+  if (a.status === 'running') return '<p class="imp-ai running" role="status">The AI is checking the columns and values…</p>';
+  if (a.status === 'done'){
+    const parts = [a.columns ? plural(a.columns, 'column') : '', a.values ? plural(a.values, 'value') : ''].filter(Boolean);
+    return `<p class="imp-ai" role="status">${parts.length ? `The AI checked the sheet and matched ${parts.join(' and ')} (marked "AI").` : 'The AI checked the sheet and agrees with these matches.'}</p>`;
+  }
+  if (a.status === 'skipped') return '<p class="imp-ai" role="status">The AI check was skipped: the AI usage limit for this period is used up. The matches below come from the column names.</p>';
+  return '<p class="imp-ai" role="status">The AI check isn\'t available right now. The matches below come from the column names.</p>';
+}
+
 function mapHtml(){
   const fieldOptions = (cur) => `<option value="">Don't import</option>` + IMPORT_FIELDS.map(f =>
     `<option value="${f.key}"${f.key === cur ? ' selected' : ''}>${escapeHtml(f.label)}</option>`).join('');
@@ -268,7 +332,8 @@ function mapHtml(){
   return `
     <section class="panel imp-panel">
       <h2 class="panel-title">Match the columns</h2>
-      <p class="imp-note">${escapeHtml(st.fileName)} · ${plural(st.rows.length, 'row')}. Each column is matched to an item field from its name; check the ones marked "Best guess" and anything left as "Don't import".</p>
+      <p class="imp-note">${escapeHtml(st.fileName)} · ${plural(st.rows.length, 'row')}. Each column is matched to an item field from its name; check the ones marked "Best guess" or "AI" and anything left as "Don't import".</p>
+      ${aiNote()}
       <ul class="imp-cols">${cols}</ul>
     </section>
     ${hasDates ? `
@@ -298,7 +363,7 @@ function wireMap(){
     const i = Number(sel.dataset.impMap), f = sel.value || null;
     // A field fills from one column only: the other column lets it go.
     if (f) st.mapping.forEach((m, k) => { if (k !== i && m.field === f) st.mapping[k] = { field: null, confidence: null }; });
-    st.mapping[i] = { field: f, confidence: null };
+    st.mapping[i] = { field: f, confidence: 'user' };
     refreshValues();
     renderImport();
   }));
