@@ -278,6 +278,11 @@ renaming them needs a data migration of every saved item.
 
 Last known status per the v3.13 notes. Confirm with Vitor before relying
 on any of these:
+- Re-critique fixes (v3.21.2): Node tests (`pinkTagStock`, week tags,
+  Home summary, catalog sort), Chromium screenshots of Home and Catalog
+  in the three themes (phone and desktop), no page errors, clean build.
+  Unconfirmed on a real phone: the focus ring with a keyboard, the
+  dismissed Next band coming back when its count changes, real data.
 - Theme layouts (v3.21.1): Node test of `week-tags.js` (week edges, no
   date, future date, shelf counts equal the color filter), Chromium
   screenshots of Home and Catalog in all three themes, phone and desktop,
@@ -392,6 +397,14 @@ on any of these:
   "Next" band with the most urgent task, monumental numbers, a "Then"
   list, and a catalog list led by big product codes under a yellow scope
   band. Parcel is unchanged.
+- v3.21.2: fixes from the design re-critique. Same item info on the
+  cards of every theme (tracking line, box, code on the sold tag, Edit);
+  visible focus ring on the dark bars; Tag Week "Pink tags (4+ weeks)"
+  row; dismissible Concourse Next band and detail lines under Then;
+  44px tap targets; the + button no longer covers the last item; the
+  item count shows only for a search or filter; red kept for urgent
+  (Tag Week "Not listed yet", Concourse SOLD chip); contrast fixes
+  (Tag Week green tag and blue pill, Concourse active marker).
 
 ## Backlog (not started)
 
@@ -570,6 +583,13 @@ a private claude.ai artifact; Impeccable seed `seed:007b6ac6cba56f1a`):
   (`renderCatalogList` in `main.js`) branch on `currentTheme()`; a theme
   change fires `themechange` and redraws. Stock, Finances and Settings
   share one layout and only take the theme's tokens.
+- Card contract (v3.21.2, Vitor 2026-10-20): every theme shows the same
+  item info on a catalog card (code, box, tracking line + stage, price,
+  "N days listed" / "N days in catalog", the warning, print and Edit);
+  a theme only arranges it. Tag Week's aged-stock row is "Pink tags (4+
+  weeks)", on the shelf's clock (`pinkTagStock()`), replacing "Listed
+  30+ days" in that theme. Concourse's Next band can be dismissed like
+  any row.
 - Rule for all new UI code: no hard-coded colors, fonts or radii, only
   the theme's CSS variables, so a theme is one token set.
 - Order: D1 the new shell + Home in Parcel → the other screens in

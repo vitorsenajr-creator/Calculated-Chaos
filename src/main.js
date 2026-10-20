@@ -863,51 +863,61 @@ export const app = (function(){
       const printBtn = `<button type="button" class="ic-btn" data-action="print-label" data-id="${item.id}" aria-label="Print label">${PRINT_SVG}</button>`;
       const warnBtn = incomplete ? `<button type="button" class="ic-warn" data-action="missing-info" data-id="${item.id}">${noPhoto ? 'No photo' : 'Missing info'}</button>` : '';
       const platformNames = (item.listedPlatforms || []).map(p => escapeHtml(PLATFORM_NAME[p] || getPlatformLabel(p))).join(', ');
+      // The card contract (v3.21.2): every theme shows code, box, stage,
+      // price, days, the warning and Edit; themes only arrange them.
+      const daysText = `${listedDays} day${listedDays===1?'':'s'}${item.status === 'anunciado' ? ' listed' : ' in catalog'}`;
+      const trackHtml = `<div class="ic-track" title="${statusLabel(item.status)}">
+              ${STAGES.map((st, k) => `${k ? `<span class="ic-track-line${k <= stage ? ' done' : ''}"></span>` : ''}<span class="ic-dot${k <= stage ? ' done' : ''}"></span>`).join('')}
+              <span class="ic-status">${statusLabel(item.status)}</span>
+            </div>`;
+      const editBtn = `<button type="button" class="ic-btn text" data-action="edit" data-id="${item.id}">Edit</button>`;
 
       if (theme === 'tagweek'){
         // Photo card with a hanging tag in the color of the week it came in.
+        const code = item.productCode ? escapeHtml(item.productCode) + ' · ' : '';
         const tagText = sold
-          ? `SOLD${item.netProfit !== undefined && item.netProfit !== null ? ` · ${item.netProfit >= 0 ? '+' : '-'}$${Math.abs(item.netProfit).toFixed(2)}` : ''}`
-          : `${item.productCode ? escapeHtml(item.productCode) + ' · ' : ''}${hasListPrice ? '$' + parseFloat(item.listPrice).toFixed(0) : 'no price'}`;
+          ? `${code}SOLD${item.netProfit !== undefined && item.netProfit !== null ? ` ${item.netProfit >= 0 ? '+' : '-'}$${Math.abs(item.netProfit).toFixed(2)}` : ''}`
+          : `${code}${hasListPrice ? '$' + parseFloat(item.listPrice).toFixed(0) : 'no price'}`;
         return `
       <div class="item-card tw-card${sold ? ' is-sold' : ''}${selected ? ' bulk-selected' : ''}" data-id="${item.id}">
         ${bulkCheck}
         <div class="item-photo tw-photo" ${photo ? `data-gallery="${item.id}"` : ''}>
           ${photoInner}
+          ${item.photos && item.photos.length > 1 ? `<span class="photo-count-badge">${item.photos.length}</span>` : ''}
           <span class="tw-tag ${sold ? 'tag-sold' : `tag-${weekTagIndex(item, Date.now())}`}">${tagText}</span>
         </div>
         <div class="tw-body">
           <div class="ic-name">${escapeHtml(item.name || 'Unnamed item')}</div>
-          <div class="ic-sub">${[item.size ? escapeHtml(item.size) : '', item.storageBox ? `Box ${escapeHtml(item.storageBox)}` : '', sold ? (soldWhen ? `Sold ${soldWhen}` : 'Sold') : `${listedDays} day${listedDays===1?'':'s'}`].filter(Boolean).join(' · ')}</div>
-          <div class="tw-foot">
-            <span class="tw-platforms${!sold && !platformNames ? ' not-listed' : ''}">${sold ? soldWhere : (platformNames || 'Not listed yet')}</span>
-            ${printBtn}
-          </div>
+          <div class="ic-sub">${[item.size ? escapeHtml(item.size) : '', item.storageBox ? `Box ${escapeHtml(item.storageBox)}` : '', sold ? (soldWhen ? `Sold ${soldWhen}` : 'Sold') : daysText].filter(Boolean).join(' · ')}</div>
+          ${trackHtml}
+          <span class="tw-platforms${!sold && !platformNames ? ' not-listed' : ''}">${sold ? soldWhere : (platformNames || 'Not listed yet')}</span>
           ${warnBtn}
+          <div class="tw-foot">${printBtn}${editBtn}</div>
         </div>
       </div>`;
       }
       if (theme === 'concourse'){
         // Gate-number row: the product code leads at monumental size.
         const priceLine = sold
-          ? `<span class="cc-price ${(item.netProfit||0) >= 0 ? 'positive' : 'negative'}">${item.netProfit !== undefined && item.netProfit !== null ? `${item.netProfit >= 0 ? '+' : '-'}$${Math.abs(item.netProfit).toFixed(2)} profit` : 'Sold'}</span>`
+          ? `<span class="cc-price ${(item.netProfit||0) >= 0 ? 'positive' : 'negative'}">${item.netProfit !== undefined && item.netProfit !== null ? `${item.netProfit >= 0 ? '+' : '-'}$${Math.abs(item.netProfit).toFixed(2)} profit` : 'Sold'}</span>${soldWhen ? `<span class="cc-days">${soldWhen}</span>` : ''}`
           : hasListPrice
-            ? `<span class="cc-price">$${parseFloat(item.listPrice).toFixed(2)}</span><span class="cc-days${isStale ? ' stale' : ''}">${listedDays} day${listedDays===1?'':'s'}</span>`
-            : `<span class="cc-go">Set price ${ARROW_SVG}</span>`;
+            ? `<span class="cc-price">$${parseFloat(item.listPrice).toFixed(2)}</span><span class="cc-days${isStale ? ' stale' : ''}">${daysText}</span>`
+            : `<span class="cc-go">Set price ${ARROW_SVG}</span><span class="cc-days">${daysText}</span>`;
         return `
       <div class="item-card cc-row${sold ? ' is-sold' : ''}${selected ? ' bulk-selected' : ''}" data-id="${item.id}">
         ${bulkCheck}
         <div class="cc-gate">
           <span class="cc-code">${escapeHtml(item.productCode || '—')}</span>
-          ${sold ? `<span class="cc-chip urgent">SOLD</span>` : item.storageBox ? `<span class="cc-chip">${escapeHtml(item.storageBox)}</span>` : ''}
+          ${item.storageBox ? `<span class="cc-chip">${escapeHtml(item.storageBox)}</span>` : ''}
         </div>
         <div class="item-photo cc-photo" ${photo ? `data-gallery="${item.id}"` : ''}>${photoInner}</div>
         <div class="cc-body">
           <div class="ic-name">${escapeHtml(item.name || 'Unnamed item')}</div>
           <div class="ic-sub">${[item.size ? escapeHtml(item.size) : '', sold ? soldWhere : (platformNames || 'not listed')].filter(Boolean).join(' · ')}</div>
+          ${trackHtml}
           <div class="cc-foot">${priceLine}${warnBtn}</div>
         </div>
-        ${printBtn}
+        <div class="cc-actions">${printBtn}${editBtn}</div>
       </div>`;
       }
 
@@ -929,7 +939,7 @@ export const app = (function(){
             ${item.storageBox ? `<span class="ic-box">Box ${escapeHtml(item.storageBox)}</span>` : ''}
             ${sold
               ? `<span class="ic-days">Sold${soldWhen ? ` ${soldWhen}` : ''}${soldWhere ? ` · ${soldWhere}` : ''}</span>`
-              : `<span class="ic-days${isStale ? ' stale' : ''}">${listedDays} day${listedDays===1?'':'s'}${item.status === 'anunciado' ? ' listed' : ''}</span>`}
+              : `<span class="ic-days${isStale ? ' stale' : ''}">${daysText}</span>`}
             ${incomplete ? `<button type="button" class="ic-warn" data-action="missing-info" data-id="${item.id}">${noPhoto ? 'No photo' : 'Missing info'}</button>` : ''}
           </div>
           <div class="ic-bottom">
@@ -990,7 +1000,9 @@ export const app = (function(){
     const sortLabel = (CATALOG_SORTS.find(o => o.key === catalogSort) || CATALOG_SORTS[0]).label.toLowerCase();
     const countLine = theme === 'concourse'
       ? `<div class="cc-scope"><b>${escapeHtml(scope)}</b><span>${filtered.length} item${filtered.length===1?'':'s'}</span><span>· ${escapeHtml(sortLabel)}</span></div>`
-      : `<div class="list-count">${filtered.length} item${filtered.length===1?'':'s'}</div>`;
+      // Only a narrowed list needs a count line; the full catalog doesn't.
+      : (searchQuery.trim() || filtersActiveCount() || filtered.length !== items.length)
+        ? `<div class="list-count">${filtered.length} match${filtered.length===1?'':'es'} of ${items.length}</div>` : '';
     listArea.innerHTML = `${countLine}<div class="catalog-grid">${cardsHtml}</div>` + (bulkSelectMode ? `<div class="bulk-spacer"></div>` : '') + bulkBarHtml;
     wireCatalogListEvents();
   }
