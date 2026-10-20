@@ -52,6 +52,7 @@ import {
 } from './data/settings-store.js';
 import { renderSettings, renderEbayConnectionStatus, openSettingsGroup } from './ui/settings/index.js';
 import { loadEbaySales, cachedEbaySales } from './data/ebay-sales-store.js';
+import { initImportView, openImport } from './ui/import/import-view.js';
 import { initHomeView, renderHome } from './ui/home/home-view.js';
 import { initStockView, renderStock } from './ui/stock/stock-view.js';
 import { initFinanceView, renderFinance } from './ui/finance/finance-view.js';
@@ -578,6 +579,7 @@ export const app = (function(){
           ${issueChecks().staleDays ? `<div class="filter-chip warn-chip ${activeFilters.stale?'active':''}" id="staleChip">Listed ${issueChecks().staleDays}+ days</div>` : ''}
           <div class="filter-chip warn-chip ${activeFilters.ebayError?'active':''}" id="ebayErrorChip">eBay errors</div>
           <div class="filter-chip warn-chip ${activeFilters.duplicateCode?'active':''}" id="duplicateCodeChip">Duplicate codes</div>
+          ${items.some(i => i.importId) || activeFilters.imported ? `<div class="filter-chip ${activeFilters.imported?'active':''}" id="importedChip">${activeFilters.imported && activeFilters.imported !== true ? 'From this import' : 'Imported'}</div>` : ''}
         </div>
       </div>
       <span class="filter-clear" id="clearFiltersBtn">Clear all filters</span>
@@ -651,6 +653,10 @@ export const app = (function(){
     });
     document.getElementById('duplicateCodeChip').addEventListener('click', () => {
       activeFilters.duplicateCode = !activeFilters.duplicateCode;
+      renderAll();
+    });
+    document.getElementById('importedChip')?.addEventListener('click', () => {
+      activeFilters.imported = activeFilters.imported ? null : true;
       renderAll();
     });
     document.getElementById('clearFiltersBtn').addEventListener('click', () => {
@@ -1496,7 +1502,7 @@ export const app = (function(){
   // ---------- TABS ----------
   // Five places (Home, Catalog, Stock, Finances, Settings); Finances holds
   // three sub-tabs, 'finance' (Overview), 'months' and 'reports'.
-  const TAB_VIEWS = { home: 'homeView', catalog: 'catalogView', stock: 'stockView', finance: 'financeArea', months: 'financeArea', reports: 'financeArea', settings: 'settingsView' };
+  const TAB_VIEWS = { home: 'homeView', catalog: 'catalogView', stock: 'stockView', finance: 'financeArea', months: 'financeArea', reports: 'financeArea', settings: 'settingsView', import: 'importView' };
   const FINANCE_PANES = { finance: 'financeView', months: 'monthsView', reports: 'reportsView' };
   const FAB_TABS = new Set(['home', 'catalog']);
   let currentTab = 'home';
@@ -1508,7 +1514,8 @@ export const app = (function(){
     if (currentUserRole === 'employee') tab = 'catalog';
     if (!TAB_VIEWS[tab]) tab = 'home';
     currentTab = tab;
-    const place = FINANCE_PANES[tab] ? 'finance' : tab;
+    // The Import screen (v3.23.1) belongs to Settings → Data.
+    const place = FINANCE_PANES[tab] ? 'finance' : tab === 'import' ? 'settings' : tab;
     document.querySelectorAll('.nav-link').forEach(b => {
       const on = b.dataset.tab === place;
       b.classList.toggle('active', on);
@@ -4744,6 +4751,24 @@ export const app = (function(){
   // The eBay sale tracker (v3.22.5): a sale marked Done redraws Home's
   // count; an item opened from the tracker opens in the item modal.
   document.addEventListener('ebaysaleschange', () => renderHome());
+  // Spreadsheet import (v3.23.1, ui/import/import-view.js), from
+  // Settings → Data. Saved items join the catalog in memory; an undo
+  // takes them out.
+  initImportView({
+    getItems: () => items,
+    platforms: () => getAllPlatforms().map(p => ({ key: p.key, label: PLATFORM_NAME[p.key] || String(p.label).replace(/^[^\p{L}\p{N}]+/u, '') })),
+    fee: (platform, price) => platformFee(platform, price),
+    categories: () => [...new Set([...Object.keys(BASE_CATEGORY_VALUE), ...items.map(i => i.category).filter(Boolean)])],
+    prepFor: (item) => appSettings.autoPrepRules?.[item.category] || 'ready',
+    newId: () => uid(),
+    canImport: () => currentUserRole !== 'employee',
+    afterSave: (docs) => { setItems([...items, ...docs]); renderAll(); },
+    afterUndo: (ids) => { const gone = new Set(ids); setItems(items.filter(i => !gone.has(i.id))); renderAll(); },
+    back: () => { switchToTab('settings'); openSettingsGroup('data'); },
+    openImported: (importId) => openCatalogWith({ imported: importId }),
+    openWarnings: () => { switchToTab('settings'); openSettingsGroup('warnings', 'warningsImported'); },
+  });
+  document.addEventListener('openimport', () => { switchToTab('import'); openImport(); });
   document.addEventListener('openitem', (e) => {
     const item = items.find(i => i.id === e.detail);
     if (item) openModal(item);

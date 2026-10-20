@@ -49,6 +49,24 @@ export async function reserveNextProductCode(){
   return '#' + String(assigned).padStart(4, '0');
 }
 
+// A block of `count` consecutive codes in one transaction (v3.23.1, the
+// spreadsheet import), instead of one transaction per item. Same counter
+// and floor as reserveNextProductCode, so the sequence stays continuous.
+export async function reserveProductCodeBlock(count){
+  if (!(count > 0)) return [];
+  const { runTransaction } = window.firestoreFns;
+  const counterRef = bizDoc('counters', 'productCode');
+  const floorNum = maxProductCodeNumber(items);
+  const first = await runTransaction(window.db, async (tx) => {
+    const snap = await tx.get(counterRef);
+    const current = snap.exists() ? (Number(snap.data().nextNumber) || 1) : 1;
+    const start = Math.max(current, floorNum + 1);
+    tx.set(counterRef, { nextNumber: start + count }, { merge: true });
+    return start;
+  });
+  return Array.from({ length: count }, (_, k) => '#' + String(first + k).padStart(4, '0'));
+}
+
 // Live Firestore check (not just the local `items` array) — the whole
 // point is catching a collision with something another terminal saved
 // that this browser hasn't loaded/refreshed yet.

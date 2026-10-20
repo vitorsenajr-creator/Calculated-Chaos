@@ -41,6 +41,15 @@ export function warningsPageHtml(){
           <input type="checkbox" data-issue-check="${k}" aria-label="Check ${PART_LABEL[k][0].toLowerCase()}" ${c[k] ? 'checked' : ''}>
         </div>`).join('')}
       </div>
+      <div class="settings-section" id="warningsImported">
+        <h3>Imported items</h3>
+        <div class="ss-desc">The same checks for items that came from a spreadsheet import, which usually have no photos. A check that's off here doesn't count as missing on those items; items cataloged in the app keep the checks above.</div>
+        ${MISSING_PARTS.map(k => `
+        <div class="settings-row">
+          <div><div class="sr-label">${PART_LABEL[k][0]}</div></div>
+          <input type="checkbox" data-issue-check-imported="${k}" aria-label="Check ${PART_LABEL[k][0].toLowerCase()} on imported items" ${c.imported[k] ? 'checked' : ''}>
+        </div>`).join('')}
+      </div>
       <div class="settings-section">
         <h3>Listed a long time</h3>
         <div class="ss-desc">Flags unsold items listed this long (since the eBay listing date, or since cataloging for other platforms).</div>
@@ -57,11 +66,12 @@ export function warningsPageHtml(){
 
 export function wireWarningsPanel(){
   const msg = document.getElementById('warningsSaveMsg');
-  const inputs = document.querySelectorAll('[data-issue-check], #sStaleDays');
+  const inputs = document.querySelectorAll('[data-issue-check], [data-issue-check-imported], #sStaleDays');
   const save = async () => {
     const next = normalizeIssueChecks({
       ...Object.fromEntries([...document.querySelectorAll('[data-issue-check]')].map(el => [el.dataset.issueCheck, el.checked])),
       staleDays: Number(document.getElementById('sStaleDays').value),
+      imported: Object.fromEntries([...document.querySelectorAll('[data-issue-check-imported]')].map(el => [el.dataset.issueCheckImported, el.checked])),
     });
     const ok = await saveSettingsFields({ issueChecks: next });
     if (msg){

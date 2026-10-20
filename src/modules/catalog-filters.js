@@ -23,6 +23,7 @@ export function filtersActiveCount(activeFilters){
   if (activeFilters.issues) n++;
   if (activeFilters.ebayError) n++;
   if (activeFilters.duplicateCode) n++;
+  if (activeFilters.imported) n++;
   if (Number.isInteger(activeFilters.weekTag)) n++;
   if (activeFilters.platformsInclude.length || activeFilters.platformsExclude.length) n++;
   return n;
@@ -49,6 +50,8 @@ export function applyFilters(list, activeFilters, searchQuery, ctx = {}){
     if (activeFilters.issues && !hasIssues(item, { checks, now, counts })) return false;
     if (activeFilters.ebayError && !hasEbayError(item)) return false;
     if (activeFilters.duplicateCode && !hasDuplicateCode(item, counts)) return false;
+    // Imported items (v3.23.1): true = any import, a string = that import.
+    if (activeFilters.imported && !(activeFilters.imported === true ? item.importId : item.importId === activeFilters.imported)) return false;
     // Tag Week theme: the color-of-the-week dots above the catalog.
     if (Number.isInteger(activeFilters.weekTag) && weekTagIndex(item, now) !== activeFilters.weekTag) return false;
     if (activeFilters.platformsInclude.length){
@@ -61,7 +64,7 @@ export function applyFilters(list, activeFilters, searchQuery, ctx = {}){
     }
     if (searchQuery){
       const q = searchQuery.toLowerCase();
-      const hay = [item.name, item.brand, item.category, item.clothingType, item.notes, item.productCode, item.storageBox, item.source, item.color].join(' ').toLowerCase();
+      const hay = [item.name, item.brand, item.category, item.clothingType, item.notes, item.productCode, item.storageBox, item.source, item.color, item.legacyCode].join(' ').toLowerCase();
       if (!hay.includes(q)) return false;
     }
     return true;
