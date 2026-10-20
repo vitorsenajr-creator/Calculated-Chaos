@@ -8,6 +8,9 @@ import { items, appSettings } from '../../modules/state.js';
 import { escapeHtml, daysSince, statusLabel } from '../../modules/format-utils.js';
 import { computeReportsData } from '../../modules/reports.js';
 import { computeFinanceOverview, monthlyTotals, monthLabel, FINANCE_PERIODS } from '../../domain/finance-summary.js';
+import { expensesForPeriod } from '../../domain/profit-loss.js';
+import { cachedExpenses, expensesState } from '../../data/expense-store.js';
+import { renderPnl } from './pnl-view.js';
 
 // Its own period, separate from Home's (Vitor, 2026-10-20).
 const PERIOD_KEY = 'cc.finance.period';
@@ -119,6 +122,13 @@ function renderOverview(){
   const periodButtons = FINANCE_PERIODS.map(p => `
     <button type="button" class="seg-btn${p === period ? ' active' : ''}" data-finance-period="${p}" aria-pressed="${p === period}">${PERIOD_LABEL[p]}</button>`).join('');
 
+  // Profit after expenses (v3.23.4): a line under the summary once the
+  // business has any expenses; the summary itself stays sales profit, like
+  // Home and Goals.
+  const allExpenses = expensesState() === 'loaded' ? cachedExpenses() : [];
+  const periodExpenses = allExpenses.length ? expensesForPeriod(allExpenses, period, now) : 0;
+  const afterExpenses = allExpenses.length ? `<p class="fin-note fin-summary-note fin-after-exp">Expenses${suffix}: <b>${money2(periodExpenses)}</b> \u00b7 Profit after expenses: <b class="${totals.profit - periodExpenses >= 0 ? 'positive' : 'negative'}">${money2(totals.profit - periodExpenses)}</b> <button type="button" class="link-btn" data-finance-goto="reports">See P&amp;L</button></p>` : '';
+
   const compare = previous ? compareName(previous, now) : '';
   const cell = (label, value, extraClass = '', change = '') => `
     <div class="summary-cell static">
@@ -215,6 +225,7 @@ function renderOverview(){
         previous ? delta(sellThrough.rate, previous.sellThrough.rate, pts, compare) : '')}
     </section>
     ${sellThrough.available ? `<p class="fin-note fin-summary-note">Sell-through: ${sellThrough.sold.toLocaleString('en-US')} sold of ${sellThrough.available.toLocaleString('en-US')} item${sellThrough.available === 1 ? '' : 's'} in stock or cataloged${period === 'all' ? '' : suffix}.</p>` : ''}
+    ${afterExpenses}
     ${panel('Where each dollar went', money(totals.revenue) + ' revenue', splitBody, ' split')}
     ${panel('Profit, last 12 months', range > 0 ? `${money(twelveTotal)} total` : '', chartBody, ' months-chart')}
     <div class="home-lower">
@@ -296,7 +307,8 @@ function renderReports(){
   const { sold, active, catRows, projectedRows, totalProjected, topItemsByProfit, topProjectedItems, slowMovers } = computeReportsData(items, appSettings);
   const sub = (i) => `${escapeHtml(i.category || '')}${i.brand ? ' · ' + escapeHtml(i.brand) : ''}`;
 
-  let html = '';
+  // Profit & Loss leads Reports (v3.23.4); drawn into this slot below.
+  let html = '<div id="pnlSlot"></div>';
 
   if (active.length > 0){
     html += panel('Projected pipeline', '', `
@@ -355,10 +367,12 @@ function renderReports(){
       ${exportBtn('exportFullInventory', 'Full inventory (CSV)', 'Every item, every status, for backup or spreadsheet work')}
       ${exportBtn('exportSoldOnly', 'Sold items only (CSV)', 'For taxes or bookkeeping')}
       ${exportBtn('exportCategoryReport', 'Performance by category (CSV)', "See what's worth sourcing more of")}
+      ${exportBtn('exportPnl', 'Profit & Loss (CSV)', 'The statement for the period picked above')}
       ${exportBtn('exportExpenses', 'Expenses (CSV)', 'Every expense and refund, with its category')}
     </div>`, ' export');
 
   view.innerHTML = html;
+  renderPnl(view.querySelector('#pnlSlot'));
   hooks.wireExports();
   view.querySelectorAll('[data-open-item]').forEach(btn => btn.addEventListener('click', () => {
     hooks.openItem(btn.dataset.openItem);

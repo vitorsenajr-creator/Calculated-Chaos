@@ -161,8 +161,20 @@ renaming them needs a data migration of every saved item.
     with `setDoc`. 22 Schedule C-style categories with hints; no
     inventory purchases (accrual only). Period Month/Year/All
     (`cc.expenses.period`), by category, list by month, CSV export (also
-    in Reports → Export). Owner only. Doesn't change any profit number
-    yet; the P&L (second part) will subtract them.
+    in Reports → Export). Owner only. The `expenses` rule is in the
+    Console (Vitor, 2026-10-20).
+  - `domain/profit-loss.js` + `ui/finance/pnl-view.js`: the Profit &
+    Loss statement at the top of Reports (v3.23.4). Accrual: Revenue by
+    platform − Cost of goods sold (item cost) = Gross profit − Selling
+    costs (fees, shipping paid, other sale costs) − Operating expenses
+    by category = Net profit. Sales profit is the saved `netProfit`;
+    "Sale adjustments" carries any difference from the lines, so Net
+    profit = Overview's profit − expenses. Periods This/Last month,
+    This/Last year, All (`cc.pnl.period`, default This year), CSV
+    export (Section, Line, Amount). Overview adds a line "Expenses ·
+    Profit after expenses" once the business has any expense
+    (`expensesForPeriod()`); its summary, Home and Goals stay sales
+    profit.
   - `ui/lightbox.js`: `openLightbox(photos, index)`; its state is private.
   - `ui/label-render.js`: label preview markup + canvas drawing.
   - `ui/labels/`: print modal (`openBatchLabelModal`), Quick Labels,
@@ -367,6 +379,21 @@ renaming them needs a data migration of every saved item.
 
 Last known status per the v3.13 notes. Confirm with Vitor before relying
 on any of these:
+- Profit & Loss (v3.23.4): Node test (8 cases: windows across a year
+  change, each line by hand, expenses net of refunds, an old sale
+  without `soldAt`, Sale adjustments only when the saved profit
+  differs, sales profit and revenue identical to Overview for month,
+  year and all, Overview's expense line bounded to the period, CSV
+  totals reconciling), Chromium test of the real app with a stubbed
+  Firebase (8 checks: P&L first in Reports with This year, every line
+  and the net, no Overview line without expenses, Overview summary
+  unchanged, the line for Month and All time, See P&L, Last year,
+  period remembered, the same CSV from the panel and from Export,
+  saving an expense redrawing both, a failed expenses load flagged),
+  the Expenses test rerun (17 checks), screenshots in the three themes
+  (phone and desktop), no page errors, no horizontal scroll, clean
+  build. Unconfirmed in production: real sales (how often Sale
+  adjustments shows up, and how big), the CSV opened in a spreadsheet.
 - Expenses (v3.23.3): Node test (9 cases: categories, validation and
   its error fields, refunds, periods by local date, totals in exact
   cents over 1,000 entries, months, CSV), Chromium test of the real app
@@ -377,9 +404,8 @@ on any of these:
   from the list and from Reports, Overview identical before and after,
   a failed load with Try again, an employee never reaching it),
   screenshots in the three themes (phone and desktop), no page errors,
-  no horizontal scroll, clean build. **The `expenses` rule must be
-  pasted in the Console** (`isMemberData()` in `firestore.rules`).
-  Unconfirmed in production: saving and loading with the real Firestore
+  no horizontal scroll, clean build. The `expenses` rule was pasted in
+  the Console (Vitor, 2026-10-20). Unconfirmed in production: saving and loading with the real Firestore
   and rules, the date picker and Save and add another on an iPhone.
 - Import AI column analysis (v3.23.2): Node test (9 cases: input
   clipping and limits, prompt and schema, merge rules for columns and
@@ -590,6 +616,15 @@ on any of these:
 
 ## Pending changelog entry (since v3.23.0)
 
+- v3.23.4: Profit & Loss (Nifty P2, second part). Reports now opens with
+  a Profit & Loss statement for this or last month, this or last year, or
+  all time: revenue by platform, the cost of the items sold, gross
+  profit, selling costs (fees, shipping, other), operating expenses by
+  category and net profit, with a CSV export for the accountant. It ends
+  on the same sales profit as Overview (a "Sale adjustments" line shows
+  any difference). Overview adds "Expenses · Profit after expenses" under
+  its summary once there are expenses.
+
 - v3.23.3: Expenses (Nifty P2, first part). A new Expenses tab in
   Finances: record what the business spends outside a sale (rent,
   supplies, sourcing trips, subscriptions...) in 22 tax-style categories,
@@ -779,7 +814,8 @@ in `docs/nifty-review.md`):
 1. **Expenses and P&L, accrual only** (decided: the app already counts
    an item's cost when it sells; no cash method). 2-3 PRs: expenses
    (done in v3.23.3: a fourth Finances sub-tab, owner only, Vitor
-   2026-10-20); the P&L in Finances with its export (next); a Sales
+   2026-10-20); the P&L (done in v3.23.4: top of Reports, Overview keeps
+   sales profit plus an after-expenses line, Vitor 2026-10-20); a Sales
    table with inline cost editing, mileage at the IRS rate and expense
    CSV import.
 2. AI custom instructions and a description footer for ✨ (server-built
