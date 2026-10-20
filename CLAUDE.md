@@ -95,6 +95,10 @@ renaming them needs a data migration of every saved item.
   - `domain/home-summary.js` + `ui/home/home-view.js`: the Home screen
     (v3.20.0): summary by period, pipeline, "Needs attention", revenue
     by platform. Period and dismissed rows are per-device (localStorage).
+  - `domain/finance-summary.js` + `ui/finance/finance-view.js`: the
+    Finances screen (v3.21.3): Overview (own period, `cc.finance.period`,
+    separate from Home's), Months, Reports. The export buttons are still
+    wired by `wireReportButtons()` in `main.js`.
   - `ui/lightbox.js`: `openLightbox(photos, index)`; its state is private.
   - `ui/label-render.js`: label preview markup + canvas drawing.
   - `ui/labels/`: print modal (`openBatchLabelModal`), Quick Labels,
@@ -280,6 +284,13 @@ renaming them needs a data migration of every saved item.
 
 Last known status per the v3.13 notes. Confirm with Vitor before relying
 on any of these:
+- Finances screen (v3.21.3): Node test (monthly totals identical to the
+  old `renderFinance()` math on 338 sample sales; period totals, last 12
+  months, revenue split), Chromium screenshots of Overview, Months and
+  Reports in the three themes (phone and desktop) on a harness page with
+  sample data, no page errors, no horizontal scroll, clean build.
+  Unconfirmed: real data, the exports from the new Export panel, opening a
+  stale listing from Reports, a bar opening its month on a real phone.
 - Re-critique fixes (v3.21.2): Node tests (`pinkTagStock`, week tags,
   Home summary, catalog sort), Chromium screenshots of Home and Catalog
   in the three themes (phone and desktop), no page errors, clean build.
@@ -407,6 +418,15 @@ on any of these:
   item count shows only for a search or filter; red kept for urgent
   (Tag Week "Not listed yet", Concourse SOLD chip); contrast fixes
   (Tag Week green tag and blue pill, Concourse active marker).
+- v3.21.3: Finances screen redesign. Overview (new default sub-tab):
+  Month / Year / All time (remembered on the device, separate from
+  Home), revenue, net profit, margin and items sold, where each dollar
+  of revenue went, profit for the last 12 months (tap a month to open
+  it), revenue by platform and the in-stock projection. Months: one row
+  per month that opens the same breakdown as before. Reports: the same
+  content in the new panels, no emojis, exports in an Export panel at
+  the end. Same layout in all three themes. Code moved out of `main.js`
+  into `domain/finance-summary.js` and `ui/finance/`.
 
 ## Backlog (not started)
 
@@ -599,8 +619,8 @@ a private claude.ai artifact; Impeccable seed `seed:007b6ac6cba56f1a`):
 - The Appearance switch (theme only) was pulled forward in v3.21.0 so
   Vitor could try the three themes (2026-10-20). Still to come for item
   6: the theme features as options, store name, logo and accent color.
-- D2 shipped in v3.20.1 (Catalog + Stock). Next by the order above: the
-  Finances screen (Overview, Months, Reports), then a grouped Settings.
+- D2 shipped in v3.20.1 (Catalog + Stock), Finances in v3.21.3. Next by
+  the order above: a grouped Settings.
 - D1 shipped in v3.20.0. Not in it, for lack of data: a "Shipped" stop in
   the pipeline (no shipped status yet; needs "Mark shipped"), the "eBay
   publish errors" row (errors aren't stored per item) and "eBay sales to

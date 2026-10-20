@@ -43,7 +43,7 @@ import {
   projectedProfit as _projectedProfit,
 } from './modules/pricing.js';
 import {
-  computeReportsData, buildFullInventoryRows, buildSoldItemsRows,
+  buildFullInventoryRows, buildSoldItemsRows,
   buildCategoryReportRows, buildExcelSheetsData,
 } from './modules/reports.js';
 import { DEFAULT_SETTINGS } from './modules/settings.js';
@@ -53,6 +53,7 @@ import {
 import { renderSettings, renderEbayConnectionStatus } from './ui/settings/index.js';
 import { initHomeView, renderHome } from './ui/home/home-view.js';
 import { initStockView, renderStock } from './ui/stock/stock-view.js';
+import { initFinanceView, renderFinance } from './ui/finance/finance-view.js';
 import { initUpdateBanner } from './ui/update-banner.js';
 import { applyTheme, applyLastTheme, currentTheme } from './ui/theme.js';
 import { CATALOG_SORTS, sortCatalog } from './domain/catalog-sort.js';
@@ -1288,185 +1289,6 @@ export const app = (function(){
     }
   }
 
-  // ---------- RENDER: FINANCE ----------
-  function renderFinance(){
-    const view = document.getElementById('financeView');
-    const sold = items.filter(i => i.status === 'vendido');
-    if (sold.length === 0){
-      view.innerHTML = `<div class="empty-state">
-        <div class="big">🌿</div>
-        <div class="serif-line">Nothing sold just yet.</div>
-        <p>Mark an item as "Sold" and your monthly financial summary will show up here.</p>
-      </div>`;
-      return;
-    }
-    const byMonth = {};
-    sold.forEach(i => {
-      const d = new Date(i.soldAt || i.createdAt);
-      const key = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
-      if (!byMonth[key]) byMonth[key] = [];
-      byMonth[key].push(i);
-    });
-    const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    const sortedKeys = Object.keys(byMonth).sort().reverse();
-
-    view.innerHTML = sortedKeys.map(key => {
-      const [y,m] = key.split('-');
-      const list = byMonth[key];
-      const revenue = list.reduce((s,i)=> s + (parseFloat(i.soldPrice)||0), 0);
-      const cost = list.reduce((s,i)=> s + (parseFloat(i.cost)||0), 0);
-      const fees = list.reduce((s,i)=> s + (i.feesTotal||0), 0);
-      const shipping = list.reduce((s,i)=> s + (parseFloat(i.shippingCost)||0), 0);
-      const other = list.reduce((s,i)=> s + (parseFloat(i.otherCosts)||0), 0);
-      // Sum the netProfit saved at sale time, like the stats strip, Dashboard
-      // and Reports do. Recomputing it here left out Other costs, so this
-      // screen showed a higher profit than the rest of the app (v3.19.1).
-      const profit = list.reduce((s,i)=> s + (i.netProfit||0), 0);
-      const margin = revenue > 0 ? (profit/revenue*100) : 0;
-
-      return `<div class="month-card">
-        <h3>${monthNames[parseInt(m)-1]} ${y} · ${list.length} ${list.length===1?'item sold':'items sold'}</h3>
-        <div class="fin-grid">
-          <div class="fin-item" style="grid-column:1/-1;"><div class="label">Gross revenue</div><div class="value">$${revenue.toFixed(2)}</div></div>
-          <div class="fin-item cost"><div class="label">Acquisition cost</div><div class="value">$${cost.toFixed(2)}</div></div>
-          <div class="fin-item cost"><div class="label">Platform fees</div><div class="value">$${fees.toFixed(2)}</div></div>
-          <div class="fin-item cost"><div class="label">Shipping paid</div><div class="value">$${shipping.toFixed(2)}</div></div>
-          <div class="fin-item cost"><div class="label">Other costs</div><div class="value">$${other.toFixed(2)}</div></div>
-          <div class="fin-item highlight"><div class="label">Net profit</div><div class="value">$${profit.toFixed(2)}</div></div>
-          <div class="fin-item highlight"><div class="label">Net margin</div><div class="value">${margin.toFixed(1)}%</div></div>
-        </div>
-      </div>`;
-    }).join('');
-  }
-
-  // ---------- RENDER: REPORTS ----------
-  function renderReports(){
-    const view = document.getElementById('reportsView');
-    const { sold, active, catRows, projectedRows, totalProjected, topItemsByProfit, topProjectedItems, slowMovers } = computeReportsData(items, appSettings);
-
-    let html = '';
-
-    html += `<div class="export-section">
-      <div class="es-label">Export data</div>
-      <div class="export-btn-grid">
-        <div class="export-btn" id="exportExcel">
-          <div><div class="et-title">📊 Export to Excel (.xlsx)</div><div class="et-sub">Same format as her original Clothing Inventory Tracker — ready to open in Excel</div></div>
-          <div class="et-arrow">↓</div>
-        </div>
-        <div class="export-btn" id="exportFullInventory">
-          <div><div class="et-title">Full inventory (CSV)</div><div class="et-sub">Every item, every status — for backup or spreadsheet work</div></div>
-          <div class="et-arrow">↓</div>
-        </div>
-        <div class="export-btn" id="exportSoldOnly">
-          <div><div class="et-title">Sold items only (CSV)</div><div class="et-sub">Great for taxes or bookkeeping</div></div>
-          <div class="et-arrow">↓</div>
-        </div>
-        <div class="export-btn" id="exportCategoryReport">
-          <div><div class="et-title">Performance by category (CSV)</div><div class="et-sub">See what's worth sourcing more of</div></div>
-          <div class="et-arrow">↓</div>
-        </div>
-      </div>
-    </div>`;
-
-    if (active.length > 0){
-      html += `<div class="cat-card pipeline-card">
-        <h3>Projected pipeline</h3>
-        <div class="sub" style="margin-bottom:10px;">What's still on the shelf, estimated at today's suggested or listed prices, after fees and shipping.</div>
-        <div class="pipeline-total">$${totalProjected.toFixed(2)} <span>across ${active.length} active item${active.length===1?'':'s'}</span></div>
-        ${projectedRows.map(r => `
-          <div class="cat-rank-row">
-            <div>
-              <div class="name">${escapeHtml(r.cat)}</div>
-              <div class="sub">${r.count} item${r.count===1?'':'s'} not yet sold</div>
-            </div>
-            <div class="num projected-num">$${r.projected.toFixed(0)}</div>
-          </div>
-        `).join('')}
-      </div>`;
-    }
-
-    if (catRows.length > 0){
-      html += `<div class="cat-card">
-        <h3>Category performance</h3>
-        <div class="sub" style="margin-bottom:6px;">Realized profit from items already sold.</div>
-        ${catRows.map(r => {
-          const proj = projectedRows.find(p => p.cat === r.cat);
-          return `
-          <div class="cat-rank-row">
-            <div>
-              <div class="name">${escapeHtml(r.cat)}</div>
-              <div class="sub">${r.count} sold · avg ${r.avgDaysToSell.toFixed(0)}d to sell · ${r.margin.toFixed(0)}% margin${proj ? ` · $${proj.projected.toFixed(0)} more projected` : ''}</div>
-            </div>
-            <div class="num">$${r.profit.toFixed(0)}</div>
-          </div>
-        `;}).join('')}
-      </div>`;
-    }
-
-    if (topProjectedItems.length > 0){
-      html += `<div class="cat-card">
-        <h3>Biggest upside waiting to sell</h3>
-        ${topProjectedItems.map(i => `
-          <div class="cat-rank-row">
-            <div>
-              <div class="name">${escapeHtml(i.name)}</div>
-              <div class="sub">${escapeHtml(i.category||'')}${i.brand ? ' · '+escapeHtml(i.brand) : ''} · ${statusLabel(i.status)}</div>
-            </div>
-            <div class="num projected-num">$${projectedProfit(i).toFixed(2)}</div>
-          </div>
-        `).join('')}
-      </div>`;
-    }
-
-    if (topItemsByProfit.length > 0){
-      html += `<div class="cat-card">
-        <h3>Best earners</h3>
-        ${topItemsByProfit.map(i => `
-          <div class="cat-rank-row">
-            <div>
-              <div class="name">${escapeHtml(i.name)}</div>
-              <div class="sub">${escapeHtml(i.category||'')}${i.brand ? ' · '+escapeHtml(i.brand) : ''}</div>
-            </div>
-            <div class="num">$${(i.netProfit||0).toFixed(2)}</div>
-          </div>
-        `).join('')}
-      </div>`;
-    }
-
-    if (slowMovers.length > 0){
-      html += `<div class="cat-card">
-        <h3>Stale eBay listings (30+ days, unsold)</h3>
-        <div class="sub" style="margin-bottom:10px;">Still live and hasn't sold — worth a price drop, refreshed photos, or a Best Offer.</div>
-        ${slowMovers.map(i => `
-          <div class="cat-rank-row" data-open-item="${i.id}" style="cursor:pointer;">
-            <div>
-              <div class="name">${escapeHtml(i.name)}</div>
-              <div class="sub">${escapeHtml(i.category||'')} · listed at $${(parseFloat(i.listPrice)||0).toFixed(2)}</div>
-            </div>
-            <div class="num" style="color:var(--amber-deep);">${daysSince(i.ebayListedAt)}d</div>
-          </div>
-        `).join('')}
-      </div>`;
-    }
-
-    if (sold.length === 0 && catRows.length === 0 && slowMovers.length === 0 && active.length === 0){
-      html += `<div class="empty-state">
-        <div class="big">📊</div>
-        <div class="serif-line">Reports build themselves as you go.</div>
-        <p>Once you've cataloged and sold a few pieces, performance insights will show up here.</p>
-      </div>`;
-    }
-
-    view.innerHTML = html;
-    wireReportButtons();
-    view.querySelectorAll('[data-open-item]').forEach(row => {
-      row.addEventListener('click', () => {
-        const item = items.find(i => i.id === row.dataset.openItem);
-        if (item){ switchToTab('catalog'); openModal(item); }
-      });
-    });
-  }
-
   // ---------- CSV EXPORT ----------
   function downloadCsv(filename, rows){
     const allRows = [...rows, [], [`Exported from Calculated Chaos ${APP_VERSION} (${APP_VERSION_DATE})`]];
@@ -1479,7 +1301,7 @@ export const app = (function(){
     // ---- Excel export (matches original Clothing Inventory Tracker format) ----
     const excelBtn = document.getElementById('exportExcel');
     if (excelBtn) excelBtn.addEventListener('click', async () => {
-      excelBtn.querySelector('.et-title').textContent = '📊 Generating Excel…';
+      excelBtn.querySelector('.et-title').textContent = 'Generating Excel…';
       try{
         // Load SheetJS dynamically
         if (!window.XLSX){
@@ -1510,7 +1332,7 @@ export const app = (function(){
         console.error('Excel export error', err);
         alert('Could not generate Excel file. Please try the CSV export instead.');
       }finally{
-        excelBtn.querySelector('.et-title').textContent = '📊 Export to Excel (.xlsx)';
+        excelBtn.querySelector('.et-title').textContent = 'Excel (.xlsx)';
       }
     });
 
@@ -1558,7 +1380,6 @@ export const app = (function(){
     renderHome();
     renderCatalog();
     renderFinance();
-    renderReports();
     if (currentTab === 'stock') renderStock();
     refreshStockTransferBoxListIfOpen();
   }
@@ -1592,8 +1413,9 @@ export const app = (function(){
 
   // ---------- TABS ----------
   // Five places (Home, Catalog, Stock, Finances, Settings); Finances holds
-  // two sub-tabs, 'finance' (months) and 'reports'.
-  const TAB_VIEWS = { home: 'homeView', catalog: 'catalogView', stock: 'stockView', finance: 'financeArea', reports: 'financeArea', settings: 'settingsView' };
+  // three sub-tabs, 'finance' (Overview), 'months' and 'reports'.
+  const TAB_VIEWS = { home: 'homeView', catalog: 'catalogView', stock: 'stockView', finance: 'financeArea', months: 'financeArea', reports: 'financeArea', settings: 'settingsView' };
+  const FINANCE_PANES = { finance: 'financeView', months: 'monthsView', reports: 'reportsView' };
   const FAB_TABS = new Set(['home', 'catalog']);
   let currentTab = 'home';
   function switchToTab(tab){
@@ -1604,7 +1426,7 @@ export const app = (function(){
     if (currentUserRole === 'employee') tab = 'catalog';
     if (!TAB_VIEWS[tab]) tab = 'home';
     currentTab = tab;
-    const place = tab === 'reports' ? 'finance' : tab;
+    const place = FINANCE_PANES[tab] ? 'finance' : tab;
     document.querySelectorAll('.nav-link').forEach(b => {
       const on = b.dataset.tab === place;
       b.classList.toggle('active', on);
@@ -1618,8 +1440,9 @@ export const app = (function(){
     new Set(Object.values(TAB_VIEWS)).forEach(id => {
       document.getElementById(id).style.display = id === TAB_VIEWS[tab] ? '' : 'none';
     });
-    document.getElementById('financeView').style.display = tab === 'finance' ? '' : 'none';
-    document.getElementById('reportsView').style.display = tab === 'reports' ? '' : 'none';
+    Object.entries(FINANCE_PANES).forEach(([t, id]) => {
+      document.getElementById(id).style.display = t === tab ? '' : 'none';
+    });
     document.getElementById('fabAdd').style.display = FAB_TABS.has(tab) ? '' : 'none';
     closeFabMenu();
     if (tab === 'home') renderHome();
@@ -1636,6 +1459,17 @@ export const app = (function(){
     btn.addEventListener('click', () => switchToTab(btn.dataset.tab));
   });
   initStockView({ openCatalog: openCatalogWith });
+  initFinanceView({
+    projectedProfit,
+    platformLabel: (key) => PLATFORM_NAME[key] || getPlatformLabel(key),
+    platformColor: (key) => getPlatformColor(key),
+    openTab: (tab) => switchToTab(tab),
+    openItem: (id) => {
+      const item = items.find(i => i.id === id);
+      if (item){ switchToTab('catalog'); openModal(item); }
+    },
+    wireExports: wireReportButtons,
+  });
 
   // ---------- ADD MENU ----------
   // One "+" (Home and Catalog only) opens New item / Quick catalog /
