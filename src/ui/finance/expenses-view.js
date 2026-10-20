@@ -6,11 +6,14 @@
 // write.
 import { escapeHtml } from '../../modules/format-utils.js';
 import { showToast } from '../toast.js';
+import { isMileageCategory, mileageLine, rateFor, mixesVehicleMethods } from '../../domain/mileage.js';
 import {
   EXPENSE_CATEGORIES, EXPENSE_PERIODS, MAX_DESCRIPTION, categoryLabel, isoDate,
   validateExpense, signedAmount, expensesInPeriod, summarizeExpenses, groupByMonth, expenseCsvRows,
 } from '../../domain/expenses.js';
-import { cachedExpenses, expensesState, loadExpenses, saveExpense, deleteExpense } from '../../data/expense-store.js';
+import { cachedExpenses, expensesState, loadExpenses, saveExpense, deleteExpense, undoExpenseImport } from '../../data/expense-store.js';
+import { latestImport } from '../../domain/expense-import.js';
+import { openExpenseImport } from './expense-import-view.js';
 
 const PERIOD_KEY = 'cc.expenses.period';
 const PERIOD_LABEL = { month: 'Month', year: 'Year', all: 'All time' };
@@ -77,7 +80,18 @@ export function renderExpenses(){
       <div class="seg" role="group" aria-label="Period">${periodButtons}</div>
       <span class="fin-period">${periodName(period, now)}</span>
     </div>`;
-  const addBtn = canEdit ? `<button type="button" class="primary-btn" data-expense-add>Add expense</button>` : '';
+  const addBtn = canEdit ? `<span class="exp-head-actions"><button type="button" class="secondary-btn" data-expense-import>Import</button><button type="button" class="primary-btn" data-expense-add>Add expense</button></span>` : '';
+  // The last import, for a week, with Undo (v3.23.7).
+  const last = canEdit ? latestImport(all) : null;
+  const importBanner = last && now - last.importedAt < 7 * 86400000 ? `
+    <div class="exp-import-banner" role="status">
+      <span>Imported ${last.count} expense${last.count === 1 ? '' : 's'}${last.file ? ` from ${escapeHtml(last.file)}` : ''}.</span>
+      <button type="button" class="link-btn" data-expense-undo="${escapeHtml(last.importId)}">Undo</button>
+    </div>` : '';
+  // The IRS allows one method per vehicle per year (soft warning).
+  const year = period === 'all' ? null : new Date(now).getFullYear();
+  const mixNote = year && mixesVehicleMethods(all, year)
+    ? `<p class="fin-note exp-mix-note">${year} has Vehicle Expense both in miles and in dollars. The IRS doesn\u2019t allow both methods for the same vehicle in one year.</p>` : '';
 
   if (expensesState() === 'idle'){
     view.innerHTML = `${head}<section class="panel fin-panel" aria-label="Expenses"><div class="attn-empty" role="status">Loading expenses\u2026</div></section>`;
@@ -100,7 +114,7 @@ export function renderExpenses(){
         <div class="serif-line">No expenses yet.</div>
         <p>Rent, supplies, sourcing trips, subscriptions: record what the business spends so you can see it by category and export it at tax time.</p>
         <p class="exp-empty-note">${ACCRUAL_NOTE}</p>
-        ${addBtn ? `<div class="exp-actions">${addBtn}</div>` : ''}
+        ${canEdit ? `<div class="exp-actions"><button type="button" class="primary-btn" data-expense-add>Add expense</button><button type="button" class="secondary-btn" data-expense-import>Import from a spreadsheet</button></div>` : ''}
       </div>`;
     wire(view);
     return;
@@ -118,7 +132,7 @@ export function renderExpenses(){
         <div class="exp-month-head"><span>${monthName(g.key)}</span><span class="exp-month-total">${money2(g.total)}</span></div>
         ${g.items.map(e => {
           const refund = e.kind === 'refund';
-          const sub = `${dayName(e.date)}${e.description ? ' · ' + escapeHtml(e.description) : ''}`;
+          const sub = `${dayName(e.date)}${e.miles > 0 ? ` \u00b7 ${e.miles} mi` : ''}${e.description ? ' · ' + escapeHtml(e.description) : ''}`;
           const inner = `
             <span class="fin-row-text"><span class="fin-row-name">${escapeHtml(categoryLabel(e.category))}${refund ? ' <span class="exp-tag">Refund</span>' : ''}</span><span class="fin-row-sub">${sub}</span></span>
             <span class="fin-row-num${refund ? ' positive' : ''}">${money2(signedAmount(e))}</span>`;
@@ -130,6 +144,7 @@ export function renderExpenses(){
     : `<div class="attn-empty">No expenses in ${periodName(period, now)}.</div>`;
 
   view.innerHTML = `${head}
+    ${importBanner}
     <section class="panel fin-panel exp-summary" aria-label="Expense total">
       <div class="panel-head">
         <h2 class="panel-title">Total spent</h2>
@@ -137,6 +152,7 @@ export function renderExpenses(){
       </div>
       <div class="fin-big">${money2(sum.total)}<small> · ${sum.count} entr${sum.count === 1 ? 'y' : 'ies'}${sum.refunds ? ` · ${money2(sum.refunds)} refunded` : ''}</small></div>
       <p class="fin-note">${ACCRUAL_NOTE} Net profit on Overview and in the P&amp;L subtracts these.</p>
+      ${mixNote}
     </section>
     <div class="fin-pair">
       <section class="panel fin-panel" aria-label="By category">
@@ -160,6 +176,21 @@ function wire(view){
     renderExpenses();
   }));
   view.querySelectorAll('[data-expense-add]').forEach(btn => btn.addEventListener('click', () => openExpenseEditor(null)));
+  view.querySelectorAll('[data-expense-import]').forEach(btn => btn.addEventListener('click', () => {
+    if (!hooks.canEdit()) return;
+    openExpenseImport({ uid: hooks.uid(), downloadCsv: hooks.downloadCsv, onDone: () => { renderExpenses(); hooks.onChange(); } });
+  }));
+  view.querySelectorAll('[data-expense-undo]').forEach(btn => btn.addEventListener('click', async () => {
+    if (!hooks.canEdit()) return;
+    const last = latestImport(cachedExpenses());
+    if (!last || last.importId !== btn.dataset.expenseUndo) return;
+    if (!confirm(`Remove the ${last.count} expense${last.count === 1 ? '' : 's'} from this import?`)) return;
+    btn.disabled = true;
+    const r = await undoExpenseImport(last.importId);
+    renderExpenses();
+    hooks.onChange();
+    showToast(r.error ? `Removed ${r.deleted.length}; some couldn\u2019t be removed. Try Undo again.` : `Removed ${r.deleted.length} imported expense${r.deleted.length === 1 ? '' : 's'}`);
+  }));
   view.querySelectorAll('[data-expense-edit]').forEach(btn => btn.addEventListener('click', () => {
     const e = cachedExpenses().find(x => x.id === btn.dataset.expenseEdit);
     if (e) openExpenseEditor(e);
@@ -210,11 +241,21 @@ export function openExpenseEditor(expense){
       <div class="exp-fields">
         <label class="goal-field"><span>Date</span>
           <input type="date" class="exp-input" data-k="date" value="${escapeHtml(start.date)}" required></label>
-        <label class="goal-field"><span>Amount</span>
+        <label class="goal-field exp-amount"><span>Amount</span>
           <span class="goal-input"><span class="goal-affix">$</span><input type="text" data-k="amount" inputmode="decimal" autocomplete="off" value="${start.amount ? Number(start.amount).toFixed(2) : ''}" placeholder="0.00"></span></label>
         <label class="goal-field exp-wide"><span>Category</span>
           <select data-k="category">${catOptions}</select></label>
         <p class="exp-cat-hint exp-wide" aria-live="polite">${escapeHtml(hintFor(start.category))}</p>
+        <div class="seg seg-wide exp-mode exp-wide" role="radiogroup" aria-label="Enter as" hidden>
+          <button type="button" class="seg-btn" role="radio" data-mode="dollars">Dollars</button>
+          <button type="button" class="seg-btn" role="radio" data-mode="miles">Miles</button>
+        </div>
+        <div class="exp-miles exp-wide" hidden>
+          <label class="goal-field"><span>Distance</span>
+            <span class="goal-input"><input type="text" data-k="miles" inputmode="decimal" autocomplete="off" value="${start.miles > 0 ? start.miles : ''}" placeholder="0"><span class="goal-affix">mi</span></span></label>
+          <button type="button" class="secondary-btn" data-exp-round>Round trip \u00d72</button>
+          <p class="exp-mile-line" aria-live="polite"></p>
+        </div>
         <label class="goal-field exp-wide"><span>Description <small>(optional)</small></span>
           <input type="text" class="exp-input" data-k="description" maxlength="${MAX_DESCRIPTION}" value="${escapeHtml(start.description || '')}" placeholder="e.g. Poly mailers, 100 pack"></label>
         <p class="exp-date-note exp-wide" aria-live="polite" hidden></p>
@@ -248,9 +289,54 @@ export function openExpenseEditor(expense){
   };
   setKind(kind);
   dlg.querySelectorAll('[data-kind]').forEach(b => b.addEventListener('click', () => setKind(b.dataset.kind)));
+  // Miles (v3.23.7): Sourcing Transportation and Vehicle Expense can be
+  // entered as a distance at the IRS rate of the date.
+  let mode = start.miles > 0 ? 'miles' : 'dollars';
+  const modeSeg = dlg.querySelector('.exp-mode');
+  const milesBox = dlg.querySelector('.exp-miles');
+  const mileLine = dlg.querySelector('.exp-mile-line');
+  const updateMileLine = () => {
+    const m = Number(String(field('miles').value).replace(/[,\s]/g, ''));
+    const date = field('date').value;
+    const r = rateFor(date);
+    mileLine.textContent = m > 0
+      ? mileageLine(m, date) + (r.estimated ? ` \u00b7 the ${date.slice(0, 4)} rate isn\u2019t in the app yet; using ${r.label}.` : '')
+      : `Rate for this date: ${(r.rate * 100) % 1 ? (r.rate * 100).toFixed(1) : Math.round(r.rate * 100)}\u00a2 per mile (${r.label}).`;
+  };
+  const applyMode = () => {
+    const can = isMileageCategory(field('category').value);
+    if (!can) mode = 'dollars';
+    modeSeg.hidden = !can;
+    const miles = mode === 'miles';
+    milesBox.hidden = !miles;
+    dlg.querySelector('.exp-amount').hidden = miles;
+    dlg.querySelector('.exp-kind').hidden = miles;
+    dlg.querySelector('.exp-kind-hint').hidden = miles;
+    if (miles && kind === 'refund') setKind('expense');
+    dlg.querySelectorAll('[data-mode]').forEach(b => {
+      const on = b.dataset.mode === mode;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-checked', on ? 'true' : 'false');
+    });
+    if (miles) updateMileLine();
+  };
+  dlg.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => {
+    mode = b.dataset.mode;
+    applyMode();
+    (mode === 'miles' ? field('miles') : field('amount')).focus();
+  }));
+  field('miles').addEventListener('input', updateMileLine);
+  field('date').addEventListener('change', () => { if (mode === 'miles') updateMileLine(); });
+  dlg.querySelector('[data-exp-round]').addEventListener('click', () => {
+    const m = Number(String(field('miles').value).replace(/[,\s]/g, ''));
+    if (m > 0){ field('miles').value = String(Math.round(m * 2 * 10) / 10); updateMileLine(); }
+    field('miles').focus();
+  });
   field('category').addEventListener('change', () => {
     dlg.querySelector('.exp-cat-hint').textContent = hintFor(field('category').value);
+    applyMode();
   });
+  applyMode();
   // A future date is allowed (rent paid ahead) but said out loud (v3.23.5).
   const dateNote = dlg.querySelector('.exp-date-note');
   const checkDate = () => {
@@ -273,6 +359,7 @@ export function openExpenseEditor(expense){
     const check = validateExpense({
       date: field('date').value, category: field('category').value,
       amount: field('amount').value, description: field('description').value, kind,
+      ...(mode === 'miles' ? { miles: field('miles').value } : {}),
     });
     if (!check.ok){
       const f = field(check.field);
@@ -290,6 +377,8 @@ export function openExpenseEditor(expense){
       saved.textContent = `Saved ${money2(signedAmount(result))} · ${categoryLabel(result.category)}.`;
       saved.hidden = false;
       field('amount').value = '';
+      field('miles').value = '';
+      if (mode === 'miles') updateMileLine();
       field('description').value = '';
       setKind('expense');
       field('amount').focus();
@@ -318,5 +407,5 @@ export function openExpenseEditor(expense){
   });
   dlg.addEventListener('close', () => dlg.remove());
   dlg.showModal();
-  (editing ? field('amount') : field('category')).focus();
+  (editing ? field(mode === 'miles' ? 'miles' : 'amount') : field('category')).focus();
 }

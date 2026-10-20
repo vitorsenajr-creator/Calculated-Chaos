@@ -196,6 +196,31 @@ renaming them needs a data migration of every saved item.
     missing costs shows "N missing cost" and a Missing cost filter. After
     a save `onDataChange` redraws everything. `ui/toast.js` is the shared
     `showToast()` (Expenses and Sales).
+  - `domain/mileage.js`: trips at the IRS standard business rate
+    (v3.23.7). `MILEAGE_RATES` is a fixed, dated table (decided with
+    Vitor 2026-10-20: no per-business override): 2023 65.5¢, 2024 67¢,
+    2025 70¢, 2026 72.5¢ through June 30 and 76¢ from July 1
+    (Announcement 2026-11). **Add each new IRS rate when it's
+    announced**; a date past the table uses the last rate and says so.
+    Only Sourcing Transportation and Vehicle Expense take miles; a trip
+    saves `miles`, `rate` and `amount`, so a later table change never
+    moves it. A year with Vehicle Expense in both miles and dollars
+    shows a soft IRS warning.
+  - `domain/expense-import.js` + `ui/finance/expense-import-view.js`:
+    the expense CSV/Excel import (v3.23.7), from the Expenses tab only.
+    Steps file → columns → category words → preview → save. Reuses the
+    spreadsheet import's readers (`parseMoney`, `parseDate` with
+    day/month order, `findHeaderRow`, `platform/sheetjs.js`). Category
+    words match labels, keys, Nifty's codes and everyday words; unknown
+    words are mapped by the person (or "Skip (personal)", default
+    Other); inventory words suggest Skip (accrual). A negative amount is
+    a refund; a distance with no amount is a trip at the rate of its
+    date. Possible duplicates (same date, category, kind and amount as a
+    saved expense or an earlier row) start unticked. Saved in batches of
+    400 (`saveExpenseBatches`, Continue without duplicates), each doc
+    with `importId`, `importFile`, `importedAt`; the Expenses tab shows
+    the last import for a week with Undo (`undoExpenseImport`). Limit
+    5,000 rows. The list export has Miles and Rate per mile columns.
   - `ui/lightbox.js`: `openLightbox(photos, index)`; its state is private.
   - `ui/label-render.js`: label preview markup + canvas drawing.
   - `ui/labels/`: print modal (`openBatchLabelModal`), Quick Labels,
@@ -400,6 +425,23 @@ renaming them needs a data migration of every saved item.
 
 Last known status per the v3.13 notes. Confirm with Vitor before relying
 on any of these:
+- Mileage and expense import (v3.23.7): Node test (11 cases: the IRS
+  rate by date incl. July 1, 2026 and dates outside the table, amounts
+  and the rate line, miles validation, the mixed-method warning, CSV
+  miles columns, header matching incl. bank-style and Portuguese, the
+  category words, rows → expenses with refund, trip, errors, skip,
+  unknown → Other and duplicates, day-first files, docs with the import
+  id, the template reading back), Chromium test with a stubbed Firebase
+  and a CSV-only SheetJS stand-in (9 checks: miles only for the two
+  categories, round trip, the rate following the date, saved fields,
+  editing a trip and switching to dollars, the warning, template
+  download, the footer line ignored, column matching, category mapping,
+  preview counts, 4 docs saved with import fields, banner, Undo, a
+  failed second batch continued with no duplicates), every earlier
+  suite rerun, detector unchanged, screenshots in the three themes,
+  clean build. Unconfirmed: real bank exports and .xlsx files (the
+  real SheetJS), writeBatch and the `importId` query against the real
+  Firestore and rules.
 - Sales list and cost editing (v3.23.6): Node test (7 cases: missing =
   empty only, counts per month, month order incl. an old sale without
   `soldAt`, row shape, footer totals = `monthlyTotals`, the recompute =
@@ -664,6 +706,16 @@ on any of these:
 
 ## Pending changelog entry (since v3.23.0)
 
+- v3.23.7: Mileage and expense import (Nifty P2, fourth part; item 1 is
+  complete). Sourcing trips and vehicle use can be entered in miles: the
+  app applies the IRS rate for the date (76¢ from July 1, 2026, 72.5¢
+  before) and keeps the miles and rate with the expense; a "Round trip"
+  button doubles the distance. Expenses can be imported from a CSV or
+  Excel file (a bank export, Nifty's format or the app's own template):
+  the app matches the columns and category words, asks about the words
+  it doesn't know (or skips personal rows), previews the totals, flags
+  possible duplicates, and saves with progress, Continue and Undo.
+
 - v3.23.6: Sales list (Nifty P2, third part). Finances → Months is now
   Sales: open a month to see each sale with its price, fees, item cost,
   shipping, other costs and profit (a table on a computer, cards on a
@@ -885,8 +937,10 @@ in `docs/nifty-review.md`):
    sales profit plus an after-expenses line, Vitor 2026-10-20); the Sales
    list with cost editing (done in v3.23.6: Months renamed Sales, bottom
    sheet on phones, typed 0 = known cost, the missing tag per month
-   only, Vitor 2026-10-20); next, mileage at the IRS rate (check the
-   2026 mid-year rate change with the IRS) and expense CSV import.
+   only, Vitor 2026-10-20); mileage and expense import (done in
+   v3.23.7: miles for Sourcing Transportation and Vehicle Expense, a
+   fixed IRS table, the import from the Expenses tab only with a
+   category-word step, Vitor 2026-10-20). Item 1 is complete.
 2. AI custom instructions and a description footer for ✨ (server-built
    prompt; pairs with backlog items 1 and 2).
 3. Pricing rules per platform (needs a price per platform everywhere;
