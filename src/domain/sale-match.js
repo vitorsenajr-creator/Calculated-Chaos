@@ -141,13 +141,20 @@ export function matchSaleLine(line, items){
 // lines with no item. Two sales of one code take different copies while
 // there are unsold ones left; two lines left on one item are flagged
 // (sold twice).
+// A line already recorded as sold from Pick (v3.24.4) stays on the item it
+// was recorded on, whatever matching would say now.
 export function buildPickList(lines, items, chosen = {}){
   const byId = new Map((items || []).map(i => [i.id, i]));
+  const recordedBy = new Map((items || []).filter(i => i.saleLineKey).map(i => [i.saleLineKey, i]));
   const used = new Set();
-  const rows = (lines || []).map(line => {
+  const rows = (lines || []).map(original => {
+    let line = original;
     let match = matchSaleLine(line, items);
     const pickedId = chosen[line.key];
-    if (pickedId && byId.has(pickedId) && (!match.item || match.item.id !== pickedId)){
+    const rec = recordedBy.get(line.key);
+    if (rec){
+      match = { ...match, item: rec, how: match.item && match.item.id === rec.id ? match.how : 'manual', confidence: 'exact', score: 1 };
+    } else if (pickedId && byId.has(pickedId) && (!match.item || match.item.id !== pickedId)){
       match = { ...match, item: byId.get(pickedId), how: 'manual', confidence: 'exact', score: 1 };
     } else if (match.item && used.has(match.item.id)){
       const free = match.pool.find(i => !used.has(i.id));
@@ -155,12 +162,17 @@ export function buildPickList(lines, items, chosen = {}){
     }
     if (match.item) used.add(match.item.id);
     const item = match.item;
+    const recorded = !!rec;
+    // A recorded piece shows the platform it was recorded with.
+    if (recorded && !line.platform && item.soldPlatform) line = { ...line, platform: item.soldPlatform };
     // With the platform unknown, every platform it's listed on is shown,
-    // never "delist it there" for the one it may have sold on.
-    const listedElsewhere = item && !isSold(item)
-      ? (item.listedPlatforms || []).filter(p => p !== line.platform)
+    // never "delist it there" for the one it may have sold on. A piece
+    // recorded here still lists where to delist it.
+    const soldOn = recorded ? item.soldPlatform : line.platform;
+    const listedElsewhere = item && (!isSold(item) || recorded)
+      ? (item.listedPlatforms || []).filter(p => p !== soldOn && !(p === 'ebay' && item.ebayEndedAt))
       : [];
-    return { line, match, item, alreadySold: isSold(item), listedElsewhere, platformUnknown: !line.platform, soldTwice: false };
+    return { line, match, item, recorded, alreadySold: isSold(item) && !recorded, listedElsewhere, platformUnknown: !soldOn, soldTwice: false };
   });
   const perItem = new Map();
   rows.forEach(r => { if (r.item) perItem.set(r.item.id, (perItem.get(r.item.id) || 0) + 1); });

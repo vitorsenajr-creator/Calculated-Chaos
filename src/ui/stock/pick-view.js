@@ -9,6 +9,7 @@ import { saleLines, buildPickList, matchSaleLine, boxTitle } from '../../domain/
 import { prepareScreenshot } from '../../platform/images.js';
 import { printHtml } from '../../platform/print.js';
 import { pickSheetHtml, SHEET_IN } from './pick-print.js';
+import { openMarkSold, sellableRows } from './pick-sold.js';
 
 const SESSION_KEY = 'cc.pick.session';
 const MAX_SHOTS = 20;
@@ -17,6 +18,9 @@ let hooks = {
   readSaleScreenshot: async () => ({ ok: false, message: 'Not available.' }),
   platformLabel: (k) => k,
   platformKeys: () => [],
+  fee: () => 0,
+  markSold: async () => ({ ok: false }),
+  onChange: () => {},
   openItem: () => {},
   searchCatalog: () => {},
 };
@@ -112,6 +116,7 @@ async function readShot(id){
 
 let flashText = '';
 let lastList = null; // the pick list on screen, for Print checklist
+let lastLines = [];   // and its lines, for Mark sold's order fees
 function flash(text){ flashText = text; renderPick(); }
 
 function shotSummary(shot){
@@ -137,6 +142,10 @@ function matchBadge(r){
 
 function rowNotes(r){
   const notes = [];
+  if (r.recorded){
+    const it = r.item;
+    notes.push(`<span class="pick-ok">Recorded as sold: ${money(it.soldPrice || 0)}${it.soldPlatform ? ` on ${escapeHtml(hooks.platformLabel(it.soldPlatform))}` : ''}, profit ${money(it.netProfit || 0)}.</span>`);
+  }
   if (r.match.skuNotFound) notes.push(`SKU ${escapeHtml(r.line.sku)} isn't a code in the catalog. Check this is the right piece.`);
   else if (r.match.how === 'name' && r.match.confidence !== 'high') notes.push('Check this is the right piece.');
   if (r.alreadySold) notes.push('Already marked sold in the app.');
@@ -148,7 +157,7 @@ function rowNotes(r){
       : `Still listed on ${where}. Delist it there.`);
   }
   if (r.line.partial) notes.push('Part of this line was cut off in the screenshot.');
-  return notes.map(n => `<div class="pick-note">${n}</div>`).join('');
+  return notes.map(n => n.startsWith('<span class="pick-ok">') ? `<div class="pick-note ok">${n}</div>` : `<div class="pick-note">${n}</div>`).join('');
 }
 
 function saleLine(line){
@@ -250,6 +259,9 @@ export function renderPick(){
   const { lines, skipped } = saleLines(done.map(s => ({ source: s.id, result: s.result })), st.platforms);
   const pl = buildPickList(lines, items, st.chosen);
   lastList = pl;
+  lastLines = lines;
+  const sellable = sellableRows(pl).length;
+  const recorded = pl.boxes.flatMap(b => b.rows).filter(r => r.recorded).length;
   const picked = new Set(st.picked);
   const pickedCount = lines.filter(l => picked.has(l.key)).length;
 
@@ -308,8 +320,9 @@ export function renderPick(){
         <span>${pickedCount} of ${lines.length} picked</span>
       </div>
       <div class="pick-print-row">
+        ${sellable ? `<button type="button" class="primary-btn" id="pickSoldBtn">Mark sold (${sellable})</button>` : ''}
         <button type="button" class="secondary-btn" id="pickPrintBtn">Print checklist</button>
-        <span class="pick-hint">100 × 210 mm label, black only</span>
+        ${recorded ? `<span class="pick-hint">${plural(recorded, 'sale')} recorded</span>` : ''}
       </div>
     </section>` : '';
 
@@ -374,6 +387,9 @@ function wire(pane){
     save();
     renderPick();
   }));
+  pane.querySelector('#pickSoldBtn')?.addEventListener('click', () => {
+    if (lastList) openMarkSold(lastList, lastLines, hooks);
+  });
   // Synchronous inside the click: iOS Safari drops print() after an await.
   pane.querySelector('#pickPrintBtn')?.addEventListener('click', () => {
     if (!lastList) return;
