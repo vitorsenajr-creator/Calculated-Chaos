@@ -888,6 +888,44 @@
   .box-name{font-size:15px; font-weight:700;}
   .box-count{font-size:13px; color:var(--ink-2);}
 
+  /* Stock → Pick (v3.24.2) */
+  .pick-add{display:inline-flex; align-items:center; min-height:44px; position:relative;}
+  .pick-add:focus-within{outline:2px solid var(--brand-2); outline-offset:2px;}
+  .pick-hint{margin:0; font-size:12.5px; color:var(--ink-2);}
+  .pick-flash{margin:0; font-size:13.5px; color:var(--warn-ink); background:var(--warn-bg); padding:8px 10px; border-radius:var(--radius-sm);}
+  .pick-shots{list-style:none; margin:0; padding:0; display:flex; flex-direction:column;}
+  .pick-shot{display:flex; align-items:center; gap:4px; padding:4px 0; border-top:1px solid var(--line-soft); font-size:13.5px;}
+  .pick-shot-text{flex:1; min-width:0; display:flex; flex-direction:column; gap:1px;}
+  .pick-shot-name{font-weight:600; overflow-wrap:anywhere;}
+  .pick-shot-state{color:var(--ink-2);}
+  .pick-shot-state.warn{color:var(--warn-ink);}
+  .pick-shot .row-btn{min-height:40px;}
+  .pick-progress{display:flex; align-items:center; gap:10px; padding:0 14px 14px; font-size:13.5px; color:var(--ink-2);}
+  .pick-progress progress{flex:1; height:10px; accent-color:var(--brand-2);}
+  .pick-row{display:flex; align-items:flex-start; gap:10px; padding:10px 6px 10px 14px; border-top:1px solid var(--line-soft);}
+  .pick-row.done .pick-main, .pick-row.done .pick-thumb{opacity:0.55;}
+  .pick-row.done .pick-title{text-decoration:line-through;}
+  .pick-check{display:flex; align-items:center; justify-content:center; min-width:44px; min-height:44px; margin:-4px 0 0 -10px; cursor:pointer;}
+  .pick-check input{width:22px; height:22px; accent-color:var(--brand-2); cursor:pointer;}
+  .pick-thumb{width:56px; height:56px; flex-shrink:0; border-radius:var(--radius-sm); object-fit:cover; background:var(--surface-2);}
+  .pick-thumb.empty{display:block;}
+  .pick-main{flex:1; min-width:0; display:flex; flex-direction:column; gap:3px;}
+  .pick-top{display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+  .pick-code{font-weight:700; font-size:15px; font-variant-numeric:tabular-nums;}
+  .pick-badge{font-size:11.5px; font-weight:600; padding:1px 6px; border-radius:var(--radius-sm); background:var(--surface-2); color:var(--ink);}
+  .pick-badge.ok{color:var(--ok);}
+  .pick-badge.warn{background:var(--warn-bg); color:var(--warn-ink);}
+  .pick-title{font-size:14px; overflow-wrap:anywhere;}
+  .pick-sub{font-size:12.5px; color:var(--ink-2); overflow-wrap:anywhere;}
+  .pick-note{font-size:12.5px; color:var(--warn-ink); background:var(--warn-bg); padding:4px 8px; border-radius:var(--radius-sm); margin-top:2px;}
+  .pick-alts{display:flex; gap:6px; flex-wrap:wrap; margin-top:4px;}
+  .pick-alt{
+    font:500 12.5px var(--font-ui); min-height:36px; padding:0 10px; border-radius:999px; cursor:pointer;
+    border:1px solid var(--line); background:var(--surface); color:var(--brand-2); max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .pick-alt:hover{border-color:var(--brand-2);}
+  .pick-empty{border:1px solid var(--line); border-radius:var(--radius); background:var(--surface);}
+
   /* ---------- SEARCH & FILTERS ---------- */
   .catalog-head{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px;}
   .search-row{display:flex; gap:8px; margin-bottom:10px;}

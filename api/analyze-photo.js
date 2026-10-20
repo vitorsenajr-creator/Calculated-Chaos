@@ -4,7 +4,7 @@
 //
 // The single AI endpoint for an item (v3.13.115) — replaces the old
 // analyze-photo + generate-listing pair (generate-listing.js was removed,
-// freeing one of the Hobby plan's 12 function slots). Two modes:
+// freeing one of the Hobby plan's 12 function slots). Its modes:
 //  - mode:'full'         → photos required; the "✨ Analyze & write listing"
 //                          call (identification + eBay specifics + price +
 //                          visual facts + listing copy, one request).
@@ -15,6 +15,9 @@
 //                          (v3.23.2, src/modules/ai-import.js). Only the
 //                          headers, up to 10 sample rows and the distinct
 //                          words are sent, each clipped.
+//  - mode:'sale_screenshot' → exactly one screenshot of a sale (Stock →
+//                          Pick, v3.24.2, src/modules/ai-sale-screenshot.js);
+//                          returns the orders and items it shows, with SKUs.
 // The prompt and the JSON schema are built HERE (v3.15.3) from the item
 // data the browser sends (`input`), using the pure builders in
 // src/modules/ai-item.js. A prompt or schema sent by the browser is ignored,
@@ -23,6 +26,7 @@
 import { requireApprovedUser } from './_requireApprovedUser.js';
 import { buildItemAiRequest } from '../src/modules/ai-item.js';
 import { buildImportMapRequest } from '../src/modules/ai-import.js';
+import { buildSaleScreenshotRequest } from '../src/modules/ai-sale-screenshot.js';
 
 const MAX_IMAGES = 5;
 const IMAGE_MEDIA_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
@@ -51,19 +55,24 @@ function sanitizeImageBlocks(raw){
 // toward max_tokens, so the limits leave room for it on top of the JSON.
 const MODEL = 'claude-sonnet-5-5';
 const EFFORT = 'low';
-const MAX_TOKENS = { full: 16000, listing_only: 8000, import_map: 8000 };
+const MAX_TOKENS = { full: 16000, listing_only: 8000, import_map: 8000, sale_screenshot: 8000 };
+// Reading a sale screenshot is plain text reading, so it runs on Haiku 5.5
+// (v3.24.2), much cheaper per screenshot. Haiku has no server-side refusal
+// fallback, so it's sent without one.
+const MODE_MODEL = { sale_screenshot: { model: 'claude-haiku-5-5', fallbacks: false } };
 
-async function callAnthropic(apiKey, { content, maxTokens, outputSchema }){
+async function callAnthropic(apiKey, { mode, content, maxTokens, outputSchema }){
+  const cfg = MODE_MODEL[mode] || { model: MODEL, fallbacks: true };
   const body = {
-    model: MODEL,
+    model: cfg.model,
     max_tokens: maxTokens,
     thinking: { type: 'adaptive' },
     output_config: { effort: EFFORT },
-    // If a safety classifier declines the request, the API re-runs it on
-    // Anthropic's recommended fallback model in the same call.
-    fallbacks: 'default',
     messages: [{ role: 'user', content }],
   };
+  // If a safety classifier declines the request, the API re-runs it on
+  // Anthropic's recommended fallback model in the same call.
+  if (cfg.fallbacks) body.fallbacks = 'default';
   if (outputSchema){
     body.output_config.format = { type: 'json_schema', schema: outputSchema };
   }
@@ -73,7 +82,7 @@ async function callAnthropic(apiKey, { content, maxTokens, outputSchema }){
       'Content-Type': 'application/json',
       'x-api-key': apiKey,
       'anthropic-version': '2023-06-01',
-      'anthropic-beta': 'server-side-fallback-2026-07-01'
+      ...(cfg.fallbacks ? { 'anthropic-beta': 'server-side-fallback-2026-07-01' } : {})
     },
     body: JSON.stringify(body)
   });
@@ -111,7 +120,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: `Unknown mode: ${mode}` });
   }
   const safeImageBlocks = sanitizeImageBlocks(imageBlocks);
-  if (mode === 'full' && safeImageBlocks.length === 0) {
+  if ((mode === 'full' || mode === 'sale_screenshot') && safeImageBlocks.length === 0) {
     return res.status(400).json({ error: 'No images provided.' });
   }
   if (!input || typeof input !== 'object') {
@@ -120,19 +129,22 @@ export default async function handler(req, res) {
   if (mode === 'import_map' && !(Array.isArray(input.headers) && input.headers.length)) {
     return res.status(400).json({ error: 'No columns provided.' });
   }
-  const { promptText, schema } = mode === 'import_map' ? buildImportMapRequest(input) : buildItemAiRequest(mode, input);
-  // The import sends no photos.
+  const { promptText, schema } = mode === 'import_map' ? buildImportMapRequest(input)
+    : mode === 'sale_screenshot' ? buildSaleScreenshotRequest(input)
+    : buildItemAiRequest(mode, input);
+  // The import sends no photos; a sale screenshot is read one at a time.
   if (mode === 'import_map') safeImageBlocks.length = 0;
+  if (mode === 'sale_screenshot') safeImageBlocks.length = 1;
 
   try {
     const content = [...safeImageBlocks, { type: 'text', text: promptText }];
     let structured = !!schema;
-    let { response, data } = await callAnthropic(apiKey, { content, maxTokens: MAX_TOKENS[mode], outputSchema: schema });
+    let { response, data } = await callAnthropic(apiKey, { mode, content, maxTokens: MAX_TOKENS[mode], outputSchema: schema });
 
     if (structured && isStructuredOutputRejection(response, data)) {
       console.warn('Structured output rejected, retrying without it:', JSON.stringify(data?.error || data));
       structured = false;
-      ({ response, data } = await callAnthropic(apiKey, { content, maxTokens: MAX_TOKENS[mode], outputSchema: null }));
+      ({ response, data } = await callAnthropic(apiKey, { mode, content, maxTokens: MAX_TOKENS[mode], outputSchema: null }));
     }
 
     if (!response.ok) {

@@ -55,6 +55,7 @@ import { loadEbaySales, cachedEbaySales } from './data/ebay-sales-store.js';
 import { initImportView, openImport } from './ui/import/import-view.js';
 import { initHomeView, renderHome } from './ui/home/home-view.js';
 import { initStockView, renderStock } from './ui/stock/stock-view.js';
+import { initPickView } from './ui/stock/pick-view.js';
 import { initFinanceView, renderFinance } from './ui/finance/finance-view.js';
 import { initExpensesView, renderExpenses, exportExpensesCsv } from './ui/finance/expenses-view.js';
 import { initPnlView, exportPnlCsv } from './ui/finance/pnl-view.js';
@@ -1559,6 +1560,24 @@ export const app = (function(){
     btn.addEventListener('click', () => switchToTab(btn.dataset.tab));
   });
   initStockView({ openCatalog: openCatalogWith });
+  function pickPlatformLabel(key){
+    const custom = getAllPlatforms().find(p => p.key === key);
+    return PLATFORM_NAME[key] || (custom ? String(custom.label).replace(/^[^\p{L}\p{N}]+/u, '') : key);
+  }
+  // Stock → Pick (v3.24.2): one AI call per sale screenshot, counted by
+  // the AI usage counter like ✨; refused when the counter is used up.
+  initPickView({
+    readSaleScreenshot: async (imageBlock) => {
+      if (aiUsageRemaining() <= 0) return { ok: false, skipped: true, message: 'the AI usage limit for this period is used up.' };
+      const platforms = getAllPlatforms().map(p => ({ key: p.key, label: pickPlatformLabel(p.key) }));
+      const r = await callAiItemEndpoint({ mode: 'sale_screenshot', imageBlocks: [imageBlock], input: { platforms } });
+      if (r.ok) await incrementAiUsage();
+      return r;
+    },
+    platformLabel: (key) => pickPlatformLabel(key),
+    openItem: (id) => { const item = items.find(i => i.id === id); if (item) openModal(item); },
+    searchCatalog: (text) => { searchQuery = text; openCatalogWith({ notSold: true }); },
+  });
   initFinanceView({
     projectedProfit,
     platformLabel: (key) => PLATFORM_NAME[key] || getPlatformLabel(key),

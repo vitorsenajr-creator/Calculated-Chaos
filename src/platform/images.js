@@ -35,3 +35,66 @@ export function shrinkImageToDataUrl(file, maxPx = 256){
     img.src = url;
   });
 }
+
+// A sale screenshot for the AI (Stock → Pick, v3.24.2). Drops the plain
+// bands at the top and bottom (a phone screenshot of a short page is often
+// mostly black), then shrinks it so the longer side is at most `maxPx`:
+// the model reads text best near that size, and a 2,000 px tall phone
+// screenshot shrunk to fit 1,000 px (the item photos' size) gets hard to
+// read. Returns { dataUrl, mediaType, base64 }.
+export function prepareScreenshot(file, maxPx = 1568){
+  return new Promise((resolve, reject) => {
+    if (!file || !/^image\//.test(file.type)){
+      reject(new Error('Pick a screenshot (PNG or JPG).'));
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const w = img.naturalWidth, h = img.naturalHeight;
+      if (!w || !h){ reject(new Error("That screenshot couldn't be read.")); return; }
+      const full = document.createElement('canvas');
+      full.width = w; full.height = h;
+      const fctx = full.getContext('2d', { willReadFrequently: true });
+      fctx.drawImage(img, 0, 0);
+      const { top, bottom } = contentRows(fctx, w, h);
+      const ch = bottom - top + 1;
+      const scale = Math.min(1, maxPx / Math.max(w, ch));
+      const out = document.createElement('canvas');
+      out.width = Math.max(1, Math.round(w * scale));
+      out.height = Math.max(1, Math.round(ch * scale));
+      const octx = out.getContext('2d');
+      octx.imageSmoothingQuality = 'high';
+      octx.drawImage(full, 0, top, w, ch, 0, 0, out.width, out.height);
+      const dataUrl = out.toDataURL('image/jpeg', 0.88);
+      resolve({ dataUrl, mediaType: 'image/jpeg', base64: dataUrl.slice(dataUrl.indexOf(',') + 1) });
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("That screenshot couldn't be read. Try a PNG or JPG."));
+    };
+    img.src = url;
+  });
+}
+
+// First and last rows that aren't one flat color (sampled across the row).
+function contentRows(ctx, w, h){
+  const data = ctx.getImageData(0, 0, w, h).data;
+  const step = Math.max(1, Math.floor(w / 64));
+  const flat = (y) => {
+    const o = y * w * 4;
+    const r = data[o], g = data[o + 1], b = data[o + 2];
+    for (let x = step; x < w; x += step){
+      const p = o + x * 4;
+      if (Math.abs(data[p] - r) + Math.abs(data[p + 1] - g) + Math.abs(data[p + 2] - b) > 24) return false;
+    }
+    return true;
+  };
+  let top = 0, bottom = h - 1;
+  while (top < bottom && flat(top)) top++;
+  while (bottom > top && flat(bottom)) bottom--;
+  // A blank image keeps its full height; otherwise leave a little margin.
+  if (bottom - top < 8) return { top: 0, bottom: h - 1 };
+  return { top: Math.max(0, top - 8), bottom: Math.min(h - 1, bottom + 8) };
+}

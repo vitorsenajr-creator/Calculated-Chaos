@@ -74,11 +74,13 @@
       <div id="stockView" style="display:none;">
         <h1 class="screen-title">Stock</h1>
         <div class="subtabs" role="tablist" aria-label="Stock">
+          <button type="button" class="subtab" role="tab" data-stock-section="pick">Pick</button>
           <button type="button" class="subtab" role="tab" data-stock-section="labels">Labels</button>
           <button type="button" class="subtab" role="tab" data-stock-section="transfer">Transfer</button>
           <button type="button" class="subtab" role="tab" data-stock-section="boxes">Boxes</button>
           <button type="button" class="subtab" role="tab" data-stock-section="markers">Wall markers</button>
         </div>
+        <div id="stockPane-pick" class="stock-pane" hidden></div>
         <div id="stockPane-labels" class="stock-pane">
           <section class="panel stock-form">
             <h2 class="panel-title">Quick labels</h2>
