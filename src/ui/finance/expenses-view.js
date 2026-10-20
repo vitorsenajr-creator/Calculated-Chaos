@@ -5,6 +5,7 @@
 // Only the owner reaches Finances; canEdit() is checked again before any
 // write.
 import { escapeHtml } from '../../modules/format-utils.js';
+import { showToast } from '../toast.js';
 import {
   EXPENSE_CATEGORIES, EXPENSE_PERIODS, MAX_DESCRIPTION, categoryLabel, isoDate,
   validateExpense, signedAmount, expensesInPeriod, summarizeExpenses, groupByMonth, expenseCsvRows,
@@ -184,22 +185,6 @@ function exportPeriodCsv(){
 // Every expense, all time (Reports → Export → All expenses).
 export function exportExpensesCsv(){
   hooks.downloadCsv(`calculated-chaos-expenses-${isoDate(Date.now())}.csv`, expenseCsvRows(cachedExpenses()));
-}
-
-// A short confirmation after the dialog closes (v3.23.5). Tokens only.
-function showToast(text){
-  let t = document.getElementById('expToast');
-  if (!t){
-    t = document.createElement('div');
-    t.id = 'expToast';
-    t.className = 'exp-toast';
-    t.setAttribute('role', 'status');
-    document.body.appendChild(t);
-  }
-  t.textContent = text;
-  t.classList.add('show');
-  clearTimeout(t._timer);
-  t._timer = setTimeout(() => t.classList.remove('show'), 2200);
 }
 
 // ---------- EDITOR ----------

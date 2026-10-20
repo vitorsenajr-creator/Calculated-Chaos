@@ -1569,6 +1569,7 @@ export const app = (function(){
       if (item){ switchToTab('catalog'); openModal(item); }
     },
     wireExports: wireReportButtons,
+    onDataChange: () => renderAll(),
   });
   initExpensesView({
     canEdit: () => currentUserRole !== 'employee',

@@ -11,6 +11,8 @@ import { computeFinanceOverview, monthlyTotals, monthLabel, FINANCE_PERIODS } fr
 import { expensesForPeriod } from '../../domain/profit-loss.js';
 import { cachedExpenses, expensesState } from '../../data/expense-store.js';
 import { renderPnl, setPnlPeriodFromOverview } from './pnl-view.js';
+import { missingCostByMonth } from '../../domain/sales-ledger.js';
+import { salesListHtml, wireSalesList } from './sales-list.js';
 
 // Its own period, separate from Home's (Vitor, 2026-10-20).
 const PERIOD_KEY = 'cc.finance.period';
@@ -23,6 +25,8 @@ let hooks = {
   openTab: () => {},
   openItem: () => {},
   wireExports: () => {},
+  // Redraws every screen that shows profit after a cost edit (v3.23.6).
+  onDataChange: () => {},
 };
 
 // The month opened in the Months list (one at a time).
@@ -259,13 +263,16 @@ function renderOverview(){
   }));
 }
 
-// ---------- MONTHS ----------
+// ---------- SALES (was Months) ----------
 // One row per month; the open one shows the full breakdown, the same
-// numbers the old Finances screen showed.
+// numbers the old Finances screen showed, and since v3.23.6 the list of
+// its sales with cost editing (ui/finance/sales-list.js). A month with
+// sales that have no item cost carries an amber "N missing cost" tag.
 function renderMonths(){
   const view = document.getElementById('monthsView');
   if (!view) return;
   const months = monthlyTotals(items);
+  const missing = missingCostByMonth(items);
   if (months.length === 0){
     view.innerHTML = `<div class="empty-state">
       <div class="serif-line">Nothing sold just yet.</div>
@@ -288,16 +295,17 @@ function renderMonths(){
     return `
       <div class="month-item${open ? ' open' : ''}" data-month-row="${m.key}">
         <button type="button" class="month-row" data-month-toggle="${m.key}" aria-expanded="${open}">
-          <span class="month-row-name">${monthLabel(m.key, { long: true })}<small>${m.count} sold</small></span>
+          <span class="month-row-name">${monthLabel(m.key, { long: true })}<small>${m.count} sold${missing[m.key] ? ` <span class="missing-tag">${missing[m.key]} missing cost</span>` : ''}</small></span>
           <span class="month-row-cell"><small>Revenue</small>${money(m.revenue)}</span>
           <span class="month-row-cell${m.profit >= 0 ? '' : ' negative'}"><small>Sales profit</small>${money(m.profit)}</span>
           <span class="month-row-cell"><small>Margin</small>${m.margin.toFixed(0)}%</span>
           <svg class="month-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
         </button>
-        ${open ? detail(m) : ''}
+        ${open ? detail(m) + salesListHtml(m.key, { platformLabel: hooks.platformLabel }) : ''}
       </div>`;
   }).join('');
-  view.innerHTML = `<section class="panel months-list" aria-label="Months">${rows}</section>`;
+  view.innerHTML = `<section class="panel months-list" aria-label="Sales by month">${rows}</section>`;
+  if (openMonth) wireSalesList(view, openMonth, { rerender: renderMonths, onChange: hooks.onDataChange, openItem: hooks.openItem });
   view.querySelectorAll('[data-month-toggle]').forEach(btn => btn.addEventListener('click', () => {
     openMonth = openMonth === btn.dataset.monthToggle ? null : btn.dataset.monthToggle;
     renderMonths();
