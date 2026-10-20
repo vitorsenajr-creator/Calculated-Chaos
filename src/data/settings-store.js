@@ -66,6 +66,22 @@ export async function saveSettings(){
   }catch(e){ console.error('Failed to save settings', e); }
 }
 
+// Saves only the given fields (v3.22.3, Goals), merged into the saved
+// copy, and keeps them in memory. Writing just these fields means a
+// session whose settings read failed can't overwrite the rest with
+// defaults. Returns false when the write fails, so the caller can say so.
+export async function saveSettingsFields(fields){
+  try{
+    const { setDoc } = window.firestoreFns;
+    await setDoc(bizDoc('config', 'settings'), fields, { merge: true });
+    Object.assign(appSettings, fields);
+    return true;
+  }catch(e){
+    console.error('Failed to save settings', e);
+    return false;
+  }
+}
+
 async function checkScheduledReset(){
   if (isScheduledResetDue(appSettings)) await resetAiCounter('scheduled');
 }

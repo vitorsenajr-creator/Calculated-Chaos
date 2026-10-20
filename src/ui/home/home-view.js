@@ -9,6 +9,7 @@ import { escapeHtml } from '../../modules/format-utils.js';
 import { computeHomeSummary, HOME_PERIODS } from '../../domain/home-summary.js';
 import { shelfByTag, pinkTagStock } from '../../domain/week-tags.js';
 import { currentTheme } from '../theme.js';
+import { goalsPanelHtml, wireGoalsPanel } from './goals-panel.js';
 
 const PERIOD_KEY = 'cc.home.period';
 const DISMISSED_KEY = 'cc.home.dismissed';
@@ -23,6 +24,7 @@ let hooks = {
   openCatalog: () => {},
   openTab: () => {},
   finishDrafts: () => {},
+  canEditGoals: () => false,
 };
 
 export function initHomeView(h){
@@ -154,6 +156,8 @@ export function renderHome(){
       <div class="seg" role="group" aria-label="Period">${periodButtons}</div>
     </div>
     ${dailyMessage ? `<p class="daily-line">${escapeHtml(dailyMessage)}</p>` : ''}`;
+  // Goals (v3.22.3) sit under the summary in every theme.
+  const goalsPanel = goalsPanelHtml(items, { canEdit: hooks.canEditGoals(), now });
   const summaryCells = `
       ${cell('instock', 'In stock', summary.inStock.toLocaleString('en-US'))}
       ${cell('sold', `Sold${suffix}`, summary.sold.toLocaleString('en-US'))}
@@ -183,6 +187,7 @@ export function renderHome(){
     view.innerHTML = `
       ${head}
       <section class="summary-free" aria-label="Summary">${summaryCells}</section>
+      ${goalsPanel}
       <section class="panel shelf" aria-label="Shelf by tag">
         <div class="panel-head">
           <h2 class="panel-title">Shelf by tag</h2>
@@ -218,6 +223,7 @@ export function renderHome(){
       </div>` : ''}
       ${head}
       <section class="summary-mono" aria-label="Summary">${summaryCells}</section>
+      ${goalsPanel}
       <div class="home-lower">
         <section class="then" aria-label="Then">
           <div class="panel-head then-head">
@@ -232,6 +238,7 @@ export function renderHome(){
     view.innerHTML = `
       ${head}
       <section class="summary-panel" aria-label="Summary">${summaryCells}</section>
+      ${goalsPanel}
       <section class="pipeline" aria-label="Pipeline">
         <span class="pipeline-line" aria-hidden="true"></span>
         ${stop('Cataloged', pipeline.cataloged, true)}
@@ -241,6 +248,7 @@ export function renderHome(){
       <div class="home-lower">${attentionPanel('Needs attention', attentionBody, openRows.length)}${revenuePanel}</div>`;
   }
 
+  wireGoalsPanel(view, { onSaved: renderHome });
   view.querySelectorAll('[data-home-week]').forEach(btn => btn.addEventListener('click', () => {
     hooks.openCatalog({ weekTag: Number(btn.dataset.homeWeek), notSold: true });
   }));
