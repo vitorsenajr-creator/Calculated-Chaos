@@ -343,8 +343,8 @@ on any of these:
   saves nothing; Home row → Settings → eBay tracker; Done writes only
   `doneAt` with merge and lowers Home's count; the item link opens the
   item; no eBay connection = no log), screenshots in the three themes,
-  no page errors, clean build. Needs the `ebay_sales` rule pasted in
-  the Console (`isMemberData`). Unconfirmed in production: real eBay
+  no page errors, clean build. The `ebay_sales` rule was pasted in
+  the Console (Vitor, 2026-10-20). Unconfirmed in production: real eBay
   orders, the first check after the deploy logging the last 14 days.
 - Item issues (v3.22.4): Node test (16 cases: with the default checks,
   `isIncomplete`/`missingFields`/`isStaleListing`, the Home summary and
@@ -515,49 +515,9 @@ on any of these:
 - Quick Labels one-by-one queue and PDF export (v3.13.106/107), label font
   sizing (v3.13.102-105), inspection flag icon (v3.13.114).
 
-## Pending changelog entry (since v3.22.0)
+## Pending changelog entry (since v3.23.0)
 
-- v3.22.5: eBay sale tracker (Nifty P1, item 4). Each eBay sale the app
-  detects is logged with what it did (marked sold, already sold, no
-  matching item, couldn't save) and where the item was still listed.
-  Settings → eBay → Sale tracker lists the last 60 days; Home's "eBay
-  sales to confirm" counts the sales to delist on another platform or
-  handle by hand, until marked Done. Detected sales are still marked
-  Sold automatically.
-
-- v3.22.4: Issues in the catalog (Nifty P1, item 3). A strip under the
-  catalog tools shows how many items have issues and filters to them.
-  Issues: no price, the last eBay publish failed (now saved on the item),
-  a product code used on more than one item, missing info, listed too
-  long. The card warning names the most urgent one (+N more) and a tap
-  lists them all, with the eBay message. Home's "Needs attention" gains
-  "eBay publish errors" and "Duplicate codes". Settings → Warnings turns
-  each missing-info check on or off and sets the listing age (30, 45, 60,
-  90 days or off), for the catalog, the cards and Home alike.
-
-- v3.22.3: Goals on Home (Nifty P1, item 2). Up to 4 goals for profit,
-  revenue, items sold, items cataloged or sell-through, by week (Monday
-  to Sunday), month, quarter or year, set by the owner in an editor on
-  the Home panel. Each shows the progress bar with a "steady pace by
-  today" marker, the percent, how far behind pace (or "on pace"), and
-  the days left; a reached goal turns green. Every period starts again
-  from zero on its own.
-
-- v3.22.2: Finances insights (Nifty P1, item 1). Overview's numbers show
-  the change vs the same days of last month (or the same point of last
-  year); a fifth number, Sell-through (sold ÷ items in stock or
-  cataloged in the period); "Revenue by platform" becomes "By platform"
-  with units, average profit and average days to sell; new Top brands
-  and Top categories panels by units sold.
-
-- v3.22.1: store identity (backlog item 6). Settings → Appearance gets
-  Store (name and logo, saved as they change; the logo is shrunk to 256
-  px) and Accent color (eight presets, a custom picker, theme default).
-  The header and sidebar show the logo, the store name and "by
-  Calculated Chaos". The accent drives buttons, links, the active tab
-  and the navigation marker in every theme, darkened or lightened where
-  needed so text stays readable; red for urgent and green for profit
-  don't change.
+(nothing yet)
 
 ## Backlog (not started)
 
@@ -707,7 +667,8 @@ average profit and days listed per platform, top brands/categories,
 previous-period comparison); (2) Goals on Home (done in v3.22.3); (3) an Issues filter in
 the catalog with optional warnings in Settings (done in v3.22.4); (4) an eBay sale tracker
 (log of detected sales and what the app did; gives Home its "eBay sales
-to confirm" row; done in v3.22.5). P1 is complete. P2, after Import (item 4): expenses and P&L, pricing
+to confirm" row; done in v3.22.5). P1 is complete (rolled up in
+v3.23.0). P2, after Import (item 4): expenses and P&L, pricing
 rules per platform, "similar items" and shipping presets, a Getting
 started checklist. Not to copy: marketplace automation with the user's
 password.

@@ -3,6 +3,40 @@
 Version history for Calculated Chaos. The current version is also shown in
 the badge at the top of the app (`APP_VERSION` in `src/modules/version.js`).
 
+## v3.23.0 — 2026-10-20
+
+Store identity and the Nifty P1 ideas (`docs/nifty-review.md`). Rolls up
+v3.22.1 – v3.22.5.
+
+- **Store identity** (v3.22.1). Settings → Appearance gets the store
+  name and logo (shrunk to 256 px) and an accent color (eight presets,
+  a custom picker, or the theme's own). The header and sidebar show the
+  logo, the store name and "by Calculated Chaos". The accent drives
+  buttons, links, the active tab and the navigation marker in every
+  theme, adjusted where needed so text stays readable.
+- **Finances insights** (v3.22.2). Overview's numbers show the change
+  against the same days of last month (or the same point of last year).
+  A fifth number, Sell-through: items sold ÷ items in stock or cataloged
+  in the period. "By platform" adds units, average profit and average
+  days to sell. New Top brands and Top categories panels.
+- **Goals on Home** (v3.22.3). Up to 4 goals for profit, revenue, items
+  sold, items cataloged or sell-through, by week, month, quarter or
+  year, set by the owner. Each has a progress bar with a "steady pace by
+  today" marker and the days left. Every period starts again on its own.
+- **Issues in the catalog** (v3.22.4). A strip shows how many items have
+  issues and filters to them: no price, the last eBay publish failed
+  (now saved on the item), a product code used twice, missing info, or
+  listed too long. The card warning names the most urgent issue, and a
+  tap lists them all. Home gains "eBay publish errors" and "Duplicate
+  codes". Settings → Warnings turns each missing-info check on or off
+  and sets the listing age (30, 45, 60, 90 days or off).
+- **eBay sale tracker** (v3.22.5). Each eBay sale the app detects is
+  logged with what it did and where the item was still listed.
+  Settings → eBay → Sale tracker shows the last 60 days. Home's "eBay
+  sales to confirm" counts the sales to delist on another platform or
+  handle by hand, until marked Done. Sales are still marked Sold
+  automatically.
+
 ## v3.22.0 — 2026-10-20
 
 Finishes the "other screens" phase of the redesign. Rolls up v3.21.1 –
