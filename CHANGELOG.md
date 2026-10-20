@@ -3,6 +3,37 @@
 Version history for Calculated Chaos. The current version is also shown in
 the badge at the top of the app (`APP_VERSION` in `src/modules/version.js`).
 
+## v3.20.0 — 2026-10-20
+
+The redesign starts (CLAUDE.md, "Redesign"): a new app shell and Home
+screen in the first of three planned themes, "Parcel". Rolls up v3.19.1.
+
+- **New navigation.** Five places, the same on every device: Home,
+  Catalog, Stock, Finances, Settings. A bottom bar on the phone and a
+  sidebar on the computer replace the scrolling top tabs. Labels and
+  Transfer moved into Stock; Months and Reports are now tabs inside
+  Finances.
+- **Home is the start screen.** It shows In stock, Sold, Profit and
+  Projected for this month, this year or all time; the item pipeline
+  (Cataloged, Listed, Sold); a "Needs attention" list (no price, missing
+  info, listed 30+ days, photo drafts), each with one button that opens
+  the right items; and revenue by platform, now on the phone too. The
+  daily quote moved here. The desktop-only Dashboard is gone.
+- **One "+" button** opens New item, Quick catalog and Photo session, on
+  Home and Catalog only.
+- **Slim header.** The title, subtitle, platform list and the stats strip
+  are gone from the top of every screen. The version number, "Check for
+  updates" (the old refresh button) and Sign out are in Settings →
+  Account. Employees, who only see Catalog, keep a Sign out button in
+  the header.
+- **The Parcel look across the app:** navy, cool white, red only for
+  urgent things, and the Archivo typeface. Every color now comes from a
+  theme variable, ready for the other two themes. Label printing keeps
+  its own fonts.
+- **Catalog filters "No price" and "Listed 30+ days"** (used by Home).
+- **Finances profit matches the rest of the app** (v3.19.1): it now
+  includes Other costs, shown as its own box per month.
+
 ## v3.19.0 — 2026-10-19
 
 Rolls up v3.18.1 – v3.18.4, which finish the admin and email part of the

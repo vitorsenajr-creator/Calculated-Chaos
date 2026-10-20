@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Calculated Chaos</title>
   <link rel="manifest" href="/manifest.json" />
-  <meta name="theme-color" content="#2B241E" />
+  <meta name="theme-color" content="#12285A" />
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
@@ -50,64 +50,72 @@
 </div>
 
 <div class="app-shell">
-  <!-- Desktop-only sidebar (hidden under the responsive breakpoint in
-       style.css — mobile keeps the .tabs bar below untouched). Mirrors
-       .tabs exactly via the same data-tab + switchToTab() wiring, plus
-       one extra entry (Dashboard) that only exists here. -->
-  <nav class="sidebar" id="sidebarNav">
-    <div class="sidebar-brand">
-      <div class="sidebar-mark">✦</div>
-      <div>
-        <div class="sidebar-title">Calculated Chaos</div>
-        <div class="sidebar-sub">Resale Ops</div>
-      </div>
-    </div>
-    <button class="sidebar-link" data-tab="dashboard">📊 Dashboard</button>
-    <button class="sidebar-link active" data-tab="catalog">👕 Catalog</button>
-    <button class="sidebar-link" data-tab="finance">💰 Finances</button>
-    <button class="sidebar-link" data-tab="reports">📈 Reports</button>
-    <button class="sidebar-link" data-tab="settings">⚙ Settings</button>
-    <button class="sidebar-link" id="quickLabelOpenBtnDesktop">🔁 Labels</button>
-    <button class="sidebar-link" id="stockTransferOpenBtnDesktop">📦 Transfer</button>
+  <!-- Desktop sidebar (>=900px) and the phone's bottom bar (nav.bottom-nav,
+       below) list the same five places; both drive switchToTab() through
+       data-tab. -->
+  <nav class="sidebar" id="sidebarNav" aria-label="Main">
+    <div class="brand" data-brand></div>
+    <button type="button" class="nav-link side" data-tab="home"><svg class="nav-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span>Home</span></button>
+    <button type="button" class="nav-link side" data-tab="catalog"><svg class="nav-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 7a2 2 0 1 1 2 2c-1 .4-2 1-2 2v.5"/><path d="M12 11.5 3.4 17.6a1 1 0 0 0 .6 1.9h16a1 1 0 0 0 .6-1.9z"/></svg><span>Catalog</span></button>
+    <button type="button" class="nav-link side" data-tab="stock"><svg class="nav-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7.5 12 3l9 4.5v9L12 21l-9-4.5z"/><path d="M3 7.5 12 12l9-4.5M12 12v9"/></svg><span>Stock</span></button>
+    <button type="button" class="nav-link side" data-tab="finance"><svg class="nav-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 19v-8M11 19V5M17 19v-6M3 20h18"/></svg><span>Finances</span></button>
+    <div class="sidebar-spacer"></div>
+    <button type="button" class="nav-link side" data-tab="settings"><svg class="nav-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg><span>Settings</span></button>
   </nav>
 
   <div class="app-column">
-    <header>
-      <div class="eyebrow">Resale Studio · eBay / Mercari / Poshmark</div>
-      <div class="version-badge" id="versionBadge"></div>
-      <button id="appRefreshBtn" title="Refresh app" aria-label="Refresh app" style="position:absolute; top:12px; left:12px; background:rgba(255,255,255,0.5); border:none; border-radius:50%; width:36px; height:36px; font-size:18px; cursor:pointer; color:var(--plum); z-index:5;">⟳</button>
-      <button id="headerLogOutBtn" title="Log out" aria-label="Log out" style="position:absolute; top:12px; right:12px; background:rgba(255,255,255,0.5); border:none; border-radius:50%; width:36px; height:36px; font-size:16px; cursor:pointer; color:var(--plum); z-index:5;">⏻</button>
-      <h1>Calculated Chaos</h1>
-      <p class="subtitle">Every thrift find, cataloged, priced, and accounted for.</p>
-
-      <div class="daily-quote" id="dailyQuote"></div>
-
-      <div class="stats-strip" id="statsStrip"></div>
+    <header class="app-header">
+      <div class="brand" data-brand></div>
     </header>
 
-    <div class="tabs">
-      <button class="tab-btn active" data-tab="catalog">Catalog</button>
-      <button class="tab-btn" data-tab="finance">Finances</button>
-      <button class="tab-btn" data-tab="reports">Reports</button>
-      <button class="tab-btn" data-tab="settings">⚙ Settings</button>
-      <button class="tab-btn" id="quickLabelOpenBtnMobile">🔁 Labels</button>
-      <button class="tab-btn" id="stockTransferOpenBtnMobile">📦 Transfer</button>
-    </div>
-
     <main>
-      <div id="dashboardView" style="display:none;"></div>
-      <div id="catalogView"><div class="loading">Loading your pieces…</div></div>
-      <div id="financeView" style="display:none;"></div>
-      <div id="reportsView" style="display:none;"></div>
+      <div id="homeView"></div>
+      <div id="catalogView" style="display:none;"><div class="loading">Loading your pieces…</div></div>
+      <div id="stockView" style="display:none;">
+        <h1 class="screen-title">Stock</h1>
+        <div class="stock-actions">
+          <button type="button" class="stock-action" id="quickLabelOpenBtn">
+            <span class="stock-action-title">Labels</span>
+            <span class="stock-action-sub">Print labels by product code, one by one or as a PDF</span>
+          </button>
+          <button type="button" class="stock-action" id="stockTransferOpenBtn">
+            <span class="stock-action-title">Transfer</span>
+            <span class="stock-action-sub">Pick a box, then scan codes to move items into it</span>
+          </button>
+          <button type="button" class="stock-action" data-goto-settings="storage">
+            <span class="stock-action-title">Boxes and wall markers</span>
+            <span class="stock-action-sub">In Settings for now</span>
+          </button>
+        </div>
+      </div>
+      <div id="financeArea" style="display:none;">
+        <div class="subtabs" role="tablist" aria-label="Finances">
+          <button type="button" class="subtab" role="tab" data-tab="finance">Months</button>
+          <button type="button" class="subtab" role="tab" data-tab="reports">Reports</button>
+        </div>
+        <div id="financeView"></div>
+        <div id="reportsView" style="display:none;"></div>
+      </div>
       <div id="settingsView" style="display:none;"></div>
     </main>
   </div>
+
+  <nav class="bottom-nav" aria-label="Main">
+    <button type="button" class="nav-link bottom" data-tab="home"><svg class="nav-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span>Home</span></button>
+    <button type="button" class="nav-link bottom" data-tab="catalog"><svg class="nav-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 7a2 2 0 1 1 2 2c-1 .4-2 1-2 2v.5"/><path d="M12 11.5 3.4 17.6a1 1 0 0 0 .6 1.9h16a1 1 0 0 0 .6-1.9z"/></svg><span>Catalog</span></button>
+    <button type="button" class="nav-link bottom" data-tab="stock"><svg class="nav-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7.5 12 3l9 4.5v9L12 21l-9-4.5z"/><path d="M3 7.5 12 12l9-4.5M12 12v9"/></svg><span>Stock</span></button>
+    <button type="button" class="nav-link bottom" data-tab="finance"><svg class="nav-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 19v-8M11 19V5M17 19v-6M3 20h18"/></svg><span>Finances</span></button>
+    <button type="button" class="nav-link bottom" data-tab="settings"><svg class="nav-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg><span>Settings</span></button>
+  </nav>
 </div>
 
-<button type="button" id="pageBackToTop" aria-label="Back to top" title="Back to top" style="display:none; position:fixed; bottom:24px; left:22px; width:48px; height:48px; border:none; background:var(--cream, #F4EEE2); color:var(--plum, #2B241E); border-radius:50%; font-size:18px; cursor:pointer; z-index:50; align-items:center; justify-content:center; box-shadow:0 6px 18px rgba(0,0,0,0.18);">↑</button>
-<button class="fab" id="fabPhotoSession" title="Photo session — batch photos first, catalog later" style="bottom:160px; width:48px; height:48px; font-size:20px; background:var(--gold);">📷</button>
-<button class="fab" id="fabQuickCatalog" title="Quick catalog mode" style="bottom:92px; width:48px; height:48px; font-size:20px; background:var(--sage);">⚡</button>
-<button class="fab" id="fabAdd" title="New item">+</button>
+<button type="button" id="pageBackToTop" aria-label="Back to top" title="Back to top" style="display:none;">↑</button>
+<div class="fab-menu" id="fabMenu" hidden>
+  <button type="button" class="fab-menu-item" id="fabNewItem">New item</button>
+  <button type="button" class="fab-menu-item" id="fabQuickCatalog">Quick catalog</button>
+  <button type="button" class="fab-menu-item" id="fabPhotoSession">Photo session</button>
+</div>
+<button type="button" class="fab" id="fabAdd" aria-label="Add" aria-expanded="false" aria-controls="fabMenu"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
 
 <!-- MODAL: ADD/EDIT ITEM -->
 <div class="modal-overlay hidden" id="itemModalOverlay">

@@ -14,6 +14,7 @@ import { isPlatformAdmin } from '../../modules/admin-claim.js';
 import { sendVerificationEmail, refreshEmailVerified } from '../../modules/email-verification.js';
 import { renderEbayConnectionStatus } from './ebay-panel.js';
 import { renderPlatformsSettingsList } from './platforms-panel.js';
+import { APP_VERSION, APP_VERSION_DATE } from '../../modules/version.js';
 
 export function renderSettings(){
   const view = document.getElementById('settingsView');
@@ -37,7 +38,7 @@ export function renderSettings(){
       <!-- ACCOUNT -->
       <div class="settings-section">
         <h3>Account</h3>
-        <div class="ss-desc">Signed in as <b>${escapeHtml(window.auth.currentUser?.email || '')}</b></div>
+        <div class="ss-desc">Signed in as <b>${escapeHtml(window.auth.currentUser?.email || '')}</b> · App version ${APP_VERSION} (${APP_VERSION_DATE})</div>
         ${window.auth.currentUser && !window.auth.currentUser.emailVerified ? `
         <div id="verifyEmailBox" style="margin-bottom:10px;">
           <div class="ebay-status-box pending">Your email isn't verified yet. Verified emails will soon be required to use the app: send yourself a verification email, click the link in it, then tap "I've verified it".</div>
@@ -48,6 +49,7 @@ export function renderSettings(){
           <div id="verifyEmailMsg" class="ss-desc" style="margin-top:6px;"></div>
         </div>` : ''}
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button id="checkUpdatesBtn" class="settings-save-btn" style="width:auto; padding:8px 14px; margin:0;">Check for updates</button>
           <button id="signOutBtn" class="settings-save-btn" style="width:auto; padding:8px 14px; margin:0;">Sign out</button>
           ${isPlatformAdmin() ? `<a href="/admin.html" class="settings-save-btn" style="display:inline-block; width:auto; padding:8px 14px; margin:0; text-decoration:none;">🛠️ Developer Panel</a>` : ''}
         </div>
@@ -211,7 +213,7 @@ export function renderSettings(){
       <div class="settings-section">
         <h3>Listing closing text</h3>
         <div class="ss-desc">Your own standard closing line — shipping policy, bundle offer, thank-you note, whatever you want. It's used automatically every time you generate a listing description (instant template), shared across every platform (eBay reuses it too), and offered as an option when generating with AI.</div>
-        <textarea id="sListingText" placeholder="e.g. Bundle discount available — check my closet! Ships next business day 📦" style="width:100%; min-height:70px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; font-size:13px; font-family:'Inter',sans-serif; resize:vertical;">${escapeHtml(appSettings.listingStandardText || '')}</textarea>
+        <textarea id="sListingText" placeholder="e.g. Bundle discount available — check my closet! Ships next business day 📦" style="width:100%; min-height:70px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; font-size:13px; font-family:var(--font-ui); resize:vertical;">${escapeHtml(appSettings.listingStandardText || '')}</textarea>
         <button class="settings-save-btn" onclick="saveListingTextSettings()">Save listing text</button>
         <div class="settings-success" id="listingTextSaveMsg">✓ Saved!</div>
       </div>
@@ -270,7 +272,7 @@ export function renderSettings(){
       </div>
 
       <!-- STORAGE BOX LABELS -->
-      <div class="settings-section">
+      <div class="settings-section" id="storageBoxesSection">
         <h3>Register / print storage box labels</h3>
         <div class="ss-desc">Register a storage box by name and print its label right away — before any item is assigned to it. Uses the label size configured above.</div>
         ${(appSettings.storageBoxes || []).length === 0 ? `<div class="ss-desc" style="font-style:italic;">No boxes registered yet.</div>` : ''}
@@ -371,7 +373,13 @@ export function renderSettings(){
   renderPlatformsSettingsList();
 
   document.getElementById('signOutBtn')?.addEventListener('click', async () => {
+    if (!confirm('Sign out of Calculated Chaos?')) return;
     await window.authFns.signOut(window.auth);
+  });
+  // Was the header's refresh button before v3.20.0: a real reload from
+  // the server, so a stale cached copy never "refreshes" into itself.
+  document.getElementById('checkUpdatesBtn')?.addEventListener('click', () => {
+    window.location.reload(true);
   });
   // Email verification (v3.18.3): sent only when the person clicks.
   document.getElementById('verifyEmailSendBtn')?.addEventListener('click', async (e) => {

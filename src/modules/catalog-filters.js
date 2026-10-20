@@ -2,6 +2,7 @@
 // main.js's IIFE verbatim. filtersActiveCount/applyFilters take
 // activeFilters (+ searchQuery) as explicit params instead of closing
 // over them; main.js keeps thin wrappers with the original signatures.
+import { isMissingPrice, isStaleListing } from '../domain/home-summary.js';
 
 export function isIncomplete(item){
   return !(item.photos && item.photos.length > 0) || !item.cost || !item.weight || !item.length || !item.width;
@@ -25,6 +26,8 @@ export function filtersActiveCount(activeFilters){
   if (activeFilters.box) n++;
   if (activeFilters.notSold) n++;
   if (activeFilters.size) n++;
+  if (activeFilters.noPrice) n++;
+  if (activeFilters.stale) n++;
   if (activeFilters.platformsInclude.length || activeFilters.platformsExclude.length) n++;
   return n;
 }
@@ -38,6 +41,9 @@ export function applyFilters(list, activeFilters, searchQuery){
     if (activeFilters.needsPhoto && (item.photos && item.photos.length > 0)) return false;
     if (activeFilters.box && item.storageBox !== activeFilters.box) return false;
     if (activeFilters.size && item.size !== activeFilters.size) return false;
+    // Set from the Home screen's "Needs attention" rows.
+    if (activeFilters.noPrice && !isMissingPrice(item)) return false;
+    if (activeFilters.stale && !isStaleListing(item, Date.now())) return false;
     if (activeFilters.platformsInclude.length){
       const onAny = activeFilters.platformsInclude.some(p => (item.listedPlatforms || []).includes(p));
       if (!onAny) return false;

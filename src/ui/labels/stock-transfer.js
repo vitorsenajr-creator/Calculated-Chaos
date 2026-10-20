@@ -174,8 +174,7 @@ async function undoLastTransferMove(){
 export function initStockTransfer(deps){
   ({ saveItem, saveSettings, getAllStorageBoxes } = deps);
 
-  document.getElementById('stockTransferOpenBtnMobile').addEventListener('click', openStockTransferModal);
-  document.getElementById('stockTransferOpenBtnDesktop').addEventListener('click', openStockTransferModal);
+  document.getElementById('stockTransferOpenBtn').addEventListener('click', openStockTransferModal);
   document.getElementById('transferDoneBtn').addEventListener('click', closeStockTransferModal);
   document.getElementById('stockTransferOverlay').addEventListener('click', (e) => {
     if (e.target.id === 'stockTransferOverlay') closeStockTransferModal();
