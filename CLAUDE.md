@@ -704,72 +704,10 @@ on any of these:
 - Quick Labels one-by-one queue and PDF export (v3.13.106/107), label font
   sizing (v3.13.102-105), inspection flag icon (v3.13.114).
 
-## Pending changelog entry (since v3.23.0)
+## Pending changelog entry (since v3.24.0)
 
-- v3.23.7: Mileage and expense import (Nifty P2, fourth part; item 1 is
-  complete). Sourcing trips and vehicle use can be entered in miles: the
-  app applies the IRS rate for the date (76¢ from July 1, 2026, 72.5¢
-  before) and keeps the miles and rate with the expense; a "Round trip"
-  button doubles the distance. Expenses can be imported from a CSV or
-  Excel file (a bank export, Nifty's format or the app's own template):
-  the app matches the columns and category words, asks about the words
-  it doesn't know (or skips personal rows), previews the totals, flags
-  possible duplicates, and saves with progress, Continue and Undo.
-
-- v3.23.6: Sales list (Nifty P2, third part). Finances → Months is now
-  Sales: open a month to see each sale with its price, fees, item cost,
-  shipping, other costs and profit (a table on a computer, cards on a
-  phone), and fix costs right there; the profit updates everywhere. A
-  month with sales that have no item cost is tagged ("2 missing cost")
-  and can be filtered to them; "Save & next missing" goes through them
-  one after another. Typing 0 marks a free or gifted piece.
-
-- v3.23.5: Finances fixes from a design review. The profit of the sales
-  is now called "Sales profit" everywhere (Home, Goals, Overview,
-  Months); "Net profit" means after expenses, and Overview shows it in
-  its own cell once there are expenses. "See P&L" opens the statement on
-  the same period. The Expenses list exports the period on screen
-  (Reports keeps "All expenses"). In the expense form, messages stay in
-  view with the keyboard open, a future date says where it counts, and
-  closing with Save shows a confirmation. The P&L's equation reads as a
-  small ledger on a phone, the Finances tabs no longer push the page
-  sideways on small phones, and buttons are 44px.
-
-- v3.23.4: Profit & Loss (Nifty P2, second part). Reports now opens with
-  a Profit & Loss statement for this or last month, this or last year, or
-  all time: revenue by platform, the cost of the items sold, gross
-  profit, selling costs (fees, shipping, other), operating expenses by
-  category and net profit, with a CSV export for the accountant. It ends
-  on the same sales profit as Overview (a "Sale adjustments" line shows
-  any difference). Overview adds "Expenses · Profit after expenses" under
-  its summary once there are expenses.
-
-- v3.23.3: Expenses (Nifty P2, first part). A new Expenses tab in
-  Finances: record what the business spends outside a sale (rent,
-  supplies, sourcing trips, subscriptions...) in 22 tax-style categories,
-  each explained in one line, plus refunds; see the total and the split
-  by category for the month, year or all time, edit or delete any entry,
-  "Save and add another" for a pile of receipts, and export them as CSV
-  (also from Reports → Export). Buying stock isn't an expense (an item's
-  cost counts when it sells). Profit numbers don't change yet.
-
-- v3.23.2: the import's AI column check (backlog item 4, second part).
-  When the Columns step opens, the AI reads the headers, ten sample rows
-  and the status/condition/platform words, and fills in what the column
-  names alone didn't settle (marked "AI"). It never changes a column the
-  person set, only replaces a match it's more sure about, and counts as
-  one AI use; without it (failure or limit reached) the name-based
-  matches stand.
-
-- v3.23.1: Import a spreadsheet (backlog item 4, first part). Settings →
-  Data → Import: choose an Excel or CSV file (and its sheets), check how
-  each column and value was matched, preview the items with errors and
-  possible duplicates, then save in batches with progress, Continue after
-  a dropped connection and Undo (also later, from Past imports). Each row
-  gets a new app code, its own code is kept and searchable, a quantity
-  becomes that many items, and sold rows come in as sales with their
-  profit. Imported items have their own warning settings (a missing photo
-  doesn't count by default) and an "Imported" filter chip.
+(None yet. v3.23.1 – v3.23.7 were rolled up into v3.24.0 in
+`CHANGELOG.md`.)
 
 ## Backlog (not started)
 
