@@ -97,12 +97,15 @@
         <div id="stockPane-markers" class="stock-pane" hidden></div>
       </div>
       <div id="financeArea" style="display:none;">
+        <h1 class="screen-title">Finances</h1>
         <div class="subtabs" role="tablist" aria-label="Finances">
-          <button type="button" class="subtab" role="tab" data-tab="finance">Months</button>
+          <button type="button" class="subtab" role="tab" data-tab="finance">Overview</button>
+          <button type="button" class="subtab" role="tab" data-tab="months">Months</button>
           <button type="button" class="subtab" role="tab" data-tab="reports">Reports</button>
         </div>
-        <div id="financeView"></div>
-        <div id="reportsView" style="display:none;"></div>
+        <div id="financeView" class="fin-pane"></div>
+        <div id="monthsView" class="fin-pane" style="display:none;"></div>
+        <div id="reportsView" class="fin-pane" style="display:none;"></div>
       </div>
       <div id="settingsView" style="display:none;"></div>
     </main>
