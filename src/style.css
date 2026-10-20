@@ -417,6 +417,11 @@
   .link-btn{border:none; background:none; padding:0; font:inherit; color:var(--brand-2); text-decoration:underline; cursor:pointer;}
 
   .subtabs{display:flex; gap:4px; margin-bottom:16px; border-bottom:1px solid var(--line);}
+  /* Four Finances tabs (v3.23.3) don't fit 320px: the bar scrolls by itself
+     instead of pushing the page sideways (v3.23.5). */
+  .subtabs{overflow-x:auto; scrollbar-width:none;}
+  .subtabs::-webkit-scrollbar{display:none;}
+  .subtabs .subtab{flex-shrink:0;}
   .subtab{
     border:none; background:transparent; cursor:pointer; color:var(--ink-2);
     font:600 14px var(--font-ui); padding:10px 14px; min-height:44px; margin-bottom:-1px;
@@ -661,7 +666,7 @@
   /* ---------- EXPENSES (v3.23.3) ----------
      Finances → Expenses and its editor (reuses the goal dialog's frame);
      tokens only. */
-  .exp-summary .panel-head .primary-btn{min-height:40px; padding:0 14px;}
+  .exp-summary .panel-head .primary-btn{min-height:44px; padding:0 14px;}
   .exp-month + .exp-month{margin-top:6px;}
   .exp-month-head{
     display:flex; justify-content:space-between; gap:12px; padding:10px 14px 6px;
@@ -682,10 +687,25 @@
     min-height:44px; width:100%; box-sizing:border-box; padding:0 10px; border:1px solid var(--line); border-radius:var(--radius-sm);
     background:var(--surface); color:var(--ink); font:400 16px var(--font-ui);
   }
-  .goal-field small{font-weight:400;}
+  .goal-field small{font-weight:400; font-size:inherit;}
   .exp-cat-hint{margin:-4px 0 0; min-height:1em; font-size:12.5px; line-height:1.4; color:var(--ink-2);}
-  .exp-saved{margin:10px 0 0; font-size:13px; font-weight:600; color:var(--ok);}
+  .exp-saved{margin:0; font-size:13px; font-weight:600; color:var(--ok);}
   .exp-dialog-actions{flex-wrap:wrap;}
+  /* Messages live in the sticky footer so they stay in view with the
+     keyboard open (v3.23.5). */
+  .exp-dialog-actions .exp-saved, .exp-dialog-actions .goal-error{flex-basis:100%; margin:0 0 2px;}
+  .exp-dialog-actions button{min-height:44px;}
+  .exp-input[type="date"]{height:44px;}
+  .exp-date-note{margin:-4px 0 0; font-size:12.5px; line-height:1.4; color:var(--warn-ink); font-weight:600;}
+  .exp-export, .pnl-foot .link-btn, .fin-after-exp .link-btn{display:inline-block; padding:12px 0; margin:-12px 0;}
+  .exp-toast{
+    position:fixed; left:50%; bottom:calc(84px + env(safe-area-inset-bottom, 0px)); transform:translate(-50%, 8px); z-index:9999;
+    max-width:calc(100vw - 32px); padding:11px 18px; border-radius:999px; background:var(--ink); color:var(--surface);
+    font:600 13px var(--font-ui); box-shadow:0 6px 18px color-mix(in srgb, var(--ink) 25%, transparent);
+    opacity:0; pointer-events:none; transition:opacity 0.2s ease, transform 0.2s ease;
+  }
+  .exp-toast.show{opacity:1; transform:translate(-50%, 0);}
+  @media (prefers-reduced-motion: reduce){ .exp-toast{transition:none;} }
   .exp-dialog-actions .exp-delete{margin-right:auto;}
   @media (max-width: 420px){
     .exp-fields{grid-template-columns:minmax(0, 1fr);}
@@ -695,7 +715,7 @@
   /* ---------- PROFIT & LOSS (v3.23.4) ----------
      The statement at the top of Reports; tokens only. */
   .pnl-period select{
-    min-height:40px; padding:0 8px; border:1px solid var(--line); border-radius:var(--radius-sm);
+    min-height:44px; padding:0 8px; border:1px solid var(--line); border-radius:var(--radius-sm);
     background:var(--surface); color:var(--ink); font:500 14px var(--font-ui);
   }
   .pnl-warn{color:var(--urgent); font-weight:600;}
@@ -707,10 +727,20 @@
   .pnl-eq small{font-size:11px; font-weight:600; color:var(--ink-2); text-transform:uppercase; letter-spacing:0.04em;}
   .pnl-eq b{color:var(--ink-2); font-weight:500; padding-bottom:1px;}
   .pnl-eq-net{font-size:20px; color:var(--ok);}
+  .pnl-op{display:none; font-style:normal;}
+  /* Phone: the equation reads as a small vertical ledger (v3.23.5). */
+  @media (max-width: 560px){
+    .pnl-eq{flex-direction:column; align-items:stretch; gap:0; margin:2px 14px 12px; font-size:14px;}
+    .pnl-eq > b{display:none;}
+    .pnl-op{display:inline;}
+    .pnl-eq-item{flex-direction:row !important; justify-content:space-between; align-items:baseline; padding:4px 0;}
+    .pnl-eq-item small{font-size:12px;}
+    .pnl-eq-net{margin-top:4px; padding-top:8px; border-top:1px solid var(--line); font-size:18px;}
+  }
   .pnl-eq-net.negative{color:var(--urgent);}
   .pnl{display:flex; flex-direction:column; margin-bottom:6px;}
   .pnl-sec{
-    padding:12px 14px 4px; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:var(--ink-2);
+    margin:0; padding:12px 14px 4px; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:var(--ink-2);
     border-top:1px solid var(--line-soft);
   }
   .pnl-row{display:flex; justify-content:space-between; align-items:baseline; gap:12px; padding:5px 14px 5px 24px; font-size:14px;}
@@ -1357,6 +1387,9 @@
   .fin-compare{font-weight:500;}
   .fin-summary .summary-cell:nth-child(n+3){border-bottom:1px solid var(--line);}
   .fin-summary .summary-cell:last-child{grid-column:1 / -1; border-right:none; border-bottom:none;}
+  /* Six cells once there are expenses (v3.23.5): a full 2×3 grid. */
+  .fin-summary.six .summary-cell:last-child{grid-column:auto;}
+  .fin-summary.six .summary-cell:nth-child(n+5){border-bottom:none;}
   .fin-delta{font-size:12px; font-weight:600; color:var(--ink-2); font-variant-numeric:tabular-nums;}
   .fin-delta.up{color:var(--ok);}
   .fin-summary-note{margin:-8px 0 0;}
@@ -1374,6 +1407,7 @@
   .top-rank{width:22px; flex-shrink:0; font-size:13px; font-weight:700; color:var(--ink-2); font-variant-numeric:tabular-nums;}
   @media (min-width: 900px){
     .fin-summary{grid-template-columns:repeat(5, minmax(0, 1fr));}
+    .fin-summary.six{grid-template-columns:repeat(6, minmax(0, 1fr));}
     .fin-summary .summary-cell:nth-child(n){border-bottom:none; border-right:1px solid var(--line);}
     .fin-summary .summary-cell:last-child{grid-column:auto; border-right:none;}
     .fin-pair{grid-template-columns:repeat(2, minmax(0, 1fr)); align-items:start;}

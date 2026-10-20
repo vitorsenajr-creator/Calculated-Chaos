@@ -10,7 +10,7 @@ import { computeReportsData } from '../../modules/reports.js';
 import { computeFinanceOverview, monthlyTotals, monthLabel, FINANCE_PERIODS } from '../../domain/finance-summary.js';
 import { expensesForPeriod } from '../../domain/profit-loss.js';
 import { cachedExpenses, expensesState } from '../../data/expense-store.js';
-import { renderPnl } from './pnl-view.js';
+import { renderPnl, setPnlPeriodFromOverview } from './pnl-view.js';
 
 // Its own period, separate from Home's (Vitor, 2026-10-20).
 const PERIOD_KEY = 'cc.finance.period';
@@ -122,12 +122,15 @@ function renderOverview(){
   const periodButtons = FINANCE_PERIODS.map(p => `
     <button type="button" class="seg-btn${p === period ? ' active' : ''}" data-finance-period="${p}" aria-pressed="${p === period}">${PERIOD_LABEL[p]}</button>`).join('');
 
-  // Profit after expenses (v3.23.4): a line under the summary once the
-  // business has any expenses; the summary itself stays sales profit, like
-  // Home and Goals.
+  // Two profits, two names (v3.23.5): "Sales profit" is the saved profit of
+  // the sales (Home and Goals use it too); "Net profit" subtracts the
+  // expenses, like the P&L, and gets its own cell once the business has
+  // any expense.
   const allExpenses = expensesState() === 'loaded' ? cachedExpenses() : [];
-  const periodExpenses = allExpenses.length ? expensesForPeriod(allExpenses, period, now) : 0;
-  const afterExpenses = allExpenses.length ? `<p class="fin-note fin-summary-note fin-after-exp">Expenses${suffix}: <b>${money2(periodExpenses)}</b> \u00b7 Profit after expenses: <b class="${totals.profit - periodExpenses >= 0 ? 'positive' : 'negative'}">${money2(totals.profit - periodExpenses)}</b> <button type="button" class="link-btn" data-finance-goto="reports">See P&amp;L</button></p>` : '';
+  const hasExpenses = allExpenses.length > 0;
+  const periodExpenses = hasExpenses ? expensesForPeriod(allExpenses, period, now) : 0;
+  const netProfit = Math.round((totals.profit - periodExpenses) * 100) / 100;
+  const afterExpenses = hasExpenses ? `<p class="fin-note fin-summary-note fin-after-exp">Net profit = sales profit \u2212 ${money2(periodExpenses)} expenses${suffix}. <button type="button" class="link-btn" data-finance-goto="reports" data-pnl-from="${period}">See P&amp;L</button></p>` : '';
 
   const compare = previous ? compareName(previous, now) : '';
   const cell = (label, value, extraClass = '', change = '') => `
@@ -216,9 +219,10 @@ function renderOverview(){
       <div class="seg" role="group" aria-label="Period">${periodButtons}</div>
       <span class="fin-period">${periodName(period, now)}${previous ? `<span class="fin-compare"> · vs ${compare}</span>` : ''}</span>
     </div>
-    <section class="summary-panel fin-summary" aria-label="Summary">
+    <section class="summary-panel fin-summary${hasExpenses ? ' six' : ''}" aria-label="Summary">
       ${cell('Revenue', money(totals.revenue), '', change(totals.revenue, 'revenue', money))}
-      ${cell('Net profit', money(totals.profit), totals.profit >= 0 ? ' positive' : ' negative', change(totals.profit, 'profit', money))}
+      ${cell('Sales profit', money(totals.profit), totals.profit >= 0 ? ' positive' : ' negative', change(totals.profit, 'profit', money))}
+      ${hasExpenses ? cell('Net profit', money(netProfit), netProfit >= 0 ? ' positive' : ' negative') : ''}
       ${cell('Margin', `${totals.margin.toFixed(1)}%`, '', previous && totals.revenue > 0 && prevTotals.revenue > 0 ? delta(totals.margin, prevTotals.margin, pts, compare) : '')}
       ${cell('Items sold', totals.count.toLocaleString('en-US'), '', change(totals.count, 'count', count))}
       ${cell('Sell-through', sellThrough.rate === null ? '–' : `${sellThrough.rate.toFixed(0)}%`, '',
@@ -227,7 +231,7 @@ function renderOverview(){
     ${sellThrough.available ? `<p class="fin-note fin-summary-note">Sell-through: ${sellThrough.sold.toLocaleString('en-US')} sold of ${sellThrough.available.toLocaleString('en-US')} item${sellThrough.available === 1 ? '' : 's'} in stock or cataloged${period === 'all' ? '' : suffix}.</p>` : ''}
     ${afterExpenses}
     ${panel('Where each dollar went', money(totals.revenue) + ' revenue', splitBody, ' split')}
-    ${panel('Profit, last 12 months', range > 0 ? `${money(twelveTotal)} total` : '', chartBody, ' months-chart')}
+    ${panel('Sales profit, last 12 months', range > 0 ? `${money(twelveTotal)} total` : '', chartBody, ' months-chart')}
     <div class="home-lower">
       ${panel('By platform', `${money(totalPlatform)}${suffix}`, platformBody, ' revenue')}
       ${panel('In stock', '', stockBody)}
@@ -249,6 +253,8 @@ function renderOverview(){
     if (target) target.scrollIntoView({ block: 'start' });
   }));
   view.querySelectorAll('[data-finance-goto]').forEach(btn => btn.addEventListener('click', () => {
+    // "See P&L" carries Overview's period across (v3.23.5).
+    if (btn.dataset.pnlFrom){ setPnlPeriodFromOverview(btn.dataset.pnlFrom); renderReports(); }
     hooks.openTab(btn.dataset.financeGoto);
   }));
 }
@@ -270,11 +276,11 @@ function renderMonths(){
   const detail = (m) => `
     <dl class="month-detail">
       <div><dt>Gross revenue</dt><dd>${money2(m.revenue)}</dd></div>
-      <div><dt>Acquisition cost</dt><dd class="cost">${money2(m.cost)}</dd></div>
+      <div><dt>Item cost</dt><dd class="cost">${money2(m.cost)}</dd></div>
       <div><dt>Platform fees</dt><dd class="cost">${money2(m.fees)}</dd></div>
       <div><dt>Shipping paid</dt><dd class="cost">${money2(m.shipping)}</dd></div>
       <div><dt>Other costs</dt><dd class="cost">${money2(m.other)}</dd></div>
-      <div><dt>Net profit</dt><dd class="${m.profit >= 0 ? 'positive' : 'negative'}">${money2(m.profit)}</dd></div>
+      <div><dt>Sales profit</dt><dd class="${m.profit >= 0 ? 'positive' : 'negative'}">${money2(m.profit)}</dd></div>
       <div><dt>Net margin</dt><dd>${m.margin.toFixed(1)}%</dd></div>
     </dl>`;
   const rows = months.map(m => {
@@ -284,7 +290,7 @@ function renderMonths(){
         <button type="button" class="month-row" data-month-toggle="${m.key}" aria-expanded="${open}">
           <span class="month-row-name">${monthLabel(m.key, { long: true })}<small>${m.count} sold</small></span>
           <span class="month-row-cell"><small>Revenue</small>${money(m.revenue)}</span>
-          <span class="month-row-cell${m.profit >= 0 ? '' : ' negative'}"><small>Profit</small>${money(m.profit)}</span>
+          <span class="month-row-cell${m.profit >= 0 ? '' : ' negative'}"><small>Sales profit</small>${money(m.profit)}</span>
           <span class="month-row-cell"><small>Margin</small>${m.margin.toFixed(0)}%</span>
           <svg class="month-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
         </button>
@@ -368,7 +374,7 @@ function renderReports(){
       ${exportBtn('exportSoldOnly', 'Sold items only (CSV)', 'For taxes or bookkeeping')}
       ${exportBtn('exportCategoryReport', 'Performance by category (CSV)', "See what's worth sourcing more of")}
       ${exportBtn('exportPnl', 'Profit & Loss (CSV)', 'The statement for the period picked above')}
-      ${exportBtn('exportExpenses', 'Expenses (CSV)', 'Every expense and refund, with its category')}
+      ${exportBtn('exportExpenses', 'All expenses (CSV)', 'Every expense and refund, all time, with its category')}
     </div>`, ' export');
 
   view.innerHTML = html;

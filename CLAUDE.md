@@ -171,10 +171,16 @@ renaming them needs a data migration of every saved item.
     "Sale adjustments" carries any difference from the lines, so Net
     profit = Overview's profit − expenses. Periods This/Last month,
     This/Last year, All (`cc.pnl.period`, default This year), CSV
-    export (Section, Line, Amount). Overview adds a line "Expenses ·
-    Profit after expenses" once the business has any expense
-    (`expensesForPeriod()`); its summary, Home and Goals stay sales
-    profit.
+    export (Section, Line, Amount).
+  - **Two profits, two names (v3.23.5, Vitor 2026-10-20)**: "Sales
+    profit" = the saved `netProfit` of the sales (Home, Goals' metric,
+    Overview, Months, the 12-month chart); "Net profit" = sales profit −
+    expenses, only in the P&L and in Overview's sixth summary cell, which
+    appears once the business has any expense (with "Net profit = sales
+    profit − $X expenses · See P&L", `expensesForPeriod()`). Never label
+    the sales-only number "Net profit". "See P&L" carries Overview's
+    period (`setPnlPeriodFromOverview`); the Expenses list exports the
+    period on screen, Reports exports all expenses.
   - `ui/lightbox.js`: `openLightbox(photos, index)`; its state is private.
   - `ui/label-render.js`: label preview markup + canvas drawing.
   - `ui/labels/`: print modal (`openBatchLabelModal`), Quick Labels,
@@ -379,6 +385,18 @@ renaming them needs a data migration of every saved item.
 
 Last known status per the v3.13 notes. Confirm with Vitor before relying
 on any of these:
+- Finances critique fixes (v3.23.5, after an Impeccable critique at
+  26/40): Chromium tests (fixes 8 checks: Sales profit on Home, Goals,
+  Overview chart and Months, Item cost in Months; no page overflow at
+  320px with the tab bar scrolling; the P&L equation stacked on the
+  phone with role=group and h3 sections; 44px targets; the dialog at
+  390x500 keeping its error and "Saved" in view; a future date's note
+  and save; the closing toast. Expenses 18 checks incl. the export
+  following the period on screen; P&L 8 checks incl. the Net profit
+  cell and See P&L carrying the period), Node tests rerun (9 + 8),
+  detector unchanged (the 9 old-modal findings), screenshots in the
+  three themes, clean build. Unconfirmed: an iPhone with the real
+  keyboard, real data in the six-cell summary.
 - Profit & Loss (v3.23.4): Node test (8 cases: windows across a year
   change, each line by hand, expenses net of refunds, an old sale
   without `soldAt`, Sale adjustments only when the saved profit
@@ -615,6 +633,17 @@ on any of these:
   sizing (v3.13.102-105), inspection flag icon (v3.13.114).
 
 ## Pending changelog entry (since v3.23.0)
+
+- v3.23.5: Finances fixes from a design review. The profit of the sales
+  is now called "Sales profit" everywhere (Home, Goals, Overview,
+  Months); "Net profit" means after expenses, and Overview shows it in
+  its own cell once there are expenses. "See P&L" opens the statement on
+  the same period. The Expenses list exports the period on screen
+  (Reports keeps "All expenses"). In the expense form, messages stay in
+  view with the keyboard open, a future date says where it counts, and
+  closing with Save shows a confirmation. The P&L's equation reads as a
+  small ledger on a phone, the Finances tabs no longer push the page
+  sideways on small phones, and buttons are 44px.
 
 - v3.23.4: Profit & Loss (Nifty P2, second part). Reports now opens with
   a Profit & Loss statement for this or last month, this or last year, or

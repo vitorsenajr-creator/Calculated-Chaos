@@ -81,7 +81,7 @@ export function revenueSplit(totals){
     { key: 'fees', label: 'Platform fees', amount: totals.fees },
     { key: 'shipping', label: 'Shipping', amount: totals.shipping },
     { key: 'other', label: 'Other costs', amount: totals.other },
-    { key: 'profit', label: 'Profit', amount: Math.max(totals.profit, 0) },
+    { key: 'profit', label: 'Sales profit', amount: Math.max(totals.profit, 0) },
   ];
   const scale = Math.max(totals.revenue, parts.reduce((t, p) => t + p.amount, 0));
   return parts.map(p => ({ ...p, share: scale > 0 ? p.amount / scale : 0 }));

@@ -135,7 +135,7 @@ export function renderExpenses(){
         ${addBtn}
       </div>
       <div class="fin-big">${money2(sum.total)}<small> · ${sum.count} entr${sum.count === 1 ? 'y' : 'ies'}${sum.refunds ? ` · ${money2(sum.refunds)} refunded` : ''}</small></div>
-      <p class="fin-note">${ACCRUAL_NOTE} Profit on Overview and Home is from sales only.</p>
+      <p class="fin-note">${ACCRUAL_NOTE} Net profit on Overview and in the P&amp;L subtracts these.</p>
     </section>
     <div class="fin-pair">
       <section class="panel fin-panel" aria-label="By category">
@@ -145,7 +145,7 @@ export function renderExpenses(){
       <section class="panel fin-panel" aria-label="Expenses">
         <div class="panel-head">
           <h2 class="panel-title">Expenses</h2>
-          <button type="button" class="link-btn" data-expense-export>Export CSV</button>
+          ${list.length ? `<button type="button" class="link-btn exp-export" data-expense-export>Export ${escapeHtml(periodName(period, now))} (CSV)</button>` : ''}
         </div>
         ${listBody}
       </section>
@@ -163,7 +163,7 @@ function wire(view){
     const e = cachedExpenses().find(x => x.id === btn.dataset.expenseEdit);
     if (e) openExpenseEditor(e);
   }));
-  view.querySelectorAll('[data-expense-export]').forEach(btn => btn.addEventListener('click', exportExpensesCsv));
+  view.querySelectorAll('[data-expense-export]').forEach(btn => btn.addEventListener('click', exportPeriodCsv));
   view.querySelectorAll('[data-expense-retry]').forEach(btn => btn.addEventListener('click', async () => {
     btn.disabled = true;
     await loadExpenses();
@@ -172,9 +172,34 @@ function wire(view){
   }));
 }
 
-// Every expense, all time (the Reports export and the link here).
+// The period on screen (v3.23.5): the file matches what the list shows.
+function exportPeriodCsv(){
+  const now = Date.now();
+  const period = getPeriod();
+  const today = isoDate(now);
+  const tag = period === 'month' ? today.slice(0, 7) : period === 'year' ? today.slice(0, 4) : 'all';
+  hooks.downloadCsv(`calculated-chaos-expenses-${tag}.csv`, expenseCsvRows(expensesInPeriod(cachedExpenses(), period, now)));
+}
+
+// Every expense, all time (Reports → Export → All expenses).
 export function exportExpensesCsv(){
   hooks.downloadCsv(`calculated-chaos-expenses-${isoDate(Date.now())}.csv`, expenseCsvRows(cachedExpenses()));
+}
+
+// A short confirmation after the dialog closes (v3.23.5). Tokens only.
+function showToast(text){
+  let t = document.getElementById('expToast');
+  if (!t){
+    t = document.createElement('div');
+    t.id = 'expToast';
+    t.className = 'exp-toast';
+    t.setAttribute('role', 'status');
+    document.body.appendChild(t);
+  }
+  t.textContent = text;
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove('show'), 2200);
 }
 
 // ---------- EDITOR ----------
@@ -207,10 +232,11 @@ export function openExpenseEditor(expense){
         <p class="exp-cat-hint exp-wide" aria-live="polite">${escapeHtml(hintFor(start.category))}</p>
         <label class="goal-field exp-wide"><span>Description <small>(optional)</small></span>
           <input type="text" class="exp-input" data-k="description" maxlength="${MAX_DESCRIPTION}" value="${escapeHtml(start.description || '')}" placeholder="e.g. Poly mailers, 100 pack"></label>
+        <p class="exp-date-note exp-wide" aria-live="polite" hidden></p>
       </div>
-      <p class="exp-saved" role="status" hidden></p>
-      <p class="goal-error" role="alert" hidden></p>
       <div class="goal-actions exp-dialog-actions">
+        <p class="exp-saved" role="status" hidden></p>
+        <p class="goal-error" role="alert" hidden></p>
         ${editing ? '<button type="button" class="row-btn danger exp-delete" data-exp-delete>Delete</button>' : ''}
         <button type="button" class="secondary-btn" data-exp-cancel>Cancel</button>
         ${editing ? '' : '<button type="button" class="secondary-btn" data-exp-again>Save and add another</button>'}
@@ -240,6 +266,17 @@ export function openExpenseEditor(expense){
   field('category').addEventListener('change', () => {
     dlg.querySelector('.exp-cat-hint').textContent = hintFor(field('category').value);
   });
+  // A future date is allowed (rent paid ahead) but said out loud (v3.23.5).
+  const dateNote = dlg.querySelector('.exp-date-note');
+  const checkDate = () => {
+    const v = field('date').value;
+    const future = /^\d{4}-\d{2}-\d{2}$/.test(v) && v > isoDate(Date.now());
+    dateNote.hidden = !future;
+    if (future) dateNote.textContent = `This date is in the future; it counts in ${monthName(v.slice(0, 7))}.`;
+  };
+  field('date').addEventListener('input', checkDate);
+  field('date').addEventListener('change', checkDate);
+  checkDate();
 
   const buttons = () => dlg.querySelectorAll('.exp-dialog-actions button');
   const busy = (on) => buttons().forEach(b => { b.disabled = on; });
@@ -274,6 +311,7 @@ export function openExpenseEditor(expense){
       return;
     }
     dlg.close();
+    showToast(`Saved ${money2(signedAmount(result))} \u00b7 ${categoryLabel(result.category)}`);
   }
 
   dlg.querySelector('form').addEventListener('submit', (e) => { e.preventDefault(); submit(); });
@@ -291,6 +329,7 @@ export function openExpenseEditor(expense){
     renderExpenses();
     hooks.onChange();
     dlg.close();
+    showToast('Expense deleted');
   });
   dlg.addEventListener('close', () => dlg.remove());
   dlg.showModal();

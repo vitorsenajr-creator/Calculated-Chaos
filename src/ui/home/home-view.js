@@ -173,7 +173,7 @@ export function renderHome(){
   const summaryCells = `
       ${cell('instock', 'In stock', summary.inStock.toLocaleString('en-US'))}
       ${cell('sold', `Sold${suffix}`, summary.sold.toLocaleString('en-US'))}
-      ${cell('profit', `Profit${suffix}`, money(summary.profit), summary.profit >= 0 ? ' positive' : ' negative')}
+      ${cell('profit', `Sales profit${suffix}`, money(summary.profit), summary.profit >= 0 ? ' positive' : ' negative')}
       ${cell('projected', 'Projected, in stock', money(summary.projected))}`;
   const attentionPanel = (title, body, openCount) => `
     <section class="panel attention" aria-label="${title}">
