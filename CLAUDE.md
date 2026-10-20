@@ -104,6 +104,9 @@ renaming them needs a data migration of every saved item.
   - `ui/settings/`: the Settings screen (`settings-view.js`), admin
     panels, eBay panel, platforms/fees, save handlers (`forms.js`);
     `index.js` registers their `window.*` handlers (v3.17.6).
+  - `platform/app-update.js` + `ui/update-banner.js`: the new-version
+    strip (v3.20.2). `vite.config.js` writes `dist/version.json` from
+    `version.js` on every build; nothing to bump by hand.
   - `platform/print.js` (`printHtml`, keep it synchronous) and
     `platform/files.js` (`saveOrShareFile`, `downloadBlob`,
     `downloadUrl`). `main.js` saves no file by itself (v3.17.4).
@@ -255,9 +258,6 @@ renaming them needs a data migration of every saved item.
   blocks employees from connecting/disconnecting eBay, but Firestore rules
   still let them read/write the catalog and settings
   (`docs/employee-accounts.md`).
-- **`public/sw.js` caches every same-origin GET, `/api/` included**, and
-  answers `index.html` offline. All API calls are POST today, so nothing
-  breaks, but it should skip `/api/` (separate change).
 - **Model update**: `analyze-photo.js` moved to `claude-sonnet-5-5` at
   `effort: low` (v3.14.1). `suggest_fee` still uses `claude-sonnet-4-6`
   and `narration.js` extract uses `claude-haiku-4-5`; those switches are
@@ -274,6 +274,10 @@ renaming them needs a data migration of every saved item.
 
 Last known status per the v3.13 notes. Confirm with Vitor before relying
 on any of these:
+- New-version strip (v3.20.2): Chromium test on the built app with a newer
+  `version.json` (strip shows in the app and Developer Panel, X closes it)
+  and with the same version (one check, no strip). Unconfirmed: an iPhone
+  home-screen app picking up the next release through the strip.
 - Catalog and Stock redesign (v3.20.1): Node tests of `sortCatalog` (every
   order, input untouched) and `summarizeBoxes` (each box count equals its
   catalog filter), Chromium screenshots of the dev build with sample data
@@ -373,6 +377,10 @@ on any of these:
   desktop, a regrouped bulk bar ("More actions", Delete last). Stock got
   Labels / Transfer / Boxes / Wall markers tabs; Boxes (with item counts
   that open the catalog) and Wall markers moved out of Settings.
+- v3.20.2: "A new version is available · Update" strip in the app and the
+  Developer Panel (the build writes `version.json`; checked at startup and
+  when the app returns to the foreground). The service worker no longer
+  caches `/api/` calls or `version.json`.
 
 ## Backlog (not started)
 
