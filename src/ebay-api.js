@@ -24,6 +24,9 @@
   import { explainEbayErrorWithAi } from './modules/ebay-error-ai.js';
   import { normalizeSizeForEbay } from './modules/ebay-size.js';
   import { jsonAuthHeaders } from './modules/api-auth.js';
+  import { saleKey, matchSaleItem, planSale, saleEntry } from './domain/ebay-sales.js';
+  import { loadEbaySales, cachedEbaySales, logEbaySale } from './data/ebay-sales-store.js';
+  import { renderEbaySalesPanel } from './ui/settings/ebay-sales-panel.js';
 
   // Since v3.16.0 the eBay tokens live only on the server
   // (api/_ebayToken.js, Firestore ebay_connections/*, unreadable from the
@@ -85,32 +88,48 @@
         if (statusEl) statusEl.innerHTML = `<div class="ebay-status-box error">❌ Couldn't check eBay orders right now.</div>`;
         return { checked: false };
       }
+      // v3.22.5: every detected sale also goes in the sale tracker's log
+      // (data/ebay-sales-store.js), once per order line, with what the app
+      // did and where the item is still listed. Matching unsold items are
+      // marked Sold exactly as before; the log never blocks that.
+      await loadEbaySales();
+      const logged = new Set(cachedEbaySales().map(e => e.key));
       let matchedCount = 0;
+      let newLogEntries = 0;
       for (const sale of (data.sales || [])){
-        const item = items.find(i =>
-          i.status !== 'vendido' &&
-          ((sale.sku && i.ebaySku === sale.sku) || (sale.legacyItemId && i.ebayListingId === String(sale.legacyItemId)))
-        );
-        if (!item) continue;
-        const soldPrice = sale.total || parseFloat(item.listPrice) || app.suggestPrice(item);
-        const feesTotal = app.platformFee('ebay', soldPrice);
-        const updated = {
-          ...item,
-          status: 'vendido',
-          soldPrice,
-          soldPlatform: 'ebay', // this sale WAS found via the eBay orders API — this is a known fact, not a guess
-          shippingCost: item.shippingCost || 0,
-          feesTotal,
-          soldAt: sale.creationDate ? new Date(sale.creationDate).getTime() : Date.now(),
-          netProfit: soldPrice - (parseFloat(item.cost)||0) - feesTotal - (item.shippingCost||0),
-          ebayAutoDetectedSale: true,
-        };
-        const idx = items.findIndex(i => i.id === item.id);
-        if (idx >= 0) items[idx] = updated;
-        try{ await app.saveItem(updated); matchedCount++; }catch(e){ /* app.saveItem already alerts */ }
+        const key = saleKey(sale);
+        const item = matchSaleItem(sale, items);
+        const plan = planSale(sale, item);
+        if (plan.action !== 'mark' && logged.has(key)) continue;
+        let outcome = plan.outcome;
+        if (plan.action === 'mark'){
+          const soldPrice = sale.total || parseFloat(item.listPrice) || app.suggestPrice(item);
+          const feesTotal = app.platformFee('ebay', soldPrice);
+          const updated = {
+            ...item,
+            status: 'vendido',
+            soldPrice,
+            soldPlatform: 'ebay', // this sale WAS found via the eBay orders API — this is a known fact, not a guess
+            shippingCost: item.shippingCost || 0,
+            feesTotal,
+            soldAt: sale.creationDate ? new Date(sale.creationDate).getTime() : Date.now(),
+            netProfit: soldPrice - (parseFloat(item.cost)||0) - feesTotal - (item.shippingCost||0),
+            ebayAutoDetectedSale: true,
+          };
+          const idx = items.findIndex(i => i.id === item.id);
+          if (idx >= 0) items[idx] = updated;
+          try{ await app.saveItem(updated); matchedCount++; }catch(e){ outcome = 'save-failed'; /* app.saveItem already alerts */ }
+        }
+        if (!logged.has(key)){
+          const saved = await logEbaySale(saleEntry(sale, item, outcome, outcome === 'save-failed' ? [] : plan.delistOn, Date.now()));
+          if (saved){ logged.add(key); newLogEntries++; }
+        }
+      }
+      if (newLogEntries) renderEbaySalesPanel();
+      if (matchedCount > 0 || newLogEntries){
+        app.renderAll();
       }
       if (matchedCount > 0){
-        app.renderAll();
         if (statusEl){
           statusEl.innerHTML = `<div class="ebay-status-box success">✅ ${matchedCount} item${matchedCount===1?'':'s'} auto-marked as Sold from eBay orders.</div>`;
         } else {

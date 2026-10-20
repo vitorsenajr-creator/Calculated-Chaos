@@ -50,7 +50,8 @@ import { DEFAULT_SETTINGS } from './modules/settings.js';
 import {
   loadSettings, saveSettings, incrementAiUsage, aiUsageRemaining,
 } from './data/settings-store.js';
-import { renderSettings, renderEbayConnectionStatus } from './ui/settings/index.js';
+import { renderSettings, renderEbayConnectionStatus, openSettingsGroup } from './ui/settings/index.js';
+import { loadEbaySales, cachedEbaySales } from './data/ebay-sales-store.js';
 import { initHomeView, renderHome } from './ui/home/home-view.js';
 import { initStockView, renderStock } from './ui/stock/stock-view.js';
 import { initFinanceView, renderFinance } from './ui/finance/finance-view.js';
@@ -1476,6 +1477,11 @@ export const app = (function(){
       renderCatalog();
     },
     canEditGoals: () => currentUserRole !== 'employee',
+    getEbaySales: () => cachedEbaySales(),
+    openEbaySales: () => {
+      switchToTab('settings');
+      openSettingsGroup('ebay', 'ebaySalesSection');
+    },
   });
 
   // Opens the catalog's "All" list with these filters only (Home rows,
@@ -4735,6 +4741,13 @@ export const app = (function(){
   document.addEventListener('themechange', () => renderAll());
   // Settings → Warnings changed which checks count as issues (v3.22.4).
   document.addEventListener('issuecheckschange', () => renderAll());
+  // The eBay sale tracker (v3.22.5): a sale marked Done redraws Home's
+  // count; an item opened from the tracker opens in the item modal.
+  document.addEventListener('ebaysaleschange', () => renderHome());
+  document.addEventListener('openitem', (e) => {
+    const item = items.find(i => i.id === e.detail);
+    if (item) openModal(item);
+  });
   document.addEventListener('brandchange', () => renderBrand());
   renderBrand();
   initUpdateBanner(APP_VERSION);
@@ -4742,7 +4755,7 @@ export const app = (function(){
   setupSizeAutocomplete();
   async function waitForFirebaseThenLoad(){
     if (window.firebaseReady){
-      await Promise.all([loadSettings(), loadItems(), loadEbayConnection(), loadDrafts()]);
+      await Promise.all([loadSettings(), loadItems(), loadEbayConnection(), loadDrafts(), loadEbaySales()]);
       checkEbaySalesNow(); // best-effort, silent unless it finds something
       // Home is the start screen on every device (v3.20.0); an employee
       // lands on Catalog (switchToTab enforces it).

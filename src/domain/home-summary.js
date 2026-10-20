@@ -6,6 +6,7 @@ import {
   isIncomplete, isStaleListing, isMissingPrice, hasPrice, hasEbayError, hasDuplicateCode, codeCounts, normalizeCode,
   DEFAULT_ISSUE_CHECKS,
 } from './item-issues.js';
+import { salesToConfirm } from './ebay-sales.js';
 
 // Kept for older imports; the checks live in item-issues.js since v3.22.4.
 export { isStaleListing, isMissingPrice };
@@ -52,7 +53,7 @@ function missingDetail(checks){
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-export function computeHomeSummary(items, { drafts = [], period = 'month', now = Date.now(), projectedProfit = () => 0, checks = DEFAULT_ISSUE_CHECKS } = {}){
+export function computeHomeSummary(items, { drafts = [], period = 'month', now = Date.now(), projectedProfit = () => 0, checks = DEFAULT_ISSUE_CHECKS, ebaySales = [], platformLabel = (k) => k } = {}){
   const start = periodStart(period, now);
   const active = items.filter(i => i.status !== 'vendido');
   const soldInPeriod = items.filter(i => i.status === 'vendido' && soldTime(i) >= start);
@@ -95,6 +96,15 @@ export function computeHomeSummary(items, { drafts = [], period = 'month', now =
     attention.push({
       key: 'ebay-error', count: ebayErrors.length, title: 'eBay publish errors', action: 'Review', tone: 'urgent',
       detail: `Latest: ${latest.name || latest.productCode || 'an item'}`,
+    });
+  }
+  // The eBay sale tracker (v3.22.5): sales to delist elsewhere or to
+  // handle by hand.
+  const toConfirm = salesToConfirm(ebaySales, now, platformLabel);
+  if (toConfirm){
+    attention.push({
+      key: 'ebay-sales', count: toConfirm.count, title: 'eBay sales to confirm', action: 'Review', tone: 'warn',
+      detail: toConfirm.detail,
     });
   }
   if (dupItems.length){

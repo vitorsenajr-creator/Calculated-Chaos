@@ -105,6 +105,16 @@ renaming them needs a data migration of every saved item.
     cost, weight, dimensions, listed 30/45/60/90 days or off. A change
     fires `issuecheckschange`. `catalog-filters.js` and `home-summary.js`
     re-export the checks.
+  - `domain/ebay-sales.js` + `data/ebay-sales-store.js` +
+    `ui/settings/ebay-sales-panel.js`: the eBay sale tracker (v3.22.5).
+    `checkEbaySalesNow()` still marks a matching unsold item Sold on its
+    own; every detected order line is also logged once (transaction, key
+    `saleKey()`) in the business's `ebay_sales` with its outcome
+    (marked sold, already sold, no matching item, couldn't save) and the
+    other platforms the item was still listed on. Settings → eBay → Sale
+    tracker shows 60 days; Home's "eBay sales to confirm" counts the ones
+    to delist elsewhere or handle by hand until "Done". Business-only
+    collection (no root path).
   - `domain/goals.js` + `ui/home/goals-panel.js`: Goals on Home
     (v3.22.3), saved in `appSettings.goals` ({ id, metric, period,
     target }, max 4) through `saveSettingsFields()` (writes only the
@@ -231,6 +241,7 @@ renaming them needs a data migration of every saved item.
     server only too.
   - Multi-business (v3.17.0): `businesses/{bizId}` (`live` = the switch;
     server-written) with `items`, `drafts`, `ebay_error_log`,
+    `ebay_sales` (v3.22.5),
     `counters/*`, `config/settings` (members read/write), `members/*`
     (server-written) and the frozen `liveSessions`, `liveItems`,
     `options/main` (admins read only, v3.19.0);
@@ -323,6 +334,18 @@ renaming them needs a data migration of every saved item.
 
 Last known status per the v3.13 notes. Confirm with Vitor before relying
 on any of these:
+- eBay sale tracker (v3.22.5): Node test (9 cases: sale key, matching
+  by SKU/listing ID with an unsold match first, the plan per sale, the
+  log entry, what needs attention, 60 days, Home's row text; Home
+  identical to v3.22.4 without sales), Chromium test of the real app
+  with a stubbed Firebase and eBay (startup check marks the unsold
+  matches sold and logs all four outcomes; a second check logs and
+  saves nothing; Home row → Settings → eBay tracker; Done writes only
+  `doneAt` with merge and lowers Home's count; the item link opens the
+  item; no eBay connection = no log), screenshots in the three themes,
+  no page errors, clean build. Needs the `ebay_sales` rule pasted in
+  the Console (`isMemberData`). Unconfirmed in production: real eBay
+  orders, the first check after the deploy logging the last 14 days.
 - Item issues (v3.22.4): Node test (16 cases: with the default checks,
   `isIncomplete`/`missingFields`/`isStaleListing`, the Home summary and
   every old catalog filter identical to v3.22.3 on 400 items; each check
@@ -493,6 +516,14 @@ on any of these:
   sizing (v3.13.102-105), inspection flag icon (v3.13.114).
 
 ## Pending changelog entry (since v3.22.0)
+
+- v3.22.5: eBay sale tracker (Nifty P1, item 4). Each eBay sale the app
+  detects is logged with what it did (marked sold, already sold, no
+  matching item, couldn't save) and where the item was still listed.
+  Settings → eBay → Sale tracker lists the last 60 days; Home's "eBay
+  sales to confirm" counts the sales to delist on another platform or
+  handle by hand, until marked Done. Detected sales are still marked
+  Sold automatically.
 
 - v3.22.4: Issues in the catalog (Nifty P1, item 3). A strip under the
   catalog tools shows how many items have issues and filters to them.
@@ -676,7 +707,7 @@ average profit and days listed per platform, top brands/categories,
 previous-period comparison); (2) Goals on Home (done in v3.22.3); (3) an Issues filter in
 the catalog with optional warnings in Settings (done in v3.22.4); (4) an eBay sale tracker
 (log of detected sales and what the app did; gives Home its "eBay sales
-to confirm" row). P2, after Import (item 4): expenses and P&L, pricing
+to confirm" row; done in v3.22.5). P1 is complete. P2, after Import (item 4): expenses and P&L, pricing
 rules per platform, "similar items" and shipping presets, a Getting
 started checklist. Not to copy: marketplace automation with the user's
 password.
@@ -761,7 +792,7 @@ a private claude.ai artifact; Impeccable seed `seed:007b6ac6cba56f1a`):
 - D1 shipped in v3.20.0. Not in it, for lack of data: a "Shipped" stop in
   the pipeline (no shipped status yet; needs "Mark shipped"), the "eBay
   publish errors" row (added in v3.22.4, when errors started being saved
-  per item) and "eBay sales to confirm" (detected sales are marked sold directly). The Stock tab is a
+  per item) and "eBay sales to confirm" (added in v3.22.5 with the sale tracker). The Stock tab is a
   stopgap (Labels, Transfer, a link to the boxes in Settings); Finances
   holds the old Months and Reports screens as sub-tabs. `appSettings.storeName`
   is read for the header (none is saved yet; backlog item 6 adds it).

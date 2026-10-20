@@ -23,6 +23,7 @@ import { THEMES, normalizeTheme, applyAccent } from '../theme.js';
 import { ACCENT_PRESETS, isHexColor } from '../../domain/accent.js';
 import { shrinkImageToDataUrl } from '../../platform/images.js';
 import { warningsPageHtml, wireWarningsPanel, warningsSummary } from './warnings-panel.js';
+import { ebaySalesSectionHtml, renderEbaySalesPanel } from './ebay-sales-panel.js';
 
 const GROUP_KEY = 'cc.settings.group';
 const DESKTOP = '(min-width: 900px)';
@@ -74,6 +75,13 @@ function settingsGroups(){
       { key: 'data', title: 'Data', summary: 'Duplicate check · exports' },
     ] },
   ];
+}
+
+// Opens a group from outside Settings (Home's "eBay sales to confirm"),
+// after the screen is drawn; `anchor` is scrolled into view.
+export function openSettingsGroup(group, anchor){
+  showGroup(group);
+  if (anchor) document.getElementById(anchor)?.scrollIntoView({ block: 'start' });
 }
 
 // Opens a group (or the index, with null) without rebuilding the screen.
@@ -464,13 +472,8 @@ ${page('ebay', `
       </div>
 
       <h3 class="settings-subhead">Sales and offers</h3>
-      <!-- EBAY SALE CHECK -->
-      <div class="settings-section">
-        <h3>eBay sale sync</h3>
-        <div class="ss-desc">The app automatically checks for new eBay sales every time it opens and marks matching items as Sold. Use this to check right now instead of waiting to reopen the app.</div>
-        <button class="settings-save-btn" onclick="checkEbaySalesNow(true)">Check for eBay sales now</button>
-        <div id="ebaySalesCheckResult" class="settings-result"></div>
-      </div>
+      <!-- EBAY SALE TRACKER (v3.22.5) -->
+      ${ebaySalesSectionHtml()}
 
       <!-- EBAY OFFERS TO WATCHERS -->
       <div class="settings-section">
@@ -519,6 +522,7 @@ ${page('data', `
       </div>
     </div>`;
   renderEbayConnectionStatus();
+  renderEbaySalesPanel();
   renderPlatformsSettingsList();
   showGroup(currentGroup);
 
