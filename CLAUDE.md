@@ -105,6 +105,21 @@ renaming them needs a data migration of every saved item.
     cost, weight, dimensions, listed 30/45/60/90 days or off. A change
     fires `issuecheckschange`. `catalog-filters.js` and `home-summary.js`
     re-export the checks.
+  - Spreadsheet import (v3.23.1, backlog item 4): `domain/import-sheet.js`
+    (header synonyms EN/PT/ES → `suggestMapping`, value words →
+    `suggestValueMap`, money/date parsing with day/month order detection,
+    rows → items incl. quantity, sold fields, fees estimated when missing,
+    duplicates by code or name+size+price, `buildImportDocs`),
+    `data/import-store.js` (batches of 400 with `writeBatch`, continue
+    after a failure without duplicates, undo by `importId`),
+    `platform/sheetjs.js` (loads SheetJS 0.18.5, reads CSV as text),
+    `ui/import/import-view.js` (the `import` tab, from Settings → Data;
+    owner only). Codes come from `reserveProductCodeBlock(n)` (one
+    transaction). Every item keeps `importId`, `importFile`,
+    `importedAt` and its sheet code as `legacyCode` (searchable). Limit
+    10,000 rows per file. Imported items have their own missing-info
+    checks (`issueChecks.imported`, photos off by default) and an
+    "Imported" filter chip.
   - `domain/ebay-sales.js` + `data/ebay-sales-store.js` +
     `ui/settings/ebay-sales-panel.js`: the eBay sale tracker (v3.22.5).
     `checkEbaySalesNow()` still marks a matching unsold item Sold on its
@@ -334,6 +349,22 @@ renaming them needs a data migration of every saved item.
 
 Last known status per the v3.13 notes. Confirm with Vitor before relying
 on any of these:
+- Spreadsheet import (v3.23.1): Node test (16 cases: our own export
+  headers, Portuguese and Spanish headers, money in US and Brazilian
+  formats, dates incl. Excel serials and day-first detection, value
+  words, rows → items with quantity, sold items with fees from the sheet
+  or estimated, errors, duplicates, totals); Issues test (17, imported
+  items' own checks); Chromium test of the real app with a stubbed
+  Firebase and SheetJS (an .xlsx with two sheets: columns, an unknown
+  value, preview totals, a skipped duplicate, a bad row, saved fields,
+  codes #0051-#0057 from one counter reservation, the catalog filtered to
+  the import, the Imported chip, search by legacy code, Warnings →
+  Imported items, Undo from Past imports; a 1,000-row CSV with day-first
+  dates stopping after the first batch and finishing with Continue, no
+  duplicates; 10,001 rows refused; an employee never reaches the screen),
+  screenshots in the three themes, no page errors, clean build.
+  Unconfirmed in production: real sellers' spreadsheets, an .xls/.ods
+  file, writeBatch against the real Firestore and its rules.
 - eBay sale tracker (v3.22.5): Node test (9 cases: sale key, matching
   by SKU/listing ID with an unsold match first, the plan per sale, the
   log entry, what needs attention, 60 days, Home's row text; Home
@@ -517,7 +548,15 @@ on any of these:
 
 ## Pending changelog entry (since v3.23.0)
 
-(nothing yet)
+- v3.23.1: Import a spreadsheet (backlog item 4, first part). Settings →
+  Data → Import: choose an Excel or CSV file (and its sheets), check how
+  each column and value was matched, preview the items with errors and
+  possible duplicates, then save in batches with progress, Continue after
+  a dropped connection and Undo (also later, from Past imports). Each row
+  gets a new app code, its own code is kept and searchable, a quantity
+  becomes that many items, and sold rows come in as sales with their
+  profit. Imported items have their own warning settings (a missing photo
+  doesn't count by default) and an "Imported" filter chip.
 
 ## Backlog (not started)
 
@@ -559,7 +598,7 @@ It costs a few cents per click, and it's a rare action. It still returns
 one flat %, so the `note` should say when a fee is tiered; tiered
 platforms keep using the tiered editor.
 
-### 4. Import an existing spreadsheet (CSV or Excel) — next
+### 4. Import an existing spreadsheet (CSV or Excel) — rule-based import done in v3.23.1; AI column analysis next (v3.23.2)
 
 Decided with Vitor 2026-10-19. Goal: a new seller/business brings the
 Excel sheet they use today as their inventory and sales control, through

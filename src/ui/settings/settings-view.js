@@ -72,7 +72,7 @@ function settingsGroups(){
       { key: 'ebay', title: 'eBay', summary: 'Connection, sales and tools' },
     ] },
     { heading: 'Data', groups: [
-      { key: 'data', title: 'Data', summary: 'Duplicate check · exports' },
+      { key: 'data', title: 'Data', summary: 'Import · duplicate check · exports' },
     ] },
   ];
 }
@@ -504,6 +504,13 @@ ${page('ebay', `
         <div id="ebayErrorLibraryResult" class="settings-result"></div>
       </div>`)}
 ${page('data', `
+      <!-- IMPORT (v3.23.1) -->
+      <div class="settings-section">
+        <h3>Import a spreadsheet</h3>
+        <div class="ss-desc">Bring in the spreadsheet you use today for your inventory and sales (Excel or CSV). You match the columns, see a preview, and can undo the whole import later.</div>
+        <button type="button" class="settings-save-btn" data-settings-open-import>Import a spreadsheet</button>
+      </div>
+
       <!-- DUPLICATE REGISTRATION NUMBERS (temporary tool) -->
       <div class="settings-section">
         <h3>Duplicate registration numbers</h3>
@@ -537,6 +544,9 @@ ${page('data', `
     window.scrollTo(0, 0);
     view.querySelector(`[data-settings-group="${from}"]`)?.focus({ preventScroll: true });
   }));
+  view.querySelector('[data-settings-open-import]')?.addEventListener('click', () => {
+    document.dispatchEvent(new CustomEvent('openimport'));
+  });
   view.querySelector('[data-settings-open-reports]')?.addEventListener('click', () => {
     document.querySelector('.subtab[data-tab="reports"]')?.click();
   });

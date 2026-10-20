@@ -12,7 +12,11 @@
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 export const STALE_DAY_OPTIONS = [30, 45, 60, 90];
-export const DEFAULT_ISSUE_CHECKS = { photos: true, cost: true, weight: true, dimensions: true, staleDays: 30 };
+// `imported` (v3.23.1): the missing-info checks for items that came from a
+// spreadsheet import (item.importId). A sheet rarely has photos, so a
+// missing photo doesn't count for them by default.
+export const DEFAULT_IMPORTED_CHECKS = { photos: false, cost: true, weight: true, dimensions: true };
+export const DEFAULT_ISSUE_CHECKS = { photos: true, cost: true, weight: true, dimensions: true, staleDays: 30, imported: DEFAULT_IMPORTED_CHECKS };
 export const MISSING_PARTS = ['photos', 'cost', 'weight', 'dimensions'];
 
 // Most urgent first; the card shows the first one.
@@ -23,6 +27,8 @@ export function normalizeIssueChecks(raw){
   const out = {};
   MISSING_PARTS.forEach(k => { out[k] = r[k] !== false; });
   out.staleDays = r.staleDays === 0 || STALE_DAY_OPTIONS.includes(r.staleDays) ? r.staleDays : DEFAULT_ISSUE_CHECKS.staleDays;
+  const imp = r.imported && typeof r.imported === 'object' ? r.imported : {};
+  out.imported = Object.fromEntries(MISSING_PARTS.map(k => [k, k in imp ? imp[k] !== false : DEFAULT_IMPORTED_CHECKS[k]]));
   return out;
 }
 
@@ -34,8 +40,10 @@ export function isMissingPrice(item){
   return item.status !== 'vendido' && !hasPrice(item);
 }
 
-// The parts of "missing info" this item lacks, among the checks that are on.
+// The parts of "missing info" this item lacks, among the checks that are on
+// (an imported item's own checks when it has them).
 export function missingFields(item, checks = DEFAULT_ISSUE_CHECKS){
+  if (item.importId && checks.imported) checks = checks.imported;
   const missing = [];
   if (checks.photos !== false && !(item.photos && item.photos.length > 0)) missing.push('photos');
   if (checks.cost !== false && !item.cost) missing.push('cost');
