@@ -53,6 +53,7 @@ import {
 import { renderSettings, renderEbayConnectionStatus } from './ui/settings/index.js';
 import { initHomeView, renderHome } from './ui/home/home-view.js';
 import { initStockView, renderStock } from './ui/stock/stock-view.js';
+import { initUpdateBanner } from './ui/update-banner.js';
 import { CATALOG_SORTS, sortCatalog } from './domain/catalog-sort.js';
 import { items, setItems, appSettings, setAppSettings } from './modules/state.js';
 import {
@@ -4725,6 +4726,7 @@ export const app = (function(){
 
   // ---------- INIT ----------
   renderBrand();
+  initUpdateBanner(APP_VERSION);
   setupSourceAutocomplete();
   setupSizeAutocomplete();
   async function waitForFirebaseThenLoad(){

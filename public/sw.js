@@ -22,6 +22,9 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
+  // API calls and the version check always go to the network, never the
+  // cache (a cached version.json would hide new releases).
+  if (url.pathname.startsWith('/api/') || url.pathname === '/version.json') return;
 
   event.respondWith(
     fetch(request)
