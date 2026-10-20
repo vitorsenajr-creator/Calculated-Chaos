@@ -278,6 +278,11 @@ renaming them needs a data migration of every saved item.
 
 Last known status per the v3.13 notes. Confirm with Vitor before relying
 on any of these:
+- Theme layouts (v3.21.1): Node test of `week-tags.js` (week edges, no
+  date, future date, shelf counts equal the color filter), Chromium
+  screenshots of Home and Catalog in all three themes, phone and desktop,
+  no page errors, clean build. Unconfirmed on a real phone: real photos
+  in the Tag Week grid, the color filter, Concourse's sticky scope band.
 - Themes (v3.21.0): Chromium screenshots of Home, Catalog, Stock and
   Settings → Appearance in all three themes (phone) and Home on desktop,
   no page errors, clean build. Unconfirmed: the choice saving and loading
@@ -379,7 +384,14 @@ on any of these:
 
 ## Pending changelog entry (since v3.21.0)
 
-(none yet)
+- v3.21.1: each theme has its own layout, as in the mockup. Tag Week:
+  white header, colored active-tab pill, numbers without boxes, "Shelf by
+  tag" (in-stock items by the week they came in, tap a color to filter),
+  photo-grid catalog with a hanging tag in the week's color, color-dot
+  filter. Concourse: white bars with a yellow active marker, a yellow
+  "Next" band with the most urgent task, monumental numbers, a "Then"
+  list, and a catalog list led by big product codes under a yellow scope
+  band. Parcel is unchanged.
 
 ## Backlog (not started)
 
@@ -549,11 +561,15 @@ a private claude.ai artifact; Impeccable seed `seed:007b6ac6cba56f1a`):
     neutral ground, five tag colors; Bricolage Grotesque.
   - **Concourse**: airport wayfinding. White ground, black, signal
     yellow only for "go here"; Fira Sans; monumental product codes.
-- Signature features (recommended 2026-10-19, Vitor had no preference):
-  the item tracking line (Cataloged → Listed → Sold → Shipped) in every
-  theme; "Color tags by week" as an Appearance option (on by default in
-  Tag Week); "Highlight next task" as a Home option (on by default in
-  Concourse).
+- Signature features: since v3.21.1 (Vitor, 2026-10-20) each theme has
+  its own layout, as presented in the mockup, and the features belong to
+  their theme rather than being options: Parcel keeps the tracking line,
+  Tag Week has the weekly tag colors (`domain/week-tags.js`; week 0 =
+  last 7 days … 4 = 4+ weeks, from `createdAt`), Concourse has the
+  "Next" band. Home (`ui/home/home-view.js`) and the catalog cards
+  (`renderCatalogList` in `main.js`) branch on `currentTheme()`; a theme
+  change fires `themechange` and redraws. Stock, Finances and Settings
+  share one layout and only take the theme's tokens.
 - Rule for all new UI code: no hard-coded colors, fonts or radii, only
   the theme's CSS variables, so a theme is one token set.
 - Order: D1 the new shell + Home in Parcel → the other screens in

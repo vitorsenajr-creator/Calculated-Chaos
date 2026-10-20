@@ -3,6 +3,7 @@
 // activeFilters (+ searchQuery) as explicit params instead of closing
 // over them; main.js keeps thin wrappers with the original signatures.
 import { isMissingPrice, isStaleListing } from '../domain/home-summary.js';
+import { weekTagIndex } from '../domain/week-tags.js';
 
 export function isIncomplete(item){
   return !(item.photos && item.photos.length > 0) || !item.cost || !item.weight || !item.length || !item.width;
@@ -28,6 +29,7 @@ export function filtersActiveCount(activeFilters){
   if (activeFilters.size) n++;
   if (activeFilters.noPrice) n++;
   if (activeFilters.stale) n++;
+  if (Number.isInteger(activeFilters.weekTag)) n++;
   if (activeFilters.platformsInclude.length || activeFilters.platformsExclude.length) n++;
   return n;
 }
@@ -44,6 +46,8 @@ export function applyFilters(list, activeFilters, searchQuery){
     // Set from the Home screen's "Needs attention" rows.
     if (activeFilters.noPrice && !isMissingPrice(item)) return false;
     if (activeFilters.stale && !isStaleListing(item, Date.now())) return false;
+    // Tag Week theme: the color-of-the-week dots above the catalog.
+    if (Number.isInteger(activeFilters.weekTag) && weekTagIndex(item, Date.now()) !== activeFilters.weekTag) return false;
     if (activeFilters.platformsInclude.length){
       const onAny = activeFilters.platformsInclude.some(p => (item.listedPlatforms || []).includes(p));
       if (!onAny) return false;
