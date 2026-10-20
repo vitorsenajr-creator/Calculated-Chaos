@@ -221,6 +221,21 @@ renaming them needs a data migration of every saved item.
     with `importId`, `importFile`, `importedAt`; the Expenses tab shows
     the last import for a week with Undo (`undoExpenseImport`). Limit
     5,000 rows. The list export has Miles and Rate per mile columns.
+  - `domain/sale-match.js` + `modules/ai-sale-screenshot.js` +
+    `ui/stock/pick-view.js`: Stock → Pick (v3.24.2), sale screenshots →
+    the pieces to pick, box by box. One `analyze-photo.js` call per
+    screenshot, mode `sale_screenshot` on **Haiku 5.5** (no refusal
+    fallback; prompt and schema built on the server), counted by the AI
+    usage counter. `platform/images.js` `prepareScreenshot()` crops the
+    plain bands and keeps the long side ≤1,568 px so text stays legible.
+    Matching: SKU = product code without "#" (Poshmark shows "SKU: 0897"
+    for #0897; copies "-1"/"-2" share the base, two sales take two
+    copies), then `legacyCode`, then title words + size + price (unsold
+    only, with a confidence and alternatives). Flags: already sold, still
+    listed elsewhere, two sales on one item, SKU not in the catalog. Same
+    order line in two screenshots counts once. **Read-only**: answers,
+    the person's picks and the ticks stay on the device
+    (`cc.pick.session`). Marking sold from Pick is the next PR.
   - `ui/lightbox.js`: `openLightbox(photos, index)`; its state is private.
   - `ui/label-render.js`: label preview markup + canvas drawing.
   - `ui/labels/`: print modal (`openBatchLabelModal`), Quick Labels,
@@ -299,7 +314,8 @@ renaming them needs a data migration of every saved item.
     if it's unavailable.
   - `analyze-photo.js`: ✨ analysis, `mode: full | listing_only` (and
     `import_map` for the spreadsheet import, v3.23.2), Sonnet 5.5
-    at `effort: low`, with server-side refusal `fallbacks`. Builds the
+    at `effort: low`, with server-side refusal `fallbacks`;
+    `sale_screenshot` (Stock → Pick, v3.24.2) runs on Haiku 5.5, one image. Builds the
     prompt itself from item data (`buildItemAiRequest()`); never accept a
     prompt from the browser again.
   - `narration.js`: `transcribe` (Deepgram) / `extract` (Haiku 4.5,
@@ -433,6 +449,22 @@ renaming them needs a data migration of every saved item.
 
 Last known status per the v3.13 notes. Confirm with Vitor before relying
 on any of these:
+- Stock → Pick (v3.24.2): Node test (13 cases, built from Vitor's three
+  Poshmark screenshots: code normalization, the server prompt and schema,
+  a repeated order counted once, SKU with a leading zero, a sold item, a
+  no-SKU item by name over a similar one, legacy code, copies, an exact
+  "-3" SKU, an unknown SKU, box order and delist notes, a person's own
+  pick), handler test with a mocked fetch (Haiku without fallback, one
+  image, server prompt, other modes unchanged), Chromium test of the
+  built app with a stubbed Firebase and AI endpoint uploading the real
+  screenshots (11 checks: one call each, 7 items from 2 orders, badges
+  and notes, counter +3 and no item written, ticks and choices kept
+  after a reload with no new call, Try again, Search catalog, a used-up
+  limit), the black-banded screenshot cropped legibly, screenshots in
+  the three themes, no page errors, clean build. Unconfirmed: the real
+  Haiku 5.5 reading real screenshots (SKUs with leading zeros, eBay and
+  Mercari layouts), its cost (`ai-usage` lines with
+  `"mode":"sale_screenshot"`), paste and upload on an iPhone.
 - AI writing instructions (v3.24.1): Node test (5 cases: every prompt
   byte-for-byte identical to v3.24.0 without instructions, the block's
   place and wording in both modes, the rest of the prompt and the
@@ -725,6 +757,14 @@ on any of these:
 
 ## Pending changelog entry (since v3.24.0)
 
+- v3.24.2: Stock → Pick. Add screenshots of your sales (Poshmark, eBay,
+  Mercari…) and the app lists the sold pieces box by box: found by SKU,
+  by an imported item's old code or by name (with a "check this" note
+  and other matches), with a tick per piece picked. It warns when a piece
+  is already marked sold, is still listed on another platform, or two
+  sales point to it. Each screenshot uses one AI analysis; nothing is
+  saved to the catalog yet.
+
 - v3.24.1: AI writing instructions (Nifty P2 item 2). Settings →
   Listings → "AI writing instructions": tell the AI how you like your
   listings written (up to 1,500 characters, with example chips like "No
@@ -818,6 +858,11 @@ Layers: parsing and value conversion in `src/domain/` (testable without a
 browser), the screen in `src/ui/import/`, the writes in `src/data/`.
 
 ### 5. Import platform reports (sales and payouts) — after item 4
+
+Started as Stock → Pick (v3.24.2, Vitor 2026-10-20): sale screenshots,
+read-only. Next PR: "Mark sold" from Pick with the screenshot's price,
+platform and fees, and the order number saved on the item so a sale
+can't be applied twice.
 
 Ideas from the 2026-10-19 discussion, to be decided when it starts:
 - Input: a file or screenshot from any platform (eBay, Poshmark,
@@ -931,7 +976,7 @@ Navigation, approved:
   5 places: Home · Catalog · Stock · Finances · Settings (Settings pinned
   at the bottom on desktop). The desktop-only Dashboard becomes Home.
 - N3: sub-tabs. Catalog: All · Drafts. Stock: Labels · Transfer · Boxes
-  · Wall markers. Finances: Overview · Months · Reports (Expenses added
+  · Wall markers (Pick added first in v3.24.2, Vitor 2026-10-20). Finances: Overview · Months · Reports (Expenses added
   before Reports in v3.23.3; Months renamed Sales in v3.23.6, Vitor
   2026-10-20).
 - N4: the header loses the title, subtitle and platform eyebrow; a slim

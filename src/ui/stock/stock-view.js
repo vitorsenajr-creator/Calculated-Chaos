@@ -1,13 +1,15 @@
-// Stock screen (UI layer; v3.20.1): Labels, Transfer, Boxes and Wall
-// markers sub-tabs. Labels and Transfer open their full-screen tools
-// (ui/labels/); Boxes and Wall markers moved here from Settings.
+// Stock screen (UI layer; v3.20.1): Pick (v3.24.2, ui/stock/pick-view.js),
+// Labels, Transfer, Boxes and Wall markers sub-tabs. Labels and Transfer
+// open their full-screen tools (ui/labels/); Boxes and Wall markers moved
+// here from Settings.
 import { items, appSettings } from '../../modules/state.js';
 import { escapeHtml } from '../../modules/format-utils.js';
 import { summarizeBoxes } from '../../domain/stock-boxes.js';
 import { openBoxLabelModal } from '../labels/print-modal.js';
+import { renderPick } from './pick-view.js';
 
 const SECTION_KEY = 'cc.stock.section';
-const SECTIONS = ['labels', 'transfer', 'boxes', 'markers'];
+const SECTIONS = ['pick', 'labels', 'transfer', 'boxes', 'markers'];
 
 let hooks = { openCatalog: () => {} };
 
@@ -44,6 +46,7 @@ export function renderStock(){
     const pane = document.getElementById(`stockPane-${s}`);
     if (pane) pane.hidden = s !== section;
   });
+  if (section === 'pick') renderPick();
   if (section === 'boxes') renderBoxes();
   if (section === 'markers') renderMarkers();
 }
