@@ -698,14 +698,14 @@
   .exp-input[type="date"]{height:44px;}
   .exp-date-note{margin:-4px 0 0; font-size:12.5px; line-height:1.4; color:var(--warn-ink); font-weight:600;}
   .exp-export, .pnl-foot .link-btn, .fin-after-exp .link-btn{display:inline-block; padding:12px 0; margin:-12px 0;}
-  .exp-toast{
+  .app-toast{
     position:fixed; left:50%; bottom:calc(84px + env(safe-area-inset-bottom, 0px)); transform:translate(-50%, 8px); z-index:9999;
     max-width:calc(100vw - 32px); padding:11px 18px; border-radius:999px; background:var(--ink); color:var(--surface);
     font:600 13px var(--font-ui); box-shadow:0 6px 18px color-mix(in srgb, var(--ink) 25%, transparent);
     opacity:0; pointer-events:none; transition:opacity 0.2s ease, transform 0.2s ease;
   }
-  .exp-toast.show{opacity:1; transform:translate(-50%, 0);}
-  @media (prefers-reduced-motion: reduce){ .exp-toast{transition:none;} }
+  .app-toast.show{opacity:1; transform:translate(-50%, 0);}
+  @media (prefers-reduced-motion: reduce){ .app-toast{transition:none;} }
   .exp-dialog-actions .exp-delete{margin-right:auto;}
   @media (max-width: 420px){
     .exp-fields{grid-template-columns:minmax(0, 1fr);}
@@ -755,6 +755,63 @@
   .pnl-none{color:var(--ink-2);}
   .fin-after-exp b.positive{color:var(--ok);}
   .fin-after-exp b.negative{color:var(--urgent);}
+
+  /* ---------- SALES (v3.23.6) ----------
+     Finances → Sales: the open month's list. A table on desktop, cards on
+     a phone; the cost sheet rises from the bottom. Tokens only. */
+  .missing-tag{
+    display:inline-block; margin-left:6px; padding:0 6px; border-radius:999px; vertical-align:1px;
+    font-size:11.5px; font-weight:700; color:var(--warn-ink); background:var(--warn-bg);
+  }
+  .sales-list{padding:4px 14px 14px; background:var(--bg);}
+  .sales-head{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; padding:10px 0 8px;}
+  .sales-title{margin:0; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:var(--ink-2);}
+  .sales-filter .seg-btn{min-height:40px;}
+  .cost-add{
+    min-height:32px; padding:0 10px; border:1px dashed var(--warn-ink); border-radius:999px; cursor:pointer;
+    background:var(--warn-bg); color:var(--warn-ink); font:700 12.5px var(--font-ui);
+  }
+  .cost-chip{display:inline-flex; align-items:center; min-height:28px; padding:0 8px; border-radius:999px; background:var(--surface); border:1px solid var(--line); font-size:12.5px; font-variant-numeric:tabular-nums;}
+  .sale-name{display:inline-flex; align-items:center; gap:6px; min-width:0;}
+  .sale-name > span:last-child{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .sales-table{display:none; width:100%; border-collapse:collapse; font-size:13.5px; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-sm);}
+  .sales-table th, .sales-table td{padding:8px 10px; text-align:left; border-bottom:1px solid var(--line-soft); white-space:nowrap;}
+  .sales-table thead th{position:sticky; top:0; z-index:1; background:var(--surface); font-size:11.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.03em; color:var(--ink-2);}
+  .sales-table td:nth-child(2){white-space:normal; max-width:280px;}
+  .sales-table .num{text-align:right; font-variant-numeric:tabular-nums;}
+  .sales-table .negative{color:var(--urgent);}
+  .sales-table tfoot th, .sales-table tfoot td{border-bottom:none; border-top:2px solid var(--ink); font-weight:700;}
+  .sales-table .sale-act{text-align:right;}
+  .sales-table .row-btn{min-height:36px;}
+  .sale-editing td{background:color-mix(in srgb, var(--brand-2) 6%, var(--surface));}
+  .sale-in{
+    width:84px; min-height:36px; box-sizing:border-box; padding:0 8px; text-align:right; border:1px solid var(--line);
+    border-radius:var(--radius-sm); background:var(--surface); color:var(--ink); font:400 14px var(--font-ui); font-variant-numeric:tabular-nums;
+  }
+  .sale-in:focus{outline:2px solid var(--brand-2); outline-offset:1px;}
+  .sale-preview{font-weight:700;}
+  .sale-edit-msg td{border-bottom:none; padding-top:0;}
+  .sales-cards{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px;}
+  .sale-card{padding:10px 12px; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-sm);}
+  .sale-card-top{display:flex; justify-content:space-between; align-items:baseline; gap:10px; font-size:14px; font-weight:600;}
+  .sale-card-profit{font-size:16px; font-variant-numeric:tabular-nums; color:var(--ok); white-space:nowrap;}
+  .sale-card-profit.negative{color:var(--urgent);}
+  .sale-card-sub{margin-top:3px; font-size:12.5px; color:var(--ink-2); font-variant-numeric:tabular-nums;}
+  .sale-card-costs{display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-top:8px;}
+  .sale-card-costs .cost-add{min-height:28px;}
+  .sale-card-edit{margin-left:auto; min-height:44px;}
+  @media (min-width: 900px){
+    .sales-table{display:table;}
+    .sales-cards{display:none;}
+  }
+  /* The phone's cost sheet sits on the bottom edge, in thumb reach. */
+  .sale-sheet{margin:auto auto 0; width:100%; max-width:560px; border-radius:var(--radius) var(--radius) 0 0; border-bottom:none;}
+  .sale-sheet-item{margin:0 0 8px; font-size:14px; font-weight:600;}
+  .sale-sheet-ro{display:flex; flex-wrap:wrap; align-items:center; gap:6px 14px; margin:0 0 12px; font-size:13px; color:var(--ink-2);}
+  .sale-sheet-ro b{color:var(--ink); font-variant-numeric:tabular-nums;}
+  .sale-sheet-ro .link-btn{margin-left:auto; padding:12px 0; margin-top:-12px; margin-bottom:-12px;}
+  .sale-sheet-profit{display:flex; justify-content:space-between; margin:12px 0 0; padding-top:10px; border-top:1px solid var(--line-soft); font-size:14px;}
+  .sale-sheet-profit b{font-variant-numeric:tabular-nums;}
 
   /* ---------- STOCK ---------- */
   #stockView .screen-title{margin-bottom:12px;}

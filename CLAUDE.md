@@ -181,6 +181,21 @@ renaming them needs a data migration of every saved item.
     the sales-only number "Net profit". "See P&L" carries Overview's
     period (`setPnlPeriodFromOverview`); the Expenses list exports the
     period on screen, Reports exports all expenses.
+  - `domain/sales-ledger.js` + `data/sale-costs-store.js` +
+    `ui/finance/sales-list.js`: Finances → Sales (v3.23.6; the old Months
+    tab, still `data-tab="months"`). An open month shows its summary and
+    its sales: a table on desktop (totals footer = the month summary),
+    cards on a phone. Item cost, shipping and other costs are edited in
+    place on desktop (Enter saves and jumps to the next sale without a
+    cost, Esc cancels) or in a bottom sheet on a phone ("Save & next
+    missing"); the profit is recomputed with the item modal's formula and
+    **only `cost`, `shippingCost`, `otherCosts`, `netProfit` are written,
+    with `updateDoc`** (never `saveItem`'s full replace). Price and fees
+    stay in the item modal ("Edit in item"). Missing cost = an empty
+    `cost`; a typed 0 is a known cost (free or gifted). A month with
+    missing costs shows "N missing cost" and a Missing cost filter. After
+    a save `onDataChange` redraws everything. `ui/toast.js` is the shared
+    `showToast()` (Expenses and Sales).
   - `ui/lightbox.js`: `openLightbox(photos, index)`; its state is private.
   - `ui/label-render.js`: label preview markup + canvas drawing.
   - `ui/labels/`: print modal (`openBatchLabelModal`), Quick Labels,
@@ -385,6 +400,21 @@ renaming them needs a data migration of every saved item.
 
 Last known status per the v3.13 notes. Confirm with Vitor before relying
 on any of these:
+- Sales list and cost editing (v3.23.6): Node test (7 cases: missing =
+  empty only, counts per month, month order incl. an old sale without
+  `soldAt`, row shape, footer totals = `monthlyTotals`, the recompute =
+  the item modal's formula and its errors), Chromium test (9 checks: the
+  Sales tab and its "2 missing cost" tag, cards with an Add cost chip,
+  the filter, the bottom sheet with error, live preview and Save & next
+  missing writing only the four fields with `updateDoc` and keeping the
+  item's other fields, a typed 0 clearing the tag, Overview/P&L/Home
+  agreeing after the edits, a failed save, Edit in item, the desktop
+  table footer, Esc and Enter inline), the earlier suites rerun
+  (Expenses 18, P&L 8, fixes 8, Node 9 + 8), detector unchanged,
+  screenshots in the three themes, clean build. Unconfirmed: real data
+  (items whose `cost` is a number 0 from older code count as known here
+  but as missing in `item-issues.js`'s optional cost check), an iPhone
+  keyboard over the sheet.
 - Finances critique fixes (v3.23.5, after an Impeccable critique at
   26/40): Chromium tests (fixes 8 checks: Sales profit on Home, Goals,
   Overview chart and Months, Item cost in Months; no page overflow at
@@ -634,6 +664,14 @@ on any of these:
 
 ## Pending changelog entry (since v3.23.0)
 
+- v3.23.6: Sales list (Nifty P2, third part). Finances → Months is now
+  Sales: open a month to see each sale with its price, fees, item cost,
+  shipping, other costs and profit (a table on a computer, cards on a
+  phone), and fix costs right there; the profit updates everywhere. A
+  month with sales that have no item cost is tagged ("2 missing cost")
+  and can be filtered to them; "Save & next missing" goes through them
+  one after another. Typing 0 marks a free or gifted piece.
+
 - v3.23.5: Finances fixes from a design review. The profit of the sales
   is now called "Sales profit" everywhere (Home, Goals, Overview,
   Months); "Net profit" means after expenses, and Overview shows it in
@@ -844,9 +882,11 @@ in `docs/nifty-review.md`):
    an item's cost when it sells; no cash method). 2-3 PRs: expenses
    (done in v3.23.3: a fourth Finances sub-tab, owner only, Vitor
    2026-10-20); the P&L (done in v3.23.4: top of Reports, Overview keeps
-   sales profit plus an after-expenses line, Vitor 2026-10-20); a Sales
-   table with inline cost editing, mileage at the IRS rate and expense
-   CSV import.
+   sales profit plus an after-expenses line, Vitor 2026-10-20); the Sales
+   list with cost editing (done in v3.23.6: Months renamed Sales, bottom
+   sheet on phones, typed 0 = known cost, the missing tag per month
+   only, Vitor 2026-10-20); next, mileage at the IRS rate (check the
+   2026 mid-year rate change with the IRS) and expense CSV import.
 2. AI custom instructions and a description footer for ✨ (server-built
    prompt; pairs with backlog items 1 and 2).
 3. Pricing rules per platform (needs a price per platform everywhere;
@@ -875,7 +915,8 @@ Navigation, approved:
   at the bottom on desktop). The desktop-only Dashboard becomes Home.
 - N3: sub-tabs. Catalog: All · Drafts. Stock: Labels · Transfer · Boxes
   · Wall markers. Finances: Overview · Months · Reports (Expenses added
-  before Reports in v3.23.3, Vitor 2026-10-20).
+  before Reports in v3.23.3; Months renamed Sales in v3.23.6, Vitor
+  2026-10-20).
 - N4: the header loses the title, subtitle and platform eyebrow; a slim
   bar with the store name (logo later, item 6).
 - N5: the daily quote stays (Vitor, 2026-10-20), on Home under "Today",
