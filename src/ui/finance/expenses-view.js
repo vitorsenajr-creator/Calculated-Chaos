@@ -19,6 +19,8 @@ let hooks = {
   canEdit: () => false,
   uid: () => null,
   downloadCsv: () => {},
+  // Overview and the P&L also show expenses (v3.23.4).
+  onChange: () => {},
 };
 
 export function initExpensesView(h){
@@ -166,6 +168,7 @@ function wire(view){
     btn.disabled = true;
     await loadExpenses();
     renderExpenses();
+    hooks.onChange();
   }));
 }
 
@@ -259,6 +262,7 @@ export function openExpenseEditor(expense){
     busy(false);
     if (!result) return showError('Couldn’t save. Check your connection and try again.');
     renderExpenses();
+    hooks.onChange();
     if (again){
       // Same date and category for the next receipt; amount and note clear.
       saved.textContent = `Saved ${money2(signedAmount(result))} · ${categoryLabel(result.category)}.`;
@@ -285,6 +289,7 @@ export function openExpenseEditor(expense){
     busy(false);
     if (!ok) return showError('Couldn’t delete. Check your connection and try again.');
     renderExpenses();
+    hooks.onChange();
     dlg.close();
   });
   dlg.addEventListener('close', () => dlg.remove());

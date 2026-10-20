@@ -57,6 +57,7 @@ import { initHomeView, renderHome } from './ui/home/home-view.js';
 import { initStockView, renderStock } from './ui/stock/stock-view.js';
 import { initFinanceView, renderFinance } from './ui/finance/finance-view.js';
 import { initExpensesView, renderExpenses, exportExpensesCsv } from './ui/finance/expenses-view.js';
+import { initPnlView, exportPnlCsv } from './ui/finance/pnl-view.js';
 import { loadExpenses } from './data/expense-store.js';
 import { initUpdateBanner } from './ui/update-banner.js';
 import { applyTheme, applyAccent, applyLastTheme, currentTheme } from './ui/theme.js';
@@ -1433,6 +1434,9 @@ export const app = (function(){
 
     const expBtn = document.getElementById('exportExpenses');
     if (expBtn) expBtn.addEventListener('click', exportExpensesCsv);
+
+    const pnlBtn = document.getElementById('exportPnl');
+    if (pnlBtn) pnlBtn.addEventListener('click', exportPnlCsv);
   }
 
   // The store's logo and name lead, with "by Calculated Chaos" under the
@@ -1569,6 +1573,11 @@ export const app = (function(){
   initExpensesView({
     canEdit: () => currentUserRole !== 'employee',
     uid: () => window.auth?.currentUser?.uid || null,
+    downloadCsv,
+    onChange: () => renderFinance(),
+  });
+  initPnlView({
+    platformLabel: (key) => PLATFORM_NAME[key] || getPlatformLabel(key),
     downloadCsv,
   });
 
@@ -4801,6 +4810,7 @@ export const app = (function(){
   async function waitForFirebaseThenLoad(){
     if (window.firebaseReady){
       await Promise.all([loadSettings(), loadItems(), loadEbayConnection(), loadDrafts(), loadEbaySales(), loadExpenses()]);
+      renderFinance();
       renderExpenses();
       checkEbaySalesNow(); // best-effort, silent unless it finds something
       // Home is the start screen on every device (v3.20.0); an employee
