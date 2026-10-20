@@ -53,6 +53,27 @@ function periodName(period, now){
   if (period === 'year') return String(d.getFullYear());
   return 'All time';
 }
+// "Sep 1–20" / "Jan 1–Oct 20, 2025": the stretch the changes compare with.
+function compareName(prev, now){
+  const start = new Date(prev.start);
+  const last = new Date(prev.end - 1);
+  const md = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const sameMonth = start.getMonth() === last.getMonth();
+  const range = sameMonth ? `${md(start)}–${last.getDate()}` : `${md(start)}–${md(last)}`;
+  return start.getFullYear() === new Date(now).getFullYear() ? range : `${range}, ${start.getFullYear()}`;
+}
+
+// The change under a summary number. `fmt` formats the size of the change.
+function delta(cur, prev, fmt, compare){
+  if (prev === null || cur === null || (cur === 0 && prev === 0)) return '';
+  const diff = cur - prev;
+  const flat = Math.abs(diff) < 0.005;
+  const word = flat ? 'No change' : diff > 0 ? 'Up' : 'Down';
+  const mark = flat ? '' : diff > 0 ? '▲ ' : '▼ ';
+  const text = flat ? 'No change' : `${mark}${fmt(Math.abs(diff))}`;
+  return `<span class="fin-delta${!flat && diff > 0 ? ' up' : ''}" aria-label="${word}${flat ? '' : ' ' + fmt(Math.abs(diff))} vs ${compare}">${text}</span>`;
+}
+
 function periodSuffix(period, now){
   if (period === 'month') return ` in ${new Date(now).toLocaleDateString('en-US', { month: 'short' })}`;
   if (period === 'year') return ` in ${new Date(now).getFullYear()}`;
@@ -90,7 +111,7 @@ function renderOverview(){
   if (!view) return;
   const now = Date.now();
   const period = getPeriod();
-  const { totals, split, lastTwelve, revenueByPlatform, stock } = computeFinanceOverview(items, {
+  const { totals, previous, sellThrough, split, lastTwelve, byPlatform, topBrands, topCategories, stock } = computeFinanceOverview(items, {
     period, now, projectedProfit: hooks.projectedProfit,
   });
   const suffix = periodSuffix(period, now);
@@ -98,11 +119,17 @@ function renderOverview(){
   const periodButtons = FINANCE_PERIODS.map(p => `
     <button type="button" class="seg-btn${p === period ? ' active' : ''}" data-finance-period="${p}" aria-pressed="${p === period}">${PERIOD_LABEL[p]}</button>`).join('');
 
-  const cell = (label, value, extraClass = '') => `
+  const compare = previous ? compareName(previous, now) : '';
+  const cell = (label, value, extraClass = '', change = '') => `
     <div class="summary-cell static">
       <span class="summary-label">${label}</span>
       <span class="summary-value${extraClass}">${value}</span>
+      ${change}
     </div>`;
+  const prevTotals = previous ? previous.totals : null;
+  const change = (cur, key, fmt) => previous ? delta(cur, prevTotals[key], fmt, compare) : '';
+  const pts = (n) => `${n.toFixed(1)} pts`;
+  const count = (n) => Math.round(n).toLocaleString('en-US');
 
   // Where each dollar went: one stacked bar, then the parts in words.
   const splitBody = totals.revenue > 0 ? `
@@ -142,16 +169,32 @@ function renderOverview(){
       <div class="month-chart">${bars}</div>`
     : `<div class="attn-empty">No sales in the last 12 months.</div>`;
 
-  const totalPlatform = revenueByPlatform.reduce((t, r) => t + r.revenue, 0);
-  const platformBody = totalPlatform > 0 ? `
-      <div class="rev-bar" aria-hidden="true">${revenueByPlatform.map(r =>
-        `<span style="width:${(r.revenue / totalPlatform * 100).toFixed(2)}%; background:${hooks.platformColor(r.platform)};"></span>`).join('')}</div>
-      <ul class="rev-legend">${revenueByPlatform.map(r => `
-        <li><span class="rev-dot" style="background:${hooks.platformColor(r.platform)};"></span>
-          <span class="rev-name">${escapeHtml(hooks.platformLabel(r.platform))}</span>
-          <span class="rev-amt">${money(r.revenue)}</span>
-          <span class="rev-count">${r.count} sold</span></li>`).join('')}</ul>`
+  // By platform: the revenue bar, then units, average profit and days to
+  // sell for each.
+  const totalPlatform = byPlatform.reduce((t, r) => t + r.revenue, 0);
+  const platformBody = byPlatform.length ? `
+      ${totalPlatform > 0 ? `<div class="rev-bar" aria-hidden="true">${byPlatform.map(r =>
+        `<span style="width:${(r.revenue / totalPlatform * 100).toFixed(2)}%; background:${hooks.platformColor(r.platform)};"></span>`).join('')}</div>` : ''}
+      <ul class="plat-list">${byPlatform.map(r => `
+        <li class="plat-row">
+          <span class="rev-dot" style="background:${hooks.platformColor(r.platform)};" aria-hidden="true"></span>
+          <span class="plat-text">
+            <span class="plat-name">${escapeHtml(hooks.platformLabel(r.platform))}</span>
+            <span class="plat-sub">${r.count} sold · ${money2(r.avgProfit)} avg profit${r.avgDaysToSell !== null ? ` · ${Math.round(r.avgDaysToSell)}d avg to sell` : ''}</span>
+          </span>
+          <span class="plat-amt">${money(r.revenue)}</span>
+        </li>`).join('')}</ul>`
     : `<div class="attn-empty">No sales${suffix} yet.</div>`;
+
+  // Top brands and categories by units sold in the period.
+  const topBody = (list, what) => list.length ? `
+      <ol class="fin-rows top-list">${list.map((r, n) => `
+        <li class="fin-row">
+          <span class="top-rank" aria-hidden="true">${n + 1}</span>
+          <span class="fin-row-text"><span class="fin-row-name">${escapeHtml(r.name)}</span><span class="fin-row-sub">${money(r.revenue)} revenue · ${money(r.profit)} profit</span></span>
+          <span class="fin-row-num">${r.count} sold</span>
+        </li>`).join('')}</ol>`
+    : `<div class="attn-empty">No sales with a ${what}${suffix} yet.</div>`;
 
   const stockBody = `
       <div class="fin-big">${money(stock.projected)}</div>
@@ -161,19 +204,26 @@ function renderOverview(){
   view.innerHTML = `
     <div class="fin-head">
       <div class="seg" role="group" aria-label="Period">${periodButtons}</div>
-      <span class="fin-period">${periodName(period, now)}</span>
+      <span class="fin-period">${periodName(period, now)}${previous ? `<span class="fin-compare"> · vs ${compare}</span>` : ''}</span>
     </div>
-    <section class="summary-panel" aria-label="Summary">
-      ${cell('Revenue', money(totals.revenue))}
-      ${cell('Net profit', money(totals.profit), totals.profit >= 0 ? ' positive' : ' negative')}
-      ${cell('Margin', `${totals.margin.toFixed(1)}%`)}
-      ${cell('Items sold', totals.count.toLocaleString('en-US'))}
+    <section class="summary-panel fin-summary" aria-label="Summary">
+      ${cell('Revenue', money(totals.revenue), '', change(totals.revenue, 'revenue', money))}
+      ${cell('Net profit', money(totals.profit), totals.profit >= 0 ? ' positive' : ' negative', change(totals.profit, 'profit', money))}
+      ${cell('Margin', `${totals.margin.toFixed(1)}%`, '', previous && totals.revenue > 0 && prevTotals.revenue > 0 ? delta(totals.margin, prevTotals.margin, pts, compare) : '')}
+      ${cell('Items sold', totals.count.toLocaleString('en-US'), '', change(totals.count, 'count', count))}
+      ${cell('Sell-through', sellThrough.rate === null ? '–' : `${sellThrough.rate.toFixed(0)}%`, '',
+        previous ? delta(sellThrough.rate, previous.sellThrough.rate, pts, compare) : '')}
     </section>
+    ${sellThrough.available ? `<p class="fin-note fin-summary-note">Sell-through: ${sellThrough.sold.toLocaleString('en-US')} sold of ${sellThrough.available.toLocaleString('en-US')} item${sellThrough.available === 1 ? '' : 's'} in stock or cataloged${period === 'all' ? '' : suffix}.</p>` : ''}
     ${panel('Where each dollar went', money(totals.revenue) + ' revenue', splitBody, ' split')}
     ${panel('Profit, last 12 months', range > 0 ? `${money(twelveTotal)} total` : '', chartBody, ' months-chart')}
     <div class="home-lower">
-      ${panel('Revenue by platform', `${money(totalPlatform)}${suffix}`, platformBody, ' revenue')}
+      ${panel('By platform', `${money(totalPlatform)}${suffix}`, platformBody, ' revenue')}
       ${panel('In stock', '', stockBody)}
+    </div>
+    <div class="fin-pair">
+      ${panel('Top brands', 'by units sold', topBody(topBrands, 'brand'), ' top')}
+      ${panel('Top categories', 'by units sold', topBody(topCategories, 'category'), ' top')}
     </div>`;
 
   view.querySelectorAll('[data-finance-period]').forEach(btn => btn.addEventListener('click', () => {
