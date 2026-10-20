@@ -269,6 +269,14 @@ renaming them needs a data migration of every saved item.
     `ebay_category_cache`) and the Developer Panel don't use them.
   - `constants.js`, `pricing.js`, `settings.js`.
   - `ai-item.js`: ✨ analysis prompt + schema (imported by the server).
+    Since v3.24.1 the seller's own "AI writing instructions" (Settings →
+    Listings, `appSettings.aiInstructions`, ≤1,500 chars, owner edits via
+    `saveSettingsFields`) arrive as `input.customInstructions` and go in
+    a tagged `<seller_instructions>` block after the listing rules
+    (`buildSellerInstructionsBlock`): title and description style only,
+    never Part A, the price, the limits or the JSON. Empty → the prompt
+    is byte-for-byte the v3.24.0 one. The closing text
+    (`listingStandardText`) is the description footer.
   - `narration-prompts.js`: narration extract prompts (server-side).
   - `narration-capture.js`.
   - `ebay-audit.js`, `ebay-error-hints.js`/`-log.js`/`-ai.js`,
@@ -425,6 +433,17 @@ renaming them needs a data migration of every saved item.
 
 Last known status per the v3.13 notes. Confirm with Vitor before relying
 on any of these:
+- AI writing instructions (v3.24.1): Node test (5 cases: every prompt
+  byte-for-byte identical to v3.24.0 without instructions, the block's
+  place and wording in both modes, the rest of the prompt and the
+  schema unchanged with it, clipping at 1,500, tags inside the text
+  stripped, a non-string ignored, a browser prompt still ignored),
+  Chromium test (4 checks: the field, chips without repeats, counter,
+  only `aiInstructions` saved with merge, a failed save message, the
+  Rewrite request carrying `input.customInstructions`), every earlier
+  suite rerun, screenshots in the three themes, clean build.
+  Unconfirmed: how the real model follows the instructions (test on
+  3-5 real items), the ✨ analysis call with photos.
 - Mileage and expense import (v3.23.7): Node test (11 cases: the IRS
   rate by date incl. July 1, 2026 and dates outside the table, amounts
   and the rate line, miles validation, the mixed-method warning, CSV
@@ -706,8 +725,12 @@ on any of these:
 
 ## Pending changelog entry (since v3.24.0)
 
-(None yet. v3.23.1 – v3.23.7 were rolled up into v3.24.0 in
-`CHANGELOG.md`.)
+- v3.24.1: AI writing instructions (Nifty P2 item 2). Settings →
+  Listings → "AI writing instructions": tell the AI how you like your
+  listings written (up to 1,500 characters, with example chips like "No
+  emojis." or "Put the brand first in the title."). ✨ analysis and
+  Rewrite follow them for the title and description only; the item's
+  details, the price and the closing text stay as before.
 
 ## Backlog (not started)
 
@@ -879,8 +902,10 @@ in `docs/nifty-review.md`):
    v3.23.7: miles for Sourcing Transportation and Vehicle Expense, a
    fixed IRS table, the import from the Expenses tab only with a
    category-word step, Vitor 2026-10-20). Item 1 is complete.
-2. AI custom instructions and a description footer for ✨ (server-built
-   prompt; pairs with backlog items 1 and 2).
+2. AI custom instructions and a description footer for ✨ (done in
+   v3.24.1: the footer already existed as the closing text; the
+   instructions are in Settings → Listings, title and description only,
+   owner only, with example chips, Vitor 2026-10-20).
 3. Pricing rules per platform (needs a price per platform everywhere;
    its own plan).
 4. Shipping presets; then Home's What's new card and a Dismissed tab.

@@ -4,7 +4,7 @@
 // unchanged. Importing it registers the window.save*Settings handlers the
 // Settings buttons call.
 import { appSettings } from '../../modules/state.js';
-import { saveSettings, resetAiCounter } from '../../data/settings-store.js';
+import { saveSettings, saveSettingsFields, resetAiCounter } from '../../data/settings-store.js';
 import { renderSettings } from './settings-view.js';
 import { applyTheme, applyAccent, normalizeTheme } from '../theme.js';
 import { isHexColor } from '../../domain/accent.js';
@@ -100,6 +100,29 @@ window.saveListingTextSettings = async function(){
   appSettings.listingStandardText = document.getElementById('sListingText').value.trim();
   await saveSettings();
   showSaveMsg('listingTextSaveMsg');
+};
+
+// AI writing instructions (v3.24.1): only this field is written (merge).
+window.saveAiInstructionsSettings = async function(){
+  const el = document.getElementById('sAiInstructions');
+  const ok = await saveSettingsFields({ aiInstructions: el.value.trim().slice(0, 1500) });
+  showSaveMsg(ok ? 'aiInstrSaveMsg' : 'aiInstrErrMsg');
+};
+window.aiInstructionsCount = function(){
+  const el = document.getElementById('sAiInstructions');
+  const out = document.getElementById('aiInstrCount');
+  if (el && out) out.textContent = `${el.value.length} / ${el.maxLength}`;
+};
+// Adds an example on its own line (skipped if it's already there).
+window.aiInstructionsAdd = function(btn){
+  const el = document.getElementById('sAiInstructions');
+  const t = btn.dataset.text;
+  if (!el || !t || el.value.includes(t)) return;
+  const next = (el.value.trim() ? el.value.trim() + '\n' : '') + t;
+  if (next.length > el.maxLength) return;
+  el.value = next;
+  window.aiInstructionsCount();
+  el.focus();
 };
 
 window.addCustomCarrier = async function(){

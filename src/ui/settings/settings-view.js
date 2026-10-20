@@ -62,7 +62,7 @@ function settingsGroups(){
     { heading: 'Business', groups: [
       { key: 'pricing', title: 'Pricing & platforms', summary: `${appSettings.targetMarginPct || 40}% margin · ${platformCount} platform${platformCount === 1 ? '' : 's'}` },
       { key: 'shipping', title: 'Shipping', summary: `${carrier} · ${appSettings.sellerPaysShipping ? 'you pay' : 'buyer pays'}` },
-      { key: 'listings', title: 'Listings', summary: appSettings.listingStandardText ? 'Closing text set' : 'No closing text yet' },
+      { key: 'listings', title: 'Listings', summary: [appSettings.listingStandardText ? 'Closing text set' : 'No closing text yet', appSettings.aiInstructions ? 'AI instructions set' : ''].filter(Boolean).join(' \u00b7 ') },
       { key: 'warnings', title: 'Warnings', summary: warningsSummary() },
       { key: 'labels', title: 'Labels', summary: `${appSettings.labelWidthIn || 2.25} × ${appSettings.labelHeightIn || 1.25} in` },
       { key: 'ai', title: 'AI usage', summary: `${limit - remaining} of ${limit} used` },
@@ -79,6 +79,17 @@ function settingsGroups(){
 
 // Opens a group from outside Settings (Home's "eBay sales to confirm"),
 // after the screen is drawn; `anchor` is scrolled into view.
+
+// AI writing instructions (v3.24.1): the limit matches the server's clip
+// (MAX_AI_INSTRUCTIONS in modules/ai-item.js); the chips add common asks.
+const AI_INSTRUCTIONS_MAX = 1500;
+const AI_INSTRUCTION_EXAMPLES = [
+  'Open with one short sentence about the style.',
+  'Put the brand first in the title.',
+  'No emojis.',
+  'Write measurements in inches.',
+  'Keep the tone casual and friendly.',
+];
 export function openSettingsGroup(group, anchor){
   showGroup(group);
   if (anchor) document.getElementById(anchor)?.scrollIntoView({ block: 'start' });
@@ -343,6 +354,18 @@ ${page('listings', `
         <textarea id="sListingText" class="settings-textarea" placeholder="e.g. Bundle discount available — check my closet! Ships next business day">${escapeHtml(appSettings.listingStandardText || '')}</textarea>
         <button class="settings-save-btn" onclick="saveListingTextSettings()">Save listing text</button>
         <div class="settings-success" id="listingTextSaveMsg">Saved</div>
+      </div>
+
+      <!-- AI WRITING INSTRUCTIONS (v3.24.1) -->
+      <div class="settings-section">
+        <h3>AI writing instructions</h3>
+        <div class="ss-desc">How you like your listings written, in your own words. The \u2728 analysis and Rewrite follow these for the title and description only; they never change the item's details, the price or what the AI can see in the photos.</div>
+        <textarea id="sAiInstructions" class="settings-textarea" maxlength="${AI_INSTRUCTIONS_MAX}" oninput="aiInstructionsCount()" placeholder="e.g. Open with one short sentence about the style. Put the brand first in the title. No emojis.">${escapeHtml(appSettings.aiInstructions || '')}</textarea>
+        <div class="ai-instr-meta"><span id="aiInstrCount">${(appSettings.aiInstructions || '').length} / ${AI_INSTRUCTIONS_MAX}</span></div>
+        <div class="ai-instr-chips" aria-label="Examples to add">${AI_INSTRUCTION_EXAMPLES.map(t => `<button type="button" class="cost-chip ai-instr-chip" onclick="aiInstructionsAdd(this)" data-text="${escapeHtml(t)}">+ ${escapeHtml(t)}</button>`).join('')}</div>
+        <button class="settings-save-btn" onclick="saveAiInstructionsSettings()">Save instructions</button>
+        <div class="settings-success" id="aiInstrSaveMsg">Saved</div>
+        <div class="settings-success error" id="aiInstrErrMsg">Couldn\u2019t save. Check your connection and try again.</div>
       </div>`)}
 ${page('warnings', warningsPageHtml())}
 ${page('labels', `

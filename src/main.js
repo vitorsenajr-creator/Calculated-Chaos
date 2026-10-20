@@ -3599,6 +3599,7 @@ export const app = (function(){
           fields: f,
           useStandardClosing: f.useStandardClosing,
           standardClosingText: appSettings.listingStandardText || '',
+          customInstructions: appSettings.aiInstructions || '',
           priceHistory: priceHistoryByCategory(),
         },
       });
@@ -4164,6 +4165,7 @@ export const app = (function(){
         fields: f,
         useStandardClosing: f.useStandardClosing,
         standardClosingText: appSettings.listingStandardText || '',
+        customInstructions: appSettings.aiInstructions || '',
         aiFacts,
       },
     });
