@@ -7,7 +7,7 @@
 import { items } from '../../modules/state.js';
 import { escapeHtml } from '../../modules/format-utils.js';
 import { computeHomeSummary, HOME_PERIODS } from '../../domain/home-summary.js';
-import { shelfByTag } from '../../domain/week-tags.js';
+import { shelfByTag, pinkTagStock } from '../../domain/week-tags.js';
 import { currentTheme } from '../theme.js';
 
 const PERIOD_KEY = 'cc.home.period';
@@ -58,12 +58,14 @@ const NEXT_PHRASE = {
   'missing-info': 'Items are missing info',
   'stale': 'Listed 30+ days: drop the price',
   'drafts': 'Photo drafts to finish',
+  'pink': 'Pink tags: 4+ weeks on the shelf',
 };
 const TASK_ICON = {
   'no-price': '<path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z"/><circle cx="7.5" cy="7.5" r="1.5"/>',
   'missing-info': '<path d="M4 20h4L19 9l-4-4L4 16z"/>',
   'stale': '<path d="M7 4v16M3 16l4 4 4-4"/><path d="M14 6h7M14 11h5M14 16h3"/>',
   'drafts': '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
+  'pink': '<path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z"/><circle cx="7.5" cy="7.5" r="1.5"/>',
 };
 const ARROW = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
 const CLOSE = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
@@ -77,9 +79,24 @@ export function renderHome(){
   if (!view) return;
   const now = Date.now();
   const period = getPeriod();
-  const { summary, pipeline, attention, revenueByPlatform } = computeHomeSummary(items, {
+  const theme = currentTheme();
+  const { summary, pipeline, attention: baseAttention, revenueByPlatform } = computeHomeSummary(items, {
     drafts: hooks.getDrafts(), period, now, projectedProfit: hooks.projectedProfit,
   });
+  // Tag Week swaps "Listed 30+ days" for the pink tags, so the row and the
+  // shelf run on one clock (4+ weeks since cataloging).
+  let attention = baseAttention;
+  if (theme === 'tagweek'){
+    const pink = pinkTagStock(items, now);
+    const pinkRow = pink.count ? [{
+      key: 'pink', count: pink.count, title: 'Pink tags (4+ weeks)', action: 'Review', tone: 'info',
+      detail: `${money(pink.value)} at list price`,
+    }] : [];
+    const at = baseAttention.findIndex(r => r.key === 'stale' || r.key === 'drafts');
+    const others = baseAttention.filter(r => r.key !== 'stale');
+    const pos = at < 0 ? others.length : Math.min(at, others.length);
+    attention = [...others.slice(0, pos), ...pinkRow, ...others.slice(pos)];
+  }
   // A dismissed row stays hidden only while its count is unchanged.
   const dismissed = readJson(DISMISSED_KEY, {});
   const openRows = attention.filter(r => dismissed[r.key] !== r.count);
@@ -103,8 +120,7 @@ export function renderHome(){
       <span class="pipeline-label">${label}</span>
     </div>`;
 
-  const theme = currentTheme();
-  const rowTitle = r => (theme === 'tagweek' && r.key === 'stale') ? 'Pink tags, listed 30+ days' : r.title;
+  const rowTitle = r => r.title;
   const rows = openRows.map(r => `
     <div class="attn-row">
       <span class="attn-count tone-${r.tone}">${r.count}</span>
@@ -185,18 +201,21 @@ export function renderHome(){
       <div class="then-row">
         <button type="button" class="then-main" data-home-action="${r.key}">
           <span class="then-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${TASK_ICON[r.key] || ''}</svg></span>
-          <span class="then-text">${escapeHtml(NEXT_PHRASE[r.key] || r.title)}</span>
+          <span class="then-text">${escapeHtml(NEXT_PHRASE[r.key] || r.title)}<small class="then-detail">${escapeHtml(r.detail)}</small></span>
           <span class="then-count">${r.count}</span>${ARROW}
         </button>
         <button type="button" class="attn-dismiss" data-home-dismiss="${r.key}" data-count="${r.count}" aria-label="Dismiss: ${escapeHtml(r.title)}">${CLOSE}</button>
       </div>`).join('');
     view.innerHTML = `
       ${next ? `
-      <button type="button" class="next-band" data-home-action="${next.key}">
-        <span class="next-count">${next.count}</span>
-        <span class="next-text"><small>Next</small><b>${escapeHtml(NEXT_PHRASE[next.key] || next.title)}</b><span class="next-detail">${escapeHtml(next.detail)}</span></span>
-        <span class="next-go">${ARROW}</span>
-      </button>` : ''}
+      <div class="next-band">
+        <button type="button" class="next-main" data-home-action="${next.key}">
+          <span class="next-count">${next.count}</span>
+          <span class="next-text"><small>Next</small><b>${escapeHtml(NEXT_PHRASE[next.key] || next.title)}</b><span class="next-detail">${escapeHtml(next.detail)}</span></span>
+          <span class="next-go">${ARROW}</span>
+        </button>
+        <button type="button" class="next-dismiss" data-home-dismiss="${next.key}" data-count="${next.count}" aria-label="Dismiss: ${escapeHtml(next.title)}">${CLOSE}</button>
+      </div>` : ''}
       ${head}
       <section class="summary-mono" aria-label="Summary">${summaryCells}</section>
       <div class="home-lower">
@@ -242,6 +261,7 @@ export function renderHome(){
     else if (key === 'missing-info') hooks.openCatalog({ incomplete: true, notSold: true });
     else if (key === 'stale') hooks.openCatalog({ stale: true });
     else if (key === 'drafts') hooks.finishDrafts();
+    else if (key === 'pink') hooks.openCatalog({ weekTag: 4, notSold: true });
   }));
   view.querySelectorAll('[data-home-dismiss]').forEach(btn => btn.addEventListener('click', () => {
     const next = readJson(DISMISSED_KEY, {});

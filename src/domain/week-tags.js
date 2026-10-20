@@ -24,3 +24,12 @@ export function shelfByTag(items, now){
   items.forEach(i => { if (i.status !== 'vendido') counts[weekTagIndex(i, now)] += 1; });
   return WEEK_TAGS.map(t => ({ ...t, count: counts[t.index] }));
 }
+
+// Tag Week's "aged stock" row (v3.21.2): in-stock items wearing the pink
+// tag (4+ weeks since cataloging), the same clock the shelf uses, with
+// their total list price.
+export function pinkTagStock(items, now){
+  const pink = items.filter(i => i.status !== 'vendido' && weekTagIndex(i, now) === 4);
+  const value = pink.reduce((t, i) => t + (parseFloat(i.listPrice) || 0), 0);
+  return { count: pink.length, value };
+}
