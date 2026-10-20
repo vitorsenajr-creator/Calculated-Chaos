@@ -58,9 +58,12 @@ import { initUpdateBanner } from './ui/update-banner.js';
 import { applyTheme, applyAccent, applyLastTheme, currentTheme } from './ui/theme.js';
 import { CATALOG_SORTS, sortCatalog } from './domain/catalog-sort.js';
 import { WEEK_TAGS, weekTagIndex } from './domain/week-tags.js';
+import {
+  isIncomplete as _isIncomplete, missingFields as _missingFields, isStaleListing as _isStaleListing,
+  itemIssues as _itemIssues, codeCounts, normalizeIssueChecks, normalizeCode as normalizeCodeForMatch,
+} from './domain/item-issues.js';
 import { items, setItems, appSettings, setAppSettings } from './modules/state.js';
 import {
-  isIncomplete, missingFields,
   filtersActiveCount as _filtersActiveCount,
   applyFilters as _applyFilters,
 } from './modules/catalog-filters.js';
@@ -571,7 +574,9 @@ export const app = (function(){
           <div class="filter-chip warn-chip ${activeFilters.incomplete?'active':''}" id="incompleteChip">⚠ Missing info</div>
           <div class="filter-chip warn-chip ${activeFilters.needsPhoto?'active':''}" id="needsPhotoChip">📷 Needs photos</div>
           <div class="filter-chip warn-chip ${activeFilters.noPrice?'active':''}" id="noPriceChip">No price</div>
-          <div class="filter-chip warn-chip ${activeFilters.stale?'active':''}" id="staleChip">Listed 30+ days</div>
+          ${issueChecks().staleDays ? `<div class="filter-chip warn-chip ${activeFilters.stale?'active':''}" id="staleChip">Listed ${issueChecks().staleDays}+ days</div>` : ''}
+          <div class="filter-chip warn-chip ${activeFilters.ebayError?'active':''}" id="ebayErrorChip">eBay errors</div>
+          <div class="filter-chip warn-chip ${activeFilters.duplicateCode?'active':''}" id="duplicateCodeChip">Duplicate codes</div>
         </div>
       </div>
       <span class="filter-clear" id="clearFiltersBtn">Clear all filters</span>
@@ -635,8 +640,16 @@ export const app = (function(){
       activeFilters.noPrice = !activeFilters.noPrice;
       renderAll();
     });
-    document.getElementById('staleChip').addEventListener('click', () => {
+    document.getElementById('staleChip')?.addEventListener('click', () => {
       activeFilters.stale = !activeFilters.stale;
+      renderAll();
+    });
+    document.getElementById('ebayErrorChip').addEventListener('click', () => {
+      activeFilters.ebayError = !activeFilters.ebayError;
+      renderAll();
+    });
+    document.getElementById('duplicateCodeChip').addEventListener('click', () => {
+      activeFilters.duplicateCode = !activeFilters.duplicateCode;
       renderAll();
     });
     document.getElementById('clearFiltersBtn').addEventListener('click', () => {
@@ -646,31 +659,74 @@ export const app = (function(){
   }
 
   function filtersActiveCount(){ return _filtersActiveCount(activeFilters); }
-  function applyFilters(list){ return _applyFilters(list, activeFilters, searchQuery); }
+  function applyFilters(list){ return _applyFilters(list, activeFilters, searchQuery, issueCtx()); }
 
-  // ---------- MISSING INFO POPOVER ----------
-  // Human-readable labels for whatever missingFields() (catalog-filters.js)
-  // returns — kept here rather than in that module since it's presentation,
-  // not completeness logic.
+  // ---------- ITEM ISSUES (v3.22.4, domain/item-issues.js) ----------
+  // The business's Warnings settings decide which optional checks run; the
+  // same checks drive the Issues chip, the card warning and Home.
+  function issueChecks(){ return normalizeIssueChecks(appSettings.issueChecks); }
+  function issueCtx(){ return { checks: issueChecks(), counts: codeCounts(items), now: Date.now() }; }
+  function isIncomplete(item){ return _isIncomplete(item, issueChecks()); }
+  function missingFields(item){ return _missingFields(item, issueChecks()); }
+
+  // ---------- ISSUES POPOVER (v3.22.4) ----------
+  // The card's warning names the most urgent issue (+N more); tapping it
+  // lists them all. "No price" and "listed N+ days" already show in the
+  // card's price and days, so they only count in the list.
   const MISSING_FIELD_LABEL = {
     photos: 'Photos',
     cost: 'Cost',
     weight: 'Weight',
     dimensions: 'Dimensions (length & width)',
   };
+  const MISSING_WORD = { photos: 'photo', cost: 'cost', weight: 'weight', dimensions: 'dimensions' };
+  function issueShortLabel(item, key){
+    if (key === 'ebay-error') return 'eBay error';
+    if (key === 'duplicate-code') return 'Duplicate code';
+    if (key === 'no-price') return 'No price';
+    if (key === 'missing-info'){
+      const missing = missingFields(item);
+      if (missing.length === 1) return missing[0] === 'photos' ? 'No photo' : `Missing ${MISSING_WORD[missing[0]]}`;
+      return missing.includes('photos') ? 'No photo' : 'Missing info';
+    }
+    return '';
+  }
+  function issueWarnButton(item, issues){
+    const shown = issues.filter(k => k !== 'stale' && k !== 'no-price');
+    if (!shown.length) return '';
+    const more = shown.length - 1;
+    return `<button type="button" class="ic-warn${shown[0] === 'ebay-error' ? ' urgent' : ''}" data-action="missing-info" data-id="${item.id}">${issueShortLabel(item, shown[0])}${more ? ` +${more}` : ''}</button>`;
+  }
+  function issueLines(item, ctx){
+    return _itemIssues(item, ctx).map(key => {
+      if (key === 'ebay-error'){
+        const e = item.ebayPublishError || {};
+        const when = e.at ? new Date(e.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+        return { title: `eBay publish failed${when ? ` (${when})` : ''}`, detail: e.message || 'Open the item and publish again to see the details.' };
+      }
+      if (key === 'duplicate-code'){
+        const others = items.filter(i => i.id !== item.id && normalizeCodeForMatch(i.productCode) === normalizeCodeForMatch(item.productCode));
+        return { title: `Code ${item.productCode} is used twice`, detail: `Also on: ${others.slice(0, 3).map(i => i.name || 'an item').join(', ')}${others.length > 3 ? ` and ${others.length - 3} more` : ''}` };
+      }
+      if (key === 'no-price') return { title: 'No price', detail: 'Set a list price before listing it.' };
+      if (key === 'missing-info') return { title: 'Missing info', detail: missingFields(item).map(f => MISSING_FIELD_LABEL[f] || f).join(', ') };
+      if (key === 'stale') return { title: `Listed ${daysSince(item.ebayListedAt || item.createdAt)} days`, detail: 'Worth a price drop, new photos or an offer.' };
+      return null;
+    }).filter(Boolean);
+  }
   function showMissingInfoPopover(anchorEl, item){
     let pop = document.getElementById('missingInfoPopover');
     if (pop) pop.remove();
-    const missing = missingFields(item);
-    if (!missing.length) return;
+    const lines = issueLines(item, issueCtx());
+    if (!lines.length) return;
     pop = document.createElement('div');
     pop.id = 'missingInfoPopover';
-    pop.style.cssText = 'position:fixed; z-index:10000; background:var(--white); color:var(--plum); border:1px solid var(--line); border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,0.18); padding:10px 14px; font-size:13px; max-width:220px;';
+    pop.className = 'issues-pop';
+    pop.setAttribute('role', 'dialog');
+    pop.setAttribute('aria-label', 'Issues on this item');
     pop.innerHTML = `
-      <div style="font-weight:700; font-size:11px; text-transform:uppercase; letter-spacing:0.04em; color:var(--terracotta-deep); margin-bottom:6px;">Missing on this item</div>
-      <ul style="margin:0; padding-left:18px; line-height:1.6;">
-        ${missing.map(f => `<li>${escapeHtml(MISSING_FIELD_LABEL[f] || f)}</li>`).join('')}
-      </ul>
+      <div class="issues-pop-head">Issues on this item</div>
+      <ul>${lines.map(l => `<li><b>${escapeHtml(l.title)}</b><span>${escapeHtml(l.detail)}</span></li>`).join('')}</ul>
     `;
     document.body.appendChild(pop);
     const rect = anchorEl.getBoundingClientRect();
@@ -678,7 +734,9 @@ export const app = (function(){
     let left = rect.left;
     if (left + popRect.width > window.innerWidth - 8) left = window.innerWidth - popRect.width - 8;
     pop.style.left = `${Math.max(8, left)}px`;
-    pop.style.top = `${rect.bottom + 6}px`;
+    // Opens above the warning when there's no room below it.
+    const below = rect.bottom + 6;
+    pop.style.top = `${below + popRect.height > window.innerHeight - 8 ? Math.max(8, rect.top - popRect.height - 6) : below}px`;
     // Closes on the next click anywhere (including re-tapping the same
     // chip, which just removes it above and lets this listener no-op) or
     // on Escape — same lightweight dismiss pattern as other popovers here.
@@ -754,6 +812,9 @@ export const app = (function(){
           return `<button type="button" class="seg-btn${on ? ' active' : ''}" aria-pressed="${on}" data-status-seg="${sg.key}">${sg.label} <span class="seg-count">${counts[sg.key]}</span></button>`;
         }).join('')}
       </div>`;
+    // Every item with at least one issue (the Issues chip, v3.22.4).
+    const ctx = issueCtx();
+    const issuesCount = items.filter(i => _itemIssues(i, ctx).length).length;
     // Tag Week theme: filter by the color of the week items came in.
     const activeWeek = WEEK_TAGS.find(t => t.index === activeFilters.weekTag);
     const weekDots = currentTheme() === 'tagweek' ? `
@@ -778,6 +839,12 @@ export const app = (function(){
         <button type="button" class="${filterBtnClass}" id="filterToggleBtn" aria-expanded="${filterPanelOpen}">Filters${filtersActiveCount() ? ' (' + filtersActiveCount() + ')' : ''}</button>
         <button type="button" class="${bulkSelectMode ? 'filter-toggle-btn has-active' : 'filter-toggle-btn'}" id="bulkSelectToggleBtn">${bulkSelectMode ? 'Cancel' : 'Select'}</button>
       </div>
+      ${issuesCount || activeFilters.issues ? `
+      <button type="button" class="issues-strip${activeFilters.issues ? ' on' : ''}" id="issuesToggleBtn" aria-pressed="${!!activeFilters.issues}">
+        <span class="issues-strip-count">${issuesCount}</span>
+        <span class="issues-strip-text">${activeFilters.issues ? `Showing item${issuesCount === 1 ? '' : 's'} with issues` : `item${issuesCount === 1 ? ' has' : 's have'} issues`}</span>
+        <span class="issues-strip-go">${activeFilters.issues ? 'Show all' : 'Show'}</span>
+      </button>` : ''}
       <div class="filter-panel ${filterPanelOpen ? 'open' : ''}" id="filterPanel"></div>
     `;
 
@@ -822,16 +889,16 @@ export const app = (function(){
     }
 
     const sorted = sortCatalog(filtered, catalogSort);
+    const ctx = issueCtx();
     const STAGES = ['catalogado', 'anunciado', 'vendido'];
     const theme = currentTheme();
     const cardsHtml = sorted.map(item => {
       const photo = item.photos && item.photos[0];
       const hasListPrice = parseFloat(item.listPrice) > 0;
-      const incomplete = isIncomplete(item);
-      const noPhoto = !(item.photos && item.photos.length > 0);
+      const issues = _itemIssues(item, ctx);
       const sold = item.status === 'vendido';
       const listedDays = daysSince(item.status === 'anunciado' ? (item.ebayListedAt || item.createdAt) : item.createdAt);
-      const isStale = item.status === 'anunciado' && listedDays >= 30;
+      const isStale = issues.includes('stale');
       const selected = bulkSelectMode && bulkSelectedIds.has(item.id);
       const stage = Math.max(0, STAGES.indexOf(item.status));
       const sub = [
@@ -862,7 +929,7 @@ export const app = (function(){
       const bulkCheck = bulkSelectMode ? `<span class="bulk-check${selected ? ' on' : ''}" aria-hidden="true">${selected ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4 10-10"/></svg>' : ''}</span>` : '';
       const photoInner = `${photo ? `<img src="${photo}" alt="">` : HANGER_SVG}`;
       const printBtn = `<button type="button" class="ic-btn" data-action="print-label" data-id="${item.id}" aria-label="Print label">${PRINT_SVG}</button>`;
-      const warnBtn = incomplete ? `<button type="button" class="ic-warn" data-action="missing-info" data-id="${item.id}">${noPhoto ? 'No photo' : 'Missing info'}</button>` : '';
+      const warnBtn = issueWarnButton(item, issues);
       const platformNames = (item.listedPlatforms || []).map(p => escapeHtml(PLATFORM_NAME[p] || getPlatformLabel(p))).join(', ');
       // The card contract (v3.21.2): every theme shows code, box, stage,
       // price, days, the warning and Edit; themes only arrange them.
@@ -941,7 +1008,7 @@ export const app = (function(){
             ${sold
               ? `<span class="ic-days">Sold${soldWhen ? ` ${soldWhen}` : ''}${soldWhere ? ` · ${soldWhere}` : ''}</span>`
               : `<span class="ic-days${isStale ? ' stale' : ''}">${daysText}</span>`}
-            ${incomplete ? `<button type="button" class="ic-warn" data-action="missing-info" data-id="${item.id}">${noPhoto ? 'No photo' : 'Missing info'}</button>` : ''}
+            ${warnBtn}
           </div>
           <div class="ic-bottom">
             <div class="ic-track" title="${statusLabel(item.status)}">
@@ -1060,6 +1127,10 @@ export const app = (function(){
         activeFilters.weekTag = activeFilters.weekTag === w ? null : w;
         renderAll();
       });
+    });
+    document.getElementById('issuesToggleBtn')?.addEventListener('click', () => {
+      activeFilters.issues = !activeFilters.issues;
+      renderAll();
     });
     const sortSelect = document.getElementById('catalogSortSelect');
     if (sortSelect){
@@ -4455,6 +4526,9 @@ export const app = (function(){
       ebayOfferId: existingItem?.ebayOfferId || null,
       ebaySku: existingItem?.ebaySku || null,
       ebayListedAt: existingItem?.ebayListedAt || null,
+      // The last failed eBay publish (v3.22.4): written by ebay-api.js,
+      // cleared only by a successful publish, so a plain save keeps it.
+      ebayPublishError: existingItem?.ebayPublishError || null,
       hostedPhotoUrls: existingItem?.hostedPhotoUrls || null,
       // Quantity > 1 tags every copy "-1", "-2", etc. off the same base code
       // (e.g. "#4578-1", "#4578-2") instead of consuming several numbers from
@@ -4659,6 +4733,8 @@ export const app = (function(){
   applyLastTheme();
   // Home and Catalog are laid out differently per theme (v3.21.1).
   document.addEventListener('themechange', () => renderAll());
+  // Settings → Warnings changed which checks count as issues (v3.22.4).
+  document.addEventListener('issuecheckschange', () => renderAll());
   document.addEventListener('brandchange', () => renderBrand());
   renderBrand();
   initUpdateBanner(APP_VERSION);

@@ -2,21 +2,12 @@
 // main.js's IIFE verbatim. filtersActiveCount/applyFilters take
 // activeFilters (+ searchQuery) as explicit params instead of closing
 // over them; main.js keeps thin wrappers with the original signatures.
-import { isMissingPrice, isStaleListing } from '../domain/home-summary.js';
+// Since v3.22.4 the checks themselves live in domain/item-issues.js and
+// follow the business's Warnings settings (`ctx.checks`).
+import { isMissingPrice, isStaleListing, isIncomplete, missingFields, hasEbayError, hasDuplicateCode, hasIssues, DEFAULT_ISSUE_CHECKS } from '../domain/item-issues.js';
 import { weekTagIndex } from '../domain/week-tags.js';
 
-export function isIncomplete(item){
-  return !(item.photos && item.photos.length > 0) || !item.cost || !item.weight || !item.length || !item.width;
-}
-
-export function missingFields(item){
-  const missing = [];
-  if (!(item.photos && item.photos.length > 0)) missing.push('photos');
-  if (!item.cost) missing.push('cost');
-  if (!item.weight) missing.push('weight');
-  if (!item.length || !item.width) missing.push('dimensions');
-  return missing;
-}
+export { isIncomplete, missingFields };
 
 export function filtersActiveCount(activeFilters){
   let n = 0;
@@ -29,25 +20,37 @@ export function filtersActiveCount(activeFilters){
   if (activeFilters.size) n++;
   if (activeFilters.noPrice) n++;
   if (activeFilters.stale) n++;
+  if (activeFilters.issues) n++;
+  if (activeFilters.ebayError) n++;
+  if (activeFilters.duplicateCode) n++;
   if (Number.isInteger(activeFilters.weekTag)) n++;
   if (activeFilters.platformsInclude.length || activeFilters.platformsExclude.length) n++;
   return n;
 }
 
-export function applyFilters(list, activeFilters, searchQuery){
+// ctx: { checks, counts } — the Warnings settings and codeCounts() of the
+// whole catalog (for duplicate codes).
+export function applyFilters(list, activeFilters, searchQuery, ctx = {}){
+  const checks = ctx.checks || DEFAULT_ISSUE_CHECKS;
+  const counts = ctx.counts || new Map();
+  const now = Date.now();
   return list.filter(item => {
     if (activeFilters.status && item.status !== activeFilters.status) return false;
     if (activeFilters.notSold && item.status === 'vendido') return false;
     if (activeFilters.category && item.category !== activeFilters.category) return false;
-    if (activeFilters.incomplete && !isIncomplete(item)) return false;
+    if (activeFilters.incomplete && !isIncomplete(item, checks)) return false;
     if (activeFilters.needsPhoto && (item.photos && item.photos.length > 0)) return false;
     if (activeFilters.box && item.storageBox !== activeFilters.box) return false;
     if (activeFilters.size && item.size !== activeFilters.size) return false;
     // Set from the Home screen's "Needs attention" rows.
     if (activeFilters.noPrice && !isMissingPrice(item)) return false;
-    if (activeFilters.stale && !isStaleListing(item, Date.now())) return false;
+    if (activeFilters.stale && !isStaleListing(item, now, checks)) return false;
+    // The Issues chip (v3.22.4) and Home's eBay errors / duplicate codes rows.
+    if (activeFilters.issues && !hasIssues(item, { checks, now, counts })) return false;
+    if (activeFilters.ebayError && !hasEbayError(item)) return false;
+    if (activeFilters.duplicateCode && !hasDuplicateCode(item, counts)) return false;
     // Tag Week theme: the color-of-the-week dots above the catalog.
-    if (Number.isInteger(activeFilters.weekTag) && weekTagIndex(item, Date.now()) !== activeFilters.weekTag) return false;
+    if (Number.isInteger(activeFilters.weekTag) && weekTagIndex(item, now) !== activeFilters.weekTag) return false;
     if (activeFilters.platformsInclude.length){
       const onAny = activeFilters.platformsInclude.some(p => (item.listedPlatforms || []).includes(p));
       if (!onAny) return false;

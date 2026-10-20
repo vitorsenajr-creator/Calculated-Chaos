@@ -4,7 +4,8 @@
 // Since v3.21.1 each theme lays the screen out its own way: Parcel (the
 // pipeline line), Tag Week (shelf by weekly tag color) and Concourse (a
 // "Next" band with the most urgent task, then the rest).
-import { items } from '../../modules/state.js';
+import { items, appSettings } from '../../modules/state.js';
+import { normalizeIssueChecks } from '../../domain/item-issues.js';
 import { escapeHtml } from '../../modules/format-utils.js';
 import { computeHomeSummary, HOME_PERIODS } from '../../domain/home-summary.js';
 import { shelfByTag, pinkTagStock } from '../../domain/week-tags.js';
@@ -57,12 +58,17 @@ function periodSuffix(period, now){
 // Concourse words each task as a direction to follow.
 const NEXT_PHRASE = {
   'no-price': 'Items need a price',
+  'ebay-error': 'eBay publish failed: review',
+  'duplicate-code': 'Codes used twice: fix them',
   'missing-info': 'Items are missing info',
-  'stale': 'Listed 30+ days: drop the price',
   'drafts': 'Photo drafts to finish',
   'pink': 'Pink tags: 4+ weeks on the shelf',
 };
+// The stale row's title carries the business's day limit.
+const phrase = (r) => r.key === 'stale' ? `${r.title}: drop the price` : (NEXT_PHRASE[r.key] || r.title);
 const TASK_ICON = {
+  'ebay-error': '<path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17.5v.01"/>',
+  'duplicate-code': '<rect x="8" y="8" width="12" height="12" rx="1.5"/><path d="M16 8V5.5A1.5 1.5 0 0 0 14.5 4h-9A1.5 1.5 0 0 0 4 5.5v9A1.5 1.5 0 0 0 5.5 16H8"/>',
   'no-price': '<path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z"/><circle cx="7.5" cy="7.5" r="1.5"/>',
   'missing-info': '<path d="M4 20h4L19 9l-4-4L4 16z"/>',
   'stale': '<path d="M7 4v16M3 16l4 4 4-4"/><path d="M14 6h7M14 11h5M14 16h3"/>',
@@ -84,6 +90,7 @@ export function renderHome(){
   const theme = currentTheme();
   const { summary, pipeline, attention: baseAttention, revenueByPlatform } = computeHomeSummary(items, {
     drafts: hooks.getDrafts(), period, now, projectedProfit: hooks.projectedProfit,
+    checks: normalizeIssueChecks(appSettings.issueChecks),
   });
   // Tag Week swaps "Listed 30+ days" for the pink tags, so the row and the
   // shelf run on one clock (4+ weeks since cataloging).
@@ -206,7 +213,7 @@ export function renderHome(){
       <div class="then-row">
         <button type="button" class="then-main" data-home-action="${r.key}">
           <span class="then-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${TASK_ICON[r.key] || ''}</svg></span>
-          <span class="then-text">${escapeHtml(NEXT_PHRASE[r.key] || r.title)}<small class="then-detail">${escapeHtml(r.detail)}</small></span>
+          <span class="then-text">${escapeHtml(phrase(r))}<small class="then-detail">${escapeHtml(r.detail)}</small></span>
           <span class="then-count">${r.count}</span>${ARROW}
         </button>
         <button type="button" class="attn-dismiss" data-home-dismiss="${r.key}" data-count="${r.count}" aria-label="Dismiss: ${escapeHtml(r.title)}">${CLOSE}</button>
@@ -216,7 +223,7 @@ export function renderHome(){
       <div class="next-band">
         <button type="button" class="next-main" data-home-action="${next.key}">
           <span class="next-count">${next.count}</span>
-          <span class="next-text"><small>Next</small><b>${escapeHtml(NEXT_PHRASE[next.key] || next.title)}</b><span class="next-detail">${escapeHtml(next.detail)}</span></span>
+          <span class="next-text"><small>Next</small><b>${escapeHtml(phrase(next))}</b><span class="next-detail">${escapeHtml(next.detail)}</span></span>
           <span class="next-go">${ARROW}</span>
         </button>
         <button type="button" class="next-dismiss" data-home-dismiss="${next.key}" data-count="${next.count}" aria-label="Dismiss: ${escapeHtml(next.title)}">${CLOSE}</button>
@@ -265,7 +272,9 @@ export function renderHome(){
   }));
   view.querySelectorAll('[data-home-action]').forEach(btn => btn.addEventListener('click', () => {
     const key = btn.dataset.homeAction;
-    if (key === 'no-price') hooks.openCatalog({ noPrice: true });
+    if (key === 'ebay-error') hooks.openCatalog({ ebayError: true });
+    else if (key === 'duplicate-code') hooks.openCatalog({ duplicateCode: true });
+    else if (key === 'no-price') hooks.openCatalog({ noPrice: true });
     else if (key === 'missing-info') hooks.openCatalog({ incomplete: true, notSold: true });
     else if (key === 'stale') hooks.openCatalog({ stale: true });
     else if (key === 'drafts') hooks.finishDrafts();

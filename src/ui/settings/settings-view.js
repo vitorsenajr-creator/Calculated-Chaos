@@ -22,6 +22,7 @@ import { APP_VERSION, APP_VERSION_DATE } from '../../modules/version.js';
 import { THEMES, normalizeTheme, applyAccent } from '../theme.js';
 import { ACCENT_PRESETS, isHexColor } from '../../domain/accent.js';
 import { shrinkImageToDataUrl } from '../../platform/images.js';
+import { warningsPageHtml, wireWarningsPanel, warningsSummary } from './warnings-panel.js';
 
 const GROUP_KEY = 'cc.settings.group';
 const DESKTOP = '(min-width: 900px)';
@@ -61,6 +62,7 @@ function settingsGroups(){
       { key: 'pricing', title: 'Pricing & platforms', summary: `${appSettings.targetMarginPct || 40}% margin · ${platformCount} platform${platformCount === 1 ? '' : 's'}` },
       { key: 'shipping', title: 'Shipping', summary: `${carrier} · ${appSettings.sellerPaysShipping ? 'you pay' : 'buyer pays'}` },
       { key: 'listings', title: 'Listings', summary: appSettings.listingStandardText ? 'Closing text set' : 'No closing text yet' },
+      { key: 'warnings', title: 'Warnings', summary: warningsSummary() },
       { key: 'labels', title: 'Labels', summary: `${appSettings.labelWidthIn || 2.25} × ${appSettings.labelHeightIn || 1.25} in` },
       { key: 'ai', title: 'AI usage', summary: `${limit - remaining} of ${limit} used` },
       ...(isPlatformAdmin() ? [{ key: 'team', title: 'Team', summary: 'Employee logins' }] : []),
@@ -334,6 +336,7 @@ ${page('listings', `
         <button class="settings-save-btn" onclick="saveListingTextSettings()">Save listing text</button>
         <div class="settings-success" id="listingTextSaveMsg">Saved</div>
       </div>`)}
+${page('warnings', warningsPageHtml())}
 ${page('labels', `
       <!-- THERMAL LABEL PRINTING -->
       <div class="settings-section">
@@ -558,6 +561,7 @@ ${page('data', `
   const customAccent = document.getElementById('sAccentCustom');
   customAccent?.addEventListener('input', () => applyAccent(customAccent.value));
   customAccent?.addEventListener('change', () => window.saveAccent(customAccent.value));
+  wireWarningsPanel();
   document.querySelectorAll('input[name="appTheme"]').forEach(input => {
     input.addEventListener('change', () => window.saveAppearance(input.value));
   });

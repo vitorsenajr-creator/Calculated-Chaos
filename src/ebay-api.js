@@ -456,7 +456,7 @@
       // platform already marked there (e.g. she may have already marked
       // Poshmark) — this was previously only reflected via `status`.
       const listedPlatforms = Array.from(new Set([...(item.listedPlatforms || []), 'ebay']));
-      const updated = { ...item, ebayListingId: data.listingId, ebayListingUrl: data.listingUrl, ebayOfferId: data.offerId || null, ebaySku: data.sku || null, ebayListedAt: Date.now(), status: 'anunciado', listedPlatforms };
+      const updated = { ...item, ebayListingId: data.listingId, ebayListingUrl: data.listingUrl, ebayOfferId: data.offerId || null, ebaySku: data.sku || null, ebayListedAt: Date.now(), status: 'anunciado', listedPlatforms, ebayPublishError: null };
       const idx = items.findIndex(i => i.id === item.id);
       if (idx >= 0) items[idx] = updated;
       await app.saveItem(updated);
@@ -490,7 +490,26 @@
       // Every failure goes into the eBay error log (Settings → "eBay error
       // library") — fire-and-forget, never blocks or breaks the publish flow.
       logEbayFailure(failure, item, diagnoseEbayFailure(failure, item).errors);
+      await recordEbayPublishError(item, failure);
       return failure;
+    }
+  }
+
+  // Marks the item with its last failed publish (v3.22.4), so the catalog's
+  // Issues filter and Home's "eBay publish errors" row can find it; a
+  // successful publish clears it (above). Best-effort, like the log: a
+  // failed write never gets in the way of showing the error box.
+  async function recordEbayPublishError(item, failure){
+    try{
+      const idx = items.findIndex(i => i.id === item.id);
+      if (idx < 0) return;
+      const { messages } = diagnoseEbayFailure(failure, item);
+      const message = String(messages[0] || failure.error || 'Unknown error').slice(0, 300);
+      const updated = { ...items[idx], ebayPublishError: { at: Date.now(), message, step: failure.step || null } };
+      items[idx] = updated;
+      await app.saveItem(updated);
+    }catch(e){
+      console.warn('Saving the eBay error on the item failed (non-blocking):', e);
     }
   }
 

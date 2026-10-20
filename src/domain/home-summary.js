@@ -2,10 +2,15 @@
 // Firebase or app state). The caller passes the photo-session drafts, the
 // chosen period, the clock and the projected-profit function (it depends
 // on settings), so this stays testable in plain Node.
-import { isIncomplete } from '../modules/catalog-filters.js';
+import {
+  isIncomplete, isStaleListing, isMissingPrice, hasPrice, hasEbayError, hasDuplicateCode, codeCounts, normalizeCode,
+  DEFAULT_ISSUE_CHECKS,
+} from './item-issues.js';
+
+// Kept for older imports; the checks live in item-issues.js since v3.22.4.
+export { isStaleListing, isMissingPrice };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-export const STALE_LISTING_DAYS = 30;
 export const HOME_PERIODS = ['month', 'year', 'all'];
 
 // Start of the period that contains `now`, in local time; 0 for 'all'.
@@ -26,21 +31,6 @@ function soldTime(item){
   return item.soldAt || item.createdAt || 0;
 }
 
-function hasPrice(item){
-  return parseFloat(item.listPrice) > 0;
-}
-
-// Listed 30+ days and still unsold. Only eBay stamps a listing date, so
-// other platforms fall back to when the item was cataloged.
-export function isStaleListing(item, now){
-  if (item.status !== 'anunciado') return false;
-  const since = item.ebayListedAt || item.createdAt;
-  return !!since && daysBetween(since, now) >= STALE_LISTING_DAYS;
-}
-
-export function isMissingPrice(item){
-  return item.status !== 'vendido' && !hasPrice(item);
-}
 
 // Items sold before soldPlatform was reliably recorded (eBay auto-detected
 // sales didn't stamp it at first) would all land in "other"; this is the
@@ -54,7 +44,15 @@ export function inferSoldPlatform(item){
   return 'outra';
 }
 
-export function computeHomeSummary(items, { drafts = [], period = 'month', now = Date.now(), projectedProfit = () => 0 } = {}){
+// "Photos, cost, weight or dimensions", only the parts that are checked.
+const PART_WORD = { photos: 'photos', cost: 'cost', weight: 'weight', dimensions: 'dimensions' };
+function missingDetail(checks){
+  const parts = Object.keys(PART_WORD).filter(k => checks[k] !== false).map(k => PART_WORD[k]);
+  const text = parts.length > 1 ? `${parts.slice(0, -1).join(', ')} or ${parts[parts.length - 1]}` : parts.join('');
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+export function computeHomeSummary(items, { drafts = [], period = 'month', now = Date.now(), projectedProfit = () => 0, checks = DEFAULT_ISSUE_CHECKS } = {}){
   const start = periodStart(period, now);
   const active = items.filter(i => i.status !== 'vendido');
   const soldInPeriod = items.filter(i => i.status === 'vendido' && soldTime(i) >= start);
@@ -83,12 +81,29 @@ export function computeHomeSummary(items, { drafts = [], period = 'month', now =
   const revenueByPlatform = Object.values(byPlatform).sort((a, b) => b.revenue - a.revenue);
 
   const noPrice = active.filter(i => !hasPrice(i)).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-  const missing = active.filter(isIncomplete);
-  const stale = active.filter(i => isStaleListing(i, now));
+  const missing = active.filter(i => isIncomplete(i, checks));
+  const stale = active.filter(i => isStaleListing(i, now, checks));
+  const ebayErrors = active.filter(hasEbayError);
+  const counts = codeCounts(items);
+  const dupItems = items.filter(i => hasDuplicateCode(i, counts));
 
   // One row per problem, most urgent first; rows with nothing to do are
   // left out. `count` lets a dismissed row come back when it changes.
   const attention = [];
+  if (ebayErrors.length){
+    const latest = ebayErrors.reduce((a, b) => ((b.ebayPublishError.at || 0) > (a.ebayPublishError.at || 0) ? b : a));
+    attention.push({
+      key: 'ebay-error', count: ebayErrors.length, title: 'eBay publish errors', action: 'Review', tone: 'urgent',
+      detail: `Latest: ${latest.name || latest.productCode || 'an item'}`,
+    });
+  }
+  if (dupItems.length){
+    const codes = new Set(dupItems.map(i => normalizeCode(i.productCode))).size;
+    attention.push({
+      key: 'duplicate-code', count: dupItems.length, title: 'Duplicate codes', action: 'Fix', tone: 'warn',
+      detail: `${codes} code${codes === 1 ? '' : 's'} used on more than one item`,
+    });
+  }
   if (noPrice.length){
     const oldest = noPrice[0];
     attention.push({
@@ -99,13 +114,13 @@ export function computeHomeSummary(items, { drafts = [], period = 'month', now =
   if (missing.length){
     attention.push({
       key: 'missing-info', count: missing.length, title: 'Missing info', action: 'Fix', tone: 'warn',
-      detail: 'Photos, cost, weight or dimensions',
+      detail: missingDetail(checks),
     });
   }
   if (stale.length){
     const atListPrice = stale.reduce((s, i) => s + (parseFloat(i.listPrice) || 0), 0);
     attention.push({
-      key: 'stale', count: stale.length, title: `Listed ${STALE_LISTING_DAYS}+ days`, action: 'Drop price', tone: 'info',
+      key: 'stale', count: stale.length, title: `Listed ${checks.staleDays}+ days`, action: 'Drop price', tone: 'info',
       detail: `$${atListPrice.toFixed(0)} at list price`,
     });
   }
