@@ -250,6 +250,11 @@ renaming them needs a data migration of every saved item.
 
 ## Open items
 
+- **Production, selling soon (Vitor, 2026-10-20)**: the app is in
+  production mode and will be offered to other sellers soon. Treat every
+  change as going to paying customers: no half-finished features on
+  `main`, and billing-related data (AI credits, plans) must be
+  server-enforced, never trusted from the browser.
 - **Multi-business (paid, for new sellers)**: the app runs on business
   data since 2026-10-19 (v3.17.0 switch confirmed in production).
   The `main.js` split's planned phases are done (1-3, v3.17.2-6; phase
@@ -540,6 +545,38 @@ discreet but always-present "by Calculated Chaos". Preparation now: every
 color in the new design is a CSS variable in one place, and the header
 has a slot for the logo.
 
+### 7. AI credits counter (paid plans) — wanted
+
+Asked by Vitor 2026-10-20, after the Nifty review (its "Smart Credits":
+500 or 1,000 a month by plan, extra packs of 200 for $5). Each business
+gets a monthly allotment of AI credits by plan; each AI action spends a
+fixed number (✨ analysis, listing-only rewrite, narration extract, the
+Import column analysis), and extra packs can be bought. Notes for when
+it starts:
+- Today's counter (`aiUsageCount`/`aiUsageLimit` in `appSettings`) is
+  written by the browser, and members can write settings, so it can't
+  be the billing source. Credits must be counted and checked on the
+  server (`analyze-photo.js`, `narration.js` already log `ai-usage`), in
+  a server-written doc under `businesses/{bizId}` that members can only
+  read.
+- At zero, the server refuses the call with a clear message; the app
+  shows the balance in Settings → AI usage and near the ✨ buttons.
+- Platform admins set plans and grant credits from the Developer Panel
+  (`api/platform.js` actions). Payment provider and prices: not decided.
+
+### 8. Ideas from the Nifty review — after item 6
+
+`docs/nifty-review.md` (2026-10-20). Order decided with Vitor: item 6
+first, then P1, one PR each: (1) Finances insights (sell-through,
+average profit and days listed per platform, top brands/categories,
+previous-period comparison); (2) Goals on Home; (3) an Issues filter in
+the catalog with optional warnings in Settings; (4) an eBay sale tracker
+(log of detected sales and what the app did; gives Home its "eBay sales
+to confirm" row). P2, after Import (item 4): expenses and P&L, pricing
+rules per platform, "similar items" and shipping presets, a Getting
+started checklist. Not to copy: marketplace automation with the user's
+password.
+
 ## Redesign (decisions, 2026-10-19)
 
 Product context for design work is in `PRODUCT.md` (the Impeccable
@@ -611,7 +648,8 @@ a private claude.ai artifact; Impeccable seed `seed:007b6ac6cba56f1a`):
   6: the theme features as options, store name, logo and accent color.
 - D2 shipped in v3.20.1 (Catalog + Stock), Finances in v3.21.3 and the
   grouped Settings in v3.22.0, which ends "the other screens". Next:
-  backlog item 6 (store name, logo, accent color in Appearance). Still
+  backlog item 6 (store name, logo, accent color in Appearance), then
+  the Nifty P1 items (backlog item 8). Still
   in the old style for the polish phase: the inside of the Platforms,
   eBay and admin panels in Settings (emojis, inline styles, the fee box
   too narrow for "10.00") and the old modals.
@@ -637,3 +675,5 @@ a private claude.ai artifact; Impeccable seed `seed:007b6ac6cba56f1a`):
   Home in v3.20.0),
   `docs/employee-accounts.md`, `docs/platform-fees.md`,
   `docs/sold-confirmation.md`, `docs/modularization.md`.
+- `docs/nifty-review.md`: Nifty's structure and tools (2026-10-20) and
+  what to bring in (backlog items 7 and 8).
