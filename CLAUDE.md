@@ -87,6 +87,9 @@ renaming them needs a data migration of every saved item.
   (v3.17.5).
   Extract with a characterization test (old vs new, identical output).
   - `domain/listing-copy.js`: listing title/description builders.
+  - `domain/home-summary.js` + `ui/home/home-view.js`: the Home screen
+    (v3.20.0): summary by period, pipeline, "Needs attention", revenue
+    by platform. Period and dismissed rows are per-device (localStorage).
   - `ui/lightbox.js`: `openLightbox(photos, index)`; its state is private.
   - `ui/label-render.js`: label preview markup + canvas drawing.
   - `ui/labels/`: print modal (`openBatchLabelModal`), Quick Labels,
@@ -121,7 +124,7 @@ renaming them needs a data migration of every saved item.
   - `narration-capture.js`.
   - `ebay-audit.js`, `ebay-error-hints.js`/`-log.js`/`-ai.js`,
     `ebay-size.js`, `ebay-aspect-match.js`, `ebay-type-map.js`.
-  - `product-code-bank.js`, `sold-confirm.js`, `dashboard.js`.
+  - `product-code-bank.js`, `sold-confirm.js`.
 - `api/`: **12 route functions = the Vercel Hobby cap (full since
   v3.15.4)**. Add an `action`/`mode` to an existing file; a new file
   needs Vercel Pro. Underscore files (`_requireApprovedUser.js`,
@@ -268,6 +271,14 @@ renaming them needs a data migration of every saved item.
 
 Last known status per the v3.13 notes. Confirm with Vitor before relying
 on any of these:
+- New shell and Home (v3.20.0): Node test of `computeHomeSummary` (periods,
+  pipeline, every attention row, platform revenue), Chromium screenshots
+  of the dev build with sample data injected (phone and desktop: Home,
+  "+" menu, the "Set prices" link opening the filtered catalog, Stock,
+  Finances and Reports tabs, a dismissed row), no page errors, no
+  horizontal scroll at 390px, clean build. Unconfirmed on a real phone:
+  everything with real data, the safe-area spacing on iPhone, Settings →
+  Account (Check for updates, Sign out), an employee's view.
 - Finances profit from saved `netProfit` + "Other costs" box (v3.19.1):
   Node test running the real `renderFinance()` on sample sales (before:
   Finances $89.20 vs stats strip $83.70; after: both $83.70). Unconfirmed
@@ -340,11 +351,9 @@ on any of these:
 - Quick Labels one-by-one queue and PDF export (v3.13.106/107), label font
   sizing (v3.13.102-105), inspection flag icon (v3.13.114).
 
-## Pending changelog entry (since v3.19.0)
+## Pending changelog entry (since v3.20.0)
 
-- v3.19.1: Finances sums each sale's saved `netProfit` (it left out Other
-  costs before, so it disagreed with the stats strip, Dashboard and
-  Reports) and shows an "Other costs" box per month.
+(none yet)
 
 ## Backlog (not started)
 
@@ -458,6 +467,81 @@ Ideas from the 2026-10-19 discussion, to be decided when it starts:
   reconnect, and eBay may not grant it without approval) or treat eBay
   like the other platforms, by report, is open.
 
+### 6. Business customization (after the redesign)
+
+Asked by Vitor 2026-10-19; not a priority yet, but the redesign must
+prepare for it. Each business sets its store name, uploads a logo and
+picks basic colors (at least the accent); more options can come later.
+The store's name and logo are the main identity in the app, with a
+discreet but always-present "by Calculated Chaos". Preparation now: every
+color in the new design is a CSS variable in one place, and the header
+has a slot for the logo.
+
+## Redesign (decisions, 2026-10-19)
+
+Product context for design work is in `PRODUCT.md` (the Impeccable
+skill reads it). Critique of the old UI: 19/40, main issues the phone
+header (54% of the screen before the first item), navigation mixing
+places and actions, and a flat 20-section Settings. Reference: Nifty
+(organization only). Visual direction: a new look from scratch; 2-3
+directions to be shown in a mockup before any code.
+
+Navigation, approved:
+- N1/N2: bottom bar on the phone and a sidebar on desktop with the same
+  5 places: Home · Catalog · Stock · Finances · Settings (Settings pinned
+  at the bottom on desktop). The desktop-only Dashboard becomes Home.
+- N3: sub-tabs. Catalog: All · Drafts. Stock: Labels · Transfer · Boxes
+  · Wall markers. Finances: Overview · Months · Reports.
+- N4: the header loses the title, subtitle and platform eyebrow; a slim
+  bar with the store name (logo later, item 6).
+- N5: the daily quote stays (Vitor, 2026-10-20), on Home under "Today",
+  still alternating with a computed stock insight.
+- N6/N7: version, sign out and refresh ("Check for updates") move to
+  Settings → Account.
+- N8: Home "Today's summary" with 4 numbers (In stock, Sold, Profit,
+  Projected) and a Month / Year / All time selector. "Incomplete" moves
+  to Needs attention.
+- N9: Home is the phone's start screen, with "Needs attention" grouped
+  by problem, one action each: no price → Set prices; missing info →
+  Fix; eBay publish errors → Review; listed 30+ days → Drop price /
+  Offer; photo-session drafts → Finish; eBay sales to confirm → Confirm.
+  Each row can be dismissed.
+- N10: one "+" button (New item, Quick catalog, Photo session), on Home
+  and Catalog only, never covering card actions.
+- N11: Labels and Transfer leave the nav bar (they become Stock sub-tabs).
+- Later phases: eBay tools out of Settings, a grouped Settings index, the
+  Data section (Import/Export), Ctrl K search and catalog sorting.
+
+Visual directions (mockup canvas "Calculated Chaos redesign directions",
+a private claude.ai artifact; Impeccable seed `seed:007b6ac6cba56f1a`):
+- **Three themes, chosen per business** in Settings → Appearance (with
+  the logo, store name and accent color of backlog item 6):
+  - **Parcel** (default, built first): shipping-label world. Navy shell,
+    cool white ground, red only for urgent; Archivo with condensed
+    numerals; the product code in a label box next to its box.
+  - **Tag Week**: thrift-store weekly color tags. Black shell, light
+    neutral ground, five tag colors; Bricolage Grotesque.
+  - **Concourse**: airport wayfinding. White ground, black, signal
+    yellow only for "go here"; Fira Sans; monumental product codes.
+- Signature features (recommended 2026-10-19, Vitor had no preference):
+  the item tracking line (Cataloged → Listed → Sold → Shipped) in every
+  theme; "Color tags by week" as an Appearance option (on by default in
+  Tag Week); "Highlight next task" as a Home option (on by default in
+  Concourse).
+- Rule for all new UI code: no hard-coded colors, fonts or radii, only
+  the theme's CSS variables, so a theme is one token set.
+- Order: D1 the new shell + Home in Parcel → the other screens in
+  Parcel → Appearance (the other two themes, logo, accent).
+- D1 shipped in v3.20.0. Not in it, for lack of data: a "Shipped" stop in
+  the pipeline (no shipped status yet; needs "Mark shipped"), the "eBay
+  publish errors" row (errors aren't stored per item) and "eBay sales to
+  confirm" (detected sales are marked sold directly). The Stock tab is a
+  stopgap (Labels, Transfer, a link to the boxes in Settings); Finances
+  holds the old Months and Reports screens as sub-tabs. `appSettings.storeName`
+  is read for the header (none is saved yet; backlog item 6 adds it).
+  Detector leftovers in the old modals (eBay red 4.3:1, 11px text, the
+  9.5px label "Preview", the lightbox's empty img) wait for the polish phase.
+
 ## Docs index
 
 - `docs/v3.13-patch-notes.md`: detailed notes for every v3.13.x patch
@@ -466,6 +550,7 @@ Ideas from the 2026-10-19 discussion, to be decided when it starts:
   (resolved).
 - `docs/multi-tenant.md`: ADR for offering the app to other businesses.
 - `docs/live-catalog.md` (historical, removed in v3.19.0),
-  `docs/narration.md`, `docs/dashboard.md`,
+  `docs/narration.md`, `docs/dashboard.md` (historical, replaced by
+  Home in v3.20.0),
   `docs/employee-accounts.md`, `docs/platform-fees.md`,
   `docs/sold-confirmation.md`, `docs/modularization.md`.

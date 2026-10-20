@@ -1,5 +1,10 @@
 # Desktop Dashboard (added v3.13.0, 2026-08-09)
 
+> **Historical (v3.20.0, 2026-10-20):** the Dashboard was replaced by the
+> Home screen, the start screen on every device (`src/domain/home-summary.js`,
+> `src/ui/home/home-view.js`). Revenue by platform moved there;
+> `modules/dashboard.js` was removed.
+
 > **Current state (2026-10-19):** Revenue-by-platform (former backlog item 2) shipped here, not in the Reports
 > tab or its CSV export. Revisit if it's wanted there too.
 

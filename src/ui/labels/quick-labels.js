@@ -242,8 +242,7 @@ async function saveAllQuickLabelImages(){
 export function initQuickLabels(deps){
   ({ saveItem, saveSettings, getAllStorageBoxes } = deps);
 
-  document.getElementById('quickLabelOpenBtnMobile').addEventListener('click', openQuickLabelModal);
-  document.getElementById('quickLabelOpenBtnDesktop').addEventListener('click', openQuickLabelModal);
+  document.getElementById('quickLabelOpenBtn').addEventListener('click', openQuickLabelModal);
   document.getElementById('quickLabelCancelBtn').addEventListener('click', closeQuickLabelModal);
   document.getElementById('quickLabelOverlay').addEventListener('click', (e) => {
     if (e.target.id === 'quickLabelOverlay') closeQuickLabelModal();
