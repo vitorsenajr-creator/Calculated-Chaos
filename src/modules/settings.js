@@ -41,6 +41,7 @@ export const DEFAULT_SETTINGS = {
   // listing. Shared across platforms (renamed from poshmarkStandardText
   // — see loadSettings() migration).
   listingStandardText: '',
+  aiInstructions: '',
 
   // Platform management (Settings → Platforms). The 5 built-in platforms
   // (ebay/mercari/poshmark/vinted/depop) keep their fixed keys — eBay
