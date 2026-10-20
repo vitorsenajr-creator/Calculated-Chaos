@@ -271,44 +271,6 @@ export function renderSettings(){
         <div class="settings-success" id="labelSaveMsg">✓ Saved!</div>
       </div>
 
-      <!-- STORAGE BOX LABELS -->
-      <div class="settings-section" id="storageBoxesSection">
-        <h3>Register / print storage box labels</h3>
-        <div class="ss-desc">Register a storage box by name and print its label right away — before any item is assigned to it. Uses the label size configured above.</div>
-        ${(appSettings.storageBoxes || []).length === 0 ? `<div class="ss-desc" style="font-style:italic;">No boxes registered yet.</div>` : ''}
-        ${(appSettings.storageBoxes || []).map((b, i) => `
-          <div class="settings-row">
-            <div><div class="sr-label">📦 ${escapeHtml(b.name)}</div><div class="sr-sub">Registered ${new Date(b.createdAt).toLocaleDateString('en-US')}</div></div>
-            <div style="display:flex; gap:6px;">
-              <button onclick="reprintStorageBox(${i})" style="background:var(--sage); color:white; border:none; border-radius:8px; padding:6px 12px; font-size:12px; cursor:pointer;">🖨️ Reprint</button>
-              <button onclick="removeStorageBox(${i})" style="background:var(--terracotta); color:white; border:none; border-radius:8px; padding:6px 12px; font-size:12px; cursor:pointer;">🗑️ Remove</button>
-            </div>
-          </div>
-        `).join('')}
-        <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; align-items:center;">
-          <input type="text" id="sNewBoxName" placeholder="Box name/number" style="flex:1; min-width:140px; padding:8px 10px; border:1px solid var(--line); border-radius:8px; font-size:13px;">
-          <button class="settings-save-btn" style="width:auto; margin:0;" onclick="registerAndPrintBox()">📦 Register & print</button>
-        </div>
-      </div>
-
-      <!-- WALL MEASUREMENT MARKERS -->
-      <div class="settings-section">
-        <h3>Wall measurement markers</h3>
-        <div class="ss-desc">Print 4 crosshair targets and mount them on a wall (measure center-to-center with a tape measure, once). The measurement tool can then calibrate itself by tapping the 4 markers in a photo instead of needing a tape measure in every shot. Use a wider spacing for bulkier items like dresses.</div>
-        <div class="settings-row">
-          <div><div class="sr-label">Horizontal spacing</div><div class="sr-sub">Inches, center to center (left ↔ right markers)</div></div>
-          <input type="number" id="sMarkerSpacingH" value="${appSettings.wallMarkerSpacingHIn || 24}" min="4" max="120" step="0.5">
-        </div>
-        <div class="settings-row">
-          <div><div class="sr-label">Vertical spacing</div><div class="sr-sub">Inches, center to center (top ↔ bottom markers)</div></div>
-          <input type="number" id="sMarkerSpacingV" value="${appSettings.wallMarkerSpacingVIn || 24}" min="4" max="120" step="0.5">
-        </div>
-        <button class="settings-save-btn" onclick="saveWallMarkerSettings()">Save marker spacing</button>
-        <div class="settings-success" id="markerSaveMsg">✓ Saved!</div>
-        <button class="settings-save-btn" style="background:var(--sage); margin-top:10px;" onclick="openMarkerPrintModal()">🎯 Print a marker</button>
-        <button class="settings-save-btn" style="background:var(--plum); margin-top:10px;" onclick="openCalibInstructionsModal()">📖 Calibration instructions</button>
-      </div>
-
       <!-- EBAY CONNECTION STATUS -->
       <div class="settings-section">
         <h3>eBay connection</h3>

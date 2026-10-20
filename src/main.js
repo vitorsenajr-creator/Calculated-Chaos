@@ -52,6 +52,8 @@ import {
 } from './data/settings-store.js';
 import { renderSettings, renderEbayConnectionStatus } from './ui/settings/index.js';
 import { initHomeView, renderHome } from './ui/home/home-view.js';
+import { initStockView, renderStock } from './ui/stock/stock-view.js';
+import { CATALOG_SORTS, sortCatalog } from './domain/catalog-sort.js';
 import { items, setItems, appSettings, setAppSettings } from './modules/state.js';
 import {
   isIncomplete, missingFields,
@@ -94,7 +96,11 @@ export const app = (function(){
   // right after login, before anything else renders.
   let currentUserRole = 'owner';
   let draftItems = []; // Photo Session groups awaiting cataloging — own Firestore collection, never mixed into `items`
-  let draftsPanelOpen = false;
+  // Catalog sub-tab ('all' | 'drafts') and sort order (v3.20.1); the sort
+  // is a per-device convenience kept in localStorage (guarded: storage can
+  // be blocked in private mode).
+  let catalogSection = 'all';
+  let catalogSort = (() => { try{ return localStorage.getItem('cc.catalog.sort') || 'newest'; }catch(e){ return 'newest'; } })();
   let filterPanelOpen = false; // survives re-renders (e.g. picking a filter chip), unlike the old plain classList.toggle which reset on every re-render
   let currentPhotos = []; // dataUrls (compressed)
   let currentMeasurements = null; // {type, values:{label:inches}, photo:dataUrl} | null
@@ -687,36 +693,75 @@ export const app = (function(){
 
   // ---------- RENDER: CATALOG ----------
 
+  // Status shortcuts above the list; they set the same filters as the
+  // Status chips in the Filters panel.
+  const CATALOG_STATUS_SEGS = [
+    { key:'instock', label:'In stock', match: f => f.notSold && !f.status, apply: f => { f.notSold = true; f.status = null; } },
+    { key:'listed', label:'Listed', match: f => f.status === 'anunciado', apply: f => { f.notSold = false; f.status = 'anunciado'; } },
+    { key:'sold', label:'Sold', match: f => f.status === 'vendido', apply: f => { f.notSold = false; f.status = 'vendido'; } },
+    { key:'all', label:'All', match: f => !f.notSold && !f.status, apply: f => { f.notSold = false; f.status = null; } },
+  ];
+
   function renderCatalog(){
     const view = document.getElementById('catalogView');
+    const drafts = catalogSection === 'drafts';
+    const sectionTabs = `
+      <div class="catalog-head">
+        <h1 class="screen-title">Catalog</h1>
+        <div class="seg" role="tablist" aria-label="Catalog sections">
+          <button type="button" class="seg-btn${drafts ? '' : ' active'}" role="tab" aria-selected="${!drafts}" data-catalog-section="all">All</button>
+          <button type="button" class="seg-btn${drafts ? ' active' : ''}" role="tab" aria-selected="${drafts}" data-catalog-section="drafts">Drafts${draftItems.length ? ` ${draftItems.length}` : ''}</button>
+        </div>
+      </div>`;
+
+    if (drafts){
+      // Photo Session groups live outside `items` entirely (own Firestore
+      // collection), so they never show up in the catalog, stats or CSV
+      // export; this tab is the only place they're visible until each one
+      // is completed and saved.
+      view.innerHTML = sectionTabs + (draftItems.length ? `
+        <div class="panel drafts-list">
+          ${draftItems.map(d => `
+            <div class="draft-row" data-draft-id="${d.id}">
+              <img src="${d.photos[0]}" alt="">
+              <span class="draft-meta">${d.photos.length} photo${d.photos.length===1?'':'s'}${d.createdAt ? ` · ${daysSince(d.createdAt) === 0 ? 'today' : `${daysSince(d.createdAt)}d ago`}` : ''}</span>
+              <button type="button" class="row-btn" data-act="complete-draft" data-draft-id="${d.id}">Complete</button>
+              <button type="button" class="row-btn danger" data-act="delete-draft" data-draft-id="${d.id}">Delete</button>
+            </div>`).join('')}
+        </div>` : `<div class="empty-state"><p>No photo drafts. Start a Photo session from the + button to shoot a batch now and catalog it later.</p></div>`);
+      wireCatalogControls();
+      return;
+    }
 
     const filterBtnClass = filtersActiveCount() > 0 ? 'filter-toggle-btn has-active' : 'filter-toggle-btn';
-    // Draft groups from a Photo Session live outside `items` entirely (own
-    // Firestore collection), so they never show up in the catalog, stats, or
-    // CSV export below — this banner + the drafts panel it toggles is the
-    // only place they're visible until she completes and saves each one.
-    const draftsBannerHtml = draftItems.length > 0 ? `
-      <div id="draftsBanner" style="display:flex; align-items:center; justify-content:space-between; background:var(--blush); border:1px solid var(--terracotta); border-radius:10px; padding:10px 14px; margin-bottom:10px; cursor:pointer;">
-        <span style="font-size:13px; font-weight:600; color:var(--terracotta-deep);">📷 ${draftItems.length} photo draft${draftItems.length===1?'':'s'} to complete</span>
-        <span style="font-size:12px; color:var(--terracotta-deep);">${draftsPanelOpen ? '▲ Close' : '▼ Open'}</span>
-      </div>
-      <div id="draftsPanel" style="display:${draftsPanelOpen ? 'block' : 'none'}; margin-bottom:12px;">
-        ${draftItems.map(d => `
-          <div class="draft-card" data-draft-id="${d.id}" style="display:flex; align-items:center; gap:10px; background:var(--white); border:1px solid var(--line); border-radius:10px; padding:8px 10px; margin-bottom:8px;">
-            <img src="${d.photos[0]}" style="width:44px; height:44px; object-fit:cover; border-radius:6px; flex-shrink:0;">
-            <span style="flex:1; font-size:12.5px; color:var(--plum-soft);">${d.photos.length} photo${d.photos.length===1?'':'s'}</span>
-            <button class="icon-btn" data-act="complete-draft" data-draft-id="${d.id}">Complete →</button>
-            <button class="icon-btn" data-act="delete-draft" data-draft-id="${d.id}" style="color:var(--danger);">🗑</button>
-          </div>
-        `).join('')}
-      </div>
-    ` : '';
+    const counts = {
+      instock: items.filter(i => i.status !== 'vendido').length,
+      listed: items.filter(i => i.status === 'anunciado').length,
+      sold: items.filter(i => i.status === 'vendido').length,
+      all: items.length,
+    };
+    const statusSeg = `
+      <div class="seg seg-wide" role="group" aria-label="Status">
+        ${CATALOG_STATUS_SEGS.map(sg => {
+          const on = sg.match(activeFilters);
+          return `<button type="button" class="seg-btn${on ? ' active' : ''}" aria-pressed="${on}" data-status-seg="${sg.key}">${sg.label} <span class="seg-count">${counts[sg.key]}</span></button>`;
+        }).join('')}
+      </div>`;
     const controlsHtml = `
-      ${draftsBannerHtml}
+      ${sectionTabs}
       <div class="search-row">
-        <input type="text" class="search-input" id="searchInput" placeholder="Search by name, brand, category…" value="${escapeHtml(searchQuery)}" inputmode="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
-        <button class="${filterBtnClass}" id="filterToggleBtn">Filters${filtersActiveCount() ? ' (' + filtersActiveCount() + ')' : ''}</button>
-        <button class="${bulkSelectMode ? 'filter-toggle-btn has-active' : 'filter-toggle-btn'}" id="bulkSelectToggleBtn">${bulkSelectMode ? '✕ Cancel' : '☑ Select'}</button>
+        <input type="search" class="search-input" id="searchInput" placeholder="Name, brand, code or box" aria-label="Search the catalog" value="${escapeHtml(searchQuery)}" inputmode="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+      </div>
+      ${statusSeg}
+      <div class="catalog-tools">
+        <label class="sort-select">
+          <span class="visually-hidden">Sort</span>
+          <select id="catalogSortSelect" aria-label="Sort">
+            ${CATALOG_SORTS.map(o => `<option value="${o.key}"${o.key === catalogSort ? ' selected' : ''}>${o.label}</option>`).join('')}
+          </select>
+        </label>
+        <button type="button" class="${filterBtnClass}" id="filterToggleBtn" aria-expanded="${filterPanelOpen}">Filters${filtersActiveCount() ? ' (' + filtersActiveCount() + ')' : ''}</button>
+        <button type="button" class="${bulkSelectMode ? 'filter-toggle-btn has-active' : 'filter-toggle-btn'}" id="bulkSelectToggleBtn">${bulkSelectMode ? 'Cancel' : 'Select'}</button>
       </div>
       <div class="filter-panel ${filterPanelOpen ? 'open' : ''}" id="filterPanel"></div>
     `;
@@ -739,9 +784,8 @@ export const app = (function(){
 
     if (items.length === 0){
       listArea.innerHTML = `<div class="empty-state">
-        <div class="big">🌷</div>
-        <div class="serif-line">Your shelf is empty, for now.</div>
-        <p>Tap the + button to catalog your first find.</p>
+        <div class="serif-line">Your catalog is empty.</div>
+        <p>Tap the + button to add your first item, or start a Photo session to shoot a batch first.</p>
       </div>`;
       wireCatalogListEvents();
       return;
@@ -749,105 +793,133 @@ export const app = (function(){
 
     if (filtered.length === 0){
       listArea.innerHTML = `<div class="empty-state">
-        <div class="big">🔍</div>
-        <div class="serif-line">No matches here.</div>
-        <p>Try adjusting your search or filters.</p>
+        <div class="serif-line">No items match.</div>
+        <p>Nothing fits this search and these filters.</p>
+        <button type="button" class="secondary-btn" id="emptyClearFiltersBtn">Show all items</button>
       </div>`;
+      document.getElementById('emptyClearFiltersBtn').addEventListener('click', () => {
+        activeFilters = { status:null, category:null, incomplete:false, needsPhoto:false, box:null, notSold:false, size:null, platformsInclude:[], platformsExclude:[] };
+        searchQuery = '';
+        renderAll();
+      });
       wireCatalogListEvents();
       return;
     }
 
-    const sorted = [...filtered].sort((a,b)=> (b.createdAt||0) - (a.createdAt||0));
+    const sorted = sortCatalog(filtered, catalogSort);
+    const STAGES = ['catalogado', 'anunciado', 'vendido'];
     const cardsHtml = sorted.map(item => {
       const photo = item.photos && item.photos[0];
-      const hasListPrice = !!item.listPrice;
-      const price = hasListPrice ? parseFloat(item.listPrice) : suggestPrice(item);
+      const hasListPrice = parseFloat(item.listPrice) > 0;
       const incomplete = isIncomplete(item);
       const noPhoto = !(item.photos && item.photos.length > 0);
-      const age = daysSince(item.createdAt);
-      const isStale = item.status === 'anunciado' && age >= 30;
+      const sold = item.status === 'vendido';
+      const listedDays = daysSince(item.status === 'anunciado' ? (item.ebayListedAt || item.createdAt) : item.createdAt);
+      const isStale = item.status === 'anunciado' && listedDays >= 30;
+      const selected = bulkSelectMode && bulkSelectedIds.has(item.id);
+      const stage = Math.max(0, STAGES.indexOf(item.status));
+      const sub = [
+        item.size ? `Size ${escapeHtml(item.size)}` : '',
+        item.color ? escapeHtml(item.color) : '',
+        item.brand ? escapeHtml(item.brand) : '',
+      ].filter(Boolean).join(' · ');
+      const platforms = (item.listedPlatforms || []).map(p => {
+        const name = escapeHtml(PLATFORM_NAME[p] || getPlatformLabel(p));
+        if (p === 'ebay' && item.ebayListingId){
+          return `<a class="ic-platform" href="${item.ebayListingUrl || `https://www.ebay.com/itm/${item.ebayListingId}`}" target="_blank" rel="noopener">${name} ↗</a>`;
+        }
+        return `<span class="ic-platform">${name}</span>`;
+      }).join('');
+      let priceHtml;
+      if (sold){
+        const profit = item.netProfit;
+        priceHtml = profit !== undefined && profit !== null
+          ? `<div class="ic-price ${profit >= 0 ? 'positive' : 'negative'}">${profit >= 0 ? '+' : '-'}$${Math.abs(profit).toFixed(2)}</div><div class="ic-price-note">profit</div>`
+          : `<div class="ic-price">$${(parseFloat(item.soldPrice)||0).toFixed(2)}</div><div class="ic-price-note">sold</div>`;
+      } else if (hasListPrice){
+        priceHtml = `<div class="ic-price">$${parseFloat(item.listPrice).toFixed(2)}</div><div class="ic-price-note">+$${projectedProfit(item).toFixed(0)} proj.</div>`;
+      } else {
+        priceHtml = `<div class="ic-price missing">No price</div>`;
+      }
+      const soldWhen = sold && item.soldAt ? new Date(item.soldAt).toLocaleDateString('en-US', { month:'short', day:'numeric' }) : '';
+      const soldWhere = sold && item.soldPlatform ? escapeHtml(PLATFORM_NAME[item.soldPlatform] || getPlatformLabel(item.soldPlatform)) : '';
 
       return `
-      <div class="item-card ${bulkSelectMode && bulkSelectedIds.has(item.id) ? 'bulk-selected' : ''}" data-id="${item.id}" style="${bulkSelectMode ? 'position:relative;' : ''}">
-        ${bulkSelectMode ? `<div class="bulk-checkbox" style="position:absolute; top:8px; left:8px; z-index:5; width:24px; height:24px; border-radius:50%; background:${bulkSelectedIds.has(item.id) ? 'var(--sage)' : 'rgba(255,255,255,0.85)'}; border:2px solid ${bulkSelectedIds.has(item.id) ? 'var(--sage)' : 'var(--line)'}; display:flex; align-items:center; justify-content:center; color:white; font-size:14px;">${bulkSelectedIds.has(item.id) ? '✓' : ''}</div>` : ''}
-        <div class="item-photo" ${item.photos && item.photos.length > 0 ? `data-gallery="${item.id}" style="cursor:pointer;"` : ''}>
-          ${photo ? `<img src="${photo}">` : `<span class="placeholder">🧥</span>`}
-          ${item.photos && item.photos.length > 1 ? `<span class="photo-count-badge">${item.photos.length} 🔍</span>` : ''}
+      <div class="item-card${sold ? ' is-sold' : ''}${selected ? ' bulk-selected' : ''}" data-id="${item.id}">
+        ${bulkSelectMode ? `<span class="bulk-check${selected ? ' on' : ''}" aria-hidden="true">${selected ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4 10-10"/></svg>' : ''}</span>` : ''}
+        <div class="item-photo" ${photo ? `data-gallery="${item.id}"` : ''}>
+          ${photo ? `<img src="${photo}" alt="">` : `<svg class="ic-placeholder" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 7a2 2 0 1 1 2 2c-1 .4-2 1-2 2v.5"/><path d="M12 11.5 3.4 17.6a1 1 0 0 0 .6 1.9h16a1 1 0 0 0 .6-1.9z"/></svg>`}
+          ${item.photos && item.photos.length > 1 ? `<span class="photo-count-badge">${item.photos.length}</span>` : ''}
         </div>
         <div class="item-body">
-          <div class="item-top">
-            <div>
-              <div class="item-name">${item.productCode ? `<span class="product-code">${escapeHtml(item.productCode)}</span> ` : ''}${escapeHtml(item.name || 'Unnamed item')}</div>
-              <div class="item-cat">${escapeHtml(item.category||'')}${item.brand ? ' · ' + escapeHtml(item.brand) : ''}${item.gender ? ' · ' + escapeHtml(item.gender) : ''}${item.size ? ' · Size ' + escapeHtml(item.size) : ''}</div>
-            </div>
-            <div class="chip-row">
-              <div class="status-chip status-${item.status}">${statusLabel(item.status)}</div>
-              ${(item.listedPlatforms || []).map(p => {
-                const favicon = PLATFORM_FAVICON[p];
-                const faviconImg = favicon ? `<img src="${favicon}" alt="" style="width:12px; height:12px; border-radius:3px; vertical-align:-2px; margin-right:3px;">` : '';
-                if (p === 'ebay' && item.ebayListingId){
-                  return `<a class="ebay-badge" href="${item.ebayListingUrl || `https://www.ebay.com/itm/${item.ebayListingId}`}" target="_blank">${faviconImg}eBay ↗</a>`;
-                }
-                // Plain name next to the real favicon (built-ins) instead of
-                // the emoji+name label, which is only used as a fallback
-                // for custom platforms with no favicon to show.
-                const label = favicon ? (PLATFORM_NAME[p] || p) : getPlatformLabel(p);
-                return `<span class="platform-badge" style="background:${getPlatformColor(p)};">${faviconImg}${escapeHtml(label)}</span>`;
-              }).join('')}
-              ${incomplete ? `<div class="warn-chip" data-action="missing-info" data-id="${item.id}" style="cursor:pointer;">⚠ ${noPhoto ? 'No photo' : 'Missing info'}</div>` : ''}
-            </div>
+          <div class="ic-top">
+            <div class="ic-name">${escapeHtml(item.name || 'Unnamed item')}</div>
+            <div class="ic-price-col">${priceHtml}</div>
           </div>
-          <div class="item-meta-row">
-            ${item.storageBox ? `<span class="meta-bit">📦 <b>${escapeHtml(item.storageBox)}</b></span>` : ''}
-            ${item.source ? `<span class="meta-bit">🏷️ <b>${escapeHtml(item.source)}</b></span>` : ''}
-            ${item.color ? `<span class="meta-bit">🎨 <b>${escapeHtml(item.color)}</b></span>` : ''}
-            ${item.weight ? `<span class="meta-bit">⚖ <b>${item.weight}lb</b></span>` : ''}
-            ${(item.length && item.width) ? `<span class="meta-bit">📐 <b>${item.length}×${item.width}×${item.height||0}"</b></span>` : ''}
-            <span class="meta-bit">cost <b>$${(parseFloat(item.cost)||0).toFixed(2)}</b></span>
-            ${item.status !== 'vendido' ? `<span class="meta-bit ${isStale?'stale':''}">📅 <b>${age}d</b> ${item.status==='anunciado' ? 'listed' : 'in catalog'}</span>` : ''}
+          ${sub ? `<div class="ic-sub">${sub}</div>` : ''}
+          <div class="ic-line">
+            ${item.productCode ? `<span class="code-box">${escapeHtml(item.productCode)}</span>` : ''}
+            ${item.storageBox ? `<span class="ic-box">Box ${escapeHtml(item.storageBox)}</span>` : ''}
+            ${sold
+              ? `<span class="ic-days">Sold${soldWhen ? ` ${soldWhen}` : ''}${soldWhere ? ` · ${soldWhere}` : ''}</span>`
+              : `<span class="ic-days${isStale ? ' stale' : ''}">${listedDays} day${listedDays===1?'':'s'}${item.status === 'anunciado' ? ' listed' : ''}</span>`}
+            ${incomplete ? `<button type="button" class="ic-warn" data-action="missing-info" data-id="${item.id}">${noPhoto ? 'No photo' : 'Missing info'}</button>` : ''}
           </div>
-          <div class="item-price-row">
-            <div class="price-suggested">
-              ${hasListPrice ? `
-                <span class="tag-label">listed at</span>
-                $${price.toFixed(2)}
-                ${item.status !== 'vendido' ? `<span class="projected-inline">→ $${projectedProfit(item).toFixed(2)} proj.</span>` : ''}
-              ` : `<span class="tag-label" style="text-transform:none; letter-spacing:0; font-size:14px; font-weight:700;">⚠ no price set</span>`}
+          <div class="ic-bottom">
+            <div class="ic-track" title="${statusLabel(item.status)}">
+              ${STAGES.map((st, k) => `${k ? `<span class="ic-track-line${k <= stage ? ' done' : ''}"></span>` : ''}<span class="ic-dot${k <= stage ? ' done' : ''}"></span>`).join('')}
+              <span class="ic-status">${statusLabel(item.status)}</span>
+              ${platforms ? `<span class="ic-platforms">${platforms}</span>` : ''}
             </div>
-            <div style="display:flex; gap:6px;">
-              <button class="icon-btn" data-action="print-label" data-id="${item.id}" title="Print label">🖨️</button>
-              <button class="icon-btn" data-action="edit" data-id="${item.id}">Edit</button>
+            <div class="ic-actions">
+              <button type="button" class="ic-btn" data-action="print-label" data-id="${item.id}" aria-label="Print label">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 9V3h10v6"/><rect x="3" y="9" width="18" height="8" rx="1.5"/><path d="M7 14h10v7H7z"/></svg>
+              </button>
+              <button type="button" class="ic-btn text" data-action="edit" data-id="${item.id}">Edit</button>
             </div>
           </div>
         </div>
       </div>`;
     }).join('');
 
+    // Bulk bar (v3.20.1): the everyday actions up front, the rest under
+    // "More actions", with Delete last and set apart.
     const bulkBarHtml = bulkSelectMode ? `
-      <div id="bulkActionBar" style="position:fixed; bottom:0; left:0; right:0; max-height:80vh; overflow-y:auto; background:var(--cream); border-top:2px solid var(--line); padding:12px 16px; box-shadow:0 -4px 14px rgba(0,0,0,0.1); z-index:60;">
-        <div style="font-size:12px; color:var(--plum-soft); margin-bottom:8px;">${bulkSelectedIds.size} item${bulkSelectedIds.size===1?'':'s'} selected</div>
-        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-          <select id="bulkStatusSelect" style="padding:8px 10px; border-radius:8px; border:1px solid var(--line); font-size:13px;">
-            <option value="catalogado">Set: Cataloged</option>
-            <option value="anunciado">Set: Listed</option>
-            <option value="vendido">Set: Sold</option>
-          </select>
-          <button id="bulkApplyStatusBtn" class="settings-save-btn" style="width:auto; padding:8px 14px; margin:0;" ${bulkSelectedIds.size===0?'disabled':''}>Apply</button>
-          <input type="text" id="bulkBoxInput" placeholder="Move to box…" list="storageBoxList" style="padding:8px 10px; border-radius:8px; border:1px solid var(--line); font-size:13px; width:110px;">
-          <button id="bulkApplyBoxBtn" class="settings-save-btn" style="width:auto; padding:8px 14px; margin:0;" ${bulkSelectedIds.size===0?'disabled':''}>Move</button>
-          <input type="number" id="bulkDiscountInput" placeholder="Discount %" min="1" max="90" style="padding:8px 10px; border-radius:8px; border:1px solid var(--line); font-size:13px; width:90px;">
-          <button id="bulkApplyDiscountBtn" class="settings-save-btn" style="width:auto; padding:8px 14px; margin:0;" ${bulkSelectedIds.size===0?'disabled':''}>Apply %</button>
-          <button id="bulkDeleteBtn" style="background:var(--danger); color:white; border:none; border-radius:8px; padding:8px 14px; font-size:13px; cursor:pointer;" ${bulkSelectedIds.size===0?'disabled':''}>Delete</button>
-          <button id="bulkPublishEbayBtn" style="background:#E53238; color:white; border:none; border-radius:8px; padding:8px 14px; font-size:13px; font-weight:600; cursor:pointer;" ${bulkSelectedIds.size===0?'disabled':''}>🛒 Publish on eBay</button>
-          <button id="bulkGenerateDescBtn" style="background:var(--gold); color:white; border:none; border-radius:8px; padding:8px 14px; font-size:13px; font-weight:600; cursor:pointer;" ${bulkSelectedIds.size===0?'disabled':''}>🪄 Generate descriptions</button>
-          <button id="bulkPrintLabelsBtn" style="background:var(--plum); color:white; border:none; border-radius:8px; padding:8px 14px; font-size:13px; font-weight:600; cursor:pointer;" ${bulkSelectedIds.size===0?'disabled':''}>🖨️ Print labels (${bulkSelectedIds.size})</button>
-          <button id="bulkSelectAllBtn" style="background:transparent; border:1px solid var(--line); border-radius:8px; padding:8px 14px; font-size:13px; cursor:pointer;">Select all (${filtered.length})</button>
+      <div id="bulkActionBar" class="bulk-bar">
+        <div class="bulk-head">
+          <span class="bulk-count">${bulkSelectedIds.size} selected</span>
+          <button type="button" class="link-btn" id="bulkSelectAllBtn">Select all ${filtered.length}</button>
         </div>
-        <div id="bulkActionStatus" style="margin-top:8px; font-size:12px;"></div>
+        <div class="bulk-row">
+          <select id="bulkStatusSelect" aria-label="New status">
+            <option value="catalogado">Cataloged</option>
+            <option value="anunciado">Listed</option>
+            <option value="vendido">Sold</option>
+          </select>
+          <button type="button" id="bulkApplyStatusBtn" class="primary-btn" ${bulkSelectedIds.size===0?'disabled':''}>Set status</button>
+          <input type="text" id="bulkBoxInput" placeholder="Box" aria-label="Move to box" list="storageBoxList">
+          <button type="button" id="bulkApplyBoxBtn" class="secondary-btn" ${bulkSelectedIds.size===0?'disabled':''}>Move</button>
+          <button type="button" id="bulkPrintLabelsBtn" class="secondary-btn" ${bulkSelectedIds.size===0?'disabled':''}>Print labels</button>
+        </div>
+        <details class="bulk-more">
+          <summary>More actions</summary>
+          <div class="bulk-row">
+            <input type="number" id="bulkDiscountInput" placeholder="Discount %" aria-label="Discount percent" min="1" max="90">
+            <button type="button" id="bulkApplyDiscountBtn" class="secondary-btn" ${bulkSelectedIds.size===0?'disabled':''}>Apply discount</button>
+            <button type="button" id="bulkGenerateDescBtn" class="secondary-btn" ${bulkSelectedIds.size===0?'disabled':''}>Generate descriptions</button>
+            <button type="button" id="bulkPublishEbayBtn" class="secondary-btn" ${bulkSelectedIds.size===0?'disabled':''}>Publish on eBay</button>
+          </div>
+          <div class="bulk-row bulk-danger">
+            <button type="button" id="bulkDeleteBtn" class="danger-btn" ${bulkSelectedIds.size===0?'disabled':''}>Delete selected</button>
+          </div>
+        </details>
+        <div id="bulkActionStatus" class="bulk-status"></div>
       </div>
     ` : '';
 
-    listArea.innerHTML = `<div style="font-size:12px; color:var(--plum-soft); margin-bottom:10px;">${filtered.length} item${filtered.length===1?'':'s'}</div>` + cardsHtml + (bulkSelectMode ? `<div style="height:140px;"></div>` : '') + bulkBarHtml;
+    // The "+" would sit on top of the bulk bar; it comes back when bulk mode ends.
+    if (currentTab === 'catalog') document.getElementById('fabAdd').style.display = bulkSelectMode ? 'none' : '';
+    listArea.innerHTML = `<div class="list-count">${filtered.length} item${filtered.length===1?'':'s'}</div><div class="catalog-grid">${cardsHtml}</div>` + (bulkSelectMode ? `<div class="bulk-spacer"></div>` : '') + bulkBarHtml;
     wireCatalogListEvents();
   }
 
@@ -873,6 +945,7 @@ export const app = (function(){
       filterToggleBtn.addEventListener('click', () => {
         filterPanelOpen = !filterPanelOpen;
         filterPanel.classList.toggle('open', filterPanelOpen);
+        filterToggleBtn.setAttribute('aria-expanded', filterPanelOpen ? 'true' : 'false');
       });
     }
     const bulkSelectToggleBtn = document.getElementById('bulkSelectToggleBtn');
@@ -884,11 +957,24 @@ export const app = (function(){
       });
     }
 
-    const draftsBanner = document.getElementById('draftsBanner');
-    if (draftsBanner){
-      draftsBanner.addEventListener('click', () => {
-        draftsPanelOpen = !draftsPanelOpen;
+    document.querySelectorAll('[data-catalog-section]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        catalogSection = btn.dataset.catalogSection;
         renderCatalog();
+      });
+    });
+    document.querySelectorAll('[data-status-seg]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        CATALOG_STATUS_SEGS.find(sg => sg.key === btn.dataset.statusSeg).apply(activeFilters);
+        renderAll();
+      });
+    });
+    const sortSelect = document.getElementById('catalogSortSelect');
+    if (sortSelect){
+      sortSelect.addEventListener('change', () => {
+        catalogSort = sortSelect.value;
+        try{ localStorage.setItem('cc.catalog.sort', catalogSort); }catch(e){ /* not persisted */ }
+        renderCatalogList();
       });
     }
     document.querySelectorAll('[data-act="complete-draft"]').forEach(btn => {
@@ -1380,6 +1466,7 @@ export const app = (function(){
     renderCatalog();
     renderFinance();
     renderReports();
+    if (currentTab === 'stock') renderStock();
     refreshStockTransferBoxListIfOpen();
   }
 
@@ -1392,18 +1479,23 @@ export const app = (function(){
     getDailyMessage: () => getTodaysHeaderMessage().text,
     platformLabel: (key) => PLATFORM_NAME[key] || getPlatformLabel(key),
     platformColor: (key) => getPlatformColor(key),
-    openCatalog: (filters) => {
-      activeFilters = { status:null, category:null, incomplete:false, needsPhoto:false, box:null, notSold:false, size:null, platformsInclude:[], platformsExclude:[], ...filters };
-      switchToTab('catalog');
-      renderAll();
-    },
+    openCatalog: openCatalogWith,
     openTab: (tab) => switchToTab(tab),
     finishDrafts: () => {
-      draftsPanelOpen = true;
+      catalogSection = 'drafts';
       switchToTab('catalog');
       renderCatalog();
     },
   });
+
+  // Opens the catalog's "All" list with these filters only (Home rows,
+  // Stock boxes).
+  function openCatalogWith(filters){
+    activeFilters = { status:null, category:null, incomplete:false, needsPhoto:false, box:null, notSold:false, size:null, platformsInclude:[], platformsExclude:[], ...filters };
+    catalogSection = 'all';
+    switchToTab('catalog');
+    renderAll();
+  }
 
   // ---------- TABS ----------
   // Five places (Home, Catalog, Stock, Finances, Settings); Finances holds
@@ -1425,7 +1517,7 @@ export const app = (function(){
       b.classList.toggle('active', on);
       if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
     });
-    document.querySelectorAll('.subtab').forEach(b => {
+    document.querySelectorAll('.subtab[data-tab]').forEach(b => {
       const on = b.dataset.tab === tab;
       b.classList.toggle('active', on);
       b.setAttribute('aria-selected', on ? 'true' : 'false');
@@ -1438,6 +1530,7 @@ export const app = (function(){
     document.getElementById('fabAdd').style.display = FAB_TABS.has(tab) ? '' : 'none';
     closeFabMenu();
     if (tab === 'home') renderHome();
+    if (tab === 'stock') renderStock();
     // Skip the rebuild while the "paste your eBay token" box is showing and
     // waiting on her — a full re-render replaces the whole Settings section,
     // including that box, with a fresh "Not connected" state (since the
@@ -1446,15 +1539,10 @@ export const app = (function(){
     if (tab === 'settings' && !ebayConnectFlowPending) renderSettings();
     window.scrollTo(0, 0);
   }
-  document.querySelectorAll('.nav-link, .subtab').forEach(btn => {
+  document.querySelectorAll('.nav-link, .subtab[data-tab]').forEach(btn => {
     btn.addEventListener('click', () => switchToTab(btn.dataset.tab));
   });
-  // Storage boxes and wall markers still live in Settings (until the Stock
-  // screen gets them); this jumps straight to that section.
-  document.querySelector('[data-goto-settings="storage"]').addEventListener('click', () => {
-    switchToTab('settings');
-    document.getElementById('storageBoxesSection')?.scrollIntoView({ block: 'start' });
-  });
+  initStockView({ openCatalog: openCatalogWith });
 
   // ---------- ADD MENU ----------
   // One "+" (Home and Catalog only) opens New item / Quick catalog /
@@ -2128,7 +2216,7 @@ export const app = (function(){
   // src/ui/labels/; printing and file saving in src/platform/. Their
   // listeners are wired here, where they used to be.
   initPrintModal({ saveItem });
-  initStorageBoxes({ saveSettings, renderSettings });
+  initStorageBoxes({ saveSettings, refresh: renderStock });
   initQuickLabels({ saveItem, saveSettings, getAllStorageBoxes });
   initStockTransfer({ saveItem, saveSettings, getAllStorageBoxes });
   initPrint();
