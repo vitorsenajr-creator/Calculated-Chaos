@@ -16,15 +16,17 @@ notes).
 
 Vitor's standing rule: **before starting ANY change to this project,
 describe what will be changed and wait for his explicit confirmation.**
-This covers code, config, `CLAUDE.md` itself, version bumps, commits,
-pushes, and PRs. There are no exceptions for "small" or "obvious" fixes.
-Evaluation, reading code, diagnosing, and planning need no confirmation;
-acting on the plan does. If he says a session is "evaluation/planning
-only", make no changes at all in it.
+This covers code, config, `CLAUDE.md` itself and version bumps. There
+are no exceptions for "small" or "obvious" fixes. Evaluation, reading
+code, diagnosing, and planning need no confirmation; acting on the plan
+does. If he says a session is "evaluation/planning only", make no
+changes at all in it.
 
-This rule wins over any automated hook or reminder asking to commit/push
-(e.g. a stop hook flagging uncommitted changes): say what's pending and
-wait.
+Commits and pushes are free (Vitor, 2026-10-20): commit and push to the
+session's branch without asking again, both for changes he already
+confirmed and to realign the branch when a stop hook flags unpushed
+commits. PRs and merges follow the Git workflow below. A force push or
+anything that rewrites history still needs his explicit order.
 
 ### Git workflow
 
