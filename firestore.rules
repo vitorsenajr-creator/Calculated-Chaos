@@ -44,7 +44,7 @@ service cloud.firestore {
     }
     // What members read and write.
     function isMemberData(sub) {
-      return sub in ['items', 'drafts', 'counters', 'config', 'ebay_error_log', 'ebay_sales'];
+      return sub in ['items', 'drafts', 'counters', 'config', 'ebay_error_log', 'ebay_sales', 'expenses'];
     }
     // What platform admins read: the member data plus the frozen Live
     // Catalog collections.
