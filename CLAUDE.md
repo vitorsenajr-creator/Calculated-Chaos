@@ -98,7 +98,12 @@ renaming them needs a data migration of every saved item.
   - `domain/finance-summary.js` + `ui/finance/finance-view.js`: the
     Finances screen (v3.21.3): Overview (own period, `cc.finance.period`,
     separate from Home's), Months, Reports. The export buttons are still
-    wired by `wireReportButtons()` in `main.js`.
+    wired by `wireReportButtons()` in `main.js`. Insights (v3.22.2):
+    changes vs the same days of the previous month / same point of last
+    year (`previousWindow()`), sell-through = sold ÷ available in the
+    period (`sellThroughOf()`, never over 100%), By platform with average
+    profit and days to sell (`createdAt` → `soldAt`), top brands and
+    categories by units sold.
   - `ui/lightbox.js`: `openLightbox(photos, index)`; its state is private.
   - `ui/label-render.js`: label preview markup + canvas drawing.
   - `ui/labels/`: print modal (`openBatchLabelModal`), Quick Labels,
@@ -300,6 +305,15 @@ renaming them needs a data migration of every saved item.
 
 Last known status per the v3.13 notes. Confirm with Vitor before relying
 on any of these:
+- Finances insights (v3.22.2): Node test (31 cases: every field the
+  old overview returned identical on 400 sample items in the three
+  periods; previous window incl. Mar 31, year change and Feb 29;
+  sell-through by hand and never over 100%; platform sums and averages;
+  top brands/categories), Chromium screenshots of Overview in the three
+  themes (phone and desktop, every period, empty catalog), no page
+  errors, no horizontal scroll, clean build. Unconfirmed: real data
+  (brand/category spellings, old sales without `soldAt`, which count
+  in sell-through but not in days to sell).
 - Store identity (v3.22.1): Node test of `domain/accent.js` (51 color ×
   theme cases keep 4.5:1 for buttons/links and each theme's marker rule;
   every preset used as is for buttons), Chromium test (name, logo
@@ -436,6 +450,13 @@ on any of these:
   sizing (v3.13.102-105), inspection flag icon (v3.13.114).
 
 ## Pending changelog entry (since v3.22.0)
+
+- v3.22.2: Finances insights (Nifty P1, item 1). Overview's numbers show
+  the change vs the same days of last month (or the same point of last
+  year); a fifth number, Sell-through (sold ÷ items in stock or
+  cataloged in the period); "Revenue by platform" becomes "By platform"
+  with units, average profit and average days to sell; new Top brands
+  and Top categories panels by units sold.
 
 - v3.22.1: store identity (backlog item 6). Settings → Appearance gets
   Store (name and logo, saved as they change; the logo is shrunk to 256
@@ -589,7 +610,7 @@ it starts:
 ### 8. Ideas from the Nifty review — after item 6
 
 `docs/nifty-review.md` (2026-10-20). Order decided with Vitor: item 6
-first, then P1, one PR each: (1) Finances insights (sell-through,
+first, then P1, one PR each: (1) Finances insights (done in v3.22.2) (sell-through,
 average profit and days listed per platform, top brands/categories,
 previous-period comparison); (2) Goals on Home; (3) an Issues filter in
 the catalog with optional warnings in Settings; (4) an eBay sale tracker

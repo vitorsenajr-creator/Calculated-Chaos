@@ -1120,6 +1120,33 @@
   .fin-big small{font-size:13px; font-weight:500; font-stretch:100%; color:var(--ink-2);}
   .fin-panel-foot{padding:0 14px; font-size:13.5px;}
 
+  /* Insights (v3.22.2): changes vs the previous stretch, sell-through as a
+     fifth summary number, per-platform rows, top brands/categories. */
+  .fin-compare{font-weight:500;}
+  .fin-summary .summary-cell:nth-child(n+3){border-bottom:1px solid var(--line);}
+  .fin-summary .summary-cell:last-child{grid-column:1 / -1; border-right:none; border-bottom:none;}
+  .fin-delta{font-size:12px; font-weight:600; color:var(--ink-2); font-variant-numeric:tabular-nums;}
+  .fin-delta.up{color:var(--ok);}
+  .fin-summary-note{margin:-8px 0 0;}
+  .plat-list{list-style:none; margin:0; padding:0; display:flex; flex-direction:column;}
+  .plat-row{display:flex; align-items:center; gap:10px; padding:8px 14px; border-top:1px solid var(--line-soft);}
+  .plat-row:first-child{border-top:none;}
+  .plat-text{flex:1; min-width:0; display:flex; flex-direction:column; gap:1px;}
+  .plat-name{font-size:14px; font-weight:600;}
+  .plat-sub{font-size:12px; color:var(--ink-2);}
+  .plat-amt{font-size:15px; font-weight:700; white-space:nowrap; font-variant-numeric:tabular-nums;}
+  .fin-pair{display:grid; gap:16px; grid-template-columns:minmax(0, 1fr);}
+  .top-list{list-style:none; margin:0; padding:0;}
+  .top-list .fin-row{justify-content:flex-start;}
+  .top-list .fin-row-text{flex:1;}
+  .top-rank{width:22px; flex-shrink:0; font-size:13px; font-weight:700; color:var(--ink-2); font-variant-numeric:tabular-nums;}
+  @media (min-width: 900px){
+    .fin-summary{grid-template-columns:repeat(5, minmax(0, 1fr));}
+    .fin-summary .summary-cell:nth-child(n){border-bottom:none; border-right:1px solid var(--line);}
+    .fin-summary .summary-cell:last-child{grid-column:auto; border-right:none;}
+    .fin-pair{grid-template-columns:repeat(2, minmax(0, 1fr)); align-items:start;}
+  }
+
   /* Where each dollar went: ink steps for the costs, green for profit. */
   .split-bar{display:flex; gap:2px; height:14px; margin:2px 14px 12px;}
   .split-seg{min-width:3px; border-radius:2px;}
