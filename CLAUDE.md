@@ -87,6 +87,9 @@ renaming them needs a data migration of every saved item.
   (v3.17.5).
   Extract with a characterization test (old vs new, identical output).
   - `domain/listing-copy.js`: listing title/description builders.
+  - `domain/catalog-sort.js` (catalog sort orders), `domain/stock-boxes.js`
+    (box list with in-stock counts) and `ui/stock/stock-view.js` (the
+    Stock tabs; Boxes and Wall markers live here since v3.20.1).
   - `domain/home-summary.js` + `ui/home/home-view.js`: the Home screen
     (v3.20.0): summary by period, pipeline, "Needs attention", revenue
     by platform. Period and dismissed rows are per-device (localStorage).
@@ -271,6 +274,15 @@ renaming them needs a data migration of every saved item.
 
 Last known status per the v3.13 notes. Confirm with Vitor before relying
 on any of these:
+- Catalog and Stock redesign (v3.20.1): Node tests of `sortCatalog` (every
+  order, input untouched) and `summarizeBoxes` (each box count equals its
+  catalog filter), Chromium screenshots of the dev build with sample data
+  (cards, sort, Sold, bulk bar with More actions, Drafts, the four Stock
+  tabs, a box opening the catalog, desktop 2 columns), no page errors, no
+  horizontal scroll at 390px, clean build. Unconfirmed on a real phone:
+  real photos and data, bulk actions end to end, registering/printing a
+  box and a wall marker from Stock, Quick labels and Transfer opened from
+  Stock.
 - New shell and Home (v3.20.0): Node test of `computeHomeSummary` (periods,
   pipeline, every attention row, platform revenue), Chromium screenshots
   of the dev build with sample data injected (phone and desktop: Home,
@@ -353,7 +365,14 @@ on any of these:
 
 ## Pending changelog entry (since v3.20.0)
 
-(none yet)
+- v3.20.1 (redesign D2): Catalog in the Parcel look: All / Drafts tabs
+  (photo drafts left the banner), status shortcuts with counts, a sort
+  menu (newest, oldest, price, listed longest), a new item card (code
+  box, box, days, pipeline dots, platforms, profit on sold items with a
+  gray photo; source/weight/size/cost left the card), 2 columns on
+  desktop, a regrouped bulk bar ("More actions", Delete last). Stock got
+  Labels / Transfer / Boxes / Wall markers tabs; Boxes (with item counts
+  that open the catalog) and Wall markers moved out of Settings.
 
 ## Backlog (not started)
 
@@ -532,6 +551,8 @@ a private claude.ai artifact; Impeccable seed `seed:007b6ac6cba56f1a`):
   the theme's CSS variables, so a theme is one token set.
 - Order: D1 the new shell + Home in Parcel → the other screens in
   Parcel → Appearance (the other two themes, logo, accent).
+- D2 shipped in v3.20.1 (Catalog + Stock). Next by the order above: the
+  Finances screen (Overview, Months, Reports), then a grouped Settings.
 - D1 shipped in v3.20.0. Not in it, for lack of data: a "Shipped" stop in
   the pipeline (no shipped status yet; needs "Mark shipped"), the "eBay
   publish errors" row (errors aren't stored per item) and "eBay sales to

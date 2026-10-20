@@ -1,15 +1,14 @@
-// Registered storage boxes in Settings (UI layer; v3.17.3,
-// docs/modularization.md): register + print, reprint, remove. Moved out of
-// main.js unchanged; renderSettings() calls these through the window.*
-// handlers in its onclick attributes.
+// Registered storage boxes (UI layer; v3.17.3, docs/modularization.md):
+// register + print, reprint, remove, through window.* handlers. The list
+// lives on the Stock screen since v3.20.1 (ui/stock/stock-view.js).
 import { appSettings } from '../../modules/state.js';
 import { openBoxLabelModal } from './print-modal.js';
 
-let saveSettings, renderSettings;
+let saveSettings, refresh;
 
-// saveSettings and renderSettings come from main.js.
+// saveSettings comes from main.js; refresh redraws the box list.
 export function initStorageBoxes(deps){
-  ({ saveSettings, renderSettings } = deps);
+  ({ saveSettings, refresh } = deps);
 
   window.registerAndPrintBox = async function(){
     const input = document.getElementById('sNewBoxName');
@@ -23,7 +22,7 @@ export function initStorageBoxes(deps){
     appSettings.storageBoxes = [...(appSettings.storageBoxes || []), box];
     await saveSettings();
     input.value = '';
-    renderSettings();
+    refresh();
     openBoxLabelModal(box);
   };
 
@@ -38,6 +37,6 @@ export function initStorageBoxes(deps){
     if (!confirm(`Remove "${box.name}" from the registered boxes list? This doesn't touch any item already assigned to it.`)) return;
     appSettings.storageBoxes = appSettings.storageBoxes.filter((_, i) => i !== index);
     await saveSettings();
-    renderSettings();
+    refresh();
   };
 }

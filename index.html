@@ -73,20 +73,28 @@
       <div id="catalogView" style="display:none;"><div class="loading">Loading your pieces…</div></div>
       <div id="stockView" style="display:none;">
         <h1 class="screen-title">Stock</h1>
-        <div class="stock-actions">
-          <button type="button" class="stock-action" id="quickLabelOpenBtn">
-            <span class="stock-action-title">Labels</span>
-            <span class="stock-action-sub">Print labels by product code, one by one or as a PDF</span>
-          </button>
-          <button type="button" class="stock-action" id="stockTransferOpenBtn">
-            <span class="stock-action-title">Transfer</span>
-            <span class="stock-action-sub">Pick a box, then scan codes to move items into it</span>
-          </button>
-          <button type="button" class="stock-action" data-goto-settings="storage">
-            <span class="stock-action-title">Boxes and wall markers</span>
-            <span class="stock-action-sub">In Settings for now</span>
-          </button>
+        <div class="subtabs" role="tablist" aria-label="Stock">
+          <button type="button" class="subtab" role="tab" data-stock-section="labels">Labels</button>
+          <button type="button" class="subtab" role="tab" data-stock-section="transfer">Transfer</button>
+          <button type="button" class="subtab" role="tab" data-stock-section="boxes">Boxes</button>
+          <button type="button" class="subtab" role="tab" data-stock-section="markers">Wall markers</button>
         </div>
+        <div id="stockPane-labels" class="stock-pane">
+          <section class="panel stock-form">
+            <h2 class="panel-title">Quick labels</h2>
+            <p class="stock-form-desc">Type or scan product codes and print their labels one by one, or save a batch as a PDF.</p>
+            <div class="stock-form-row"><button type="button" class="primary-btn" id="quickLabelOpenBtn">Open Quick labels</button></div>
+          </section>
+        </div>
+        <div id="stockPane-transfer" class="stock-pane" hidden>
+          <section class="panel stock-form">
+            <h2 class="panel-title">Stock transfer</h2>
+            <p class="stock-form-desc">Pick a box once, then scan item codes one after another; each item moves into the box as it's scanned.</p>
+            <div class="stock-form-row"><button type="button" class="primary-btn" id="stockTransferOpenBtn">Start a transfer</button></div>
+          </section>
+        </div>
+        <div id="stockPane-boxes" class="stock-pane" hidden></div>
+        <div id="stockPane-markers" class="stock-pane" hidden></div>
       </div>
       <div id="financeArea" style="display:none;">
         <div class="subtabs" role="tablist" aria-label="Finances">
