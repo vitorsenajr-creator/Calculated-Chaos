@@ -54,8 +54,9 @@ import { renderSettings, renderEbayConnectionStatus } from './ui/settings/index.
 import { initHomeView, renderHome } from './ui/home/home-view.js';
 import { initStockView, renderStock } from './ui/stock/stock-view.js';
 import { initUpdateBanner } from './ui/update-banner.js';
-import { applyTheme, applyLastTheme } from './ui/theme.js';
+import { applyTheme, applyLastTheme, currentTheme } from './ui/theme.js';
 import { CATALOG_SORTS, sortCatalog } from './domain/catalog-sort.js';
+import { WEEK_TAGS, weekTagIndex } from './domain/week-tags.js';
 import { items, setItems, appSettings, setAppSettings } from './modules/state.js';
 import {
   isIncomplete, missingFields,
@@ -694,6 +695,9 @@ export const app = (function(){
   }
 
   // ---------- RENDER: CATALOG ----------
+  const HANGER_SVG = `<svg class="ic-placeholder" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 7a2 2 0 1 1 2 2c-1 .4-2 1-2 2v.5"/><path d="M12 11.5 3.4 17.6a1 1 0 0 0 .6 1.9h16a1 1 0 0 0 .6-1.9z"/></svg>`;
+  const PRINT_SVG = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 9V3h10v6"/><rect x="3" y="9" width="18" height="8" rx="1.5"/><path d="M7 14h10v7H7z"/></svg>`;
+  const ARROW_SVG = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>`;
 
   // Status shortcuts above the list; they set the same filters as the
   // Status chips in the Filters panel.
@@ -749,12 +753,20 @@ export const app = (function(){
           return `<button type="button" class="seg-btn${on ? ' active' : ''}" aria-pressed="${on}" data-status-seg="${sg.key}">${sg.label} <span class="seg-count">${counts[sg.key]}</span></button>`;
         }).join('')}
       </div>`;
+    // Tag Week theme: filter by the color of the week items came in.
+    const activeWeek = WEEK_TAGS.find(t => t.index === activeFilters.weekTag);
+    const weekDots = currentTheme() === 'tagweek' ? `
+      <div class="tw-dots" role="group" aria-label="Filter by tag color">
+        ${WEEK_TAGS.map(t => `<button type="button" class="tw-dot tag-${t.index}${activeFilters.weekTag === t.index ? ' active' : ''}" data-week-filter="${t.index}" aria-pressed="${activeFilters.weekTag === t.index}" aria-label="${t.name} tags, ${t.age}"></button>`).join('')}
+        <span class="tw-dots-label">${activeWeek ? `${activeWeek.name} tags · ${activeWeek.age}` : 'Tag colors by week'}</span>
+      </div>` : '';
     const controlsHtml = `
       ${sectionTabs}
       <div class="search-row">
         <input type="search" class="search-input" id="searchInput" placeholder="Name, brand, code or box" aria-label="Search the catalog" value="${escapeHtml(searchQuery)}" inputmode="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
       </div>
       ${statusSeg}
+      ${weekDots}
       <div class="catalog-tools">
         <label class="sort-select">
           <span class="visually-hidden">Sort</span>
@@ -810,6 +822,7 @@ export const app = (function(){
 
     const sorted = sortCatalog(filtered, catalogSort);
     const STAGES = ['catalogado', 'anunciado', 'vendido'];
+    const theme = currentTheme();
     const cardsHtml = sorted.map(item => {
       const photo = item.photos && item.photos[0];
       const hasListPrice = parseFloat(item.listPrice) > 0;
@@ -845,6 +858,58 @@ export const app = (function(){
       }
       const soldWhen = sold && item.soldAt ? new Date(item.soldAt).toLocaleDateString('en-US', { month:'short', day:'numeric' }) : '';
       const soldWhere = sold && item.soldPlatform ? escapeHtml(PLATFORM_NAME[item.soldPlatform] || getPlatformLabel(item.soldPlatform)) : '';
+      const bulkCheck = bulkSelectMode ? `<span class="bulk-check${selected ? ' on' : ''}" aria-hidden="true">${selected ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4 10-10"/></svg>' : ''}</span>` : '';
+      const photoInner = `${photo ? `<img src="${photo}" alt="">` : HANGER_SVG}`;
+      const printBtn = `<button type="button" class="ic-btn" data-action="print-label" data-id="${item.id}" aria-label="Print label">${PRINT_SVG}</button>`;
+      const warnBtn = incomplete ? `<button type="button" class="ic-warn" data-action="missing-info" data-id="${item.id}">${noPhoto ? 'No photo' : 'Missing info'}</button>` : '';
+      const platformNames = (item.listedPlatforms || []).map(p => escapeHtml(PLATFORM_NAME[p] || getPlatformLabel(p))).join(', ');
+
+      if (theme === 'tagweek'){
+        // Photo card with a hanging tag in the color of the week it came in.
+        const tagText = sold
+          ? `SOLD${item.netProfit !== undefined && item.netProfit !== null ? ` · ${item.netProfit >= 0 ? '+' : '-'}$${Math.abs(item.netProfit).toFixed(2)}` : ''}`
+          : `${item.productCode ? escapeHtml(item.productCode) + ' · ' : ''}${hasListPrice ? '$' + parseFloat(item.listPrice).toFixed(0) : 'no price'}`;
+        return `
+      <div class="item-card tw-card${sold ? ' is-sold' : ''}${selected ? ' bulk-selected' : ''}" data-id="${item.id}">
+        ${bulkCheck}
+        <div class="item-photo tw-photo" ${photo ? `data-gallery="${item.id}"` : ''}>
+          ${photoInner}
+          <span class="tw-tag ${sold ? 'tag-sold' : `tag-${weekTagIndex(item, Date.now())}`}">${tagText}</span>
+        </div>
+        <div class="tw-body">
+          <div class="ic-name">${escapeHtml(item.name || 'Unnamed item')}</div>
+          <div class="ic-sub">${[item.size ? escapeHtml(item.size) : '', item.storageBox ? `Box ${escapeHtml(item.storageBox)}` : '', sold ? (soldWhen ? `Sold ${soldWhen}` : 'Sold') : `${listedDays} day${listedDays===1?'':'s'}`].filter(Boolean).join(' · ')}</div>
+          <div class="tw-foot">
+            <span class="tw-platforms${!sold && !platformNames ? ' not-listed' : ''}">${sold ? soldWhere : (platformNames || 'Not listed yet')}</span>
+            ${printBtn}
+          </div>
+          ${warnBtn}
+        </div>
+      </div>`;
+      }
+      if (theme === 'concourse'){
+        // Gate-number row: the product code leads at monumental size.
+        const priceLine = sold
+          ? `<span class="cc-price ${(item.netProfit||0) >= 0 ? 'positive' : 'negative'}">${item.netProfit !== undefined && item.netProfit !== null ? `${item.netProfit >= 0 ? '+' : '-'}$${Math.abs(item.netProfit).toFixed(2)} profit` : 'Sold'}</span>`
+          : hasListPrice
+            ? `<span class="cc-price">$${parseFloat(item.listPrice).toFixed(2)}</span><span class="cc-days${isStale ? ' stale' : ''}">${listedDays} day${listedDays===1?'':'s'}</span>`
+            : `<span class="cc-go">Set price ${ARROW_SVG}</span>`;
+        return `
+      <div class="item-card cc-row${sold ? ' is-sold' : ''}${selected ? ' bulk-selected' : ''}" data-id="${item.id}">
+        ${bulkCheck}
+        <div class="cc-gate">
+          <span class="cc-code">${escapeHtml(item.productCode || '—')}</span>
+          ${sold ? `<span class="cc-chip urgent">SOLD</span>` : item.storageBox ? `<span class="cc-chip">${escapeHtml(item.storageBox)}</span>` : ''}
+        </div>
+        <div class="item-photo cc-photo" ${photo ? `data-gallery="${item.id}"` : ''}>${photoInner}</div>
+        <div class="cc-body">
+          <div class="ic-name">${escapeHtml(item.name || 'Unnamed item')}</div>
+          <div class="ic-sub">${[item.size ? escapeHtml(item.size) : '', sold ? soldWhere : (platformNames || 'not listed')].filter(Boolean).join(' · ')}</div>
+          <div class="cc-foot">${priceLine}${warnBtn}</div>
+        </div>
+        ${printBtn}
+      </div>`;
+      }
 
       return `
       <div class="item-card${sold ? ' is-sold' : ''}${selected ? ' bulk-selected' : ''}" data-id="${item.id}">
@@ -921,7 +986,12 @@ export const app = (function(){
 
     // The "+" would sit on top of the bulk bar; it comes back when bulk mode ends.
     if (currentTab === 'catalog') document.getElementById('fabAdd').style.display = bulkSelectMode ? 'none' : '';
-    listArea.innerHTML = `<div class="list-count">${filtered.length} item${filtered.length===1?'':'s'}</div><div class="catalog-grid">${cardsHtml}</div>` + (bulkSelectMode ? `<div class="bulk-spacer"></div>` : '') + bulkBarHtml;
+    const scope = (CATALOG_STATUS_SEGS.find(sg => sg.match(activeFilters)) || { label: 'Filtered' }).label;
+    const sortLabel = (CATALOG_SORTS.find(o => o.key === catalogSort) || CATALOG_SORTS[0]).label.toLowerCase();
+    const countLine = theme === 'concourse'
+      ? `<div class="cc-scope"><b>${escapeHtml(scope)}</b><span>${filtered.length} item${filtered.length===1?'':'s'}</span><span>· ${escapeHtml(sortLabel)}</span></div>`
+      : `<div class="list-count">${filtered.length} item${filtered.length===1?'':'s'}</div>`;
+    listArea.innerHTML = `${countLine}<div class="catalog-grid">${cardsHtml}</div>` + (bulkSelectMode ? `<div class="bulk-spacer"></div>` : '') + bulkBarHtml;
     wireCatalogListEvents();
   }
 
@@ -968,6 +1038,13 @@ export const app = (function(){
     document.querySelectorAll('[data-status-seg]').forEach(btn => {
       btn.addEventListener('click', () => {
         CATALOG_STATUS_SEGS.find(sg => sg.key === btn.dataset.statusSeg).apply(activeFilters);
+        renderAll();
+      });
+    });
+    document.querySelectorAll('[data-week-filter]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const w = Number(btn.dataset.weekFilter);
+        activeFilters.weekTag = activeFilters.weekTag === w ? null : w;
         renderAll();
       });
     });
@@ -4729,6 +4806,8 @@ export const app = (function(){
 
   // ---------- INIT ----------
   applyLastTheme();
+  // Home and Catalog are laid out differently per theme (v3.21.1).
+  document.addEventListener('themechange', () => renderAll());
   renderBrand();
   initUpdateBanner(APP_VERSION);
   setupSourceAutocomplete();
