@@ -3,6 +3,61 @@
 Version history for Calculated Chaos. The current version is also shown in
 the badge at the top of the app (`APP_VERSION` in `src/modules/version.js`).
 
+## v3.24.0 — 2026-10-20
+
+The spreadsheet import and the money side of the Nifty P2 ideas
+(`docs/nifty-review.md`): expenses, Profit & Loss, the Sales list and
+mileage. Rolls up v3.23.1 – v3.23.7.
+
+- **Import a spreadsheet** (v3.23.1). Settings → Data → Import: choose an
+  Excel or CSV file (and its sheets), check how each column and value
+  was matched, preview the items with errors and possible duplicates,
+  then save in batches with progress, Continue after a dropped
+  connection and Undo (also later, from Past imports). Each row gets a
+  new app code, the sheet's own code is kept and searchable, a quantity
+  becomes that many items, and sold rows come in as sales with their
+  profit. Imported items have their own warning settings and an
+  "Imported" filter chip.
+- **AI column check for the import** (v3.23.2). When the Columns step
+  opens, the AI reads the headers, ten sample rows and the status,
+  condition and platform words, and fills in what the column names
+  didn't settle (marked "AI"). It never changes a column the person set
+  and counts as one AI use; without it the name-based matches stand.
+- **Expenses** (v3.23.3). A new Expenses tab in Finances for what the
+  business spends outside a sale: 22 tax-style categories, each
+  explained in one line, plus refunds; totals and the split by category
+  for the month, year or all time; edit, delete, "Save and add another";
+  CSV export. Buying stock isn't an expense: an item's cost counts when
+  it sells.
+- **Profit & Loss** (v3.23.4). Reports opens with a statement for this
+  or last month, this or last year, or all time: revenue by platform,
+  the cost of the items sold, gross profit, selling costs, operating
+  expenses by category and net profit, with a CSV export. It ends on the
+  same sales profit as Overview ("Sale adjustments" shows any
+  difference).
+- **Sales profit and Net profit** (v3.23.5, after a design review). The
+  profit of the sales is "Sales profit" everywhere (Home, Goals,
+  Overview, Months); "Net profit" means after expenses and gets its own
+  Overview cell once there are expenses. "See P&L" keeps the period, the
+  Expenses list exports the period on screen, the expense form keeps its
+  messages in view with the keyboard open, the P&L reads as a small
+  ledger on a phone, the Finances tabs fit small phones, and buttons are
+  44px.
+- **Sales list** (v3.23.6). Finances → Months is now Sales: open a month
+  to see each sale with its price, fees, item cost, shipping, other
+  costs and profit (a table on a computer, cards on a phone) and fix
+  costs right there; the profit updates everywhere. Months with sales
+  missing an item cost are tagged and can be filtered; "Save & next
+  missing" goes through them. Typing 0 marks a free or gifted piece.
+- **Mileage and expense import** (v3.23.7). Sourcing trips and vehicle
+  use can be entered in miles at the IRS rate for the date (72.5¢
+  through June 30, 2026, 76¢ from July 1), with a round-trip button.
+  Expenses can be imported from a CSV or Excel file (a bank export,
+  Nifty's format or the app's template): columns and category words are
+  matched, unknown words are asked about or skipped as personal,
+  possible duplicates are flagged, and the import saves with progress,
+  Continue and Undo.
+
 ## v3.23.0 — 2026-10-20
 
 Store identity and the Nifty P1 ideas (`docs/nifty-review.md`). Rolls up
