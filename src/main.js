@@ -1404,6 +1404,7 @@ export const app = (function(){
       switchToTab('catalog');
       renderCatalog();
     },
+    canEditGoals: () => currentUserRole !== 'employee',
   });
 
   // Opens the catalog's "All" list with these filters only (Home rows,

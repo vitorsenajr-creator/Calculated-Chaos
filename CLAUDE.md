@@ -95,6 +95,13 @@ renaming them needs a data migration of every saved item.
   - `domain/home-summary.js` + `ui/home/home-view.js`: the Home screen
     (v3.20.0): summary by period, pipeline, "Needs attention", revenue
     by platform. Period and dismissed rows are per-device (localStorage).
+  - `domain/goals.js` + `ui/home/goals-panel.js`: Goals on Home
+    (v3.22.3), saved in `appSettings.goals` ({ id, metric, period,
+    target }, max 4) through `saveSettingsFields()` (writes only the
+    given fields). Metrics: profit, revenue, items sold, items cataloged
+    (no per-platform listing date exists), sell-through; periods: week
+    (Mon-Sun), month, quarter, year. Progress is always computed, with a
+    linear "pace by today" marker. Only the owner edits (`canEditGoals`).
   - `domain/finance-summary.js` + `ui/finance/finance-view.js`: the
     Finances screen (v3.21.3): Overview (own period, `cc.finance.period`,
     separate from Home's), Months, Reports. The export buttons are still
@@ -305,6 +312,17 @@ renaming them needs a data migration of every saved item.
 
 Last known status per the v3.13 notes. Confirm with Vitor before relying
 on any of these:
+- Goals on Home (v3.22.3): Node test (19 cases: week/month/quarter/
+  year windows incl. a week across the new year, saved-list cleanup,
+  each metric by hand, pace at the first and last minute, reached goal,
+  month and year values identical to Finances), Chromium test of the
+  panel and editor with a stubbed Firestore (empty state, validation,
+  sell-through unit and 100% cap, 4-goal limit, edit/add/remove keeping
+  ids, remove all, a failed save keeping the dialog open, only `goals`
+  written with merge, no Edit for an employee), screenshots in the three
+  themes (phone and desktop), no page errors, no horizontal scroll,
+  clean build. Unconfirmed in production: saving and loading the goals
+  for the business, the `<dialog>` editor on an iPhone.
 - Finances insights (v3.22.2): Node test (31 cases: every field the
   old overview returned identical on 400 sample items in the three
   periods; previous window incl. Mar 31, year change and Feb 29;
@@ -450,6 +468,14 @@ on any of these:
   sizing (v3.13.102-105), inspection flag icon (v3.13.114).
 
 ## Pending changelog entry (since v3.22.0)
+
+- v3.22.3: Goals on Home (Nifty P1, item 2). Up to 4 goals for profit,
+  revenue, items sold, items cataloged or sell-through, by week (Monday
+  to Sunday), month, quarter or year, set by the owner in an editor on
+  the Home panel. Each shows the progress bar with a "steady pace by
+  today" marker, the percent, how far behind pace (or "on pace"), and
+  the days left; a reached goal turns green. Every period starts again
+  from zero on its own.
 
 - v3.22.2: Finances insights (Nifty P1, item 1). Overview's numbers show
   the change vs the same days of last month (or the same point of last
@@ -612,7 +638,7 @@ it starts:
 `docs/nifty-review.md` (2026-10-20). Order decided with Vitor: item 6
 first, then P1, one PR each: (1) Finances insights (done in v3.22.2) (sell-through,
 average profit and days listed per platform, top brands/categories,
-previous-period comparison); (2) Goals on Home; (3) an Issues filter in
+previous-period comparison); (2) Goals on Home (done in v3.22.3); (3) an Issues filter in
 the catalog with optional warnings in Settings; (4) an eBay sale tracker
 (log of detected sales and what the app did; gives Home its "eBay sales
 to confirm" row). P2, after Import (item 4): expenses and P&L, pricing
