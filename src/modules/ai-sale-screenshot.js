@@ -27,7 +27,7 @@ export function buildSaleScreenshotRequest(input){
     '',
     'Instructions:',
     '- List every order you can see, top to bottom. An order with several items (a bundle) is one order with several items.',
-    '- platform: the key from <platforms> for the marketplace the screenshot comes from, judging by its layout and wording, or "unknown".',
+    '- platform: the key from <platforms> for the marketplace the screenshot comes from, judging by its layout and wording, or "unknown". A page with "Ordered On", "Order Number" (a 24-character hex code) and "Purchased By: @username", with "Size" and "SKU" under each item, is Poshmark even without a logo.',
     '- orderNumber, buyer and orderDate exactly as shown; orderDate as YYYY-MM-DD. Use "" for anything not shown.',
     '- For each item: title exactly as written, price exactly as shown (with its currency sign), size as shown, and sku: the text after "SKU" (or "Custom label", "Item code") copied character for character, keeping leading zeros. Use "" when the item shows no SKU; never take a SKU from the order number, the price or the title.',
     '- Read only what is in the image. If part of a line is cut off or unreadable, set partial to true for that item.',

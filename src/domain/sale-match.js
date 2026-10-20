@@ -37,36 +37,50 @@ const sameText = (a, b) => titleWords(a).join(' ') === titleWords(b).join(' ') &
 
 const isSold = (item) => item && item.status === 'vendido';
 
+// "B12" → "Box B12", but a box already named "Box 2" stays "Box 2".
+export function boxTitle(name){
+  const n = String(name || '').trim();
+  if (!n) return 'No box';
+  return /^box\b/i.test(n) ? n : `Box ${n}`;
+}
+
 // The AI's answers → one line per sold piece. `results` is a list of
-// { source, result } (source = the screenshot's name). The same order line
-// read from two screenshots counts once. Returns { lines, repeats }.
-export function saleLines(results){
+// { source, result } (source = the screenshot's id). The same order line
+// read from two screenshots counts once: the later ones come back in
+// `skipped`, each with `firstSource`, the screenshot that had it first.
+// `platforms` (order ref → platform key) is the person's own choice for an
+// order whose platform the AI couldn't tell. Returns { lines, skipped }.
+export function saleLines(results, platforms = {}){
   const lines = [];
-  const seen = new Set();
-  let repeats = 0;
+  const skipped = [];
+  const seen = new Map();
   (results || []).forEach(({ source, result }) => {
-    ((result && result.orders) || []).forEach(order => {
+    ((result && result.orders) || []).forEach((order, oi) => {
       (order.items || []).forEach((it, i) => {
         const sku = String(it.sku || '').trim();
         const title = String(it.title || '').replace(/\s+/g, ' ').trim();
         if (!sku && !title) return;
         const orderNumber = String(order.orderNumber || '').trim();
+        const orderRef = orderNumber || `${source}#${oi}`;
         const piece = sku ? `sku:${canonCode(sku)}` : `t:${titleWords(title).join(' ')}|${it.price || ''}`;
-        const key = `${orderNumber || `${source}#${i}`}|${piece}`;
-        if (seen.has(key)){ repeats++; return; }
-        seen.add(key);
+        const key = `${orderNumber || `${source}#${oi}.${i}`}|${piece}`;
+        const read = order.platform && order.platform !== 'unknown' ? order.platform : null;
         const price = parseMoney(it.price);
-        lines.push({
-          key, source, sku, title,
-          platform: order.platform && order.platform !== 'unknown' ? order.platform : null,
+        const line = {
+          key, source, orderRef, sku, title,
+          platform: platforms[orderRef] || read,
+          platformRead: read,
           orderNumber, orderDate: String(order.orderDate || ''), buyer: String(order.buyer || ''),
           priceText: String(it.price || ''), price: Number.isFinite(price) ? price : null,
           size: String(it.size || ''), partial: !!it.partial,
-        });
+        };
+        if (seen.has(key)){ skipped.push({ ...line, firstSource: seen.get(key) }); return; }
+        seen.set(key, source);
+        lines.push(line);
       });
     });
   });
-  return { lines, repeats };
+  return { lines, skipped };
 }
 
 // How well an unsold item fits a line's title, size and price: 0..1.
@@ -141,10 +155,12 @@ export function buildPickList(lines, items, chosen = {}){
     }
     if (match.item) used.add(match.item.id);
     const item = match.item;
+    // With the platform unknown, every platform it's listed on is shown,
+    // never "delist it there" for the one it may have sold on.
     const listedElsewhere = item && !isSold(item)
       ? (item.listedPlatforms || []).filter(p => p !== line.platform)
       : [];
-    return { line, match, item, alreadySold: isSold(item), listedElsewhere, soldTwice: false };
+    return { line, match, item, alreadySold: isSold(item), listedElsewhere, platformUnknown: !line.platform, soldTwice: false };
   });
   const perItem = new Map();
   rows.forEach(r => { if (r.item) perItem.set(r.item.id, (perItem.get(r.item.id) || 0) + 1); });
