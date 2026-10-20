@@ -152,6 +152,17 @@ renaming them needs a data migration of every saved item.
     period (`sellThroughOf()`, never over 100%), By platform with average
     profit and days to sell (`createdAt` → `soldAt`), top brands and
     categories by units sold.
+  - `domain/expenses.js` + `data/expense-store.js` +
+    `ui/finance/expenses-view.js`: Finances → Expenses (v3.23.3, P2
+    item 1, first part). Business costs not tied to one sale, in the
+    business's `expenses` collection (business-only, like `ebay_sales`):
+    `{ date 'YYYY-MM-DD', category, amount, description, kind
+    'expense'|'refund', createdAt, createdBy, updatedAt }`, written whole
+    with `setDoc`. 22 Schedule C-style categories with hints; no
+    inventory purchases (accrual only). Period Month/Year/All
+    (`cc.expenses.period`), by category, list by month, CSV export (also
+    in Reports → Export). Owner only. Doesn't change any profit number
+    yet; the P&L (second part) will subtract them.
   - `ui/lightbox.js`: `openLightbox(photos, index)`; its state is private.
   - `ui/label-render.js`: label preview markup + canvas drawing.
   - `ui/labels/`: print modal (`openBatchLabelModal`), Quick Labels,
@@ -263,7 +274,7 @@ renaming them needs a data migration of every saved item.
     server only too.
   - Multi-business (v3.17.0): `businesses/{bizId}` (`live` = the switch;
     server-written) with `items`, `drafts`, `ebay_error_log`,
-    `ebay_sales` (v3.22.5),
+    `ebay_sales` (v3.22.5), `expenses` (v3.23.3),
     `counters/*`, `config/settings` (members read/write), `members/*`
     (server-written) and the frozen `liveSessions`, `liveItems`,
     `options/main` (admins read only, v3.19.0);
@@ -356,6 +367,20 @@ renaming them needs a data migration of every saved item.
 
 Last known status per the v3.13 notes. Confirm with Vitor before relying
 on any of these:
+- Expenses (v3.23.3): Node test (9 cases: categories, validation and
+  its error fields, refunds, periods by local date, totals in exact
+  cents over 1,000 entries, months, CSV), Chromium test of the real app
+  with a stubbed Firebase (17 checks: the four Finances tabs, empty
+  state, validation focus, Save and add another, only full `expenses`
+  docs written, refund, edit keeping `createdAt`, delete with confirm
+  and cancel, a failed save keeping the dialog, Month vs All time, CSV
+  from the list and from Reports, Overview identical before and after,
+  a failed load with Try again, an employee never reaching it),
+  screenshots in the three themes (phone and desktop), no page errors,
+  no horizontal scroll, clean build. **The `expenses` rule must be
+  pasted in the Console** (`isMemberData()` in `firestore.rules`).
+  Unconfirmed in production: saving and loading with the real Firestore
+  and rules, the date picker and Save and add another on an iPhone.
 - Import AI column analysis (v3.23.2): Node test (9 cases: input
   clipping and limits, prompt and schema, merge rules for columns and
   values, the handler with a mocked fetch: no photos, schema sent, a
@@ -565,6 +590,15 @@ on any of these:
 
 ## Pending changelog entry (since v3.23.0)
 
+- v3.23.3: Expenses (Nifty P2, first part). A new Expenses tab in
+  Finances: record what the business spends outside a sale (rent,
+  supplies, sourcing trips, subscriptions...) in 22 tax-style categories,
+  each explained in one line, plus refunds; see the total and the split
+  by category for the month, year or all time, edit or delete any entry,
+  "Save and add another" for a pile of receipts, and export them as CSV
+  (also from Reports → Export). Buying stock isn't an expense (an item's
+  cost counts when it sells). Profit numbers don't change yet.
+
 - v3.23.2: the import's AI column check (backlog item 4, second part).
   When the Columns step opens, the AI reads the headers, ten sample rows
   and the status/condition/platform words, and fills in what the column
@@ -744,9 +778,10 @@ P2, reordered after the in-app map of Nifty (Vitor, 2026-10-20; details
 in `docs/nifty-review.md`):
 1. **Expenses and P&L, accrual only** (decided: the app already counts
    an item's cost when it sells; no cash method). 2-3 PRs: expenses
-   (Schedule C-style categories with hints, form, list, CSV export); the
-   P&L in Finances with its export; a Sales table with inline cost
-   editing, mileage at the IRS rate and expense CSV import.
+   (done in v3.23.3: a fourth Finances sub-tab, owner only, Vitor
+   2026-10-20); the P&L in Finances with its export (next); a Sales
+   table with inline cost editing, mileage at the IRS rate and expense
+   CSV import.
 2. AI custom instructions and a description footer for ✨ (server-built
    prompt; pairs with backlog items 1 and 2).
 3. Pricing rules per platform (needs a price per platform everywhere;
@@ -774,7 +809,8 @@ Navigation, approved:
   5 places: Home · Catalog · Stock · Finances · Settings (Settings pinned
   at the bottom on desktop). The desktop-only Dashboard becomes Home.
 - N3: sub-tabs. Catalog: All · Drafts. Stock: Labels · Transfer · Boxes
-  · Wall markers. Finances: Overview · Months · Reports.
+  · Wall markers. Finances: Overview · Months · Reports (Expenses added
+  before Reports in v3.23.3, Vitor 2026-10-20).
 - N4: the header loses the title, subtitle and platform eyebrow; a slim
   bar with the store name (logo later, item 6).
 - N5: the daily quote stays (Vitor, 2026-10-20), on Home under "Today",

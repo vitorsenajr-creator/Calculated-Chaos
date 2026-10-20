@@ -29,9 +29,10 @@ const LEGACY_DOCS = {
   'config/settings': ['app_config', 'settings'],
 };
 
-// ebay_sales (v3.22.5, the eBay sale tracker) exists only in the business;
-// in root mode bizCol/bizDoc throw for it and its callers skip the log.
-const BUSINESS_COLLECTIONS = new Set([...Object.keys(LEGACY_COLLECTIONS), 'counters', 'config', 'ebay_sales']);
+// ebay_sales (v3.22.5, the eBay sale tracker) and expenses (v3.23.3) exist
+// only in the business; in root mode bizCol/bizDoc throw for them and their
+// callers report it (the sale log is skipped, Expenses says it couldn't load).
+const BUSINESS_COLLECTIONS = new Set([...Object.keys(LEGACY_COLLECTIONS), 'counters', 'config', 'ebay_sales', 'expenses']);
 
 let activeBizId = null;
 

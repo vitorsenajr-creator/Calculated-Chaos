@@ -355,6 +355,7 @@ function renderReports(){
       ${exportBtn('exportFullInventory', 'Full inventory (CSV)', 'Every item, every status, for backup or spreadsheet work')}
       ${exportBtn('exportSoldOnly', 'Sold items only (CSV)', 'For taxes or bookkeeping')}
       ${exportBtn('exportCategoryReport', 'Performance by category (CSV)', "See what's worth sourcing more of")}
+      ${exportBtn('exportExpenses', 'Expenses (CSV)', 'Every expense and refund, with its category')}
     </div>`, ' export');
 
   view.innerHTML = html;

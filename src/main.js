@@ -56,6 +56,8 @@ import { initImportView, openImport } from './ui/import/import-view.js';
 import { initHomeView, renderHome } from './ui/home/home-view.js';
 import { initStockView, renderStock } from './ui/stock/stock-view.js';
 import { initFinanceView, renderFinance } from './ui/finance/finance-view.js';
+import { initExpensesView, renderExpenses, exportExpensesCsv } from './ui/finance/expenses-view.js';
+import { loadExpenses } from './data/expense-store.js';
 import { initUpdateBanner } from './ui/update-banner.js';
 import { applyTheme, applyAccent, applyLastTheme, currentTheme } from './ui/theme.js';
 import { CATALOG_SORTS, sortCatalog } from './domain/catalog-sort.js';
@@ -1428,6 +1430,9 @@ export const app = (function(){
     if (catBtn) catBtn.addEventListener('click', () => {
       downloadCsv('calculated-chaos-category-performance.csv', buildCategoryReportRows(items, appSettings));
     });
+
+    const expBtn = document.getElementById('exportExpenses');
+    if (expBtn) expBtn.addEventListener('click', exportExpensesCsv);
   }
 
   // The store's logo and name lead, with "by Calculated Chaos" under the
@@ -1462,6 +1467,7 @@ export const app = (function(){
     renderHome();
     renderCatalog();
     renderFinance();
+    renderExpenses();
     if (currentTab === 'stock') renderStock();
     refreshStockTransferBoxListIfOpen();
   }
@@ -1501,9 +1507,10 @@ export const app = (function(){
 
   // ---------- TABS ----------
   // Five places (Home, Catalog, Stock, Finances, Settings); Finances holds
-  // three sub-tabs, 'finance' (Overview), 'months' and 'reports'.
-  const TAB_VIEWS = { home: 'homeView', catalog: 'catalogView', stock: 'stockView', finance: 'financeArea', months: 'financeArea', reports: 'financeArea', settings: 'settingsView', import: 'importView' };
-  const FINANCE_PANES = { finance: 'financeView', months: 'monthsView', reports: 'reportsView' };
+  // four sub-tabs, 'finance' (Overview), 'months', 'expenses' (v3.23.3)
+  // and 'reports'.
+  const TAB_VIEWS = { home: 'homeView', catalog: 'catalogView', stock: 'stockView', finance: 'financeArea', months: 'financeArea', expenses: 'financeArea', reports: 'financeArea', settings: 'settingsView', import: 'importView' };
+  const FINANCE_PANES = { finance: 'financeView', months: 'monthsView', expenses: 'expensesView', reports: 'reportsView' };
   const FAB_TABS = new Set(['home', 'catalog']);
   let currentTab = 'home';
   function switchToTab(tab){
@@ -1558,6 +1565,11 @@ export const app = (function(){
       if (item){ switchToTab('catalog'); openModal(item); }
     },
     wireExports: wireReportButtons,
+  });
+  initExpensesView({
+    canEdit: () => currentUserRole !== 'employee',
+    uid: () => window.auth?.currentUser?.uid || null,
+    downloadCsv,
   });
 
   // ---------- ADD MENU ----------
@@ -4788,7 +4800,8 @@ export const app = (function(){
   setupSizeAutocomplete();
   async function waitForFirebaseThenLoad(){
     if (window.firebaseReady){
-      await Promise.all([loadSettings(), loadItems(), loadEbayConnection(), loadDrafts(), loadEbaySales()]);
+      await Promise.all([loadSettings(), loadItems(), loadEbayConnection(), loadDrafts(), loadEbaySales(), loadExpenses()]);
+      renderExpenses();
       checkEbaySalesNow(); // best-effort, silent unless it finds something
       // Home is the start screen on every device (v3.20.0); an employee
       // lands on Catalog (switchToTab enforces it).
