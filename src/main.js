@@ -56,6 +56,7 @@ import { initImportView, openImport } from './ui/import/import-view.js';
 import { initHomeView, renderHome } from './ui/home/home-view.js';
 import { initStockView, renderStock } from './ui/stock/stock-view.js';
 import { initPickView } from './ui/stock/pick-view.js';
+import { recordPickSale } from './data/pick-sale-store.js';
 import { initFinanceView, renderFinance } from './ui/finance/finance-view.js';
 import { initExpensesView, renderExpenses, exportExpensesCsv } from './ui/finance/expenses-view.js';
 import { initPnlView, exportPnlCsv } from './ui/finance/pnl-view.js';
@@ -1576,6 +1577,24 @@ export const app = (function(){
     },
     platformLabel: (key) => pickPlatformLabel(key),
     platformKeys: () => getAllPlatforms().map(p => p.key),
+    fee: (platform, price) => platformFee(platform, price),
+    // Mark sold (v3.24.4): only the sale fields are written; then an
+    // app-made eBay listing is ended when the piece sold elsewhere.
+    markSold: async (item, fields) => {
+      if (!(await recordPickSale(item.id, fields))) return { ok: false };
+      const idx = items.findIndex(i => i.id === item.id);
+      const updated = { ...(idx >= 0 ? items[idx] : item), ...fields };
+      if (idx >= 0) items[idx] = updated;
+      let ebay = null;
+      if (fields.soldPlatform !== 'ebay' && updated.ebayListingId){
+        try{
+          const r = await endEbayListingIfSold(updated);
+          ebay = r && r.ended ? (r.reason === 'already_ended' ? null : 'ended') : 'failed';
+        }catch(e){ ebay = 'failed'; }
+      }
+      return { ok: true, ebay };
+    },
+    onChange: () => renderAll(),
     openItem: (id) => { const item = items.find(i => i.id === id); if (item) openModal(item); },
     searchCatalog: (text) => { searchQuery = text; openCatalogWith({ notSold: true }); },
   });

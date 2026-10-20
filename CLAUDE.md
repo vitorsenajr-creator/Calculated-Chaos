@@ -242,7 +242,19 @@ renaming them needs a data migration of every saved item.
     (v3.24.3, `ui/stock/pick-print.js`): 100 × 210 mm labels through
     `printHtml()`, black only, fixed row heights in mm so the page breaks
     are computed before the (synchronous) print, "(cont.)" headings, a
-    "Picked by / Date" line. Marking sold from Pick is the next PR.
+    "Picked by / Date" line. Mark sold (v3.24.4, `domain/pick-sale.js`,
+    `data/pick-sale-store.js`, `ui/stock/pick-sold.js`): a sheet of the
+    matched, unsold pieces (unsure name matches and double sales start
+    unticked) prefilled with the screenshot's price and platform; a
+    bundle's fee is computed on the order total and split by price.
+    **Writes only the 11 sale fields with `updateDoc`** (`status`,
+    `soldPrice`, `soldPlatform`, `feesTotal`, `shippingCost`,
+    `otherCosts`, `netProfit`, `soldAt` = order date at noon or now,
+    `saleOrderNumber`, `saleBuyer`, `saleLineKey`), then ends an
+    app-made eBay listing when it sold elsewhere (`endEbayListingIfSold`,
+    which full-saves the merged item). `saleLineKey` = the screenshot
+    line's key: a recorded line stays on its item and can't be recorded
+    again.
   - `ui/lightbox.js`: `openLightbox(photos, index)`; its state is private.
   - `ui/label-render.js`: label preview markup + canvas drawing.
   - `ui/labels/`: print modal (`openBatchLabelModal`), Quick Labels,
@@ -456,6 +468,19 @@ renaming them needs a data migration of every saved item.
 
 Last known status per the v3.13 notes. Confirm with Vitor before relying
 on any of these:
+- Mark sold from Pick (v3.24.4): Node test (5 cases: a bundle's fee on
+  the order total split by price with cents adding up, the sold date,
+  the 11 fields and the profit formula, validation, a recorded line
+  staying on its copy with its delist list incl. an ended eBay listing),
+  Chromium test with a stubbed Firebase and eBay (9 checks: 5 offered,
+  nothing saved while a platform is missing, one platform per order and
+  the fee split, a failed write keeping its row while the others write
+  only the 11 fields with updateDoc and keep the rest, the retry, the
+  recorded notes, a reload, the bundle's last piece prefilled), every
+  earlier suite rerun, clean build. Unconfirmed: the real Firestore
+  rules for the update, the real eBay end-listing call, the fee rule
+  for Poshmark in the business's settings (flat % vs tiered), an
+  iPhone keyboard over the sheet.
 - Pick checklist (v3.24.3): Node tests (15 matching cases incl. box
   titles and the platform override, pagination of 41 rows on 4 labels
   with no overflow, flags, the 100 × 210 mm size), Chromium test rerun
@@ -774,6 +799,14 @@ on any of these:
 
 ## Pending changelog entry (since v3.24.0)
 
+- v3.24.4: Mark sold from Pick. Records the screenshots' sales on their
+  items in one go: price and platform from the screenshot, the fee
+  worked out per order (a bundle's fee on the order total, split by
+  price), shipping paid, and the sales profit. The eBay listing is ended
+  when the piece sold elsewhere, and the order number is kept so the same
+  sale can't be recorded twice. Recorded pieces show "Recorded as sold"
+  and where they're still listed.
+
 - v3.24.3: Pick checklist and clearer details. "Print checklist" prints
   the pick list on 100 × 210 mm labels (black, a box to tick per piece,
   warnings like DELIST or ALREADY MARKED SOLD, a "Picked by / Date"
@@ -885,10 +918,10 @@ browser), the screen in `src/ui/import/`, the writes in `src/data/`.
 
 ### 5. Import platform reports (sales and payouts) — after item 4
 
-Started as Stock → Pick (v3.24.2, Vitor 2026-10-20): sale screenshots,
-read-only. Next PR: "Mark sold" from Pick with the screenshot's price,
-platform and fees, and the order number saved on the item so a sale
-can't be applied twice.
+Started as Stock → Pick (v3.24.2-4, Vitor 2026-10-20): sale
+screenshots → pick list, printed checklist, and Mark sold with the
+order number kept on the item (v3.24.4). Still open from this item:
+known CSV report parsers, payouts, a sale with no catalog item.
 
 Ideas from the 2026-10-19 discussion, to be decided when it starts:
 - Input: a file or screenshot from any platform (eBay, Poshmark,
