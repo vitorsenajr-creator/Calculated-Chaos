@@ -66,3 +66,61 @@ export async function deleteExpense(id){
     return false;
   }
 }
+
+// ---------- Import (v3.23.7) ----------
+// `docs` = [{ id, data }] from domain/expense-import.js. Saved in batches of
+// 400 (Firestore allows 500 writes per batch), skipping ids in
+// `alreadySaved`, so a dropped connection can be continued without
+// duplicates. Returns { saved: [ids], error }.
+export const EXPENSE_BATCH_SIZE = 400;
+
+export async function saveExpenseBatches(docs, { alreadySaved = new Set(), onProgress = () => {} } = {}){
+  const { writeBatch } = window.firestoreFns;
+  const todo = docs.filter(d => !alreadySaved.has(d.id));
+  const saved = [];
+  for (let k = 0; k < todo.length; k += EXPENSE_BATCH_SIZE){
+    const chunk = todo.slice(k, k + EXPENSE_BATCH_SIZE);
+    try{
+      const batch = writeBatch(window.db);
+      chunk.forEach(d => batch.set(bizDoc('expenses', d.id), d.data));
+      await batch.commit();
+    }catch(e){
+      console.error('Expense import batch failed:', e);
+      return { saved, error: (e && e.message) || String(e) };
+    }
+    chunk.forEach(d => { saved.push(d.id); cache.push({ ...d.data, id: d.id }); });
+    onProgress(alreadySaved.size + saved.length, docs.length);
+  }
+  return { saved, error: null };
+}
+
+// Deletes every expense of an import (found in Firestore, so an import made
+// on another device is found too). Returns { deleted: [ids], error }.
+export async function undoExpenseImport(importId){
+  const { writeBatch, query, where, getDocs } = window.firestoreFns;
+  let ids;
+  try{
+    const snap = await getDocs(query(bizCol('expenses'), where('importId', '==', importId)));
+    ids = [];
+    snap.forEach(d => { if (d.data() && d.data().importId === importId) ids.push(d.id); });
+  }catch(e){
+    return { deleted: [], error: (e && e.message) || String(e) };
+  }
+  const deleted = [];
+  for (let k = 0; k < ids.length; k += EXPENSE_BATCH_SIZE){
+    const chunk = ids.slice(k, k + EXPENSE_BATCH_SIZE);
+    try{
+      const batch = writeBatch(window.db);
+      chunk.forEach(id => batch.delete(bizDoc('expenses', id)));
+      await batch.commit();
+    }catch(e){
+      return { deleted, error: (e && e.message) || String(e) };
+    }
+    chunk.forEach(id => deleted.push(id));
+  }
+  const gone = new Set(deleted);
+  cache = cache.filter(e => !gone.has(e.id));
+  return { deleted, error: null };
+}
+
+export function newExpenseId(){ return newId(); }

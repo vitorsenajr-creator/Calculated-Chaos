@@ -813,6 +813,57 @@
   .sale-sheet-profit{display:flex; justify-content:space-between; margin:12px 0 0; padding-top:10px; border-top:1px solid var(--line-soft); font-size:14px;}
   .sale-sheet-profit b{font-variant-numeric:tabular-nums;}
 
+  /* ---------- MILEAGE + EXPENSE IMPORT (v3.23.7) ---------- */
+  .exp-dialog [hidden]{display:none !important;}
+  .exp-head-actions{display:inline-flex; gap:8px; flex-wrap:wrap; justify-content:flex-end;}
+  .exp-head-actions .secondary-btn, .exp-head-actions .primary-btn{min-height:44px;}
+  .exp-mode{margin-top:-2px;}
+  .exp-miles{display:grid; grid-template-columns:minmax(0, 1fr) auto; gap:8px 10px; align-items:end;}
+  .exp-miles .secondary-btn{min-height:44px;}
+  .exp-mile-line{grid-column:1 / -1; margin:0; font-size:13px; font-weight:600; font-variant-numeric:tabular-nums; color:var(--ink);}
+  .exp-mix-note{color:var(--warn-ink); font-weight:600;}
+  .exp-import-banner{
+    display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 14px;
+    border:1px solid var(--line); border-radius:var(--radius-sm); background:var(--surface); font-size:13.5px;
+  }
+  .exp-import-banner .link-btn{padding:12px 0; margin:-12px 0;}
+  .imp-dialog{width:min(640px, calc(100vw - 32px));}
+  .imp-steps{list-style:none; display:flex; gap:4px; margin:4px 0 14px; padding:0; overflow-x:auto; scrollbar-width:none;}
+  .imp-steps li{flex:1 0 auto; padding:6px 8px; border-bottom:3px solid var(--line); font-size:12px; font-weight:600; color:var(--ink-2); text-align:center;}
+  .imp-steps li.done{border-color:var(--ok); color:var(--ink);}
+  .imp-steps li.on{border-color:var(--brand-2); color:var(--ink);}
+  .imp-body{display:flex; flex-direction:column; gap:12px;}
+  .imp-body .goal-hint{margin:0;}
+  .imp-file input{position:absolute; width:1px; height:1px; opacity:0;}
+  .imp-file .primary-btn{display:inline-flex; align-items:center; min-height:44px;}
+  .imp-file input:focus-visible + .primary-btn{outline:2px solid var(--brand-2); outline-offset:2px;}
+  .imp-template{margin:0; font-size:13px; color:var(--ink-2);}
+  .imp-template .link-btn{padding:12px 0; margin:-12px 0;}
+  .imp-cols{display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px;}
+  .imp-words{display:flex; flex-direction:column; gap:8px;}
+  .imp-word{display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1.2fr); gap:10px; align-items:center;}
+  .imp-word-name{font-size:14px; font-weight:600; overflow-wrap:anywhere;}
+  .imp-word-name small{display:block; font-weight:500; color:var(--ink-2); font-size:12px;}
+  .imp-word select, .imp-cols select{min-height:44px; padding:0 8px; border:1px solid var(--line); border-radius:var(--radius-sm); background:var(--surface); color:var(--ink); font:400 16px var(--font-ui); width:100%;}
+  .imp-known summary, .imp-errors summary{cursor:pointer; font-size:13.5px; font-weight:600; min-height:32px;}
+  .imp-known .imp-words{margin-top:8px;}
+  .imp-errors ul{margin:6px 0 0; padding-left:18px; font-size:13px; color:var(--urgent);}
+  .imp-cats{display:flex; flex-wrap:wrap; gap:6px;}
+  .imp-summary .fin-big{margin:0;}
+  .imp-rows{max-height:42vh; overflow:auto; border:1px solid var(--line); border-radius:var(--radius-sm);}
+  .imp-row{display:flex; align-items:center; gap:10px; padding:8px 10px; border-top:1px solid var(--line-soft); font-size:13.5px; min-height:44px; cursor:pointer;}
+  .imp-row:first-child{border-top:none;}
+  .imp-row input{width:20px; height:20px; flex-shrink:0;}
+  .imp-row-text{flex:1; min-width:0; display:flex; flex-direction:column;}
+  .imp-row-text small{color:var(--ink-2); font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .imp-row-amt{font-weight:700; font-variant-numeric:tabular-nums; white-space:nowrap;}
+  .imp-row.dup{background:color-mix(in srgb, var(--warn-bg) 50%, var(--surface));}
+  .imp-body progress{width:100%; height:10px; accent-color:var(--brand-2);}
+  @media (max-width: 480px){
+    .imp-cols{grid-template-columns:minmax(0, 1fr);}
+    .imp-word{grid-template-columns:minmax(0, 1fr);}
+  }
+
   /* ---------- STOCK ---------- */
   #stockView .screen-title{margin-bottom:12px;}
   .stock-pane{display:flex; flex-direction:column; gap:12px;}

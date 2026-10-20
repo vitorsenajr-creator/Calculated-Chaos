@@ -5,6 +5,8 @@
 // Accrual only (Vitor, 2026-10-20): buying stock isn't an expense here,
 // an item's cost counts when it sells, so there's no inventory category.
 
+import { isMileageCategory, mileageAmount, MAX_MILES } from './mileage.js';
+
 // Keys are stored on the docs; labels and hints are what the menu shows.
 // The list follows the Schedule C lines, plus two reseller ones (sourcing
 // trips, shipping supplies).
@@ -65,6 +67,19 @@ export function validateExpense(input, { now = Date.now() } = {}){
   if (date > isoDate(now + 366 * 86400000)) return { ok: false, field: 'date', error: 'That date is more than a year away.' };
   const category = String(input.category || '');
   if (!BY_KEY[category]) return { ok: false, field: 'category', error: 'Pick a category.' };
+  const description0 = String(input.description || '').trim().replace(/\s+/g, ' ');
+  if (description0.length > MAX_DESCRIPTION) return { ok: false, field: 'description', error: `Keep the description under ${MAX_DESCRIPTION} characters.` };
+  // A trip in miles (v3.23.7): the amount comes from the IRS rate of the
+  // date, and the miles and rate are saved with it.
+  if (input.miles !== undefined && input.miles !== null){
+    if (!isMileageCategory(category)) return { ok: false, field: 'category', error: 'Miles work for Sourcing Transportation or Vehicle Expense.' };
+    const m = Number(String(input.miles).replace(/[,\s]/g, ''));
+    if (!String(input.miles).trim() || !(m > 0)) return { ok: false, field: 'miles', error: 'Enter the miles driven.' };
+    if (m > MAX_MILES) return { ok: false, field: 'miles', error: 'That distance is too large.' };
+    const { miles, rate, amount } = mileageAmount(m, date);
+    if (!(amount > 0)) return { ok: false, field: 'miles', error: 'Enter the miles driven.' };
+    return { ok: true, expense: { date, category, amount, description: description0, kind: 'expense', miles, rate } };
+  }
   const raw = String(input.amount ?? '').replace(/[$,\s]/g, '');
   const amount = Math.round(parseFloat(raw) * 100) / 100;
   if (!raw || !(amount > 0)) return { ok: false, field: 'amount', error: 'Enter an amount more than zero.' };
@@ -132,9 +147,10 @@ export function groupByMonth(list){
 // CSV rows (header first), oldest first like a ledger. A refund's amount
 // is negative so the column sums to the total.
 export function expenseCsvRows(list){
-  const rows = [['Date', 'Category', 'Description', 'Amount', 'Type']];
+  const rows = [['Date', 'Category', 'Description', 'Amount', 'Type', 'Miles', 'Rate per mile']];
   for (const e of sortExpenses(list).reverse()){
-    rows.push([e.date, categoryLabel(e.category), e.description || '', signedAmount(e).toFixed(2), e.kind === 'refund' ? 'Refund' : 'Expense']);
+    const trip = e.miles > 0;
+    rows.push([e.date, categoryLabel(e.category), e.description || '', signedAmount(e).toFixed(2), e.kind === 'refund' ? 'Refund' : 'Expense', trip ? String(e.miles) : '', trip ? Number(e.rate).toFixed(3) : '']);
   }
   return rows;
 }
