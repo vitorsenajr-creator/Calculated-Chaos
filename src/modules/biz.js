@@ -29,7 +29,9 @@ const LEGACY_DOCS = {
   'config/settings': ['app_config', 'settings'],
 };
 
-const BUSINESS_COLLECTIONS = new Set([...Object.keys(LEGACY_COLLECTIONS), 'counters', 'config']);
+// ebay_sales (v3.22.5, the eBay sale tracker) exists only in the business;
+// in root mode bizCol/bizDoc throw for it and its callers skip the log.
+const BUSINESS_COLLECTIONS = new Set([...Object.keys(LEGACY_COLLECTIONS), 'counters', 'config', 'ebay_sales']);
 
 let activeBizId = null;
 

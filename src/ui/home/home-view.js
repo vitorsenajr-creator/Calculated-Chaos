@@ -26,6 +26,8 @@ let hooks = {
   openTab: () => {},
   finishDrafts: () => {},
   canEditGoals: () => false,
+  getEbaySales: () => [],
+  openEbaySales: () => {},
 };
 
 export function initHomeView(h){
@@ -60,6 +62,7 @@ const NEXT_PHRASE = {
   'no-price': 'Items need a price',
   'ebay-error': 'eBay publish failed: review',
   'duplicate-code': 'Codes used twice: fix them',
+  'ebay-sales': 'eBay sales: delist or check',
   'missing-info': 'Items are missing info',
   'drafts': 'Photo drafts to finish',
   'pink': 'Pink tags: 4+ weeks on the shelf',
@@ -68,6 +71,7 @@ const NEXT_PHRASE = {
 const phrase = (r) => r.key === 'stale' ? `${r.title}: drop the price` : (NEXT_PHRASE[r.key] || r.title);
 const TASK_ICON = {
   'ebay-error': '<path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17.5v.01"/>',
+  'ebay-sales': '<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18M16 10a4 4 0 0 1-8 0"/>',
   'duplicate-code': '<rect x="8" y="8" width="12" height="12" rx="1.5"/><path d="M16 8V5.5A1.5 1.5 0 0 0 14.5 4h-9A1.5 1.5 0 0 0 4 5.5v9A1.5 1.5 0 0 0 5.5 16H8"/>',
   'no-price': '<path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z"/><circle cx="7.5" cy="7.5" r="1.5"/>',
   'missing-info': '<path d="M4 20h4L19 9l-4-4L4 16z"/>',
@@ -91,6 +95,7 @@ export function renderHome(){
   const { summary, pipeline, attention: baseAttention, revenueByPlatform } = computeHomeSummary(items, {
     drafts: hooks.getDrafts(), period, now, projectedProfit: hooks.projectedProfit,
     checks: normalizeIssueChecks(appSettings.issueChecks),
+    ebaySales: hooks.getEbaySales(), platformLabel: hooks.platformLabel,
   });
   // Tag Week swaps "Listed 30+ days" for the pink tags, so the row and the
   // shelf run on one clock (4+ weeks since cataloging).
@@ -274,6 +279,7 @@ export function renderHome(){
     const key = btn.dataset.homeAction;
     if (key === 'ebay-error') hooks.openCatalog({ ebayError: true });
     else if (key === 'duplicate-code') hooks.openCatalog({ duplicateCode: true });
+    else if (key === 'ebay-sales') hooks.openEbaySales();
     else if (key === 'no-price') hooks.openCatalog({ noPrice: true });
     else if (key === 'missing-info') hooks.openCatalog({ incomplete: true, notSold: true });
     else if (key === 'stale') hooks.openCatalog({ stale: true });

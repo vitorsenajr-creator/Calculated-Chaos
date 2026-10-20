@@ -6,7 +6,7 @@ import { runEbayErrorLibrary } from '../../modules/ebay-error-log.js';
 import { runDuplicateProductCodeAudit, renumberDuplicateProductCode } from '../../modules/product-code-bank.js';
 import './forms.js';
 import './platforms-panel.js';
-export { renderSettings } from './settings-view.js';
+export { renderSettings, openSettingsGroup } from './settings-view.js';
 export { renderEbayConnectionStatus } from './ebay-panel.js';
 
 // See modules/ebay-audit.js — the whole thing lives there, this just

@@ -494,6 +494,24 @@
     .summary-value{font-size:36px;}
   }
 
+  /* ---------- EBAY SALE TRACKER (v3.22.5) ----------
+     Settings → eBay; tokens only. */
+  .sale-tracker:not(:empty){margin-top:12px;}
+  .sale-head{font-size:13px; color:var(--ink-2); margin-bottom:6px;}
+  .sale-head b{color:var(--ink);}
+  .sale-list{list-style:none; margin:0; padding:0; display:flex; flex-direction:column;}
+  .sale-row{padding:10px 0; border-top:1px solid var(--line-soft);}
+  .sale-row.open{box-shadow:inset 3px 0 0 var(--warn-ink); padding-left:10px;}
+  .sale-top{display:flex; justify-content:space-between; align-items:baseline; gap:10px;}
+  .sale-title{font-size:14px; font-weight:600; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .sale-amt{font-size:14px; font-weight:700; font-variant-numeric:tabular-nums; white-space:nowrap;}
+  .sale-meta{display:flex; flex-wrap:wrap; align-items:center; gap:4px 10px; margin-top:3px; font-size:12.5px; color:var(--ink-2);}
+  .sale-outcome{font-weight:600; padding:1px 6px; border-radius:var(--radius-sm); background:var(--surface-2); color:var(--ink);}
+  .sale-outcome.tone-ok{color:var(--ok);}
+  .sale-outcome.tone-warn{background:var(--warn-bg); color:var(--warn-ink);}
+  .sale-todo{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:6px; font-size:13px;}
+  .sale-row.done .sale-todo{color:var(--ink-2);}
+
   /* ---------- ITEM ISSUES (v3.22.4) ----------
      The Issues chip, the urgent card warning and the issues popover. */
   .issues-strip{

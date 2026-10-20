@@ -8,7 +8,7 @@
 // POST body: { since_iso }  (since_iso optional — defaults to
 // last 14 days, which comfortably covers "checked every time the app opens"
 // without pulling the full 90-day default every time)
-// Returns: { success, sales: [{ sku, legacyItemId, orderId, total, creationDate }] }
+// Returns: { success, sales: [{ sku, legacyItemId, title, orderId, total, creationDate }] }
 
 import { requireApprovedUser } from './_requireApprovedUser.js';
 import { getEbayAccessToken, ebayConnectionId } from './_ebayToken.js';
@@ -57,6 +57,7 @@ export default async (req, res) => {
         sales.push({
           sku: li.sku || null,
           legacyItemId: li.legacyItemId || null,
+          title: li.title || null,
           orderId: order.orderId,
           total: li.total?.value ? parseFloat(li.total.value) : null,
           creationDate: order.creationDate,
