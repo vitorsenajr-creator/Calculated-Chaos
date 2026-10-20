@@ -54,6 +54,7 @@ import { renderSettings, renderEbayConnectionStatus } from './ui/settings/index.
 import { initHomeView, renderHome } from './ui/home/home-view.js';
 import { initStockView, renderStock } from './ui/stock/stock-view.js';
 import { initUpdateBanner } from './ui/update-banner.js';
+import { applyTheme, applyLastTheme } from './ui/theme.js';
 import { CATALOG_SORTS, sortCatalog } from './domain/catalog-sort.js';
 import { items, setItems, appSettings, setAppSettings } from './modules/state.js';
 import {
@@ -1444,6 +1445,8 @@ export const app = (function(){
   // business has a name of its own (business customization, CLAUDE.md
   // backlog item 6); until then the product name stands alone.
   function renderBrand(){
+    // The business's theme (Settings > Appearance); cheap to reapply.
+    if (appSettings.theme) applyTheme(appSettings.theme);
     const storeName = (appSettings.storeName || '').trim();
     const html = storeName
       ? `<span class="brand-name">${escapeHtml(storeName)}</span><span class="brand-by">by Calculated Chaos</span>`
@@ -4725,6 +4728,7 @@ export const app = (function(){
 
 
   // ---------- INIT ----------
+  applyLastTheme();
   renderBrand();
   initUpdateBanner(APP_VERSION);
   setupSourceAutocomplete();
