@@ -494,6 +494,29 @@
     .summary-value{font-size:36px;}
   }
 
+  /* ---------- ITEM ISSUES (v3.22.4) ----------
+     The Issues chip, the urgent card warning and the issues popover. */
+  .issues-strip{
+    display:flex; align-items:center; gap:10px; width:100%; min-height:44px; margin:-4px 0 12px; padding:6px 12px 6px 6px;
+    border:1px solid var(--line); border-radius:var(--radius-sm); background:var(--surface); color:var(--ink);
+    font:600 14px var(--font-ui); text-align:left; cursor:pointer;
+  }
+  .issues-strip:hover{border-color:var(--brand-2);}
+  .issues-strip-count{min-width:30px; height:28px; padding:0 6px; border-radius:var(--radius-sm); display:flex; align-items:center; justify-content:center; background:var(--warn-bg); color:var(--warn-ink); font-weight:700;}
+  .issues-strip-text{flex:1; min-width:0;}
+  .issues-strip-go{color:var(--brand-2);}
+  .issues-strip.on{border-color:var(--brand-2); box-shadow:inset 0 0 0 1px var(--brand-2);}
+  .ic-warn.urgent{color:var(--on-brand); background:var(--urgent);}
+  .issues-pop{
+    position:fixed; z-index:10000; max-width:280px; padding:10px 14px 12px;
+    background:var(--surface); color:var(--ink); border:1px solid var(--line); border-radius:var(--radius-sm);
+    box-shadow:0 8px 24px color-mix(in srgb, var(--ink) 18%, transparent); font:13px/1.4 var(--font-ui);
+  }
+  .issues-pop-head{font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:var(--ink-2); margin-bottom:6px;}
+  .issues-pop ul{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px;}
+  .issues-pop li{display:flex; flex-direction:column; gap:1px;}
+  .issues-pop li span{color:var(--ink-2); font-size:12.5px;}
+
   /* ---------- GOALS (v3.22.3) ----------
      The Home panel and its editor; one layout for every theme, tokens only. */
   .sr-only{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;}
@@ -1400,6 +1423,8 @@
   }
   .settings-row input.wide{width:min(260px, 55vw); text-align:left;}
   .settings-error:empty{display:none;}
+  .settings-success.error{color:var(--urgent);}
+  .warn-always{margin:0; padding-left:20px; font-size:14px; line-height:1.7;}
   .settings-error{color:var(--urgent);}
   .logo-field{display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end;}
   .logo-preview{height:44px; width:auto; max-width:120px; object-fit:contain; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-sm); padding:3px;}

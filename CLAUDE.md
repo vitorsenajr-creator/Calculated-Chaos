@@ -95,6 +95,16 @@ renaming them needs a data migration of every saved item.
   - `domain/home-summary.js` + `ui/home/home-view.js`: the Home screen
     (v3.20.0): summary by period, pipeline, "Needs attention", revenue
     by platform. Period and dismissed rows are per-device (localStorage).
+  - `domain/item-issues.js`: item issues (v3.22.4), one definition for
+    the catalog's Issues strip and filters, the card warning (+ popover)
+    and Home's "Needs attention". Always on: no price, eBay publish error
+    (`item.ebayPublishError`, stamped by `ebay-api.js` on a failed
+    publish, cleared by a successful one), duplicate product code (all
+    items, sold included). Optional, per business in Settings → Warnings
+    (`ui/settings/warnings-panel.js`, `appSettings.issueChecks`): photos,
+    cost, weight, dimensions, listed 30/45/60/90 days or off. A change
+    fires `issuecheckschange`. `catalog-filters.js` and `home-summary.js`
+    re-export the checks.
   - `domain/goals.js` + `ui/home/goals-panel.js`: Goals on Home
     (v3.22.3), saved in `appSettings.goals` ({ id, metric, period,
     target }, max 4) through `saveSettingsFields()` (writes only the
@@ -243,7 +253,8 @@ renaming them needs a data migration of every saved item.
   (v3.13.48).
 - **`saveItem()` uses `setDoc()` = full replace.** Any field with no form
   input must be carried forward explicitly in `saveItemFlow()`, or a plain
-  save wipes it (the eBay listing ID was lost this way, v3.13.94). Settings
+  save wipes it (the eBay listing ID was lost this way, v3.13.94;
+  `ebayPublishError` is carried the same way since v3.22.4). Settings
   saves use `{ merge: true }`, and a failed settings read must never
   trigger a save (data loss, v3.13.96).
 - **eBay errors: never guess a replacement value.** Omit the field or walk
@@ -312,6 +323,20 @@ renaming them needs a data migration of every saved item.
 
 Last known status per the v3.13 notes. Confirm with Vitor before relying
 on any of these:
+- Item issues (v3.22.4): Node test (16 cases: with the default checks,
+  `isIncomplete`/`missingFields`/`isStaleListing`, the Home summary and
+  every old catalog filter identical to v3.22.3 on 400 items; each check
+  on and off; duplicate codes ignoring "#", case and spaces, "-1"/"-2"
+  copies distinct; issue order; Issues filter = union of its parts and
+  Home row counts = their filters, under three check settings), Chromium
+  test of the real app with a stubbed Firebase (Home rows and their
+  links, the Issues strip count and list, card labels, the popover, a
+  plain item save keeping `ebayPublishError`, Settings → Warnings saving
+  only `issueChecks` with merge and redrawing catalog and Home, a failed
+  save message), screenshots in the three themes, no page errors, clean
+  build. Unconfirmed in production: a real failed eBay publish stamping
+  the item (and a later success clearing it), real duplicate codes,
+  the settings saving for the business.
 - Goals on Home (v3.22.3): Node test (19 cases: week/month/quarter/
   year windows incl. a week across the new year, saved-list cleanup,
   each metric by hand, pace at the first and last minute, reached goal,
@@ -468,6 +493,16 @@ on any of these:
   sizing (v3.13.102-105), inspection flag icon (v3.13.114).
 
 ## Pending changelog entry (since v3.22.0)
+
+- v3.22.4: Issues in the catalog (Nifty P1, item 3). A strip under the
+  catalog tools shows how many items have issues and filters to them.
+  Issues: no price, the last eBay publish failed (now saved on the item),
+  a product code used on more than one item, missing info, listed too
+  long. The card warning names the most urgent one (+N more) and a tap
+  lists them all, with the eBay message. Home's "Needs attention" gains
+  "eBay publish errors" and "Duplicate codes". Settings → Warnings turns
+  each missing-info check on or off and sets the listing age (30, 45, 60,
+  90 days or off), for the catalog, the cards and Home alike.
 
 - v3.22.3: Goals on Home (Nifty P1, item 2). Up to 4 goals for profit,
   revenue, items sold, items cataloged or sell-through, by week (Monday
@@ -639,7 +674,7 @@ it starts:
 first, then P1, one PR each: (1) Finances insights (done in v3.22.2) (sell-through,
 average profit and days listed per platform, top brands/categories,
 previous-period comparison); (2) Goals on Home (done in v3.22.3); (3) an Issues filter in
-the catalog with optional warnings in Settings; (4) an eBay sale tracker
+the catalog with optional warnings in Settings (done in v3.22.4); (4) an eBay sale tracker
 (log of detected sales and what the app did; gives Home its "eBay sales
 to confirm" row). P2, after Import (item 4): expenses and P&L, pricing
 rules per platform, "similar items" and shipping presets, a Getting
@@ -725,8 +760,8 @@ a private claude.ai artifact; Impeccable seed `seed:007b6ac6cba56f1a`):
   too narrow for "10.00") and the old modals.
 - D1 shipped in v3.20.0. Not in it, for lack of data: a "Shipped" stop in
   the pipeline (no shipped status yet; needs "Mark shipped"), the "eBay
-  publish errors" row (errors aren't stored per item) and "eBay sales to
-  confirm" (detected sales are marked sold directly). The Stock tab is a
+  publish errors" row (added in v3.22.4, when errors started being saved
+  per item) and "eBay sales to confirm" (detected sales are marked sold directly). The Stock tab is a
   stopgap (Labels, Transfer, a link to the boxes in Settings); Finances
   holds the old Months and Reports screens as sub-tabs. `appSettings.storeName`
   is read for the header (none is saved yet; backlog item 6 adds it).
