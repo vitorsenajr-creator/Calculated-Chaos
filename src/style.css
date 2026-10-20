@@ -136,7 +136,10 @@
      bottom bar. Both list the same five places. */
   .app-shell{display:block;}
   .app-column{width:100%;}
-  .brand{display:flex; flex-direction:column; gap:1px; min-width:0;}
+  .brand{display:flex; align-items:center; gap:10px; min-width:0;}
+  .brand-text{display:flex; flex-direction:column; gap:1px; min-width:0;}
+  /* A light tile behind the logo so a dark logo still shows on a dark shell. */
+  .brand-logo{height:36px; width:auto; max-width:96px; object-fit:contain; flex-shrink:0; background:var(--surface); border-radius:var(--radius-sm); padding:3px;}
   .brand-name{font-size:17px; font-weight:700; letter-spacing:-0.01em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   .brand-by{font-size:12px; color:var(--on-brand-2);}
   .app-header{
@@ -183,7 +186,7 @@
       position:sticky; top:0;
     }
     .sidebar .brand{padding:4px 10px 24px;}
-    .sidebar .brand-name{font-size:18px;}
+    .sidebar .brand-name{font-size:18px; white-space:normal; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; line-height:1.15;}
     .sidebar-spacer{flex:1;}
     .nav-link.side{
       display:flex; align-items:center; gap:12px; text-align:left;
@@ -210,7 +213,7 @@
 
   /* --- Tag Week --- */
   :root[data-theme="tagweek"] .app-header{background:var(--surface); color:var(--ink); border-bottom:1px solid var(--line);}
-  :root[data-theme="tagweek"] .app-header .brand{flex-direction:row; align-items:baseline; gap:8px;}
+  :root[data-theme="tagweek"] .app-header .brand-text{flex-direction:row; align-items:baseline; gap:8px;}
   :root[data-theme="tagweek"] .app-header .brand-name{font-size:18px; font-weight:800; letter-spacing:-0.02em;}
   :root[data-theme="tagweek"] .app-header .brand-by{color:var(--ink-2);}
   :root[data-theme="tagweek"] .nav-link.bottom.active{box-shadow:none;}
@@ -366,6 +369,8 @@
   /* Small per-theme touches from the mockups. */
   :root[data-theme="tagweek"] .fab{border-radius:50%;}
   :root[data-theme="concourse"] .fab{color:var(--nav-active);}
+  /* With a business accent the button takes it, so its icon goes white. */
+  :root[data-theme="concourse"][data-accent] .fab{color:var(--on-brand);}
 
   /* ---------- APPEARANCE (Settings, v3.21.0) ---------- */
   .theme-options{display:grid; gap:8px; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); margin-top:8px;}
@@ -1315,6 +1320,26 @@
     font-size:13px; color:var(--ok); background:var(--surface-2);
     padding:8px 12px; border-radius:var(--radius-sm); margin-top:8px; text-align:center; display:none;
   }
+  .settings-row input.wide{width:min(260px, 55vw); text-align:left;}
+  .settings-error:empty{display:none;}
+  .settings-error{color:var(--urgent);}
+  .logo-field{display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end;}
+  .logo-preview{height:44px; width:auto; max-width:120px; object-fit:contain; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-sm); padding:3px;}
+  .logo-none{font-size:13px; color:var(--ink-2);}
+  .file-btn{display:inline-flex; align-items:center; position:relative; overflow:hidden;}
+  .file-btn input{position:absolute; inset:0; opacity:0; cursor:pointer;}
+  .file-btn:focus-within{outline:2px solid var(--brand-2); outline-offset:2px;}
+  .accent-options{display:grid; grid-template-columns:repeat(auto-fill, minmax(132px, 1fr)); gap:8px;}
+  .accent-swatch{
+    display:flex; align-items:center; gap:8px; min-height:44px; padding:0 10px; cursor:pointer;
+    border:1px solid var(--line); border-radius:var(--radius-sm); background:var(--surface); color:var(--ink);
+    font:600 13px var(--font-ui); text-align:left;
+  }
+  .accent-swatch.active{border-color:var(--brand-2); box-shadow:inset 0 0 0 1px var(--brand-2);}
+  .accent-chip{width:20px; height:20px; border-radius:50%; flex-shrink:0; border:1px solid rgba(0,0,0,0.15);}
+  .accent-swatch.default .accent-chip{background:linear-gradient(135deg, var(--brand) 50%, var(--surface-2) 50%);}
+  .accent-swatch.custom input{width:24px; height:24px; padding:0; border:none; background:none; cursor:pointer;}
+  .accent-note{margin:10px 0 0;}
   .ai-meter{height:10px; border-radius:5px; overflow:hidden; background:var(--surface-2); margin-bottom:12px;}
   .ai-meter-fill{height:100%; border-radius:5px; transition:width 0.3s;}
   .ai-meter-fill.ok{background:var(--ok);}

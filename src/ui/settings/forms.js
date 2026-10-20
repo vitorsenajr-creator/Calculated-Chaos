@@ -6,7 +6,8 @@
 import { appSettings } from '../../modules/state.js';
 import { saveSettings, resetAiCounter } from '../../data/settings-store.js';
 import { renderSettings } from './settings-view.js';
-import { applyTheme, normalizeTheme } from '../theme.js';
+import { applyTheme, applyAccent, normalizeTheme } from '../theme.js';
+import { isHexColor } from '../../domain/accent.js';
 
 window.savePriceSettings = async function(){
   appSettings.targetMarginPct = parseFloat(document.getElementById('sMarginPct').value) || 40;
@@ -51,6 +52,33 @@ window.saveAppearance = async function(key){
   });
   await saveSettings();
   showSaveMsg('themeSaveMsg');
+};
+
+// Store identity (v3.22.1). main.js redraws the header and sidebar on
+// 'brandchange'.
+window.saveStoreName = async function(value){
+  appSettings.storeName = String(value || '').trim().slice(0, 40);
+  document.dispatchEvent(new CustomEvent('brandchange'));
+  await saveSettings();
+  showSaveMsg('storeSaveMsg');
+};
+
+// dataUrl: a shrunk data: image URL, or '' to remove the logo.
+window.saveStoreLogo = async function(dataUrl){
+  appSettings.storeLogo = typeof dataUrl === 'string' && dataUrl.startsWith('data:image/') ? dataUrl : '';
+  document.dispatchEvent(new CustomEvent('brandchange'));
+  await saveSettings();
+  renderSettings();
+  showSaveMsg('storeSaveMsg');
+};
+
+// hex: '#RRGGBB', or '' for the theme's own colors.
+window.saveAccent = async function(hex){
+  appSettings.accentColor = isHexColor(hex) ? hex.toUpperCase() : '';
+  applyAccent(appSettings.accentColor);
+  await saveSettings();
+  renderSettings();
+  showSaveMsg('accentSaveMsg');
 };
 
 window.saveWallMarkerSettings = async function(){
