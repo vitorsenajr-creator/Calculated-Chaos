@@ -18,6 +18,16 @@ window.savePriceSettings = async function(){
   showSaveMsg('priceSaveMsg');
 };
 
+// AI usage (v3.22.0): its own Save button now that it's a separate group.
+// Same fields savePriceSettings also writes, so either button works.
+window.saveAiUsageSettings = async function(){
+  appSettings.aiUsageLimit = parseInt(document.getElementById('sAiLimit')?.value) || 500;
+  appSettings.aiResetDayOfMonth = parseInt(document.getElementById('sAiResetDay')?.value) || 1;
+  appSettings.aiScheduledReset = document.getElementById('sAiScheduled')?.value === 'true';
+  await saveSettings();
+  showSaveMsg('aiSaveMsg');
+};
+
 window.saveLabelSettings = async function(){
   appSettings.labelWidthIn = parseFloat(document.getElementById('sLabelWidth').value) || 2.25;
   appSettings.labelHeightIn = parseFloat(document.getElementById('sLabelHeight').value) || 1.25;
@@ -108,9 +118,9 @@ window.handleScheduledReset = async function(){
   await saveSettings();
   const msg = document.getElementById('resetConfirmMsg');
   if (msg){
-    msg.textContent = `✓ Scheduled reset set for day ${day} of each month.`;
+    msg.textContent = `Scheduled reset set for day ${day} of each month.`;
     msg.style.display = 'block';
-    setTimeout(()=>{ msg.style.display='none'; msg.textContent='✓ Counter reset successfully.'; }, 3000);
+    setTimeout(()=>{ msg.style.display='none'; msg.textContent='Counter reset.'; }, 3000);
   }
 };
 

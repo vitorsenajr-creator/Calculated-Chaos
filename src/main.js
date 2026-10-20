@@ -1452,7 +1452,7 @@ export const app = (function(){
     // including that box, with a fresh "Not connected" state (since the
     // token isn't saved yet), so switching tabs and back looked like the
     // connect flow had vanished.
-    if (tab === 'settings' && !ebayConnectFlowPending) renderSettings();
+    if (tab === 'settings' && !ebayConnectFlowPending) renderSettings({ fresh: true });
     window.scrollTo(0, 0);
   }
   document.querySelectorAll('.nav-link, .subtab[data-tab]').forEach(btn => {
