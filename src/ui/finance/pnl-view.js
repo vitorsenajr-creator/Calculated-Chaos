@@ -28,6 +28,12 @@ function setPeriod(p){
   try{ localStorage.setItem(PERIOD_KEY, p); }catch(e){ /* not persisted */ }
 }
 
+// Overview's "See P&L" opens the statement on Overview's period (v3.23.5).
+const FROM_OVERVIEW = { month: 'this_month', year: 'this_year', all: 'all' };
+export function setPnlPeriodFromOverview(period){
+  if (FROM_OVERVIEW[period]) setPeriod(FROM_OVERVIEW[period]);
+}
+
 function money2(n){
   return `${n < 0 ? '-' : ''}$${Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
@@ -37,7 +43,7 @@ const line = (name, amount, { cls = '', sub = '' } = {}) => `
     <span class="pnl-name">${name}${sub ? `<small>${sub}</small>` : ''}</span>
     <span class="pnl-amt">${money2(amount)}</span>
   </div>`;
-const head = (name) => `<div class="pnl-sec">${name}</div>`;
+const head = (name) => `<h3 class="pnl-sec">${name}</h3>`;
 
 // Draws the panel into `slot` (an element at the top of Reports).
 export function renderPnl(slot){
@@ -53,11 +59,11 @@ export function renderPnl(slot){
   const empty = pnl.salesCount === 0 && pnl.expenses.count === 0;
   const sellingTotal = Math.round((pnl.selling.total - pnl.adjustment) * 100) / 100;
   const body = empty ? `<div class="attn-empty">No sales or expenses in ${escapeHtml(name)}.</div>` : `
-    <div class="pnl-eq" aria-label="Revenue ${money2(pnl.revenue.total)} minus costs ${money2(pnl.cogs + sellingTotal)} minus expenses ${money2(pnl.expenses.total)} equals net profit ${money2(pnl.netProfit)}">
-      <span><small>Revenue</small>${money2(pnl.revenue.total)}</span><b aria-hidden="true">−</b>
-      <span><small>Costs of sales</small>${money2(pnl.cogs + sellingTotal)}</span><b aria-hidden="true">−</b>
-      <span><small>Expenses</small>${money2(pnl.expenses.total)}</span><b aria-hidden="true">=</b>
-      <span class="pnl-eq-net${pnl.netProfit < 0 ? ' negative' : ''}"><small>Net profit</small>${money2(pnl.netProfit)}</span>
+    <div class="pnl-eq" role="group" aria-label="Revenue ${money2(pnl.revenue.total)} minus item and selling costs ${money2(pnl.cogs + sellingTotal)} minus expenses ${money2(pnl.expenses.total)} equals net profit ${money2(pnl.netProfit)}">
+      <span class="pnl-eq-item"><small>Revenue</small><span>${money2(pnl.revenue.total)}</span></span><b aria-hidden="true">−</b>
+      <span class="pnl-eq-item"><small><i class="pnl-op" aria-hidden="true">− </i>Item &amp; selling costs</small><span>${money2(pnl.cogs + sellingTotal)}</span></span><b aria-hidden="true">−</b>
+      <span class="pnl-eq-item"><small><i class="pnl-op" aria-hidden="true">− </i>Expenses</small><span>${money2(pnl.expenses.total)}</span></span><b aria-hidden="true">=</b>
+      <span class="pnl-eq-item pnl-eq-net${pnl.netProfit < 0 ? ' negative' : ''}"><small><i class="pnl-op" aria-hidden="true">= </i>Net profit</small><span>${money2(pnl.netProfit)}</span></span>
     </div>
     <div class="pnl">
       ${head('Revenue')}

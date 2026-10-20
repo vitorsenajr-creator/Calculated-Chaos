@@ -6,7 +6,7 @@
 import { totalsOf, sellThroughOf } from './finance-summary.js';
 
 export const GOAL_METRICS = {
-  profit: { label: 'Profit', unit: 'money' },
+  profit: { label: 'Sales profit', unit: 'money' },
   revenue: { label: 'Revenue', unit: 'money' },
   sold: { label: 'Items sold', unit: 'count' },
   cataloged: { label: 'Items cataloged', short: 'Cataloged', unit: 'count' },
