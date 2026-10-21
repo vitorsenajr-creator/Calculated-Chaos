@@ -43,7 +43,7 @@ export function goalsPanelHtml(items, { canEdit = false, now = Date.now() } = {}
   const body = goals.length
     ? `<ul class="goal-list">${goals.map(goalRow).join('')}</ul>`
     : `<div class="goal-empty">
-        <p>Set a target for profit, revenue, sales, cataloging or sell-through, by week, month, quarter or year.</p>
+        <p>Track profit, sales or sell-through by week, month, quarter or year.</p>
         <button type="button" class="secondary-btn" data-goals-edit>Set a goal</button>
       </div>`;
   return `

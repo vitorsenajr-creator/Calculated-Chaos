@@ -205,7 +205,7 @@ export function renderHome(){
           <h2 class="panel-title">Shelf by tag</h2>
           <span class="panel-meta">color = week it came in</span>
         </div>
-        <div class="shelf-bar">${shelf.map(w => `
+        <div class="shelf-bar">${shelf.filter(w => w.count > 0).map(w => `
           <button type="button" class="shelf-seg tag-${w.index}" data-home-week="${w.index}" style="flex-grow:${inStock ? Math.max(w.count, inStock * 0.06) : 1};" aria-label="${w.name} tags, ${w.age}: ${w.count} items">${w.count}</button>`).join('')}
         </div>
         <div class="shelf-ends"><span>This week</span><span>4+ weeks</span></div>

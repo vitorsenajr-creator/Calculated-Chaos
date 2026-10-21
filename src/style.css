@@ -274,7 +274,7 @@
   :root[data-theme="concourse"] .nav-link.bottom.active{color:var(--ink); font-weight:700; box-shadow:inset 0 4px 0 var(--nav-active);}
   :root[data-theme="concourse"] .sidebar{background:var(--surface); color:var(--ink); border-right:1px solid var(--line); padding-left:0; padding-right:0;}
   :root[data-theme="concourse"] .nav-link.side{color:var(--ink); border-radius:0; padding:10px 20px;}
-  :root[data-theme="concourse"] .nav-link.side svg{background:var(--ink); color:#FFFFFF; padding:6px; width:20px; height:20px;}
+  :root[data-theme="concourse"] .nav-link.side svg{background:var(--ink); color:#FFFFFF; padding:7px; width:32px; height:32px;}
   :root[data-theme="concourse"] .nav-link.bottom svg{padding:3px 10px; box-sizing:content-box;}
   :root[data-theme="concourse"] .nav-link.bottom.active svg{background:var(--nav-active); color:var(--ink);}
   :root[data-theme="concourse"] .nav-link.side:hover{background:var(--surface-2); color:var(--ink);}
@@ -481,6 +481,13 @@
   .attn-empty{padding:12px 14px 16px; font-size:13.5px; color:var(--ink-2); border-top:1px solid var(--line-soft);}
 
   .home-lower{display:grid; gap:16px; grid-template-columns:minmax(0, 1fr);}
+  /* Phone: the + button sits over the right edge of the screen, so Home's
+     rows keep their buttons clear of it, and the last row clears the + and
+     the bottom bar (v3.24.9). */
+  @media (max-width: 899px){
+    #homeView .attn-row, #homeView .then-row, #homeView .next-band{padding-right:64px;}
+    #homeView{padding-bottom:96px;}
+  }
   .revenue{padding-bottom:12px;}
   .rev-bar{display:flex; height:10px; border-radius:5px; overflow:hidden; margin:2px 14px 10px; background:var(--surface-2);}
   .rev-legend{list-style:none; margin:0; padding:0 14px; display:flex; flex-direction:column; gap:6px;}
@@ -629,8 +636,9 @@
   .goal-status{font-size:12px; color:var(--ink-2);}
   .goal-status.behind{color:var(--warn-ink); font-weight:600;}
   .goal-status.done{color:var(--ok); font-weight:600;}
-  .goal-empty{padding:0 14px 14px;}
-  .goal-empty p{margin:0 0 10px; font-size:13.5px; line-height:1.45; color:var(--ink-2); max-width:60ch;}
+  .goal-empty{display:flex; align-items:center; justify-content:space-between; gap:12px; padding:0 14px 14px;}
+  .goal-empty p{margin:0; font-size:13.5px; line-height:1.45; color:var(--ink-2); max-width:60ch;}
+  .goal-empty .secondary-btn{flex-shrink:0;}
 
   .goal-dialog{
     width:min(520px, calc(100vw - 32px)); max-height:calc(100vh - 32px); padding:0; overflow:auto;
