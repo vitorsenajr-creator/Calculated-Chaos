@@ -3,6 +3,45 @@
 Version history for Calculated Chaos. The current version is also shown in
 the badge at the top of the app (`APP_VERSION` in `src/modules/version.js`).
 
+## v3.25.0 — 2026-10-21
+
+Stock → Pick, AI writing instructions, the AI usage meter and the Home,
+Developer Panel and item form polish. Rolls up v3.24.1 – v3.24.12.
+
+- **Stock → Pick** (v3.24.2 – v3.24.4). Add screenshots of your sales
+  (Poshmark, eBay, Mercari…) and the app lists the sold pieces box by box:
+  found by SKU, by an imported item's old code or by name, with a tick per
+  piece. It warns about pieces already marked sold, pieces still listed
+  elsewhere and two sales pointing to one piece. Each screenshot uses one
+  AI analysis. A printed checklist (100 × 210 mm labels, black only) lists
+  the pieces to pick, with a "Picked by / Date" line. "Mark sold" records
+  the sales on their items in one go: price and platform from the
+  screenshot, the fee per order (a bundle's fee on the order total, split
+  by price), shipping paid and the sales profit. The eBay listing is ended
+  when the piece sold elsewhere, and the order number is kept so the same
+  sale can't be recorded twice.
+- **AI writing instructions** (v3.24.1). Settings → Listings: tell the AI
+  how you like your listings written (up to 1,500 characters, with example
+  chips). ✨ analysis and Rewrite follow them for the title and description
+  only; the item's details, the price and the closing text stay as before.
+- **AI usage meter** (v3.24.5, v3.24.6). Every successful AI call is
+  counted on the server per user, month, feature and model. The Developer
+  Panel's "AI usage" tab shows the totals, per user and per feature. It
+  only measures for now; nothing is charged.
+- **Item form quantity** (v3.24.12). The Quantity field stays visible after
+  a save. On an item being edited it reads "Add copies" and makes that
+  many unsold copies with the same details, numbered after the base code;
+  the original keeps its code. Storage box moves next to Source.
+- **Home** (v3.24.9). The + button no longer covers the row buttons on a
+  phone. The stock insight no longer repeats the summary's numbers, and
+  Goals with no goal set is one compact row. Tag Week's shelf hides empty
+  weeks; Concourse's sidebar icons are legible.
+- **Developer Panel** (v3.24.8, v3.24.10, v3.24.11). Follows the business
+  Appearance, with a header in the theme's main color, flat sections and
+  a tab line that no longer shows a scrollbar.
+- **Colors** (v3.24.12). ✨ Analyze and Narrate use the theme's main color
+  (Concourse's Analyze is its signal yellow).
+
 ## v3.24.0 — 2026-10-20
 
 The spreadsheet import and the money side of the Nifty P2 ideas

@@ -4872,7 +4872,7 @@ export const app = (function(){
   });
   document.addEventListener('brandchange', () => renderBrand());
   renderBrand();
-  initUpdateBanner(APP_VERSION);
+  initUpdateBanner();
   setupSourceAutocomplete();
   setupSizeAutocomplete();
   async function waitForFirebaseThenLoad(){
