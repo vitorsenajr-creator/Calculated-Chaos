@@ -515,13 +515,6 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
 
 ### Unverified in production (build-verified only)
 
-- firebase-admin 14.5.0 (v3.26.3): offline check with a real-format RSA key
-  (the server's init path, every `auth` and `firestore` method the API
-  calls exists, a bad token is rejected). Not run: real token checks, real
-  Firestore reads and transactions (the product-code block, `ai_usage`) on
-  the Vercel preview or production. Check after deploy: Developer Panel
-  `health`, owner sign-in, catalog load, one ✨ call with its `ai-usage` line.
-
 - Trash and eBay question before a delete (v3.26.0): Node test (14 checks:
   the eBay step per item, the trash record and its 30-day expiry, restore
   with and without an eBay removal, the expiry rules, batches of 200, a
@@ -875,13 +868,13 @@ on any of these:
 
 ## Pending changelog entry (since v3.26.0)
 
-- v3.26.3: `firebase-admin` 13 → 14.5.0 (the server's Admin SDK; `api/_firebaseAdmin.js`,
-  `_aiUsage.js`). The 14 line needs Node 22 or newer; the Vercel project runs
-  Node 24.x (checked 2026-10-21), and `package.json` now says `engines: >=22`.
-  The 14 line drops Instance ID, the legacy namespaces and the old FCM
-  message types, none used here. Production audit: the moderate findings
-  are gone; `dompurify` (low, GHSA-p98j-92pf-mc4p) stays, through `jspdf`, which
-  loads on demand for the label PDF. The app does not call DOMPurify itself.
+- v3.26.4: reverts v3.26.3 (`firebase-admin` back to 13.10.0, no `engines`
+  field). On Vercel, firebase-admin 14 pulls in `jwks-rsa` 4, which calls
+  `require('jose')`, and `jose` 6 is ESM only. Vercel's function loader
+  rejects that with `ERR_REQUIRE_ESM` on the first `verifyIdToken()`, so
+  every token-checked function (`platform`, `ebay-auth`, `ebay-check-sales`)
+  exited with a 500. Plain Node 22/24 load it fine, so offline checks miss
+  it: retry 14.x only on a Vercel preview with a real sign-in.
 
 - v3.26.2: `CLAUDE.md` gets a deploy checklist (before and after a push to
   `main`, and rollback), under Commands & verification. Docs only; the app
