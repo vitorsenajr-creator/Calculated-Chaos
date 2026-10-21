@@ -819,6 +819,16 @@ on any of these:
 
 ## Pending changelog entry (since v3.25.0)
 
+- v3.25.5: Firestore rules close the pre-business root collections
+  (`items`, `drafts`, `app_config`, `app_settings`, `ebay_error_log`). Before,
+  any approved account could read and write them, so a new seller could read
+  the catalog in the root. Now they are open only to a member of a business
+  that exists and is not live (`rootOpen()`); admins still read them for the
+  backup. Tested with the Firestore emulator (12 rules cases; the old rules let
+  an approved account with no business read and write the root, and a member
+  of a live business read it).
+  **Paste `firestore.rules` into the Console** (Vitor): no deploy reads this file.
+
 - v3.25.4: Mark sold quick form. Each piece in the sheet opens a short form
   when its check is ticked: platform, price, shipping paid, and the fee as a
   line (changed under "Change fee"). The price starts at the screenshot's
