@@ -3,6 +3,49 @@
 Version history for Calculated Chaos. The current version is also shown in
 the badge at the top of the app (`APP_VERSION` in `src/modules/version.js`).
 
+## v3.26.0 — 2026-10-21
+
+The trash for deleted items, and the eBay question before a delete. Rolls up
+v3.25.1 – v3.25.10 and v3.26.0.
+
+- **Trash** (v3.26.0). Deleting an item moves it to the trash, where it stays
+  for 30 days. Settings → Data → Trash lists what can be restored, with who
+  deleted it and the days left. Restore puts the item back in the catalog;
+  Delete forever removes it now. Records past 30 days are removed when the
+  list opens. Undoing a spreadsheet import also moves its items to the trash.
+- **eBay before a delete** (v3.26.0). An item with an active eBay listing asks
+  first: "Remove from eBay and delete" ends the listing, then trashes the item;
+  "Delete only in the app" leaves the listing live; "Keep item" cancels. If
+  eBay doesn't confirm the listing ended, the item stays and the question comes
+  back with the reason. An item whose listing ID isn't saved can't be ended by
+  the app, so it's asked to be ended on eBay first. Bulk delete asks once per
+  item with a listing. Restoring an item whose listing was ended brings it back
+  without the eBay listing fields.
+- **AI analysis output** (v3.25.10). The three newer-model calls (narration
+  extract, eBay fee suggestion, error explanation) allow room for their
+  thinking: `max_tokens` raised to 2,000 and adaptive thinking at low effort,
+  since thinking tokens count toward the limit on Sonnet 5.5 and Haiku 5.5.
+- **Safer error messages** (v3.25.9). AI error text from the server is escaped
+  before it reaches the page. Two unused surface files are removed.
+- **eBay account-deletion notices** (v3.25.8). The notice logs only its topic,
+  notification id and publish date, not the body. The POST still answers 200
+  and deletes nothing. The notification signature is not checked yet.
+- **Form borders** (v3.25.7). Field borders reach 3:1 contrast in the three
+  themes (`--control-line`).
+- **AI model IDs** (v3.25.6). `suggest_fee`, `explain_error` and the narration
+  extract use the current Claude 5.5 models.
+- **Firestore rules** (v3.25.5). The pre-business root collections are open
+  only to a member of a business that exists and isn't live yet.
+- **Mark sold quick form** (v3.25.4). Each checked piece in Stock → Pick opens
+  a short form: platform, price, shipping and fee.
+- **Stock → Pick by code** (v3.25.3). Typed item codes join the pick list, and
+  a typed piece can be marked sold without its price or platform, flagged
+  "Sale info missing" until filled in.
+- **Pick checklist to images** (v3.25.2). "Share checklist" makes one PNG per
+  100 × 210 mm page, instead of the browser print dialog.
+- **New-version strip** (v3.25.1). Each build has its own id, so a deploy is
+  noticed even without a version bump.
+
 ## v3.25.0 — 2026-10-21
 
 Stock → Pick, AI writing instructions, the AI usage meter and the Home,

@@ -207,6 +207,15 @@ renaming them needs a data migration of every saved item.
     missing costs shows "N missing cost" and a Missing cost filter. After
     a save `onDataChange` redraws everything. `ui/toast.js` is the shared
     `showToast()` (Expenses and Sales).
+  - The trash (v3.26.0, `docs/trash.md`): `domain/trash.js` (what a
+    deleted item keeps, the 30 days, what a restore puts back),
+    `data/trash-store.js` (move, restore, list, delete forever; one batch
+    per 200 items), `ui/items/delete-dialog.js` (the eBay question before a
+    delete: "Remove from eBay and delete" is the default), and
+    `ui/settings/trash-panel.js` (Settings → Data → Trash). The item delete
+    in `main.js` (`trashItem()`) and bulk delete go through it; undo import
+    (`data/import-store.js`) moves to the trash too. `removeEbayListingForDelete()`
+    in `ebay-api.js` ends a listing without requiring a sale.
   - `domain/mileage.js`: trips at the IRS standard business rate
     (v3.23.7). `MILEAGE_RATES` is a fixed, dated table (decided with
     Vitor 2026-10-20: no per-business override): 2023 65.5¢, 2024 67¢,
@@ -386,7 +395,7 @@ renaming them needs a data migration of every saved item.
     server only too.
   - Multi-business (v3.17.0): `businesses/{bizId}` (`live` = the switch;
     server-written) with `items`, `drafts`, `ebay_error_log`,
-    `ebay_sales` (v3.22.5), `expenses` (v3.23.3),
+    `ebay_sales` (v3.22.5), `expenses` (v3.23.3), `trash` (v3.26.0),
     `counters/*`, `config/settings` (members read/write), `members/*`
     (server-written) and the frozen `liveSessions`, `liveItems`,
     `options/main` (admins read only, v3.19.0);
@@ -437,8 +446,16 @@ renaming them needs a data migration of every saved item.
   `openBatchLabelModal([...])`. Don't add a second implementation
   (v3.13.99).
 
+- **Deleting an item never ends its eBay listing by itself** (before
+  v3.26.0 the delete just removed the document, leaving the listing live
+  and the sale tracker with no item to match). The delete now asks first;
+  do not add a delete path that skips the question.
+
 ## Open items
 
+- **Paste `firestore.rules` into the Console** for v3.26.0 (Vitor): `trash`
+  is added to the member collections. Until then the trash can't be read or
+  written. Optional: a TTL policy on `trash.expiresAt` in the Console.
 - **Production, selling soon (Vitor, 2026-10-20)**: the app is in
   production mode and will be offered to other sellers soon. Treat every
   change as going to paying customers: no half-finished features on
@@ -479,6 +496,20 @@ renaming them needs a data migration of every saved item.
   New employees must have a real email: they verify on first sign-in.
 
 ### Unverified in production (build-verified only)
+
+- Trash and eBay question before a delete (v3.26.0): Node test (14 checks:
+  the eBay step per item, the trash record and its 30-day expiry, restore
+  with and without an eBay removal, the expiry rules, batches of 200, a
+  failed batch stopping after the last commit, undo import counting items
+  still on eBay), Chromium test with a stubbed Firestore and eBay (the
+  question's buttons, focus on "Keep item", Escape, the error line and the
+  manual-listing variant; the trash list: restore, a failed restore keeping
+  its row, the duplicate-code warning, the empty state), screenshot on a
+  phone, clean build. Not run: the real eBay withdraw call on a listing that
+  was already ended on eBay, the real Firestore rules and batches, the item
+  modal and bulk delete in the app, Delete forever in the browser. Confirm:
+  delete one listed item with "Remove from eBay and delete" and see it in
+  Settings → Data → Trash with its eBay listing ended.
 
 Last known status per the v3.13 notes. Confirm with Vitor before relying
 on any of these:
@@ -817,87 +848,9 @@ on any of these:
 - Quick Labels one-by-one queue and PDF export (v3.13.106/107), label font
   sizing (v3.13.102-105), inspection flag icon (v3.13.114).
 
-## Pending changelog entry (since v3.25.0)
+## Pending changelog entry (since v3.26.0)
 
-- v3.25.10: Fix for v3.25.6. The three calls on the newer models now set
-  `output_config: { effort: 'low' }` and `thinking: { type: 'adaptive' }`,
-  and `max_tokens` 2000 (was 300, 400, 500). Thinking is on by default on
-  Sonnet 5.5 and Haiku 5.5 and its tokens count toward `max_tokens`, so the
-  old limits could cut the answer. The browser reads the narration extract
-  by its `text` block, so a thinking block in front is harmless. Not run on
-  real items (no API key in the sandbox): check the `ai-usage` lines and one
-  real answer of each call.
-
-- v3.25.9: Surface cleanup. The AI error messages from the server are
-  escaped before they go into the page (`src/main.js`, the listing and the
-  analysis areas). `public/design-review.html` (a design snapshot with
-  `noindex`, deployed next to the app) is removed. `src/counter.js` (a Vite
-  template, not imported anywhere) is removed.
-
-- v3.25.8: The eBay account-deletion notification logs only its topic,
-  notification id and publish date, not the body (the body has the seller's
-  username and user id). The POST still answers 200 and deletes nothing, as
-  before. **Open:** the notification's signature (`x-ebay-signature`) is not
-  checked yet: eBay's own page does not give the header format or the key
-  endpoint in full, so this waits for the Notification API reference and a
-  test in the eBay sandbox. A wrong check would return 412 to every notice.
-
-- v3.25.7: Form field borders reach 3:1 (WCAG 1.4.11) in the three themes.
-  New token `--control-line` (per theme, on `:root`): the borders of the
-  `.field`, settings, stock and pick code inputs use it; `--line` stays for
-  dividers. Parcel `#7F8898` (3.57:1 on white), Tag Week `#84847E` (3.76:1),
-  Concourse `#878782` (3.61:1). The Concourse active bar stays yellow: the
-  active tab is also bold ink text, so the state does not depend on the bar.
-
-- v3.25.6: AI model IDs moved to the current generation. `suggest_fee` and
-  `explain_error` (`api/ebay-item-aspects.js`) use `claude-sonnet-5-5` (were
-  `claude-sonnet-4-6` and `claude-sonnet-5`); narration extract
-  (`api/narration.js`) uses `claude-haiku-5-5` (was `claude-haiku-4-5`). No
-  `budget_tokens`, forced `tool_choice` or temperature in those calls. Not
-  yet tried on real items: check the `ai-usage` lines for these calls.
-
-- v3.25.5: Firestore rules close the pre-business root collections
-  (`items`, `drafts`, `app_config`, `app_settings`, `ebay_error_log`). Before,
-  any approved account could read and write them, so a new seller could read
-  the catalog in the root. Now they are open only to a member of a business
-  that exists and is not live (`rootOpen()`); admins still read them for the
-  backup. Tested with the Firestore emulator (12 rules cases; the old rules let
-  an approved account with no business read and write the root, and a member
-  of a live business read it).
-  **Paste `firestore.rules` into the Console** (Vitor): no deploy reads this file.
-
-- v3.25.4: Mark sold quick form. Each piece in the sheet opens a short form
-  when its check is ticked: platform, price, shipping paid, and the fee as a
-  line (changed under "Change fee"). The price starts at the screenshot's
-  price or, for a typed piece, the listed price (empty with a note when the
-  item has none). A typed piece starts on its platform only when it's listed
-  on exactly one (`quickSaleDefaults()` in `domain/pick-sale.js`).
-
-- v3.25.3: Stock → Pick by code. A Pick field takes item codes, numbers
-  only ("0897"; the product code without "#"); each code is a piece on the
-  list (`domain/pick-manual.js`), counted once. The list, the checklist and
-  Mark sold include them. Mark sold accepts a typed piece without its price
-  or platform: it is recorded as sold with no profit and `manualSale: true`.
-  Those items show a "Sale info missing" warning first, urgent, on the card
-  until the price and platform are filled in from the item. Optional SKU
-  check (off by default, Settings → Warnings): an item with no product code.
-
-- v3.25.2: Stock → Pick checklist is shared as images. "Share checklist"
-  makes one PNG per 100 × 210 mm page (12 px per mm, black on white) and
-  opens the share sheet, like the labels, so it goes to the label printer
-  app over Bluetooth. No browser print dialog. The pages are drawn on
-  canvas (`ui/stock/pick-sheet-canvas.js`) with the same page breaks
-  (`paginatePick()` in `ui/stock/pick-print.js`). Several pages go in one
-  share when the device takes them (`saveOrShareFiles()`). The HTML
-  checklist and its styles are removed.
-
-- v3.25.1: New-version strip reworked. Each build has its own id
-  (`BUILD_ID` in `vite.config.js`, the Vercel commit), written to
-  `version.json` and the bundle (`__BUILD_ID__`), so a deploy is noticed
-  even without a version bump. Pure rules in `domain/update-check.js`.
-  The open tab checks every 15 minutes while visible; "Not now" hides the
-  strip for an hour; Update waits while a dialog or a form is open; on a
-  phone the strip sits above the bottom bar.
+(Empty. v3.25.1 – v3.25.10 and v3.26.0 are in `CHANGELOG.md`.)
 
 ## Backlog (not started)
 
@@ -1190,6 +1143,8 @@ a private claude.ai artifact; Impeccable seed `seed:007b6ac6cba56f1a`):
   Home in v3.20.0),
   `docs/employee-accounts.md`, `docs/platform-fees.md`,
   `docs/sold-confirmation.md`, `docs/modularization.md`.
+- `docs/trash.md`: the trash for deleted items and the eBay question before a
+  delete (v3.26.0).
 - `docs/nifty-review.md`: Nifty's structure and tools (2026-10-20, from
   the docs and a read-only map of the app) and what to bring in
   (backlog items 7 and 8).

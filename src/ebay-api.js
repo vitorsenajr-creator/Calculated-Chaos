@@ -205,6 +205,35 @@
     exception: 'there was a network/server error while trying to end the listing',
   };
 
+  // Ends the eBay listing of an item that is about to be deleted (v3.26.0).
+  // Unlike endEbayListingIfSold it doesn't need the item to be sold, and it
+  // doesn't save the item: the caller moves it to the trash once this says
+  // ended, and a failure keeps the item where it is.
+  export async function removeEbayListingForDelete(itemData){
+    if (itemData.ebayEndedAt) return { ended: true, reason: 'already_ended' };
+    if (!itemData.ebayOfferId) return { ended: false, reason: 'no_offer_id' };
+    try{
+      if (!(await ensureEbayConnected())) return { ended: false, reason: 'not_connected' };
+      const res = await fetch('/api/ebay-end-listing', {
+        method: 'POST',
+        headers: await jsonAuthHeaders(),
+        body: JSON.stringify({ offer_id: itemData.ebayOfferId })
+      });
+      const data = await res.json();
+      if (data.success) return { ended: true };
+      console.warn('Could not end eBay listing before delete:', data);
+      return { ended: false, reason: 'api_error', detail: data };
+    }catch(e){
+      console.warn('Could not end eBay listing before delete:', e);
+      return { ended: false, reason: 'exception', detail: (e && e.message) || String(e) };
+    }
+  }
+
+  // The wording for a failed end, for the delete dialog.
+  export function ebayEndFailureReason(reason){
+    return EBAY_END_FAILURE_REASON[reason] || 'eBay did not confirm that the listing was ended';
+  }
+
   // Only reasons meaning "there IS a known eBay listing and we could not
   // confirm it's down" warrant an alarm — not_sold/not_listed/already_ended
   // are all fine, nothing to warn about.

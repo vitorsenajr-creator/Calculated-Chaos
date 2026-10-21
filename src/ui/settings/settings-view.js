@@ -534,6 +534,13 @@ ${page('data', `
         <button type="button" class="settings-save-btn" data-settings-open-import>Import a spreadsheet</button>
       </div>
 
+      <!-- TRASH (v3.26.0): deleted items for 30 days -->
+      <div class="settings-section">
+        <h3>Trash</h3>
+        <div class="ss-desc">Deleted items stay here for 30 days. Restore one to bring it back to the catalog, or delete it for good. Each one shows who deleted it.</div>
+        <button type="button" class="settings-save-btn" data-settings-open-trash>Open trash</button>
+      </div>
+
       <!-- DUPLICATE REGISTRATION NUMBERS (temporary tool) -->
       <div class="settings-section">
         <h3>Duplicate registration numbers</h3>
@@ -567,6 +574,9 @@ ${page('data', `
     window.scrollTo(0, 0);
     view.querySelector(`[data-settings-group="${from}"]`)?.focus({ preventScroll: true });
   }));
+  view.querySelector('[data-settings-open-trash]')?.addEventListener('click', () => {
+    document.dispatchEvent(new CustomEvent('opentrash'));
+  });
   view.querySelector('[data-settings-open-import]')?.addEventListener('click', () => {
     document.dispatchEvent(new CustomEvent('openimport'));
   });
