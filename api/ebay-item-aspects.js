@@ -96,7 +96,11 @@ If you're not confident about this specific platform, still give your best reaso
     },
     body: JSON.stringify({
       model: 'claude-sonnet-5-5',
-      max_tokens: 300,
+      // Thinking is on by default for this model and its tokens count toward
+      // max_tokens, so the limit leaves room for it on top of the short answer.
+      max_tokens: 2000,
+      thinking: { type: 'adaptive' },
+      output_config: { effort: 'low' },
       messages: [{ role: 'user', content: promptText }]
     })
   });
@@ -169,7 +173,10 @@ Respond with ONLY a JSON object, no markdown fences, no preamble:
     },
     body: JSON.stringify({
       model: 'claude-sonnet-5-5',
-      max_tokens: 400,
+      // Thinking tokens count toward max_tokens (see suggest_fee above).
+      max_tokens: 2000,
+      thinking: { type: 'adaptive' },
+      output_config: { effort: 'low' },
       messages: [{ role: 'user', content: promptText }]
     })
   });

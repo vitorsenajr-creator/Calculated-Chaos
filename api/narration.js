@@ -82,9 +82,12 @@ async function handleExtract(req, res, auth){
     },
     body: JSON.stringify({
       // Plain structured extraction from a short transcript — no need for
-      // Sonnet's cost/latency here, Haiku 4.5 handles this reliably.
+      // Sonnet's cost/latency here. Thinking is on by default for this model
+      // and its tokens count toward max_tokens, so the limit leaves room for it.
       model: 'claude-haiku-5-5',
-      max_tokens: 500,
+      max_tokens: 2000,
+      thinking: { type: 'adaptive' },
+      output_config: { effort: 'low' },
       messages: [{ role: 'user', content: promptText }]
     })
   });
