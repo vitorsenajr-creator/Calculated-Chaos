@@ -402,6 +402,14 @@
     border:none; background:transparent; color:var(--on-brand); width:40px; height:40px;
     display:flex; align-items:center; justify-content:center; cursor:pointer;
   }
+  /* On a phone the strip sits just above the bottom bar (v3.25.1), so it
+     doesn't cover the header or the page's first row. */
+  @media (max-width: 899px){
+    .update-banner{
+      top:auto; bottom:calc(env(safe-area-inset-bottom) + 64px);
+      padding:6px 8px 6px 16px; box-shadow:0 -2px 10px rgba(0,0,0,0.2);
+    }
+  }
 
   /* ---------- SHARED PIECES ---------- */
   .seg{display:flex; background:var(--surface-2); border-radius:8px; padding:2px;}

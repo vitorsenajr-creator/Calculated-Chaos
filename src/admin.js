@@ -870,4 +870,4 @@ async function runHealthCheck(){
   }
 }
 
-initUpdateBanner(APP_VERSION);
+initUpdateBanner();

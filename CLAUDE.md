@@ -808,7 +808,13 @@ on any of these:
 
 ## Pending changelog entry (since v3.25.0)
 
-- None yet.
+- v3.25.1: New-version strip reworked. Each build has its own id
+  (`BUILD_ID` in `vite.config.js`, the Vercel commit), written to
+  `version.json` and the bundle (`__BUILD_ID__`), so a deploy is noticed
+  even without a version bump. Pure rules in `domain/update-check.js`.
+  The open tab checks every 15 minutes while visible; "Not now" hides the
+  strip for an hour; Update waits while a dialog or a form is open; on a
+  phone the strip sits above the bottom bar.
 
 ## Backlog (not started)
 
