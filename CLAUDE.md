@@ -819,6 +819,15 @@ on any of these:
 
 ## Pending changelog entry (since v3.25.0)
 
+- v3.25.10: Fix for v3.25.6. The three calls on the newer models now set
+  `output_config: { effort: 'low' }` and `thinking: { type: 'adaptive' }`,
+  and `max_tokens` 2000 (was 300, 400, 500). Thinking is on by default on
+  Sonnet 5.5 and Haiku 5.5 and its tokens count toward `max_tokens`, so the
+  old limits could cut the answer. The browser reads the narration extract
+  by its `text` block, so a thinking block in front is harmless. Not run on
+  real items (no API key in the sandbox): check the `ai-usage` lines and one
+  real answer of each call.
+
 - v3.25.9: Surface cleanup. The AI error messages from the server are
   escaped before they go into the page (`src/main.js`, the listing and the
   analysis areas). `public/design-review.html` (a design snapshot with
