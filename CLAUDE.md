@@ -366,7 +366,7 @@ renaming them needs a data migration of every saved item.
   (`isAdmin()`) and the app (`src/modules/admin-claim.js`) read only the
   claim. After changing the list, run the sync.
 - Firestore collections and docs:
-  - Catalog and app data: `items`, `drafts`, `users` (role/status; admins also `adminTheme`, v3.24.7),
+  - Catalog and app data: `items`, `drafts`, `users` (role/status),
     `app_config/settings`, `app_settings/productCodeCounter`,
     `ebay_error_log`.
   - `ebay_connections/main`: eBay tokens, server only (no client rule).
@@ -808,12 +808,14 @@ on any of these:
 
 ## Pending changelog entry (since v3.24.0)
 
-- v3.24.7: Developer Panel follows the admin's own theme. The choice is
-  `users/{uid}.adminTheme` (Parcel, Tag Week or Concourse), set from the
-  panel header and applied after sign-in with `remember: false`, so the
-  app's theme on that device doesn't change. The panel is restyled to the
-  theme tokens: no emoji, no fixed colors, the old names (--plum,
-  --terracotta, --cream) gone. No rule change (admins update their own doc).
+- v3.24.8: Developer Panel follows the business Appearance (`config/settings.theme`,
+  the same setting Settings → Appearance saves; before it loads or with no
+  business, the device's last theme). No theme picker in the panel. Layout:
+  one header (the way back is text, no arrow glyph), a tab line with an
+  indicator, flat sections separated by rules (no cards inside cards), the
+  fixed type scale, sticky first column in tables, 44px targets on phones.
+  Replaces the per-admin choice of v3.24.7 (users/{uid}.adminTheme is no
+  longer read; the field can stay unused).
 
 - v3.24.6: AI usage tab names the features ("Photo analysis & listing",
   "Listing rewrite", "Pick: sale screenshot", …) and drops the tools card
