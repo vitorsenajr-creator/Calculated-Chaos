@@ -12,6 +12,7 @@ const PART_LABEL = {
   cost: ['Cost', 'What you paid for the item'],
   weight: ['Weight', 'Needed for shipping estimates'],
   dimensions: ['Dimensions', 'Length and width'],
+  sku: ['SKU', 'A product code on the item'],
 };
 
 export function warningsSummary(){

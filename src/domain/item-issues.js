@@ -15,20 +15,22 @@ export const STALE_DAY_OPTIONS = [30, 45, 60, 90];
 // `imported` (v3.23.1): the missing-info checks for items that came from a
 // spreadsheet import (item.importId). A sheet rarely has photos, so a
 // missing photo doesn't count for them by default.
-export const DEFAULT_IMPORTED_CHECKS = { photos: false, cost: true, weight: true, dimensions: true };
-export const DEFAULT_ISSUE_CHECKS = { photos: true, cost: true, weight: true, dimensions: true, staleDays: 30, imported: DEFAULT_IMPORTED_CHECKS };
-export const MISSING_PARTS = ['photos', 'cost', 'weight', 'dimensions'];
+export const DEFAULT_IMPORTED_CHECKS = { photos: false, cost: true, weight: true, dimensions: true, sku: false };
+// `sku` (v3.25.3) is optional and off by default: an item with no product
+// code can't be found by its code in Stock → Pick.
+export const DEFAULT_ISSUE_CHECKS = { photos: true, cost: true, weight: true, dimensions: true, sku: false, staleDays: 30, imported: DEFAULT_IMPORTED_CHECKS };
+export const MISSING_PARTS = ['photos', 'cost', 'weight', 'dimensions', 'sku'];
 
 // Most urgent first; the card shows the first one.
-export const ISSUE_KEYS = ['ebay-error', 'duplicate-code', 'no-price', 'missing-info', 'stale'];
+export const ISSUE_KEYS = ['sale-info', 'ebay-error', 'duplicate-code', 'no-price', 'missing-info', 'stale'];
 
 export function normalizeIssueChecks(raw){
   const r = raw && typeof raw === 'object' ? raw : {};
   const out = {};
-  MISSING_PARTS.forEach(k => { out[k] = r[k] !== false; });
+  MISSING_PARTS.forEach(k => { out[k] = k === 'sku' ? r[k] === true : r[k] !== false; });
   out.staleDays = r.staleDays === 0 || STALE_DAY_OPTIONS.includes(r.staleDays) ? r.staleDays : DEFAULT_ISSUE_CHECKS.staleDays;
   const imp = r.imported && typeof r.imported === 'object' ? r.imported : {};
-  out.imported = Object.fromEntries(MISSING_PARTS.map(k => [k, k in imp ? imp[k] !== false : DEFAULT_IMPORTED_CHECKS[k]]));
+  out.imported = Object.fromEntries(MISSING_PARTS.map(k => [k, k in imp ? (k === 'sku' ? imp[k] === true : imp[k] !== false) : DEFAULT_IMPORTED_CHECKS[k]]));
   return out;
 }
 
@@ -49,6 +51,7 @@ export function missingFields(item, checks = DEFAULT_ISSUE_CHECKS){
   if (checks.cost !== false && !item.cost) missing.push('cost');
   if (checks.weight !== false && !item.weight) missing.push('weight');
   if (checks.dimensions !== false && (!item.length || !item.width)) missing.push('dimensions');
+  if (checks.sku === true && !String(item.productCode || '').trim()) missing.push('sku');
   return missing;
 }
 
@@ -93,9 +96,17 @@ export function hasDuplicateCode(item, counts){
 
 // Every issue of one item, in ISSUE_KEYS order.
 // ctx: { checks, now, counts } (counts from codeCounts(allItems)).
+// A piece typed in by its code and sold before its price or platform was
+// entered (v3.25.3). Always on and the most urgent issue: the sale is
+// recorded, but the money side isn't.
+export function hasSaleInfoMissing(item){
+  return item.status === 'vendido' && !!item.manualSale && (item.soldPrice === null || item.soldPrice === undefined || !item.soldPlatform);
+}
+
 export function itemIssues(item, { checks = DEFAULT_ISSUE_CHECKS, now = Date.now(), counts = new Map() } = {}){
   const out = [];
   const unsold = item.status !== 'vendido';
+  if (hasSaleInfoMissing(item)) out.push('sale-info');
   if (hasEbayError(item)) out.push('ebay-error');
   if (hasDuplicateCode(item, counts)) out.push('duplicate-code');
   if (unsold && !hasPrice(item)) out.push('no-price');

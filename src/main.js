@@ -687,11 +687,13 @@ export const app = (function(){
     cost: 'Cost',
     weight: 'Weight',
     dimensions: 'Dimensions (length & width)',
+    sku: 'Product code (SKU)',
   };
-  const MISSING_WORD = { photos: 'photo', cost: 'cost', weight: 'weight', dimensions: 'dimensions' };
+  const MISSING_WORD = { photos: 'photo', cost: 'cost', weight: 'weight', dimensions: 'dimensions', sku: 'SKU' };
   function issueShortLabel(item, key){
     if (key === 'ebay-error') return 'eBay error';
     if (key === 'duplicate-code') return 'Duplicate code';
+    if (key === 'sale-info') return 'Sale info missing';
     if (key === 'no-price') return 'No price';
     if (key === 'missing-info'){
       const missing = missingFields(item);
@@ -704,7 +706,7 @@ export const app = (function(){
     const shown = issues.filter(k => k !== 'stale' && k !== 'no-price');
     if (!shown.length) return '';
     const more = shown.length - 1;
-    return `<button type="button" class="ic-warn${shown[0] === 'ebay-error' ? ' urgent' : ''}" data-action="missing-info" data-id="${item.id}">${issueShortLabel(item, shown[0])}${more ? ` +${more}` : ''}</button>`;
+    return `<button type="button" class="ic-warn${shown[0] === 'ebay-error' || shown[0] === 'sale-info' ? ' urgent' : ''}" data-action="missing-info" data-id="${item.id}">${issueShortLabel(item, shown[0])}${more ? ` +${more}` : ''}</button>`;
   }
   function issueLines(item, ctx){
     return _itemIssues(item, ctx).map(key => {
@@ -717,6 +719,7 @@ export const app = (function(){
         const others = items.filter(i => i.id !== item.id && normalizeCodeForMatch(i.productCode) === normalizeCodeForMatch(item.productCode));
         return { title: `Code ${item.productCode} is used twice`, detail: `Also on: ${others.slice(0, 3).map(i => i.name || 'an item').join(', ')}${others.length > 3 ? ` and ${others.length - 3} more` : ''}` };
       }
+      if (key === 'sale-info') return { title: 'Sale info missing', detail: 'This sale was recorded by code without its price or platform. Open the item and fill them in.' };
       if (key === 'no-price') return { title: 'No price', detail: 'Set a list price before listing it.' };
       if (key === 'missing-info') return { title: 'Missing info', detail: missingFields(item).map(f => MISSING_FIELD_LABEL[f] || f).join(', ') };
       if (key === 'stale') return { title: `Listed ${daysSince(item.ebayListedAt || item.createdAt)} days`, detail: 'Worth a price drop, new photos or an offer.' };
@@ -4621,6 +4624,9 @@ export const app = (function(){
       // The last failed eBay publish (v3.22.4): written by ebay-api.js,
       // cleared only by a successful publish, so a plain save keeps it.
       ebayPublishError: existingItem?.ebayPublishError || null,
+      // Sold from Stock → Pick by its code (v3.25.3): written by pick-sale, kept
+      // here so a plain save doesn't drop the flag of an incomplete sale.
+      manualSale: existingItem?.manualSale || null,
       hostedPhotoUrls: existingItem?.hostedPhotoUrls || null,
       // Quantity > 1 tags every copy "-1", "-2", etc. off the same base code
       // (e.g. "#4578-1", "#4578-2") instead of consuming several numbers from
