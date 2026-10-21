@@ -3660,7 +3660,7 @@ export const app = (function(){
         },
       });
       if (!res.ok){
-        area.innerHTML = `<div class="ai-error">${res.message}</div>`;
+        area.innerHTML = `<div class="ai-error">${escapeHtml(res.message)}</div>`;
         return;
       }
 
@@ -4257,7 +4257,7 @@ export const app = (function(){
 
       const result = await requestAiListingDescription({ ...f, aiFacts, imageBlocks });
       if (!result.ok){
-        area.innerHTML = `<div class="ai-error">${result.message}</div>`;
+        area.innerHTML = `<div class="ai-error">${escapeHtml(result.message)}</div>`;
         return;
       }
 

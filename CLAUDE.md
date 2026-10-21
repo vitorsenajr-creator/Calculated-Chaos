@@ -819,6 +819,12 @@ on any of these:
 
 ## Pending changelog entry (since v3.25.0)
 
+- v3.25.9: Surface cleanup. The AI error messages from the server are
+  escaped before they go into the page (`src/main.js`, the listing and the
+  analysis areas). `public/design-review.html` (a design snapshot with
+  `noindex`, deployed next to the app) is removed. `src/counter.js` (a Vite
+  template, not imported anywhere) is removed.
+
 - v3.25.8: The eBay account-deletion notification logs only its topic,
   notification id and publish date, not the body (the body has the seller's
   username and user id). The POST still answers 200 and deletes nothing, as
