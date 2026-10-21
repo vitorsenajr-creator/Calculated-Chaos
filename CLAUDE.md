@@ -808,6 +808,18 @@ on any of these:
 
 ## Pending changelog entry (since v3.24.0)
 
+- v3.24.11: Developer Panel tab line without a visible scrollbar (the tabs
+  still scroll sideways on a phone).
+- v3.24.10: Developer Panel header in the theme's main color (`--brand`:
+  navy in Parcel, black in Tag Week and Concourse), with the theme's
+  on-brand text, as the app's shell does. Tabs and body unchanged.
+- v3.24.9: Home design pass (critique of the default settings in all three themes).
+  Phone: the + button no longer covers Home's row buttons (rows keep 64px
+  on the right, and the list clears the + and the bottom bar). The stock
+  insight no longer repeats the summary's projected profit and unsold count.
+  Goals with no goal set is one compact row. Tag Week's shelf hides empty
+  weeks. Concourse's sidebar icons are 32px squares with a legible glyph.
+
 - v3.24.8: Developer Panel follows the business Appearance (`config/settings.theme`,
   the same setting Settings → Appearance saves; before it loads or with no
   business, the device's last theme). No theme picker in the panel. Layout:

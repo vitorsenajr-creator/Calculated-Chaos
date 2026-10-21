@@ -21,21 +21,24 @@
        cards. */
     body{ padding-bottom:40px; font-size:14px; }
 
-    /* Header: title and sign-in on the left, the way back on the right. */
+    /* Header: the theme's main color (the app's shell: navy in Parcel, black
+       in Tag Week and Concourse), with the title on the left and the way back
+       on the right (v3.24.10). */
     .ad-header{
-      padding:16px 22px; background:var(--surface); color:var(--ink);
-      border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
+      padding:16px 22px; background:var(--brand); color:var(--on-brand);
+      display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
     }
-    .ad-header h1{ font-family:var(--font-ui); font-weight:700; font-size:20px; line-height:1.2; margin:0; color:var(--ink); }
-    .ad-header .ad-sub{ font-size:12px; color:var(--ink-2); margin-top:2px; }
-    .ad-back{ font-size:13px; font-weight:600; color:var(--brand-2); text-decoration:underline; text-underline-offset:3px; }
+    .ad-header h1{ font-family:var(--font-ui); font-weight:700; font-size:20px; line-height:1.2; margin:0; color:var(--on-brand); }
+    .ad-header .ad-sub{ font-size:12px; color:var(--on-brand-2); margin-top:2px; }
+    .ad-back{ font-size:13px; font-weight:600; color:var(--on-brand); text-decoration:underline; text-underline-offset:3px; }
 
     /* Tabs: a line with an indicator under the open tab. One row, scrolled
        sideways when the phone is narrow. */
     .ad-tabs{
       display:flex; gap:22px; max-width:1040px; margin:0 auto; padding:0 22px;
-      border-bottom:1px solid var(--line); overflow-x:auto; scrollbar-width:thin;
+      border-bottom:1px solid var(--line); overflow-x:auto; scrollbar-width:none;
     }
+    .ad-tabs::-webkit-scrollbar{ display:none; }
     .ad-tab{
       background:none; border:0; border-bottom:2px solid transparent; margin-bottom:-1px;
       padding:12px 0; min-height:44px; font-size:14px; font-weight:600; color:var(--ink-2);

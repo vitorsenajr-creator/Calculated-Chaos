@@ -186,15 +186,11 @@ export const app = (function(){
     // Incomplete items blocking listing
     const incompleteCount = active.filter(isIncomplete).length;
     if (incompleteCount){
-      insights.push(`${incompleteCount} item${incompleteCount===1?'':'s'} still ${incompleteCount===1?'is':'are'} missing photos, cost, or measurements before ${incompleteCount===1?'it can':'they can'} list.`);
+      insights.push(`${incompleteCount} item${incompleteCount===1?'':'s'} ${incompleteCount===1?'is':'are'} missing photos, cost, or measurements before ${incompleteCount===1?'it can':'they can'} list.`);
     }
 
-    // Projected profit sitting in catalog
-    const projectedTotal = active.reduce((s,i)=> s + projectedProfit(i), 0);
-    if (active.length && projectedTotal > 0){
-      insights.push(`$${projectedTotal.toFixed(0)} in projected profit is sitting in your current stock — ${active.length} item${active.length===1?'':'s'} not yet sold.`);
-    }
-
+    // The projected profit and the unsold count are on Home's summary already,
+    // so they are not repeated here.
     return insights;
   }
 
