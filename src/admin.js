@@ -90,8 +90,8 @@ waitForFirebaseReady().then(() => {
       return;
     }
     currentUid = user.uid;
-    await loadAdminTheme(user.uid);
     await loadAdminBusiness(user.uid);
+    await loadAdminAppearance();
     document.getElementById('adHeaderSub').textContent = `Platform administration · signed in as ${user.email}`;
     document.getElementById('adTabs').style.display = 'flex';
     document.getElementById('adMain').style.display = 'block';
@@ -122,56 +122,27 @@ async function loadAdminBusiness(uid){
   }
 }
 
-// ---------- ADMIN THEME (v3.24.7) ----------
-// Each admin's panel theme is their own choice, kept on users/{uid}.adminTheme.
-// An admin may update their own user doc (firestore.rules), so no rule change.
-// It never touches the business theme or the app's remembered theme on this
-// device (remember: false).
-let adminThemeKey = 'parcel';
-
-async function loadAdminTheme(uid){
-  let key = 'parcel';
+// ---------- APPEARANCE (v3.24.8) ----------
+// The panel uses the theme the business chose in Settings → Appearance
+// (config/settings.theme). Before that is known, or with no business yet, it
+// uses the theme last applied on this device: the same fallback the app uses.
+async function loadAdminAppearance(){
+  let key = null;
   try{
     const { doc, getDoc } = fns();
-    const snap = await getDoc(doc(db(), 'users', uid));
-    key = normalizeTheme(snap.exists() ? snap.get('adminTheme') : null);
+    const ref = adminBiz
+      ? doc(db(), 'businesses', adminBiz.id, 'config', 'settings')
+      : doc(db(), 'app_config', 'settings');
+    const snap = await getDoc(ref);
+    if (snap.exists()) key = snap.get('theme') || null;
   }catch(e){
-    // The default theme if the user doc can't be read.
+    // The device's theme below.
   }
-  adminThemeKey = key;
-  applyTheme(key, { remember: false });
-  renderThemeSwitch();
-}
-
-function renderThemeSwitch(){
-  document.getElementById('adThemeSwitch').style.display = 'flex';
-  document.querySelectorAll('[data-theme-key]').forEach(btn => {
-    btn.setAttribute('aria-pressed', String(btn.dataset.themeKey === adminThemeKey));
-  });
-}
-
-async function chooseAdminTheme(key){
-  const previous = adminThemeKey;
-  const status = document.getElementById('adThemeStatus');
-  adminThemeKey = normalizeTheme(key);
-  applyTheme(adminThemeKey, { remember: false });
-  renderThemeSwitch();
-  status.textContent = 'Saving…';
-  try{
-    const { doc, updateDoc } = fns();
-    await updateDoc(doc(db(), 'users', currentUid), { adminTheme: adminThemeKey });
-    status.textContent = '';
-  }catch(e){
-    adminThemeKey = previous;
-    applyTheme(previous, { remember: false });
-    renderThemeSwitch();
-    status.textContent = `Could not save the theme: ${e.message || e}`;
+  if (!key){
+    try{ key = localStorage.getItem('cc.theme'); }catch(e){ /* default */ }
   }
+  applyTheme(normalizeTheme(key), { remember: false });
 }
-
-document.querySelectorAll('[data-theme-key]').forEach(btn => {
-  btn.addEventListener('click', () => chooseAdminTheme(btn.dataset.themeKey));
-});
 
 // ---------- TABS ----------
 const loadedTabs = new Set();
