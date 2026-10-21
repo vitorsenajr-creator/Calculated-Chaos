@@ -12,30 +12,41 @@ notes).
 
 ## Rules
 
-### Always confirm before changing anything (2026-10-14)
+### Change order: discuss, plan, confirm (2026-10-21)
 
-Vitor's standing rule: **before starting ANY change to this project,
-describe what will be changed and wait for his explicit confirmation.**
-This covers code, config, `CLAUDE.md` itself and version bumps. There
-are no exceptions for "small" or "obvious" fixes. Evaluation, reading
-code, diagnosing, and planning need no confirmation; acting on the plan
-does. If he says a session is "evaluation/planning only", make no
-changes at all in it.
+Vitor's standing order for every change to this project, in this order:
+
+1. **Discuss** the topic of the change.
+2. **Plan**: describe what will be changed (code, config, `CLAUDE.md`
+   itself, version bumps) and the steps to verify it.
+3. **Confirmation of the plan**: wait for his explicit confirmation.
+
+Only after step 3 does any file change. There are no exceptions for
+"small" or "obvious" fixes. Discussing, reading code, diagnosing and
+planning need no confirmation. If he says a session is
+"evaluation/planning only", make no changes at all in it.
+
+Confirming the plan also authorizes the PR and the merge (2026-10-21).
+No further confirmation is needed for them.
 
 Commits and pushes are free (Vitor, 2026-10-20): commit and push to the
 session's branch without asking again, both for changes he already
 confirmed and to realign the branch when a stop hook flags unpushed
-commits. PRs and merges follow the Git workflow below. A force push or
-anything that rewrites history still needs his explicit order.
+commits. A force push or anything that rewrites history still needs his
+explicit order.
+
+After every merge, the next reply reports the current app version
+(`APP_VERSION` from `src/modules/version.js`, as merged on `main`).
 
 ### Git workflow
 
 - Work on the session's named branch and open a PR per change. Whether a
   session binds to `main` or a branch is set when the session is created,
   not by Claude. Vitor is fine with the branch+PR pattern (2026-08-10).
-- **Merging ("always", 2026-08-11)**: merge each PR once it's open and
-  green, without asking again. This applies only to changes he already
-  confirmed under the rule above.
+- **Merging ("always", 2026-08-11; restated 2026-10-21)**: merge each PR
+  once it's open and green, without asking again. This applies only to
+  changes whose plan he already confirmed under the rule above. Confirming
+  the plan covers the PR and the merge.
 - If the branch's previous PR was already merged, restart the branch from
   `origin/main` before new work.
 
