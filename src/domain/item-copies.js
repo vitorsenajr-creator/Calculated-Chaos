@@ -7,7 +7,7 @@ export const MAX_COPIES = 50;
 
 // Sale and listing fields a copy must not inherit: it is a new, unsold piece.
 const SALE_KEYS = ['soldPrice', 'soldPlatform', 'soldAt', 'netProfit', 'feesTotal',
-  'saleOrderNumber', 'saleBuyer', 'saleLineKey'];
+  'saleOrderNumber', 'saleBuyer', 'saleLineKey', 'manualSale'];
 const LISTING_KEYS = ['ebayListingId', 'ebayListingUrl', 'ebayOfferId', 'ebaySku',
   'ebayListedAt', 'ebayPublishError'];
 

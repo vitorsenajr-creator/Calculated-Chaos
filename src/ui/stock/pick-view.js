@@ -6,6 +6,7 @@
 import { items, appSettings } from '../../modules/state.js';
 import { escapeHtml } from '../../modules/format-utils.js';
 import { saleLines, buildPickList, matchSaleLine, boxTitle } from '../../domain/sale-match.js';
+import { parseManualCode, addManualCode, removeManualCode, manualLines } from '../../domain/pick-manual.js';
 import { prepareScreenshot } from '../../platform/images.js';
 import { shareChecklist } from './pick-sheet-canvas.js';
 import { openMarkSold, sellableRows } from './pick-sold.js';
@@ -27,7 +28,7 @@ let hooks = {
 // shots: [{ id, name, status: 'reading'|'done'|'failed'|'skipped', result, message }]
 // chosen: line key → item id; platforms: order ref → platform key (the
 // person's pick when the AI couldn't tell); picked: line keys ticked.
-let st = { shots: [], chosen: {}, platforms: {}, picked: [] };
+let st = { shots: [], chosen: {}, platforms: {}, picked: [], manual: [] };
 let file = null; // the screenshot files, by shot id, for Try again
 
 function load(){
@@ -40,6 +41,8 @@ function load(){
         chosen: s.chosen && typeof s.chosen === 'object' ? s.chosen : {},
         platforms: s.platforms && typeof s.platforms === 'object' ? s.platforms : {},
         picked: Array.isArray(s.picked) ? s.picked : [],
+        // Codes typed in by hand (v3.25.3), in the order typed.
+        manual: Array.isArray(s.manual) ? s.manual.filter(c => typeof c === 'string') : [],
       };
     }
   }catch(e){ /* nothing saved, or storage blocked */ }
@@ -255,7 +258,10 @@ export function renderPick(){
   const pane = document.getElementById('stockPane-pick');
   if (!pane) return;
   const done = st.shots.filter(s => s.status === 'done');
-  const { lines, skipped } = saleLines(done.map(s => ({ source: s.id, result: s.result })), st.platforms);
+  const fromShots = saleLines(done.map(s => ({ source: s.id, result: s.result })), st.platforms);
+  const skipped = fromShots.skipped;
+  // The screenshot lines, then the codes typed in by hand (v3.25.3).
+  const lines = [...fromShots.lines, ...manualLines(st.manual)];
   const pl = buildPickList(lines, items, st.chosen);
   lastList = pl;
   lastLines = lines;
@@ -331,7 +337,16 @@ export function renderPick(){
       <p class="stock-form-desc">Add screenshots of your sales (an order page on Poshmark, eBay, Mercari…). The app reads each one, finds the pieces by SKU or by name and lists them box by box. Each screenshot uses one AI analysis.</p>
       <div class="stock-form-row">
         <label class="primary-btn pick-add">Add screenshots<input type="file" id="pickFileInput" class="visually-hidden" accept="image/*" multiple></label>
-        ${st.shots.length ? '<button type="button" class="secondary-btn" id="pickClearBtn">Clear list</button>' : ''}
+        ${st.shots.length || st.manual.length ? '<button type="button" class="secondary-btn" id="pickClearBtn">Clear list</button>' : ''}
+      </div>
+      <div class="pick-typed">
+        <label class="pick-typed-label" for="pickCodeInput">Item code</label>
+        <div class="stock-form-row">
+          <input type="text" id="pickCodeInput" class="pick-code-input" inputmode="numeric" autocomplete="off" placeholder="0897">
+          <button type="button" class="secondary-btn" id="pickCodeAdd">Add</button>
+        </div>
+        <p class="goal-error" id="pickCodeError" role="alert" hidden></p>
+        ${st.manual.length ? `<ul class="pick-chips">${st.manual.map(c => `<li class="pick-chip"><span>${escapeHtml(c)}</span><button type="button" data-remove-code="${escapeHtml(c)}" aria-label="Remove ${escapeHtml(c)}">×</button></li>`).join('')}</ul>` : ''}
       </div>
       <p class="pick-hint">On a computer you can also paste a screenshot here (Ctrl+V or ⌘V).</p>
       ${flashText ? `<p class="pick-flash" role="status">${escapeHtml(flashText)}</p>` : ''}
@@ -347,14 +362,35 @@ export function renderPick(){
 }
 
 function wire(pane){
+  const codeInput = pane.querySelector('#pickCodeInput');
+  const codeError = pane.querySelector('#pickCodeError');
+  // Only the list is redrawn here, never on each keystroke (iOS keyboard).
+  const addTyped = () => {
+    const parsed = parseManualCode(codeInput.value);
+    if (!parsed.ok){ codeError.textContent = parsed.error; codeError.hidden = false; codeInput.focus(); return; }
+    const r = addManualCode(st.manual, parsed.code);
+    if (r.duplicate){ codeError.textContent = `${parsed.code} is already in the list.`; codeError.hidden = false; codeInput.select(); return; }
+    st.manual = r.list;
+    save();
+    renderPick();
+    pane.querySelector('#pickCodeInput').focus();
+  };
+  codeInput.addEventListener('keydown', (e) => { if (e.key === 'Enter'){ e.preventDefault(); addTyped(); } });
+  codeInput.addEventListener('input', () => { codeError.hidden = true; });
+  pane.querySelector('#pickCodeAdd').addEventListener('click', addTyped);
+  pane.querySelectorAll('[data-remove-code]').forEach(b => b.addEventListener('click', () => {
+    st.manual = removeManualCode(st.manual, b.dataset.removeCode);
+    save();
+    renderPick();
+  }));
   pane.querySelector('#pickFileInput').addEventListener('change', (e) => {
     const files = [...e.target.files];
     e.target.value = '';
     addFiles(files);
   });
   pane.querySelector('#pickClearBtn')?.addEventListener('click', () => {
-    if (!confirm('Clear the screenshots and the picked marks?')) return;
-    st = { shots: [], chosen: {}, platforms: {}, picked: [] };
+    if (!confirm('Clear the screenshots, the typed codes and the picked marks?')) return;
+    st = { shots: [], chosen: {}, platforms: {}, picked: [], manual: [] };
     file.clear();
     save();
     renderPick();

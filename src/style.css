@@ -955,6 +955,13 @@
   @media (min-width: 640px){ .ps-fields{grid-template-columns:repeat(4, minmax(0, 1fr));} }
   .pick-print-row{display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:0 14px 14px;}
   .pick-print-row .secondary-btn{min-height:44px;}
+  /* Typed codes (v3.25.3). 16px input text keeps iOS from zooming in. */
+  .pick-typed{padding:0 14px 14px;}
+  .pick-typed-label{display:block; font:600 13px var(--font-ui); color:var(--ink-2); margin-bottom:6px;}
+  .pick-code-input{flex:1; min-width:0; height:44px; padding:0 14px; border:1px solid var(--line); border-radius:8px; background:var(--surface); color:var(--ink); font:500 16px var(--font-ui);}
+  .pick-chips{display:flex; flex-wrap:wrap; gap:6px; list-style:none; padding:0; margin:10px 0 0;}
+  .pick-chip{display:inline-flex; align-items:center; gap:4px; padding:2px 4px 2px 12px; border:1px solid var(--line); border-radius:999px; font:600 14px var(--font-ui); color:var(--ink);}
+  .pick-chip button{border:0; background:transparent; color:inherit; min-width:36px; min-height:36px; font-size:18px; cursor:pointer;}
   .pick-platform{display:flex; align-items:center; gap:4px 8px; flex-wrap:wrap; font-size:12.5px; color:var(--warn-ink); margin-top:4px;}
   .pick-platform select{
     height:36px; padding:0 8px; border:1px solid var(--line); border-radius:var(--radius-sm);

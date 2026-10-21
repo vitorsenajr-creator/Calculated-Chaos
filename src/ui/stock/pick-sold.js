@@ -108,7 +108,7 @@ export function openMarkSold(pl, allLines, hooks){
   function refreshProfit(key){
     const r = byKey.get(key);
     const c = pickSaleFields(r.item, input(key), r.line, Date.now());
-    rowEl(key).querySelector('[data-ps-profit]').textContent = c.ok ? money2(c.fields.netProfit) : '—';
+    rowEl(key).querySelector('[data-ps-profit]').textContent = c.ok && c.fields.netProfit !== null ? money2(c.fields.netProfit) : '—';
   }
   function refreshCount(){
     const n = dlg.querySelectorAll('[data-ps-on]:checked').length;

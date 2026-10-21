@@ -48,30 +48,36 @@ export function recordedItem(line, items){
 // Validates the person's values and builds the fields to write.
 // input: { price, platform, fee, shippingCost } as typed (strings ok).
 // Returns { ok: true, fields } or { ok: false, field, error }.
+// A piece typed in by its code (v3.25.3) may be sold without its price or
+// platform yet. It is still recorded as sold, with those left empty and no
+// profit, and `manualSale` marks it so the card can flag the missing sale info.
 export function pickSaleFields(item, input, line, now){
   const money = (v) => (String(v ?? '').trim() === '' ? 0 : parseFloat(String(v).replace(/[$,\s]/g, '')));
   const price = money(input.price);
-  if (!(price > 0)) return { ok: false, field: 'price', error: 'Enter the sale price.' };
-  if (!input.platform) return { ok: false, field: 'platform', error: 'Pick the platform it sold on.' };
+  const typed = line.source === 'manual';
+  const incomplete = typed && (!(price > 0) || !input.platform);
+  if (!incomplete){
+    if (!(price > 0)) return { ok: false, field: 'price', error: 'Enter the sale price.' };
+    if (!input.platform) return { ok: false, field: 'platform', error: 'Pick the platform it sold on.' };
+  }
   const fee = money(input.fee);
   if (!Number.isFinite(fee) || fee < 0) return { ok: false, field: 'fee', error: 'Enter the fee as 0 or more.' };
   const shippingCost = money(input.shippingCost);
   if (!Number.isFinite(shippingCost) || shippingCost < 0) return { ok: false, field: 'shippingCost', error: 'Enter shipping paid as 0 or more.' };
   const otherCosts = num(item.otherCosts);
-  return {
-    ok: true,
-    fields: {
-      status: 'vendido',
-      soldPrice: round2(price),
-      soldPlatform: input.platform,
-      feesTotal: round2(fee),
-      shippingCost: round2(shippingCost),
-      otherCosts,
-      netProfit: round2(price - num(item.cost) - fee - shippingCost - otherCosts),
-      soldAt: soldAtFor(line.orderDate, now),
-      saleOrderNumber: line.orderNumber || null,
-      saleBuyer: line.buyer || null,
-      saleLineKey: line.key,
-    },
+  const fields = {
+    status: 'vendido',
+    soldPrice: price > 0 ? round2(price) : null,
+    soldPlatform: input.platform || null,
+    feesTotal: round2(fee),
+    shippingCost: round2(shippingCost),
+    otherCosts,
+    netProfit: incomplete ? null : round2(price - num(item.cost) - fee - shippingCost - otherCosts),
+    soldAt: soldAtFor(line.orderDate, now),
+    saleOrderNumber: line.orderNumber || null,
+    saleBuyer: line.buyer || null,
+    saleLineKey: line.key,
   };
+  if (typed) fields.manualSale = true;
+  return { ok: true, fields };
 }

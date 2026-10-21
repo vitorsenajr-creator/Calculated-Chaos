@@ -258,7 +258,7 @@ renaming them needs a data migration of every saved item.
     matched, unsold pieces (unsure name matches and double sales start
     unticked) prefilled with the screenshot's price and platform; a
     bundle's fee is computed on the order total and split by price.
-    **Writes only the 11 sale fields with `updateDoc`** (`status`,
+    **Writes only the 11 sale fields (plus `manualSale` for typed pieces) with `updateDoc`** (`status`,
     `soldPrice`, `soldPlatform`, `feesTotal`, `shippingCost`,
     `otherCosts`, `netProfit`, `soldAt` = order date at noon or now,
     `saleOrderNumber`, `saleBuyer`, `saleLineKey`), then ends an
@@ -818,6 +818,15 @@ on any of these:
   sizing (v3.13.102-105), inspection flag icon (v3.13.114).
 
 ## Pending changelog entry (since v3.25.0)
+
+- v3.25.3: Stock → Pick by code. A Pick field takes item codes, numbers
+  only ("0897"; the product code without "#"); each code is a piece on the
+  list (`domain/pick-manual.js`), counted once. The list, the checklist and
+  Mark sold include them. Mark sold accepts a typed piece without its price
+  or platform: it is recorded as sold with no profit and `manualSale: true`.
+  Those items show a "Sale info missing" warning first, urgent, on the card
+  until the price and platform are filled in from the item. Optional SKU
+  check (off by default, Settings → Warnings): an item with no product code.
 
 - v3.25.2: Stock → Pick checklist is shared as images. "Share checklist"
   makes one PNG per 100 × 210 mm page (12 px per mm, black on white) and
