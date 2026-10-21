@@ -79,7 +79,10 @@ renaming them needs a data migration of every saved item.
 - `npm run dev` (Vite only, no `api/`), `npm run dev:vercel` (with
   functions), `npm run build` (same build Vercel runs). Deploys happen
   automatically on push to `main`.
-- There are no automated tests. The standard check before a commit is
+- `npm test` runs the unit tests of `src/domain/` (`tests/domain/`, Node's
+  built-in runner, no extra packages): money and dates in US formats, the
+  P&L, the IRS mileage rates, the sale matching and the goals. There are no
+  UI or API tests. The standard check before a commit is
   `node --check` on every touched file plus a clean `npm run build`.
   Optionally, add a headless-Chromium load up to the login screen (no JS
   errors). Firebase, eBay and the AI APIs aren't reachable from the sandbox.
@@ -849,6 +852,13 @@ on any of these:
   sizing (v3.13.102-105), inspection flag icon (v3.13.114).
 
 ## Pending changelog entry (since v3.26.0)
+
+- v3.26.1: `npm test` with 25 unit tests for `src/domain/` (`tests/domain/`,
+  Node's built-in test runner, no new packages): the IRS mileage rates by
+  date (including July 1, 2026), the P&L for one month, the bundle fee split
+  and sale validation, the SKU matching (copies and legacy codes), US money
+  and date parsing, and the goal windows and progress. Expected values were
+  worked out by hand. Not in the build: the test files are outside `src/`.
 
 (Empty. v3.25.1 – v3.25.10 and v3.26.0 are in `CHANGELOG.md`.)
 
