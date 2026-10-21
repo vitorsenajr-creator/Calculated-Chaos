@@ -163,7 +163,7 @@
     <div style="font-size:11px; color:var(--plum-soft); margin-bottom:14px; text-align:center;">Fills the form, eBay details and listing text, then saves — reads the first 5 photos, so keep the tag/label photo among them</div>
     <div id="aiAnalysisArea"></div>
 
-    <button class="btn btn-ai" style="width:100%; margin-bottom:14px;" id="narrateItemBtn">🎙️ Narrate item</button>
+    <button class="btn btn-ai btn-ai-quiet" style="width:100%; margin-bottom:14px;" id="narrateItemBtn">🎙️ Narrate item</button>
     <div id="narrationAnalysisArea"></div>
 
     <div class="field-row">
@@ -171,22 +171,20 @@
         <label>Product code</label>
         <input type="text" class="mono" id="fProductCode" placeholder="#0001">
       </div>
-      <div class="field">
-        <label>Storage box</label>
-        <input type="text" id="fStorageBox" list="storageBoxList" placeholder="e.g. Box 1">
-        <datalist id="storageBoxList"></datalist>
+      <div class="field" id="fQuantityField">
+        <label id="fQuantityLabel" for="fQuantity">Quantity</label>
+        <div class="qty-stepper">
+          <button type="button" class="qty-btn" data-qty-step="-1" aria-label="One less">−</button>
+          <input type="number" id="fQuantity" inputmode="numeric" value="1" min="1" max="50" step="1">
+          <button type="button" class="qty-btn" data-qty-step="1" aria-label="One more">+</button>
+        </div>
       </div>
     </div>
+    <p class="qty-hint" id="fQuantityHint"></p>
 
     <div class="field">
       <label>Item name</label>
       <input type="text" id="fName" placeholder="e.g. Vintage Levi's denim jacket">
-    </div>
-
-    <div class="field" id="fQuantityField">
-      <label>Quantity</label>
-      <input type="number" id="fQuantity" value="1" min="1" max="50" step="1">
-      <div style="font-size:12.5px; color:var(--plum-soft); line-height:1.5; margin-top:4px;">Got several identical pieces? Set this and Save creates that many entries at once — each still gets its own product code, so you can sell, print a label for, or mark each one sold individually.</div>
     </div>
 
     <div class="field-row">
@@ -194,6 +192,11 @@
         <label>Source</label>
         <input type="text" id="fSource" placeholder="e.g. Goodwill" autocomplete="off">
         <div id="sourceSuggestions" style="display:none; position:absolute; top:100%; left:0; right:0; z-index:20; background:var(--white); border:1px solid var(--line); border-radius:8px; margin-top:2px; max-height:160px; overflow-y:auto; box-shadow:0 4px 10px rgba(0,0,0,0.08);"></div>
+      </div>
+      <div class="field">
+        <label>Storage box</label>
+        <input type="text" id="fStorageBox" list="storageBoxList" placeholder="e.g. Box 1">
+        <datalist id="storageBoxList"></datalist>
       </div>
     </div>
 

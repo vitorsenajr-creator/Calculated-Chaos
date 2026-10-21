@@ -808,6 +808,13 @@ on any of these:
 
 ## Pending changelog entry (since v3.24.0)
 
+- v3.24.12: Item form quantity. The Quantity field stays visible after a
+  save: on an item being edited it reads "Add copies" (0 by default) and
+  makes that many unsold copies with the same details, numbered after the
+  base code (`domain/item-copies.js`); the original keeps its code and the
+  form reopens on it. Quantity sits beside Product code with − and +
+  buttons; Storage box moves next to Source. ✨ Analyze and Narrate use
+  the theme's main color (Concourse's Analyze is its signal yellow).
 - v3.24.11: Developer Panel tab line without a visible scrollbar (the tabs
   still scroll sideways on a phone).
 - v3.24.10: Developer Panel header in the theme's main color (`--brand`:
