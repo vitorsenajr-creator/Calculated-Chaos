@@ -4,84 +4,100 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Developer Panel — Calculated Chaos</title>
-  <meta name="theme-color" content="#2B241E" />
+  <meta name="theme-color" content="#12285A" />
   <meta name="robots" content="noindex" />
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
   <link rel="stylesheet" href="/src/style.css" />
   <style>
-    /* ---------- DEVELOPER PANEL (v3.15.0) ----------
-       Platform-admin page, separate from the main app like the Live
-       Catalog. Only platform admins (the platformAdmin claim) get past the
-       gate in src/admin.js, and the Firestore rules enforce the same thing
-       server-side. Reuses
-       style.css's tokens. */
+    /* ---------- DEVELOPER PANEL (v3.15.0, restyled v3.24.7) ----------
+       Platform-admin page, separate from the main app. Only platform admins
+       (the platformAdmin claim) get past the gate in src/admin.js, and the
+       Firestore rules enforce the same thing server-side.
+
+       Every color, radius and font comes from the theme's tokens in
+       style.css, so the panel follows the admin's own theme choice (stored on
+       users/{uid}.adminTheme, applied by src/admin.js). Nothing here is a
+       fixed color. */
     body{ padding-bottom:40px; }
     .ad-header{
-      padding:20px 22px 16px; background:linear-gradient(180deg, var(--blush) 0%, var(--cream) 100%);
+      padding:18px 22px 16px; background:var(--surface); color:var(--ink);
       border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
     }
-    .ad-header h1{ font-family:var(--font-ui); font-weight:700; font-size:24px; margin:0; color:var(--plum); }
-    .ad-header .ad-sub{ font-size:12.5px; color:var(--plum-soft); margin-top:2px; }
-    .ad-back{ font-size:12.5px; font-weight:600; color:var(--terracotta-deep); text-decoration:underline; }
+    .ad-header h1{ font-family:var(--font-ui); font-weight:700; font-size:22px; margin:0; color:var(--ink); }
+    .ad-header .ad-sub{ font-size:12.5px; color:var(--ink-2); margin-top:2px; }
+    .ad-back{ font-size:12.5px; font-weight:600; color:var(--brand-2); text-decoration:underline; }
+    .ad-theme{ display:flex; gap:4px; flex-wrap:wrap; align-items:center; }
+    .ad-theme-label{ font-size:12px; color:var(--ink-2); margin-right:4px; }
+    .ad-theme button{
+      background:var(--surface-2); color:var(--ink); border:1px solid var(--line); border-radius:var(--radius-sm);
+      padding:6px 10px; font-size:12.5px; font-weight:600; cursor:pointer; min-height:36px;
+    }
+    .ad-theme button[aria-pressed="true"]{ background:var(--brand); color:var(--on-brand); border-color:var(--brand); }
+    .ad-theme button:focus-visible{ outline:2px solid var(--brand-2); outline-offset:2px; }
+    .ad-theme-status{ font-size:12px; color:var(--ink-2); width:100%; }
     .ad-tabs{ display:flex; gap:6px; flex-wrap:wrap; max-width:1000px; margin:16px auto 0; padding:0 22px; }
     .ad-tab{
-      background:var(--white); border:1px solid var(--line); border-radius:999px; padding:7px 14px;
-      font-size:13px; font-weight:600; color:var(--plum-soft); cursor:pointer;
+      background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-sm); padding:7px 12px;
+      font-size:13px; font-weight:600; color:var(--ink-2); cursor:pointer; min-height:36px;
     }
-    .ad-tab.active{ background:var(--plum); border-color:var(--plum); color:var(--white); }
+    .ad-tab.active{ background:var(--brand); border-color:var(--brand); color:var(--on-brand); }
     .ad-tab .ad-badge{
       display:inline-block; min-width:18px; padding:0 5px; margin-left:4px; border-radius:999px;
-      background:var(--danger); color:#fff; font-size:11px; line-height:18px; text-align:center;
+      background:var(--urgent); color:var(--urgent-on-brand); font-size:11px; line-height:18px; text-align:center;
     }
     main.ad-main{ max-width:1000px; margin:0 auto; padding:16px 22px 60px; }
-    .ad-card{ background:var(--white); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:12px; }
-    .ad-card h3{ margin:0 0 4px; font-size:15px; color:var(--plum); }
-    .ad-desc{ font-size:12.5px; color:var(--plum-soft); margin-bottom:12px; }
+    .ad-card{ background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:16px; margin-bottom:12px; }
+    .ad-card h3{ margin:0 0 4px; font-size:15px; color:var(--ink); }
+    .ad-desc{ font-size:12.5px; color:var(--ink-2); margin-bottom:12px; }
     .ad-row{
       display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;
-      padding:10px 0; border-bottom:1px solid var(--line);
+      padding:10px 0; border-bottom:1px solid var(--line-soft);
     }
     .ad-row:last-child{ border-bottom:none; }
-    .ad-row .ad-main-text{ font-size:13.5px; color:var(--plum); font-weight:600; word-break:break-all; }
-    .ad-row .ad-meta{ font-size:11.5px; color:var(--plum-soft); margin-top:2px; }
+    .ad-row .ad-main-text{ font-size:13.5px; color:var(--ink); font-weight:600; word-break:break-all; }
+    .ad-row .ad-meta{ font-size:11.5px; color:var(--ink-2); margin-top:2px; }
     .ad-actions{ display:flex; gap:6px; flex-wrap:wrap; }
     .ad-btn{
-      background:var(--plum); color:var(--white); border:1px solid var(--plum); border-radius:8px;
-      padding:6px 12px; font-size:12.5px; font-weight:600; cursor:pointer;
+      background:var(--brand); color:var(--on-brand); border:1px solid var(--brand); border-radius:var(--radius-sm);
+      padding:6px 12px; font-size:12.5px; font-weight:600; cursor:pointer; min-height:36px;
     }
-    .ad-btn.secondary{ background:transparent; color:var(--plum); border-color:var(--line); }
-    .ad-btn.danger{ background:transparent; color:var(--danger); border-color:var(--danger); }
+    .ad-btn.secondary{ background:transparent; color:var(--ink); border-color:var(--line); }
+    .ad-btn.danger{ background:transparent; color:var(--urgent); border-color:var(--urgent); }
     .ad-btn:disabled{ opacity:0.5; cursor:default; }
-    .ad-pill{ display:inline-block; font-size:11px; font-weight:600; padding:1px 8px; border-radius:999px; margin-left:6px; vertical-align:middle; }
-    .ad-pill.approved{ background:rgba(127,150,120,0.18); color:var(--sage-deep); }
-    .ad-pill.pending{ background:rgba(201,163,95,0.2); color:var(--amber-deep); }
-    .ad-pill.employee{ background:var(--cream-soft); color:var(--plum-soft); }
-    .ad-pill.unknown{ background:rgba(181,86,74,0.12); color:var(--danger); }
+    .ad-pill{
+      display:inline-block; font-size:11px; font-weight:600; padding:1px 8px; border-radius:999px;
+      margin-left:6px; vertical-align:middle; background:var(--surface-2); color:var(--ink-2);
+    }
+    .ad-pill.approved{ color:var(--ok); }
+    .ad-pill.pending{ background:var(--warn-bg); color:var(--warn-ink); }
+    .ad-pill.employee{ color:var(--ink-2); }
+    .ad-pill.unknown{ color:var(--urgent); }
     .ad-kv{ display:grid; grid-template-columns:max-content 1fr; gap:6px 14px; font-size:13px; }
-    .ad-kv dt{ color:var(--plum-soft); }
-    .ad-kv dd{ margin:0; color:var(--plum); word-break:break-word; }
-    .ad-err-msg{ font-size:12.5px; color:var(--plum); margin-top:4px; white-space:pre-wrap; word-break:break-word; }
-    .ad-empty{ font-size:12.5px; color:var(--plum-soft); }
-    .ad-links a{ display:block; font-size:13px; color:var(--terracotta-deep); padding:5px 0; }
-    .ad-denied{ max-width:420px; margin:60px auto; text-align:center; color:var(--plum); }
+    .ad-kv dt{ color:var(--ink-2); }
+    .ad-kv dd{ margin:0; color:var(--ink); word-break:break-word; }
+    .ad-err-msg{ font-size:12.5px; color:var(--ink); margin-top:4px; white-space:pre-wrap; word-break:break-word; }
+    .ad-empty{ font-size:12.5px; color:var(--ink-2); }
+    .ad-links a{ display:block; font-size:13px; color:var(--brand-2); padding:5px 0; }
+    .ad-denied{ max-width:420px; margin:60px auto; text-align:center; color:var(--ink); }
     /* AI usage meter (v3.24.5): a month's tables, scrolled sideways on a phone. */
     .ad-totals{ display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:10px; margin:8px 0 14px; }
-    .ad-total{ background:var(--cream-soft); border-radius:10px; padding:10px 12px; }
-    .ad-total .ad-total-label{ font-size:11.5px; color:var(--plum-soft); }
-    .ad-total .ad-total-value{ font-size:20px; font-weight:700; color:var(--plum); font-variant-numeric:tabular-nums; }
+    .ad-total{ background:var(--surface-2); border-radius:var(--radius-sm); padding:10px 12px; }
+    .ad-total .ad-total-label{ font-size:11.5px; color:var(--ink-2); }
+    .ad-total .ad-total-value{ font-size:20px; font-weight:700; color:var(--ink); font-variant-numeric:tabular-nums; }
     .ad-table-wrap{ overflow-x:auto; }
     .ad-table{ width:100%; border-collapse:collapse; font-size:13px; }
-    .ad-table th, .ad-table td{ text-align:left; padding:7px 6px; border-bottom:1px solid var(--line); vertical-align:top; }
-    .ad-table th{ font-size:11.5px; color:var(--plum-soft); font-weight:600; }
+    .ad-table th, .ad-table td{ text-align:left; padding:7px 6px; border-bottom:1px solid var(--line-soft); vertical-align:top; }
+    .ad-table th{ font-size:11.5px; color:var(--ink-2); font-weight:600; }
     .ad-table .num{ text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
     .ad-table .ad-meta{ margin-top:0; }
+    input[type="month"]{ min-height:36px; }
   </style>
 </head>
 <body class="auth-locked">
 
 <div id="authOverlay" style="display:flex;">
   <div class="auth-card">
-    <div id="authCheckingState" style="text-align:center; padding:20px 0; color:var(--plum-soft); font-size:13px;">Checking your session…</div>
+    <div id="authCheckingState" class="ad-empty" style="text-align:center; padding:20px 0;">Checking your session…</div>
     <div id="authFormState" style="display:none;">
     <h2>Developer Panel</h2>
     <p class="auth-sub">Sign in with an admin account.</p>
@@ -99,15 +115,22 @@
 
 <div class="ad-header">
   <div>
-    <h1>🛠️ Developer Panel</h1>
+    <h1>Developer Panel</h1>
     <div class="ad-sub" id="adHeaderSub">Platform administration</div>
+  </div>
+  <div class="ad-theme" id="adThemeSwitch" role="group" aria-label="Panel theme" style="display:none;">
+    <span class="ad-theme-label">Theme</span>
+    <button type="button" data-theme-key="parcel" aria-pressed="false">Parcel</button>
+    <button type="button" data-theme-key="tagweek" aria-pressed="false">Tag Week</button>
+    <button type="button" data-theme-key="concourse" aria-pressed="false">Concourse</button>
+    <div class="ad-theme-status" id="adThemeStatus" role="status"></div>
   </div>
   <a href="/" class="ad-back">← Back to Calculated Chaos</a>
 </div>
 
 <div id="adDenied" class="ad-denied" style="display:none;">
   <h2>Admins only</h2>
-  <p style="font-size:13px; color:var(--plum-soft);">This page is for the platform admin. You're signed in as <b id="adDeniedEmail"></b>.</p>
+  <p class="ad-empty" style="font-size:13px;">This page is for the platform admin. You're signed in as <b id="adDeniedEmail"></b>.</p>
   <p><a href="/" class="ad-back">← Back to Calculated Chaos</a></p>
 </div>
 

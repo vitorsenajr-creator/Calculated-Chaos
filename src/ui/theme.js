@@ -24,7 +24,9 @@ export function currentTheme(){
   return normalizeTheme(document.documentElement.dataset.theme);
 }
 
-export function applyTheme(key){
+// remember: false keeps the choice off this device's "last theme" (the
+// Developer Panel applies its admin's theme without changing the app's).
+export function applyTheme(key, { remember = true } = {}){
   const theme = THEMES.find(t => t.key === normalizeTheme(key));
   const root = document.documentElement;
   const changed = currentTheme() !== theme.key;
@@ -40,7 +42,9 @@ export function applyTheme(key){
   // The browser/status bar color follows the theme's shell color.
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.setAttribute('content', getComputedStyle(root).getPropertyValue('--brand').trim() || '#12285A');
-  try{ localStorage.setItem(LAST_KEY, theme.key); }catch(e){ /* not remembered */ }
+  if (remember) {
+    try{ localStorage.setItem(LAST_KEY, theme.key); }catch(e){ /* not remembered */ }
+  }
   // Screens that draw differently per theme listen for this and redraw.
   if (changed) document.dispatchEvent(new CustomEvent('themechange', { detail: theme.key }));
 }

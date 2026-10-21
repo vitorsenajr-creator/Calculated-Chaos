@@ -366,7 +366,7 @@ renaming them needs a data migration of every saved item.
   (`isAdmin()`) and the app (`src/modules/admin-claim.js`) read only the
   claim. After changing the list, run the sync.
 - Firestore collections and docs:
-  - Catalog and app data: `items`, `drafts`, `users` (role/status),
+  - Catalog and app data: `items`, `drafts`, `users` (role/status; admins also `adminTheme`, v3.24.7),
     `app_config/settings`, `app_settings/productCodeCounter`,
     `ebay_error_log`.
   - `ebay_connections/main`: eBay tokens, server only (no client rule).
@@ -807,6 +807,13 @@ on any of these:
   sizing (v3.13.102-105), inspection flag icon (v3.13.114).
 
 ## Pending changelog entry (since v3.24.0)
+
+- v3.24.7: Developer Panel follows the admin's own theme. The choice is
+  `users/{uid}.adminTheme` (Parcel, Tag Week or Concourse), set from the
+  panel header and applied after sign-in with `remember: false`, so the
+  app's theme on that device doesn't change. The panel is restyled to the
+  theme tokens: no emoji, no fixed colors, the old names (--plum,
+  --terracotta, --cream) gone. No rule change (admins update their own doc).
 
 - v3.24.6: AI usage tab names the features ("Photo analysis & listing",
   "Listing rewrite", "Pick: sale screenshot", …) and drops the tools card

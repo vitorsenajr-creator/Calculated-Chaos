@@ -18,6 +18,7 @@ import { jsonAuthHeaders } from './modules/api-auth.js';
 import { loadAdminClaim } from './modules/admin-claim.js';
 import { tokenEmailVerified } from './modules/email-verification.js';
 import { AI_CALL_LABELS } from './domain/ai-usage.js';
+import { applyTheme, normalizeTheme } from './ui/theme.js';
 
 function db(){ return window.db; }
 function fns(){ return window.firestoreFns; }
@@ -89,6 +90,7 @@ waitForFirebaseReady().then(() => {
       return;
     }
     currentUid = user.uid;
+    await loadAdminTheme(user.uid);
     await loadAdminBusiness(user.uid);
     document.getElementById('adHeaderSub').textContent = `Platform administration · signed in as ${user.email}`;
     document.getElementById('adTabs').style.display = 'flex';
@@ -119,6 +121,57 @@ async function loadAdminBusiness(uid){
     console.warn('Could not read the business; the panel shows the pre-business data.', e);
   }
 }
+
+// ---------- ADMIN THEME (v3.24.7) ----------
+// Each admin's panel theme is their own choice, kept on users/{uid}.adminTheme.
+// An admin may update their own user doc (firestore.rules), so no rule change.
+// It never touches the business theme or the app's remembered theme on this
+// device (remember: false).
+let adminThemeKey = 'parcel';
+
+async function loadAdminTheme(uid){
+  let key = 'parcel';
+  try{
+    const { doc, getDoc } = fns();
+    const snap = await getDoc(doc(db(), 'users', uid));
+    key = normalizeTheme(snap.exists() ? snap.get('adminTheme') : null);
+  }catch(e){
+    // The default theme if the user doc can't be read.
+  }
+  adminThemeKey = key;
+  applyTheme(key, { remember: false });
+  renderThemeSwitch();
+}
+
+function renderThemeSwitch(){
+  document.getElementById('adThemeSwitch').style.display = 'flex';
+  document.querySelectorAll('[data-theme-key]').forEach(btn => {
+    btn.setAttribute('aria-pressed', String(btn.dataset.themeKey === adminThemeKey));
+  });
+}
+
+async function chooseAdminTheme(key){
+  const previous = adminThemeKey;
+  const status = document.getElementById('adThemeStatus');
+  adminThemeKey = normalizeTheme(key);
+  applyTheme(adminThemeKey, { remember: false });
+  renderThemeSwitch();
+  status.textContent = 'Saving…';
+  try{
+    const { doc, updateDoc } = fns();
+    await updateDoc(doc(db(), 'users', currentUid), { adminTheme: adminThemeKey });
+    status.textContent = '';
+  }catch(e){
+    adminThemeKey = previous;
+    applyTheme(previous, { remember: false });
+    renderThemeSwitch();
+    status.textContent = `Could not save the theme: ${e.message || e}`;
+  }
+}
+
+document.querySelectorAll('[data-theme-key]').forEach(btn => {
+  btn.addEventListener('click', () => chooseAdminTheme(btn.dataset.themeKey));
+});
 
 // ---------- TABS ----------
 const loadedTabs = new Set();
@@ -475,7 +528,7 @@ async function runBackup(kind, btnId, outId){
     }
   }catch(e){
     btn.disabled = false;
-    out.innerHTML = `<div class="ebay-status-box error">❌ Backup failed while reading the database: ${escapeHtml(e.message || String(e))}<br>Nothing was downloaded.${/permission/i.test(String(e.message)) ? '<br>If this says "permission", the Firestore rules in the Console are older than v3.17.1 (firestore.rules).' : ''}</div>`;
+    out.innerHTML = `<div class="ebay-status-box error">Backup failed while reading the database: ${escapeHtml(e.message || String(e))}<br>Nothing was downloaded.${/permission/i.test(String(e.message)) ? '<br>If this says "permission", the Firestore rules in the Console are older than v3.17.1 (firestore.rules).' : ''}</div>`;
     return;
   }
 
@@ -492,7 +545,7 @@ async function runBackup(kind, btnId, outId){
 
   const sizeMb = (json.length / (1024 * 1024)).toFixed(2);
   out.innerHTML = `
-    <div class="ebay-status-box success">✅ Backup downloaded: ${escapeHtml(fileName)} (${sizeMb} MB)</div>
+    <div class="ebay-status-box success">Backup downloaded: ${escapeHtml(fileName)} (${sizeMb} MB)</div>
     ${plan.map(({ key }) => `<div class="ad-row"><div class="ad-main-text">${escapeHtml(key)}</div><div class="ad-meta">${backup.counts[key]} doc${backup.counts[key] === 1 ? '' : 's'}</div></div>`).join('')}`;
   btn.disabled = false;
 }
@@ -643,15 +696,15 @@ async function renderAi(month = aiMonthNow()){
 function renderAdminClaims(s, mine){
   const rows = s.admins.map(a => `
     <div class="ad-row" style="display:block;">
-      <div class="ad-main-text">${a.missing ? '⚠️' : a.hasClaim ? '✅' : '⏳'} ${escapeHtml(a.email || a.uid)}</div>
+      <div class="ad-main-text">${escapeHtml(a.email || a.uid)} ${a.missing ? '<span class="ad-pill unknown">Missing</span>' : a.hasClaim ? '<span class="ad-pill approved">Claim</span>' : '<span class="ad-pill pending">No claim</span>'}</div>
       <div class="ad-meta">${a.missing ? `No account with UID ${escapeHtml(a.uid)}.` : `UID ${escapeHtml(a.uid)} · ${a.hasClaim ? 'has the claim' : 'no claim yet'} · email ${a.emailVerified ? 'verified' : 'not verified'}${a.disabled ? ' · disabled' : ''}`}</div>
     </div>`).join('') + s.extra.map(u => `
     <div class="ad-row" style="display:block;">
-      <div class="ad-main-text">❗ ${escapeHtml(u.email || u.uid)}</div>
+      <div class="ad-main-text">${escapeHtml(u.email || u.uid)} <span class="ad-pill unknown">Extra claim</span></div>
       <div class="ad-meta">Has the claim but isn't an admin. "Sync admin access" removes it.</div>
     </div>`).join('');
   return `${rows}
-    <div class="ad-meta" style="margin-top:8px;">This browser's session: ${mine ? '✅ carries the claim' : '⏳ no claim yet (Sync refreshes it; other devices pick it up within an hour or at the next sign-in)'}</div>`;
+    <div class="ad-meta" style="margin-top:8px;">This browser's session: ${mine ? 'carries the claim' : 'no claim yet (Sync refreshes it; other devices pick it up within an hour or at the next sign-in)'}</div>`;
 }
 
 async function loadAdminClaims(forceRefresh = false){
@@ -663,7 +716,7 @@ async function loadAdminClaims(forceRefresh = false){
     adminUids = new Set(s.admins.filter(a => a.hasClaim).map(a => a.uid));
     renderUsers();
   }catch(e){
-    el.innerHTML = `<div class="ebay-status-box error">❌ Could not load admin access: ${escapeHtml(e.message || String(e))}</div>`;
+    el.innerHTML = `<div class="ebay-status-box error">Could not load admin access: ${escapeHtml(e.message || String(e))}</div>`;
   }
 }
 
@@ -674,10 +727,10 @@ async function runAdminClaimsSync(){
   progress.textContent = 'Syncing…';
   try{
     await platformAction({ action: 'admin_claims_sync' });
-    progress.textContent = '✅ Synced.';
+    progress.textContent = 'Synced.';
     await loadAdminClaims(true);
   }catch(e){
-    progress.textContent = `❌ Could not sync: ${e.message || e}`;
+    progress.textContent = `Could not sync: ${e.message || e}`;
   }finally{
     btn.disabled = false;
   }
@@ -698,18 +751,18 @@ async function loadMigrationStatus(){
   el.innerHTML = '<div class="ad-empty">Counting…</div>';
   try{
     const s = await platformAction({ action: 'migrate_status' });
-    const mark = (ok) => ok ? '✅' : '⏳';
+    const mark = (ok) => ok ? '<span class="ad-pill approved">OK</span>' : '<span class="ad-pill pending">Pending</span>';
     const rows = s.collections.map(c => `
       <div class="ad-row" style="display:block;">
-        <div class="ad-main-text">${mark(c.target === c.source)} ${escapeHtml(c.name)}</div>
+        <div class="ad-main-text">${escapeHtml(c.name)} ${mark(c.target === c.source)}</div>
         <div class="ad-meta">Current: ${c.source} · Copied: ${c.target}</div>
       </div>`).join('') + s.docs.map(d => `
       <div class="ad-row" style="display:block;">
-        <div class="ad-main-text">${d.source ? mark(d.target) : '—'} ${escapeHtml(d.from)} → ${escapeHtml(d.to)}</div>
+        <div class="ad-main-text">${escapeHtml(d.from)} → ${escapeHtml(d.to)} ${d.source ? mark(d.target) : '—'}</div>
         <div class="ad-meta">${d.source ? (d.target ? 'Copied' : 'Not copied yet') : 'Doesn\'t exist (nothing to copy)'}</div>
       </div>`).join('') + `
       <div class="ad-row" style="display:block;">
-        <div class="ad-main-text">${mark(s.members.target >= s.members.source)} Members</div>
+        <div class="ad-main-text">Members ${mark(s.members.target >= s.members.source)}</div>
         <div class="ad-meta">Approved users: ${s.members.source} · Members: ${s.members.target}</div>
       </div>`;
     el.innerHTML = `
@@ -719,7 +772,7 @@ async function loadMigrationStatus(){
         <dt>App uses</dt><dd>${s.live ? '<b>Business data</b> (live)' : 'Pre-business data'}</dd>
       </dl>
       ${s.live ? '<div class="ebay-status-box success">The app uses the business data; copying the old data again is blocked. "Sync members" adds newly approved users to the business.</div>' : ''}
-      ${s.unmapped.length ? `<div class="ebay-status-box error">⚠️ These docs won't be copied (no business home yet): ${s.unmapped.map(escapeHtml).join(', ')}</div>` : ''}
+      ${s.unmapped.length ? `<div class="ebay-status-box error">These docs won't be copied (no business home yet): ${s.unmapped.map(escapeHtml).join(', ')}</div>` : ''}
       ${rows}`;
     copyBtn.disabled = s.live;
     copyBtn.style.display = s.live ? 'none' : '';
@@ -729,7 +782,7 @@ async function loadMigrationStatus(){
     backBtn.style.display = s.live ? '' : 'none';
     refreshBtn.disabled = false;
   }catch(e){
-    el.innerHTML = `<div class="ebay-status-box error">❌ Could not load the migration status: ${escapeHtml(e.message || String(e))}</div>`;
+    el.innerHTML = `<div class="ebay-status-box error">Could not load the migration status: ${escapeHtml(e.message || String(e))}</div>`;
   }
 }
 
@@ -766,9 +819,9 @@ async function runMigrationCopy(){
   const progress = document.getElementById('adMigrationProgress');
   await withMigrationBusy(async () => {
     try{
-      progress.textContent = `✅ Copy finished. ${await copyAllSteps('Copying')}`;
+      progress.textContent = `Copy finished. ${await copyAllSteps('Copying')}`;
     }catch(e){
-      progress.textContent = `❌ Copy stopped: ${e.message || e}. It's safe to press Copy again; it starts over and rewrites the same docs.`;
+      progress.textContent = `Copy stopped: ${e.message || e}. It's safe to press Copy again; it starts over and rewrites the same docs.`;
     }
   });
 }
@@ -783,9 +836,9 @@ async function runMigrationSwitch(){
       const copied = await copyAllSteps('Final copy');
       progress.textContent = `Final copy done (${copied}). Switching…`;
       await platformAction({ action: 'migrate_switch', live: true });
-      progress.textContent = `✅ Switched. The app now uses the business data. Reload the app on every device. Final copy: ${copied}`;
+      progress.textContent = `Switched. The app now uses the business data. Reload the app on every device. Final copy: ${copied}`;
     }catch(e){
-      progress.textContent = `❌ Not switched: ${e.message || e}. The app still uses the pre-business data.`;
+      progress.textContent = `Not switched: ${e.message || e}. The app still uses the pre-business data.`;
     }
   });
 }
@@ -796,9 +849,9 @@ async function runMigrationSwitchBack(){
   await withMigrationBusy(async () => {
     try{
       await platformAction({ action: 'migrate_switch', live: false });
-      progress.textContent = '↩️ Switched back. The app uses the pre-business data again. Reload the app on every device.';
+      progress.textContent = 'Switched back. The app uses the pre-business data again. Reload the app on every device.';
     }catch(e){
-      progress.textContent = `❌ Could not switch back: ${e.message || e}`;
+      progress.textContent = `Could not switch back: ${e.message || e}`;
     }
   });
 }
@@ -808,9 +861,9 @@ async function runMembersSync(){
   const progress = document.getElementById('adMigrationProgress');
   await withMigrationBusy(async () => {
     try{
-      progress.textContent = `✅ Members synced. ${await copyAllSteps('Syncing members')}`;
+      progress.textContent = `Members synced. ${await copyAllSteps('Syncing members')}`;
     }catch(e){
-      progress.textContent = `❌ Could not sync members: ${e.message || e}`;
+      progress.textContent = `Could not sync members: ${e.message || e}`;
     }
   });
 }
@@ -829,18 +882,18 @@ async function runHealthCheck(){
     });
     const data = await res.json().catch(() => null);
     if (!res.ok || !data || !Array.isArray(data.checks)){
-      el.innerHTML = `<div class="ebay-status-box error">❌ Could not run the check: ${escapeHtml((data && data.error) || `HTTP ${res.status}`)}</div>`;
+      el.innerHTML = `<div class="ebay-status-box error">Could not run the check: ${escapeHtml((data && data.error) || `HTTP ${res.status}`)}</div>`;
       return;
     }
     el.innerHTML = `
-      <div class="ebay-status-box ${data.ok ? 'success' : 'error'}">${data.ok ? '✅ Working' : '❌ Not working yet — see the failed check below'}</div>
+      <div class="ebay-status-box ${data.ok ? 'success' : 'error'}">${data.ok ? 'Working' : 'Not working yet — see the failed check below'}</div>
       ${data.checks.map(c => `
         <div class="ad-row" style="display:block;">
-          <div class="ad-main-text">${c.ok ? '✅' : '❌'} ${escapeHtml(c.name)}</div>
+          <div class="ad-main-text">${escapeHtml(c.name)} <span class="ad-pill ${c.ok ? 'approved' : 'unknown'}">${c.ok ? 'OK' : 'Failed'}</span></div>
           <div class="ad-meta">${escapeHtml(c.detail || '')}</div>
         </div>`).join('')}`;
   }catch(e){
-    el.innerHTML = `<div class="ebay-status-box error">❌ Could not reach the server: ${escapeHtml(e.message || String(e))}</div>`;
+    el.innerHTML = `<div class="ebay-status-box error">Could not reach the server: ${escapeHtml(e.message || String(e))}</div>`;
   }finally{
     btn.disabled = false;
   }
