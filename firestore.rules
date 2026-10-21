@@ -51,13 +51,17 @@ service cloud.firestore {
     function isBusinessData(sub) {
       return isMemberData(sub) || sub in ['liveSessions', 'liveItems', 'options'];
     }
-    // The pre-business root collections stay readable, but writes stop
-    // once the user's business is live, so a device still running the old
-    // paths gets an error instead of writing to the old place.
-    function rootWritable() {
+    // The pre-business root collections (items, drafts, app_config,
+    // app_settings, ebay_error_log) are open only to a member of a business
+    // that exists and is not live yet (before the switch). Once the business
+    // is live, or for an approved account with no business, nobody reads or
+    // writes them except platform admins (backup). Before v3.25.5 any
+    // approved account could read every business's root data here.
+    function rootOpen() {
       let bizId = get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('activeBizId', '');
-      return bizId == '' ||
-        !exists(/databases/$(database)/documents/businesses/$(bizId)) ||
+      return isApproved() &&
+        bizId != '' &&
+        exists(/databases/$(database)/documents/businesses/$(bizId)) &&
         get(/databases/$(database)/documents/businesses/$(bizId)).data.get('live', false) != true;
     }
 
@@ -88,22 +92,22 @@ service cloud.firestore {
       }
     }
 
-    match /items/{itemId} { allow read: if isApproved(); allow write: if isApproved() && rootWritable(); }
+    match /items/{itemId} { allow read: if isAdmin() || rootOpen(); allow write: if rootOpen(); }
     // eBay tokens since v3.16.0: server only (Firebase Admin ignores rules).
     match /ebay_connections/{docId} { allow read, write: if false; }
-    match /app_config/{docId} { allow read: if isApproved(); allow write: if isApproved() && rootWritable(); }
+    match /app_config/{docId} { allow read: if isAdmin() || rootOpen(); allow write: if rootOpen(); }
     // Global (not business data): eBay category lookups shared by everyone.
     match /ebay_category_cache/{docId} { allow read, write: if isApproved(); }
-    match /drafts/{draftId} { allow read: if isApproved(); allow write: if isApproved() && rootWritable(); }
+    match /drafts/{draftId} { allow read: if isAdmin() || rootOpen(); allow write: if rootOpen(); }
 
     // Product-code counter (app_settings/productCodeCounter). Missing before
     // v3.14.2, so every reservation was denied and the app silently fell
     // back to a per-device "max + 1" guess.
-    match /app_settings/{docId} { allow read: if isApproved(); allow write: if isApproved() && rootWritable(); }
+    match /app_settings/{docId} { allow read: if isAdmin() || rootOpen(); allow write: if rootOpen(); }
 
     // eBay error library (src/modules/ebay-error-log.js). Missing before
     // v3.14.2, so nothing was ever saved.
-    match /ebay_error_log/{docId} { allow read: if isApproved(); allow write: if isApproved() && rootWritable(); }
+    match /ebay_error_log/{docId} { allow read: if isAdmin() || rootOpen(); allow write: if rootOpen(); }
 
     // Frozen Live Catalog data (v3.19.0): admins read it for the backup.
     match /liveSessions/{id} { allow read: if isAdmin(); allow write: if false; }
