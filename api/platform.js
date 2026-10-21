@@ -42,6 +42,10 @@
 //   action: 'employee_create', email, password
 //     -> a Catalog-only login, approved and added to the caller's business.
 //
+//   action: 'ai_usage', month ('YYYY-MM', default this month in UTC)
+//     -> the AI usage meter (_aiUsage.js): totals, per call type, per user
+//        (e-mail, role, business) and tools, for the month.
+//
 // Platform admins only (PLATFORM_ADMIN_UIDS in _firebaseAdmin.js).
 
 import { requireApprovedUser } from './_requireApprovedUser.js';
@@ -49,6 +53,8 @@ import { getFirebaseAdmin, isPlatformAdminUid, FIREBASE_PROJECT_ID } from './_fi
 import { migrationStatus, migrationCopy, migrationSwitch } from './_migration.js';
 import { adminClaimsStatus, adminClaimsSync } from './_adminClaims.js';
 import { usersAuthInfo, userRemove, userRestore, userDeny, employeeCreate } from './_users.js';
+import { aiUsageReport } from './_aiUsage.js';
+import { usageMonth } from '../src/domain/ai-usage.js';
 
 async function handleHealth(auth){
   const checks = [];
@@ -111,6 +117,13 @@ export default async function handler(req, res){
       const result = action === 'admin_claims' ? await adminClaimsStatus(admin.auth) : await adminClaimsSync(admin.auth);
       if (action === 'admin_claims_sync') console.log('admin-claims-sync', JSON.stringify({ by: auth.uid, admins: result.admins.map(a => a.uid) }));
       return res.status(200).json(result);
+    }
+    if (action === 'ai_usage'){
+      const admin = getFirebaseAdmin();
+      if (!admin.ok) return res.status(503).json({ error: admin.error });
+      const requested = String((req.body || {}).month || '');
+      const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(requested) ? requested : usageMonth();
+      return res.status(200).json(await aiUsageReport(admin.db, month));
     }
     const userActions = { user_remove: userRemove, user_restore: userRestore, user_deny: userDeny, employee_create: employeeCreate };
     if (action === 'users_auth_info' || userActions[action]){

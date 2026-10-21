@@ -29,6 +29,7 @@
 //     Returns: { explanation, fieldToChange, suggestedValue }
 
 import { requireApprovedUser } from './_requireApprovedUser.js';
+import { recordAiUsage } from './_aiUsage.js';
 import { getEbayAccessToken, ebayConnectionId } from './_ebayToken.js';
 
 const EBAY_SANDBOX = process.env.EBAY_SANDBOX === 'true';
@@ -71,7 +72,7 @@ async function handleAspects(req, res, authCheck) {
   return res.status(200).json({ success: true, aspects });
 }
 
-async function handleSuggestFee(req, res) {
+async function handleSuggestFee(req, res, auth) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return res.status(500).json({ error: 'Server is not configured with an API key.' });
@@ -105,6 +106,7 @@ If you're not confident about this specific platform, still give your best reaso
     console.error('Anthropic API error:', data);
     return res.status(anthropicResponse.status).json({ error: 'Upstream API error', detail: data });
   }
+  await recordAiUsage({ auth, call: 'suggest_fee', model: data.model, usage: data.usage, content: data.content });
 
   const textBlock = data.content && data.content.find(b => b.type === 'text');
   if (!textBlock) {
@@ -132,7 +134,7 @@ If you're not confident about this specific platform, still give your best reaso
 
 const EXPLAIN_FIELDS = ['size', 'brand', 'color', 'condition', 'weight', 'category', 'price', 'description', 'photos', 'ebay_settings', 'none'];
 
-async function handleExplainError(req, res) {
+async function handleExplainError(req, res, auth) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return res.status(500).json({ error: 'Server is not configured with an API key.' });
@@ -176,6 +178,7 @@ Respond with ONLY a JSON object, no markdown fences, no preamble:
     console.error('Anthropic API error:', data);
     return res.status(r.status).json({ error: 'Upstream API error', detail: data });
   }
+  await recordAiUsage({ auth, call: 'explain_error', model: data.model, usage: data.usage, content: data.content });
   const textBlock = data.content && data.content.find(b => b.type === 'text');
   const raw = textBlock ? textBlock.text.replace(/```json|```/gi, '') : '';
   const first = raw.indexOf('{');
@@ -207,10 +210,10 @@ export default async function handler(req, res) {
 
   try {
     if (req.body?.mode === 'suggest_fee') {
-      return await handleSuggestFee(req, res);
+      return await handleSuggestFee(req, res, authCheck);
     }
     if (req.body?.mode === 'explain_error') {
-      return await handleExplainError(req, res);
+      return await handleExplainError(req, res, authCheck);
     }
     return await handleAspects(req, res, authCheck);
   } catch (e) {

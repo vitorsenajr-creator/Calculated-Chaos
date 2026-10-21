@@ -383,6 +383,9 @@ renaming them needs a data migration of every saved item.
     (fixed bizId, `lastCopiedAt`, `switchedAt`; server only). Once live,
     the root business collections are read-only for that business's
     members (`rootWritable()` in the rules).
+  - `ai_usage/{month__uid__call__model}` (v3.24.5): AI usage counts, server
+    only (Firebase Admin; the rule denies clients). Written by
+    `api/_aiUsage.js`, read by `api/platform.js` action `ai_usage`.
   - Frozen Live Catalog data at the root: `liveSessions`, `liveItems`,
     `live_catalog_options/*` (admins read only, v3.19.0). Nothing deleted.
   - Security rules: the live copy is in the Firebase Console; `firestore.rules`
@@ -468,6 +471,12 @@ renaming them needs a data migration of every saved item.
 
 Last known status per the v3.13 notes. Confirm with Vitor before relying
 on any of these:
+- AI usage meter (v3.24.5): domain test (usage ids and increments, tool
+  names, totals and per-user sums on a small sample) and a clean build.
+  Not run: the server write and report against the real Firestore (the
+  `ai_usage` rule must be pasted in the Console first), the Developer
+  Panel tab with real calls. Confirm one ✨ call shows up for the right
+  user and month.
 - Mark sold from Pick (v3.24.4): Node test (5 cases: a bundle's fee on
   the order total split by price with cents adding up, the sold date,
   the 11 fields and the profit formula, validation, a recorded line
@@ -798,6 +807,14 @@ on any of these:
   sizing (v3.13.102-105), inspection flag icon (v3.13.114).
 
 ## Pending changelog entry (since v3.24.0)
+
+- v3.24.5: AI usage meter, phase 0 (measure only, nothing charged).
+  Every successful AI call is counted on the server per user, month, call
+  type and model (analysis, rewrite, import check, Pick screenshot,
+  narration, suggested fee, eBay error explanation), with input, output
+  and cache tokens and any tool calls. The Developer Panel has an "AI
+  usage" tab: totals, per user (e-mail, role, business), per call type
+  and tools. Server only (`ai_usage` rule, Console paste).
 
 - v3.24.4: Mark sold from Pick. Records the screenshots' sales on their
   items in one go: price and platform from the screenshot, the fee

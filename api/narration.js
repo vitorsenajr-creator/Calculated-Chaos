@@ -21,6 +21,7 @@
 //     Returns: raw Anthropic Messages API response
 
 import { requireApprovedUser } from './_requireApprovedUser.js';
+import { recordAiUsage } from './_aiUsage.js';
 import { buildNarrationExtractPrompt } from '../src/modules/narration-prompts.js';
 
 async function handleTranscribe(req, res){
@@ -57,7 +58,7 @@ async function handleTranscribe(req, res){
   return res.status(200).json({ transcript });
 }
 
-async function handleExtract(req, res){
+async function handleExtract(req, res, auth){
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return res.status(500).json({ error: 'Server is not configured with an API key.' });
@@ -94,6 +95,7 @@ async function handleExtract(req, res){
     return res.status(anthropicResponse.status).json({ error: 'Upstream API error', detail: data });
   }
 
+  await recordAiUsage({ auth, call: 'narration_extract', model: data.model, usage: data.usage, content: data.content });
   return res.status(200).json(data);
 }
 
@@ -111,7 +113,7 @@ export default async function handler(req, res) {
 
   try{
     if (action === 'transcribe') return await handleTranscribe(req, res);
-    if (action === 'extract') return await handleExtract(req, res);
+    if (action === 'extract') return await handleExtract(req, res, authCheck);
     return res.status(400).json({ error: 'Unknown action' });
   }catch(err){
     console.error('Serverless function error:', err);

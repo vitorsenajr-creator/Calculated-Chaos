@@ -24,6 +24,7 @@
 // so the endpoint can't be used as a general-purpose Claude proxy.
 
 import { requireApprovedUser } from './_requireApprovedUser.js';
+import { recordAiUsage } from './_aiUsage.js';
 import { buildItemAiRequest } from '../src/modules/ai-item.js';
 import { buildImportMapRequest } from '../src/modules/ai-import.js';
 import { buildSaleScreenshotRequest } from '../src/modules/ai-sale-screenshot.js';
@@ -151,6 +152,8 @@ export default async function handler(req, res) {
       console.error('Anthropic API error:', data);
       return res.status(response.status).json({ error: 'Upstream API error', detail: data });
     }
+
+    await recordAiUsage({ auth: authCheck, call: mode, model: data.model, usage: data.usage, content: data.content });
 
     // Real token usage per call (Vercel function logs) — replaces the
     // estimates in the v3.13.115 analysis with measured numbers.
