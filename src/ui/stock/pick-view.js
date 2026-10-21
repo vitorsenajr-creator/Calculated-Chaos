@@ -7,8 +7,7 @@ import { items, appSettings } from '../../modules/state.js';
 import { escapeHtml } from '../../modules/format-utils.js';
 import { saleLines, buildPickList, matchSaleLine, boxTitle } from '../../domain/sale-match.js';
 import { prepareScreenshot } from '../../platform/images.js';
-import { printHtml } from '../../platform/print.js';
-import { pickSheetHtml, SHEET_IN } from './pick-print.js';
+import { shareChecklist } from './pick-sheet-canvas.js';
 import { openMarkSold, sellableRows } from './pick-sold.js';
 
 const SESSION_KEY = 'cc.pick.session';
@@ -321,7 +320,7 @@ export function renderPick(){
       </div>
       <div class="pick-print-row">
         ${sellable ? `<button type="button" class="primary-btn" id="pickSoldBtn">Mark sold (${sellable})</button>` : ''}
-        <button type="button" class="secondary-btn" id="pickPrintBtn">Print checklist</button>
+        <button type="button" class="secondary-btn" id="pickShareBtn">Share checklist</button>
         ${recorded ? `<span class="pick-hint">${plural(recorded, 'sale')} recorded</span>` : ''}
       </div>
     </section>` : '';
@@ -390,14 +389,14 @@ function wire(pane){
   pane.querySelector('#pickSoldBtn')?.addEventListener('click', () => {
     if (lastList) openMarkSold(lastList, lastLines, hooks);
   });
-  // Synchronous inside the click: iOS Safari drops print() after an await.
-  pane.querySelector('#pickPrintBtn')?.addEventListener('click', () => {
+  // Synchronous inside the click: the share sheet needs the tap (iOS Safari).
+  pane.querySelector('#pickShareBtn')?.addEventListener('click', () => {
     if (!lastList) return;
-    printHtml(pickSheetHtml(lastList, {
+    shareChecklist(lastList, {
       picked: new Set(st.picked),
       storeName: (appSettings.storeName || '').trim(),
       platformLabel: hooks.platformLabel,
-    }), SHEET_IN);
+    });
   });
   pane.querySelectorAll('[data-open-item]').forEach(b => b.addEventListener('click', () => hooks.openItem(b.dataset.openItem)));
   pane.querySelectorAll('[data-search]').forEach(b => b.addEventListener('click', () => hooks.searchCatalog(b.dataset.search)));

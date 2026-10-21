@@ -965,37 +965,6 @@
   .pick-skipped-desc{margin:0; padding:0 14px 8px; font-size:12.5px; color:var(--ink-2);}
   .pick-skip-row{display:flex; flex-direction:column; gap:3px; padding:10px 14px; border-top:1px solid var(--line-soft);}
 
-  /* Pick checklist print (v3.24.3): 100 x 210 mm, black only (the thermal
-     printer is monochrome). Fixed sizes in mm match pick-print.js. */
-  .pps-sheets{display:flex; flex-direction:column; align-items:center; color:#000;}
-  .pps-sheet{
-    width:100mm; height:210mm; box-sizing:border-box; padding:5mm 5mm 0; position:relative; overflow:hidden;
-    background:#fff; color:#000; font-family:Arial, Helvetica, sans-serif; break-after:page; page-break-after:always;
-  }
-  .pps-sheet:last-child{break-after:auto; page-break-after:auto;}
-  .pps-head{height:18mm; box-sizing:border-box; border-bottom:0.6mm solid #000; margin-bottom:1mm;}
-  .pps-title{font-size:14pt; font-weight:700; line-height:1.1;}
-  .pps-sub{font-size:8pt; line-height:1.3;}
-  .pps-box{
-    height:7mm; box-sizing:border-box; display:flex; align-items:flex-end; justify-content:space-between;
-    font-size:11pt; font-weight:700; border-bottom:0.4mm solid #000; padding-bottom:0.8mm;
-  }
-  .pps-box span{font-size:8.5pt; font-weight:400;}
-  .pps-row{display:flex; gap:2.5mm; padding:1.2mm 0; border-bottom:0.2mm solid #000; box-sizing:border-box; overflow:hidden;}
-  .pps-check{
-    flex-shrink:0; width:6mm; height:6mm; border:0.5mm solid #000; box-sizing:border-box; margin-top:0.5mm;
-    font-size:11pt; line-height:5mm; text-align:center; font-weight:700;
-  }
-  .pps-main{flex:1; min-width:0;}
-  .pps-line1{font-size:8.5pt; line-height:1.2; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;}
-  .pps-code{font-size:10pt;}
-  .pps-meta{font-size:7.5pt; line-height:1.25; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-  .pps-flag{font-size:7.5pt; font-weight:700; line-height:4mm; height:4mm; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-  .pps-sign{height:12mm; display:flex; gap:4mm; align-items:flex-end; font-size:8.5pt;}
-  .pps-sign span{flex:1; border-top:0.3mm solid #000; padding-top:1mm;}
-  .pps-sign span:last-child{flex:0 0 28mm;}
-  .pps-foot{position:absolute; left:5mm; right:5mm; bottom:2mm; text-align:right; font-size:7.5pt;}
-
   /* ---------- SEARCH & FILTERS ---------- */
   .catalog-head{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px;}
   .search-row{display:flex; gap:8px; margin-bottom:10px;}

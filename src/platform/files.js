@@ -29,6 +29,28 @@ export async function saveOrShareFile(blob, filename, type, { onShareError = 'do
   return 'downloaded';
 }
 
+// Several files in one share sheet when the device takes them (the pick
+// checklist's pages); otherwise each goes through saveOrShareFile. Resolves
+// like saveOrShareFile.
+export async function saveOrShareFiles(entries, { onShareError = 'download' } = {}){
+  const files = entries.map(({ blob, filename, type }) => new File([blob], filename, { type }));
+  if (navigator.canShare && navigator.canShare({ files })){
+    try{
+      await navigator.share({ files, title: 'Pick list' });
+      return 'shared';
+    }catch(e){
+      if (e && e.name === 'AbortError') return 'cancelled';
+      if (onShareError === 'throw') throw e;
+    }
+  }
+  let result = 'downloaded';
+  for (const { blob, filename, type } of entries){
+    result = await saveOrShareFile(blob, filename, type, { onShareError });
+    if (result === 'cancelled') break;
+  }
+  return result;
+}
+
 // Download only, no share sheet (the CSV exports). The object URL is
 // revoked 2 s later, not right after the click: some browsers start the
 // download asynchronously and an immediate revoke can cancel it.
