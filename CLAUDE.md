@@ -819,6 +819,13 @@ on any of these:
 
 ## Pending changelog entry (since v3.25.0)
 
+- v3.25.7: Form field borders reach 3:1 (WCAG 1.4.11) in the three themes.
+  New token `--control-line` (per theme, on `:root`): the borders of the
+  `.field`, settings, stock and pick code inputs use it; `--line` stays for
+  dividers. Parcel `#7F8898` (3.57:1 on white), Tag Week `#84847E` (3.76:1),
+  Concourse `#878782` (3.61:1). The Concourse active bar stays yellow: the
+  active tab is also bold ink text, so the state does not depend on the bar.
+
 - v3.25.6: AI model IDs moved to the current generation. `suggest_fee` and
   `explain_error` (`api/ebay-item-aspects.js`) use `claude-sonnet-5-5` (were
   `claude-sonnet-4-6` and `claude-sonnet-5`); narration extract
