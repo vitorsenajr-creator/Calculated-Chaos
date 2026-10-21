@@ -83,7 +83,7 @@ async function handleExtract(req, res, auth){
     body: JSON.stringify({
       // Plain structured extraction from a short transcript — no need for
       // Sonnet's cost/latency here, Haiku 4.5 handles this reliably.
-      model: 'claude-haiku-4-5',
+      model: 'claude-haiku-5-5',
       max_tokens: 500,
       messages: [{ role: 'user', content: promptText }]
     })

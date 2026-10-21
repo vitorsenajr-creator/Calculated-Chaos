@@ -819,6 +819,13 @@ on any of these:
 
 ## Pending changelog entry (since v3.25.0)
 
+- v3.25.6: AI model IDs moved to the current generation. `suggest_fee` and
+  `explain_error` (`api/ebay-item-aspects.js`) use `claude-sonnet-5-5` (were
+  `claude-sonnet-4-6` and `claude-sonnet-5`); narration extract
+  (`api/narration.js`) uses `claude-haiku-5-5` (was `claude-haiku-4-5`). No
+  `budget_tokens`, forced `tool_choice` or temperature in those calls. Not
+  yet tried on real items: check the `ai-usage` lines for these calls.
+
 - v3.25.5: Firestore rules close the pre-business root collections
   (`items`, `drafts`, `app_config`, `app_settings`, `ebay_error_log`). Before,
   any approved account could read and write them, so a new seller could read
