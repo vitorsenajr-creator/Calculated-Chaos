@@ -64,6 +64,7 @@ import { loadExpenses } from './data/expense-store.js';
 import { initUpdateBanner } from './ui/update-banner.js';
 import { applyTheme, applyAccent, applyLastTheme, currentTheme } from './ui/theme.js';
 import { CATALOG_SORTS, sortCatalog } from './domain/catalog-sort.js';
+import { copyCodes, unsoldCopy, readQuantity } from './domain/item-copies.js';
 import { WEEK_TAGS, weekTagIndex } from './domain/week-tags.js';
 import {
   isIncomplete as _isIncomplete, missingFields as _missingFields, isStaleListing as _isStaleListing,
@@ -2037,6 +2038,18 @@ export const app = (function(){
     document.getElementById('fEbayCategoryQuery').focus();
   });
 
+  // Quantity in the item form (v3.24.12): "Quantity" = pieces to make when
+  // the item is new; "Add copies" = extra pieces for an item being edited.
+  function setQuantityMode(editing){
+    const input = document.getElementById('fQuantity');
+    input.min = editing ? 0 : 1;
+    input.value = editing ? '0' : '1';
+    document.getElementById('fQuantityLabel').textContent = editing ? 'Add copies' : 'Quantity';
+    document.getElementById('fQuantityHint').textContent = editing
+      ? 'Makes this many more pieces with the same details. Each gets its own product code.'
+      : 'Got several identical pieces? Each one still gets its own product code, so you can sell, print a label for, or mark each one sold individually.';
+  }
+
   function openModal(item, isDuplicate, opts){
     const keepScroll = !!(opts && opts.keepScroll);
     currentEditId = (item && !isDuplicate) ? item.id : null;
@@ -2153,10 +2166,9 @@ export const app = (function(){
       }
     }
     document.getElementById('fName').value = isDuplicate ? (item?.name || '') + ' (copy)' : (item?.name || '');
-    // Quantity only makes sense when creating brand-new entries — editing an
-    // existing item already represents exactly one physical piece.
-    document.getElementById('fQuantity').value = '1';
-    document.getElementById('fQuantityField').style.display = (item && !isDuplicate) ? 'none' : 'block';
+    // Quantity is always shown. A new item (or a duplicate) makes that many
+    // entries; an item being edited gets "Add copies", 0 by default.
+    setQuantityMode(!!(item && !isDuplicate));
     document.getElementById('fEbayCategoryQuery').value = '';
     document.getElementById('fEbayCategoryQuery').dataset.lastQuery = '';
     document.getElementById('ebayCategoryResults').innerHTML = '';
@@ -2296,6 +2308,12 @@ export const app = (function(){
 
   let quickCatalogMode = false;
 
+  // The − and + buttons beside the quantity field (v3.24.12).
+  document.querySelectorAll('[data-qty-step]').forEach(btn => btn.addEventListener('click', () => {
+    const input = document.getElementById('fQuantity');
+    const min = Number(input.min);
+    input.value = readQuantity(Number(input.value) + Number(btn.dataset.qtyStep), min);
+  }));
   document.getElementById('fabNewItem').addEventListener('click', () => openModal(null));
   document.getElementById('fabQuickCatalog').addEventListener('click', () => {
     quickCatalogMode = true;
@@ -4515,9 +4533,11 @@ export const app = (function(){
       : clothingTypeSelectVal;
 
     const itemId = currentEditId || uid();
-    // Quantity only applies to brand-new items — editing an existing one
-    // always represents exactly one physical piece regardless of the field.
-    const requestedQty = currentEditId ? 1 : Math.max(1, Math.min(50, parseInt(document.getElementById('fQuantity').value, 10) || 1));
+    // A new item makes `requestedQty` pieces. An item being edited stays one
+    // piece and makes `extraCopies` more, from "Add copies" (v3.24.12).
+    const quantityValue = document.getElementById('fQuantity').value;
+    const requestedQty = currentEditId ? 1 : readQuantity(quantityValue, 1);
+    const extraCopies = currentEditId ? readQuantity(quantityValue, 0) : 0;
 
     // Upload any not-yet-hosted photos to Storage BEFORE writing to Firestore —
     // this is what keeps the item document tiny regardless of photo size/count.
@@ -4695,12 +4715,21 @@ export const app = (function(){
     // per copy. Each copy is still its own real item — own status, own sold
     // price later, own printable label — just filled out once.
     const itemsToSave = [itemData];
-    for (let i = 1; i < requestedQty; i++){
-      itemsToSave.push({
-        ...itemData,
-        id: uid(),
-        productCode: `${baseProductCode}-${i + 1}`,
+    if (currentEditId){
+      // "Add copies" (v3.24.12): new unsold pieces, numbered after every code
+      // already used for this base. The edited item keeps its own code.
+      const codes = copyCodes(baseProductCode, items.map(i => i.productCode), extraCopies);
+      codes.forEach(productCode => {
+        itemsToSave.push(unsoldCopy(itemData, { id: uid(), productCode, now: Date.now() }));
       });
+    } else {
+      for (let i = 1; i < requestedQty; i++){
+        itemsToSave.push({
+          ...itemData,
+          id: uid(),
+          productCode: `${baseProductCode}-${i + 1}`,
+        });
+      }
     }
 
     for (const it of itemsToSave){
@@ -4738,9 +4767,10 @@ export const app = (function(){
       draftItems = draftItems.filter(d => d.id !== currentDraftId);
       currentDraftId = null;
     }
-    setSaveProgress(100, 'Saved!');
+    setSaveProgress(100, extraCopies ? `Saved · ${extraCopies} ${extraCopies === 1 ? 'copy' : 'copies'} added` : 'Saved!');
     renderAll();
-    const lastSaved = itemsToSave[itemsToSave.length - 1];
+    // Editing keeps the item in front of the person, not its last copy.
+    const lastSaved = currentEditId ? itemData : itemsToSave[itemsToSave.length - 1];
     // suppressReopen: an autosave that's about to close the modal itself
     // (or that already has its own follow-up, like generating a listing
     // description) doesn't want the normal post-save reopen/relist dance.
