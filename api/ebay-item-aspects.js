@@ -95,7 +95,7 @@ If you're not confident about this specific platform, still give your best reaso
       'anthropic-version': '2023-06-01'
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-6',
+      model: 'claude-sonnet-5-5',
       max_tokens: 300,
       messages: [{ role: 'user', content: promptText }]
     })
@@ -168,7 +168,7 @@ Respond with ONLY a JSON object, no markdown fences, no preamble:
       'anthropic-version': '2023-06-01'
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-5',
+      model: 'claude-sonnet-5-5',
       max_tokens: 400,
       messages: [{ role: 'user', content: promptText }]
     })
