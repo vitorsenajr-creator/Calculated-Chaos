@@ -819,6 +819,13 @@ on any of these:
 
 ## Pending changelog entry (since v3.25.0)
 
+- v3.25.4: Mark sold quick form. Each piece in the sheet opens a short form
+  when its check is ticked: platform, price, shipping paid, and the fee as a
+  line (changed under "Change fee"). The price starts at the screenshot's
+  price or, for a typed piece, the listed price (empty with a note when the
+  item has none). A typed piece starts on its platform only when it's listed
+  on exactly one (`quickSaleDefaults()` in `domain/pick-sale.js`).
+
 - v3.25.3: Stock → Pick by code. A Pick field takes item codes, numbers
   only ("0897"; the product code without "#"); each code is a piece on the
   list (`domain/pick-manual.js`), counted once. The list, the checklist and

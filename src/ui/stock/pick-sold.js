@@ -6,7 +6,7 @@
 // one piece at a time, then ends an app-made eBay listing for a piece
 // that sold elsewhere, like the item modal's Sold does.
 import { escapeHtml } from '../../modules/format-utils.js';
-import { orderFeeShares, pickSaleFields } from '../../domain/pick-sale.js';
+import { orderFeeShares, pickSaleFields, quickSaleDefaults } from '../../domain/pick-sale.js';
 import { showToast } from '../toast.js';
 
 const money2 = (n) => `$${(Math.round(n * 100) / 100).toFixed(2)}`;
@@ -38,10 +38,16 @@ export function openMarkSold(pl, allLines, hooks){
   const dlg = document.createElement('dialog');
   dlg.className = 'goal-dialog sale-sheet ps-sheet';
   dlg.setAttribute('aria-labelledby', 'psTitle');
+  // Each row is a quick form (v3.25.4), open only while its check is ticked.
+  // The price starts at the screenshot's price, or the item's listed price for a
+  // typed piece; the fee is worked out by the platform's rule and shown as a line,
+  // with its field one tap away.
   const rowHtml = (r) => {
     const l = r.line;
+    const d = quickSaleDefaults(r.item, l);
     const why = r.soldTwice ? 'Two sales point to this item. Check both orders first.'
       : r.match.how === 'name' && r.match.confidence !== 'high' ? 'Matched by name. Check it’s the right piece.' : '';
+    const preset = platformOf(l) || d.platform;
     return `
       <fieldset class="ps-row" data-ps-row="${escapeHtml(l.key)}">
         <legend class="visually-hidden">${escapeHtml(r.item.productCode || r.item.name || '')}</legend>
@@ -50,20 +56,26 @@ export function openMarkSold(pl, allLines, hooks){
           <span><b class="pick-code">${escapeHtml(r.item.productCode || '')}</b> ${escapeHtml(r.item.name || l.title)}</span>
         </label>
         ${why ? `<p class="pick-note">${why}</p>` : ''}
-        <div class="ps-fields">
-          <label class="goal-field"><span>Price</span>
-            <span class="goal-input"><span class="goal-affix">$</span><input type="text" data-k="price" inputmode="decimal" autocomplete="off" value="${v2(l.price)}"></span></label>
-          <label class="goal-field"><span>Sold on</span>
-            <select data-k="platform">
-              <option value="">Pick one</option>
-              ${keys.map(k => `<option value="${escapeHtml(k)}" ${platformOf(l) === k ? 'selected' : ''}>${escapeHtml(hooks.platformLabel(k))}</option>`).join('')}
-            </select></label>
-          <label class="goal-field"><span>Fee</span>
-            <span class="goal-input"><span class="goal-affix">$</span><input type="text" data-k="fee" inputmode="decimal" autocomplete="off"></span></label>
-          <label class="goal-field"><span>Shipping paid</span>
-            <span class="goal-input"><span class="goal-affix">$</span><input type="text" data-k="shippingCost" inputmode="decimal" autocomplete="off" value="0.00"></span></label>
+        <div data-ps-body>
+          <div class="ps-fields">
+            <label class="goal-field"><span>Sold on</span>
+              <select data-k="platform">
+                <option value="">Pick one</option>
+                ${keys.map(k => `<option value="${escapeHtml(k)}" ${preset === k ? 'selected' : ''}>${escapeHtml(hooks.platformLabel(k))}</option>`).join('')}
+              </select></label>
+            <label class="goal-field"><span>Price</span>
+              <span class="goal-input"><span class="goal-affix">$</span><input type="text" data-k="price" inputmode="decimal" autocomplete="off" value="${v2(d.price)}"></span>
+              ${d.noPrice ? '<span class="pick-note">No listed price. Type the sale price.</span>' : ''}</label>
+            <label class="goal-field"><span>Shipping paid</span>
+              <span class="goal-input"><span class="goal-affix">$</span><input type="text" data-k="shippingCost" inputmode="decimal" autocomplete="off" value="0.00"></span></label>
+          </div>
+          <p class="ps-profit">Fee <b data-ps-fee>—</b> <button type="button" class="row-btn" data-ps-fee-toggle>Change fee</button></p>
+          <div class="ps-fields" data-ps-fee-edit hidden>
+            <label class="goal-field"><span>Fee</span>
+              <span class="goal-input"><span class="goal-affix">$</span><input type="text" data-k="fee" inputmode="decimal" autocomplete="off"></span></label>
+          </div>
+          <p class="ps-profit">Sales profit <b data-ps-profit aria-live="polite"></b></p>
         </div>
-        <p class="ps-profit">Sales profit <b data-ps-profit aria-live="polite"></b></p>
         <p class="goal-error" data-ps-error role="alert" hidden></p>
       </fieldset>`;
   };
@@ -109,13 +121,19 @@ export function openMarkSold(pl, allLines, hooks){
     const r = byKey.get(key);
     const c = pickSaleFields(r.item, input(key), r.line, Date.now());
     rowEl(key).querySelector('[data-ps-profit]').textContent = c.ok && c.fields.netProfit !== null ? money2(c.fields.netProfit) : '—';
+    const fee = parseFloat(field(key, 'fee').value);
+    rowEl(key).querySelector('[data-ps-fee]').textContent = Number.isFinite(fee) ? money2(fee) : '—';
   }
   function refreshCount(){
     const n = dlg.querySelectorAll('[data-ps-on]:checked').length;
     const btn = dlg.querySelector('[data-ps-save]');
     btn.textContent = `Mark ${n} sold`;
     btn.disabled = !n;
-    dlg.querySelectorAll('[data-ps-row]').forEach(el => el.classList.toggle('off', !el.querySelector('[data-ps-on]').checked));
+    dlg.querySelectorAll('[data-ps-row]').forEach(el => {
+      const on = el.querySelector('[data-ps-on]').checked;
+      el.classList.toggle('off', !on);
+      el.querySelector('[data-ps-body]').hidden = !on;
+    });
   }
 
   rows.forEach(r => {
@@ -131,6 +149,10 @@ export function openMarkSold(pl, allLines, hooks){
     });
     field(key, 'fee').addEventListener('input', () => { manualFee.add(key); refreshProfit(key); });
     field(key, 'shippingCost').addEventListener('input', () => refreshProfit(key));
+    el.querySelector('[data-ps-fee-toggle]').addEventListener('click', () => {
+      el.querySelector('[data-ps-fee-edit]').hidden = false;
+      field(key, 'fee').focus();
+    });
   });
   [...new Set(rows.map(r => r.line.orderRef))].forEach(refreshFees);
   refreshCount();

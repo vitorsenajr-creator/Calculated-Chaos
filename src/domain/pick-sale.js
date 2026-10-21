@@ -81,3 +81,16 @@ export function pickSaleFields(item, input, line, now){
   if (typed) fields.manualSale = true;
   return { ok: true, fields };
 }
+
+// What the quick sale form starts with (v3.25.4). The price is the one the
+// screenshot read; a typed piece starts at its listed price, or empty when
+// the item has none. The platform is set for a typed piece only when the
+// item is listed on exactly one platform.
+export function quickSaleDefaults(item, line){
+  const listed = parseFloat(item.listPrice);
+  const hasRead = line.price !== null && line.price !== undefined;
+  const price = hasRead ? line.price : (listed > 0 ? listed : null);
+  const listedOn = item.listedPlatforms || [];
+  const platform = line.platform || (line.source === 'manual' && listedOn.length === 1 ? listedOn[0] : '');
+  return { price, platform: platform || '', noPrice: price === null };
+}
