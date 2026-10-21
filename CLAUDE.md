@@ -808,6 +808,9 @@ on any of these:
 
 ## Pending changelog entry (since v3.24.0)
 
+- v3.24.10: Developer Panel header in the theme's main color (`--brand`:
+  navy in Parcel, black in Tag Week and Concourse), with the theme's
+  on-brand text, as the app's shell does. Tabs and body unchanged.
 - v3.24.9: Home design pass (critique of the default settings in all three themes).
   Phone: the + button no longer covers Home's row buttons (rows keep 64px
   on the right, and the list clears the + and the bottom bar). The stock
