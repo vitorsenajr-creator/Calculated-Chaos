@@ -109,5 +109,10 @@ service cloud.firestore {
     match /liveSessions/{id} { allow read: if isAdmin(); allow write: if false; }
     match /liveItems/{id} { allow read: if isAdmin(); allow write: if false; }
     match /live_catalog_options/{id} { allow read: if isAdmin(); allow write: if false; }
+
+    // AI usage meter (v3.24.5): one doc per user, month, call type and model,
+    // written and summed by the server (api/_aiUsage.js) for the Developer
+    // Panel's AI usage tab. No client access at all.
+    match /ai_usage/{docId} { allow read, write: if false; }
   }
 }

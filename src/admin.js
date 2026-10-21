@@ -17,6 +17,7 @@ import { initUpdateBanner } from './ui/update-banner.js';
 import { jsonAuthHeaders } from './modules/api-auth.js';
 import { loadAdminClaim } from './modules/admin-claim.js';
 import { tokenEmailVerified } from './modules/email-verification.js';
+import { AI_CALL_LABELS } from './domain/ai-usage.js';
 
 function db(){ return window.db; }
 function fns(){ return window.firestoreFns; }
@@ -136,6 +137,7 @@ function showTab(tab){
   if (tab === 'ebay') renderEbay();
   if (tab === 'errors') renderErrors();
   if (tab === 'backup') renderBackup();
+  if (tab === 'ai') renderAi();
 }
 
 // ---------- USERS (Approvals + Users tabs share one load) ----------
@@ -561,6 +563,80 @@ async function platformAction(body){
   const data = await res.json().catch(() => null);
   if (!res.ok || !data) throw new Error((data && data.error) || `HTTP ${res.status}`);
   return data;
+}
+
+// ---------- AI USAGE (v3.24.5): api/platform.js action 'ai_usage' ----------
+// The meter counts every successful AI call per user, month, call type and
+// model (api/_aiUsage.js). Only platform admins see it here.
+const aiNum = (v) => (Number(v) || 0).toLocaleString('en-US');
+const aiMonthNow = () => new Date().toISOString().slice(0, 7);
+
+async function renderAi(month = aiMonthNow()){
+  const el = document.getElementById('panelAi');
+  el.innerHTML = `
+    <div class="ad-card">
+      <h3>AI usage</h3>
+      <div class="ad-desc">Successful AI calls this month, per user. Counted on the server when the answer comes back; failed calls don't count. Nothing is charged yet: this measures the calls before the credits and plans.</div>
+      <div class="ad-row">
+        <label for="adAiMonth" class="ad-meta">Month (UTC)</label>
+        <input type="month" id="adAiMonth" value="${escapeHtml(month)}">
+      </div>
+    </div>
+    <div id="adAiBody"><div class="ad-card ad-empty">Loading…</div></div>`;
+  document.getElementById('adAiMonth').addEventListener('change', (e) => {
+    if (e.target.value) renderAi(e.target.value);
+  });
+
+  const body = document.getElementById('adAiBody');
+  let report = null;
+  try{
+    report = await platformAction({ action: 'ai_usage', month });
+  }catch(e){
+    body.innerHTML = `<div class="ad-card"><div class="ebay-status-box error">Could not load the AI usage: ${escapeHtml(e.message || String(e))}</div></div>`;
+    return;
+  }
+  const t = report.total;
+  body.innerHTML = `
+    <div class="ad-card">
+      <div class="ad-totals">
+        <div class="ad-total"><div class="ad-total-label">Calls</div><div class="ad-total-value">${aiNum(t.calls)}</div></div>
+        <div class="ad-total"><div class="ad-total-label">Input tokens</div><div class="ad-total-value">${aiNum(t.inputTokens)}</div></div>
+        <div class="ad-total"><div class="ad-total-label">Output tokens</div><div class="ad-total-value">${aiNum(t.outputTokens)}</div></div>
+        <div class="ad-total"><div class="ad-total-label">Cache written / read</div><div class="ad-total-value">${aiNum(t.cacheWriteTokens)} / ${aiNum(t.cacheReadTokens)}</div></div>
+        <div class="ad-total"><div class="ad-total-label">Users</div><div class="ad-total-value">${aiNum(report.byUser.length)}</div></div>
+      </div>
+      <h3>By user</h3>
+      ${report.byUser.length ? `
+      <div class="ad-table-wrap"><table class="ad-table">
+        <thead><tr><th>User</th><th>Business</th><th class="num">Calls</th><th class="num">Input</th><th class="num">Output</th><th class="num">Cache w / r</th></tr></thead>
+        <tbody>${report.byUser.map(u => `
+          <tr>
+            <td>${escapeHtml(u.email || u.uid || 'anonymous')}${u.role ? `<div class="ad-meta">${escapeHtml(u.role)}</div>` : ''}</td>
+            <td>${escapeHtml(u.bizId || '—')}</td>
+            <td class="num">${aiNum(u.calls)}</td>
+            <td class="num">${aiNum(u.inputTokens)}</td>
+            <td class="num">${aiNum(u.outputTokens)}</td>
+            <td class="num">${aiNum(u.cacheWriteTokens)} / ${aiNum(u.cacheReadTokens)}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table></div>` : '<div class="ad-empty">No AI calls recorded this month.</div>'}
+    </div>
+    <div class="ad-card">
+      <h3>By call type</h3>
+      ${report.byCall.length ? `
+      <div class="ad-table-wrap"><table class="ad-table">
+        <thead><tr><th>Call</th><th class="num">Calls</th><th class="num">Input</th><th class="num">Output</th><th class="num">Cache w / r</th></tr></thead>
+        <tbody>${report.byCall.map(c => `
+          <tr>
+            <td>${escapeHtml(AI_CALL_LABELS[c.call] || c.call)}<div class="ad-meta">${escapeHtml(c.call)}</div></td>
+            <td class="num">${aiNum(c.calls)}</td>
+            <td class="num">${aiNum(c.inputTokens)}</td>
+            <td class="num">${aiNum(c.outputTokens)}</td>
+            <td class="num">${aiNum(c.cacheWriteTokens)} / ${aiNum(c.cacheReadTokens)}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table></div>` : '<div class="ad-empty">No AI calls recorded this month.</div>'}
+    </div>`;
 }
 
 // ---------- Admin access (api/_adminClaims.js) ----------
