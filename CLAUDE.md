@@ -89,6 +89,21 @@ renaming them needs a data migration of every saved item.
   **Say plainly when something was only build-verified** and add it to
   "Unverified in production" below.
 
+### Deploy checklist (push to `main` = production)
+
+Before the push:
+- [ ] `npm test` and `npm run build` pass; `node --check` on every touched `api/` file.
+- [ ] `APP_VERSION` bumped, and a pending entry added below.
+- [ ] `firestore.rules` changed? Paste the same text into the Console (Firestore → Rules) and publish. The repo does not deploy rules.
+- [ ] An `api/` file reads a new env var? Check it is set in Vercel first.
+
+After the push:
+- [ ] Open the app as the owner: the catalog loads and a save works.
+- [ ] Changed AI call? One real use, and its `ai-usage` line in the Vercel logs.
+
+Rollback: revert the merge commit on `main` (Vercel redeploys). Rules: paste
+the text from the previous commit (`git show <sha>^:firestore.rules`).
+
 ## Code map
 
 - `src/main.js`: ~5,000 lines, one IIFE (`export const app = (function(){…})()`).
@@ -852,6 +867,10 @@ on any of these:
   sizing (v3.13.102-105), inspection flag icon (v3.13.114).
 
 ## Pending changelog entry (since v3.26.0)
+
+- v3.26.2: `CLAUDE.md` gets a deploy checklist (before and after a push to
+  `main`, and rollback), under Commands & verification. Docs only; the app
+  is unchanged.
 
 - v3.26.1: `npm test` with 25 unit tests for `src/domain/` (`tests/domain/`,
   Node's built-in test runner, no new packages): the IRS mileage rates by
