@@ -1,15 +1,11 @@
-// Stock → Pick: the printed checklist (v3.24.3). One or more 100 × 210 mm
-// labels (the shipping-label stock), printed through platform/print.js
-// like every other label. Black only (the thermal printer is monochrome),
-// a box to tick by hand per piece, grouped by box in the screen's order.
-// The page breaks are computed here from fixed heights (millimeters), so
-// the print stays synchronous inside the click (iOS Safari, v3.13.47).
-import { escapeHtml } from '../../modules/format-utils.js';
+// Stock → Pick: the checklist's pages (v3.24.3, shared as PNG pages since
+// v3.25.2). One or more 100 × 210 mm labels (the shipping-label stock), a box
+// to tick by hand per piece, grouped by box in the screen's order. This file
+// holds the layout rules (page breaks from fixed heights in millimeters) and
+// the text of each row; pick-sheet-canvas.js draws the pages.
 import { boxTitle } from '../../domain/sale-match.js';
 
 export const SHEET_MM = { width: 100, height: 210 };
-const MM_PER_IN = 25.4;
-export const SHEET_IN = { widthIn: SHEET_MM.width / MM_PER_IN, heightIn: SHEET_MM.height / MM_PER_IN };
 
 // Heights in mm, kept a little generous so a long name never spills.
 const H = { pad: 5, header: 18, footer: 6, box: 7, row: 14, note: 4, sign: 12 };
@@ -66,45 +62,24 @@ export function paginatePick(pl, platformLabel = (k) => k){
 
 const orderTail = (n) => (n && n.length > 8 ? `…${n.slice(-6)}` : n || '');
 
-function rowHtml(b, picked, platformLabel){
-  const r = b.row;
-  const l = r.line;
-  const code = b.unmatched ? (l.sku ? `SKU ${l.sku}` : 'No SKU') : (r.item.productCode || 'No code');
-  const name = b.unmatched ? l.title : (r.item.name || l.title);
-  const meta = [
+// The row's code and name, as printed.
+export function rowCode(b){
+  const l = b.row.line;
+  return b.unmatched ? (l.sku ? `SKU ${l.sku}` : 'No SKU') : (b.row.item.productCode || 'No code');
+}
+export function rowName(b){
+  const l = b.row.line;
+  return b.unmatched ? l.title : (b.row.item.name || l.title);
+}
+
+// The line under the name: size, platform, price, buyer and the order's tail.
+export function rowMeta(b, platformLabel = (k) => k){
+  const l = b.row.line;
+  return [
     l.size ? `Size ${l.size}` : '',
     l.platform ? platformLabel(l.platform) : '',
     l.price !== null ? `$${l.price.toFixed(2)}` : l.priceText,
     l.buyer,
     orderTail(l.orderNumber),
-  ].filter(Boolean).map(escapeHtml).join(' · ');
-  return `
-    <div class="pps-row" style="height:${b.h}mm">
-      <span class="pps-check">${picked ? '✓' : ''}</span>
-      <div class="pps-main">
-        <div class="pps-line1"><b class="pps-code">${escapeHtml(code)}</b> <span class="pps-name">${escapeHtml(name)}</span></div>
-        <div class="pps-meta">${meta}</div>
-        ${b.flags.map(f => `<div class="pps-flag">${escapeHtml(f)}</div>`).join('')}
-      </div>
-    </div>`;
-}
-
-// The sheets' markup. `picked` = line keys already ticked on screen.
-export function pickSheetHtml(pl, { picked = new Set(), storeName = '', when = new Date(), platformLabel = (k) => k } = {}){
-  const pages = paginatePick(pl, platformLabel);
-  const stamp = when.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
-  return `<div class="pps-sheets">${pages.map((blocks, p) => `
-    <div class="pps-sheet">
-      ${p === 0 ? `
-      <div class="pps-head">
-        <div class="pps-title">Pick list</div>
-        <div class="pps-sub">${escapeHtml(storeName || 'Calculated Chaos')} · ${escapeHtml(stamp)}</div>
-        <div class="pps-sub">${pl.total} item${pl.total === 1 ? '' : 's'} · ${pl.orders} order${pl.orders === 1 ? '' : 's'}${pl.unmatched.length ? ` · ${pl.unmatched.length} not found` : ''}</div>
-      </div>` : ''}
-      ${blocks.map(b => b.type === 'box'
-        ? `<div class="pps-box">${escapeHtml(b.title)}${b.count !== null ? `<span>${b.count} item${b.count === 1 ? '' : 's'}</span>` : ''}</div>`
-        : b.type === 'row' ? rowHtml(b, picked.has(b.row.line.key), platformLabel)
-        : `<div class="pps-sign"><span>Picked by</span><span>Date</span></div>`).join('')}
-      <div class="pps-foot">${p + 1}/${pages.length}</div>
-    </div>`).join('')}</div>`;
+  ].filter(Boolean).join(' · ');
 }

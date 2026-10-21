@@ -819,6 +819,15 @@ on any of these:
 
 ## Pending changelog entry (since v3.25.0)
 
+- v3.25.2: Stock → Pick checklist is shared as images. "Share checklist"
+  makes one PNG per 100 × 210 mm page (12 px per mm, black on white) and
+  opens the share sheet, like the labels, so it goes to the label printer
+  app over Bluetooth. No browser print dialog. The pages are drawn on
+  canvas (`ui/stock/pick-sheet-canvas.js`) with the same page breaks
+  (`paginatePick()` in `ui/stock/pick-print.js`). Several pages go in one
+  share when the device takes them (`saveOrShareFiles()`). The HTML
+  checklist and its styles are removed.
+
 - v3.25.1: New-version strip reworked. Each build has its own id
   (`BUILD_ID` in `vite.config.js`, the Vercel commit), written to
   `version.json` and the bundle (`__BUILD_ID__`), so a deploy is noticed
