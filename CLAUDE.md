@@ -808,13 +808,16 @@ on any of these:
 
 ## Pending changelog entry (since v3.24.0)
 
+- v3.24.6: AI usage tab names the features ("Photo analysis & listing",
+  "Listing rewrite", "Pick: sale screenshot", …) and drops the tools card
+  and column. The tool counts are still stored for later.
 - v3.24.5: AI usage meter, phase 0 (measure only, nothing charged).
   Every successful AI call is counted on the server per user, month, call
   type and model (analysis, rewrite, import check, Pick screenshot,
   narration, suggested fee, eBay error explanation), with input, output
   and cache tokens and any tool calls. The Developer Panel has an "AI
-  usage" tab: totals, per user (e-mail, role, business), per call type
-  and tools. Server only (`ai_usage` rule, Console paste).
+  usage" tab: totals, per user (e-mail, role, business) and per call
+  type. Server only (`ai_usage` rule, Console paste, done 2026-10-21).
 
 - v3.24.4: Mark sold from Pick. Records the screenshots' sales on their
   items in one go: price and platform from the screenshot, the fee

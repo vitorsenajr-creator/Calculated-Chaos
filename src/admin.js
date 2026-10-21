@@ -571,11 +571,6 @@ async function platformAction(body){
 const aiNum = (v) => (Number(v) || 0).toLocaleString('en-US');
 const aiMonthNow = () => new Date().toISOString().slice(0, 7);
 
-function aiToolsText(tools){
-  const entries = Object.entries(tools || {});
-  return entries.length ? entries.map(([name, count]) => `${escapeHtml(name)} ×${aiNum(count)}`).join(', ') : 'none';
-}
-
 async function renderAi(month = aiMonthNow()){
   const el = document.getElementById('panelAi');
   el.innerHTML = `
@@ -613,7 +608,7 @@ async function renderAi(month = aiMonthNow()){
       <h3>By user</h3>
       ${report.byUser.length ? `
       <div class="ad-table-wrap"><table class="ad-table">
-        <thead><tr><th>User</th><th>Business</th><th class="num">Calls</th><th class="num">Input</th><th class="num">Output</th><th class="num">Cache w / r</th><th>Tools</th></tr></thead>
+        <thead><tr><th>User</th><th>Business</th><th class="num">Calls</th><th class="num">Input</th><th class="num">Output</th><th class="num">Cache w / r</th></tr></thead>
         <tbody>${report.byUser.map(u => `
           <tr>
             <td>${escapeHtml(u.email || u.uid || 'anonymous')}${u.role ? `<div class="ad-meta">${escapeHtml(u.role)}</div>` : ''}</td>
@@ -622,7 +617,6 @@ async function renderAi(month = aiMonthNow()){
             <td class="num">${aiNum(u.inputTokens)}</td>
             <td class="num">${aiNum(u.outputTokens)}</td>
             <td class="num">${aiNum(u.cacheWriteTokens)} / ${aiNum(u.cacheReadTokens)}</td>
-            <td>${aiToolsText(u.tools)}</td>
           </tr>`).join('')}
         </tbody>
       </table></div>` : '<div class="ad-empty">No AI calls recorded this month.</div>'}
@@ -642,11 +636,6 @@ async function renderAi(month = aiMonthNow()){
           </tr>`).join('')}
         </tbody>
       </table></div>` : '<div class="ad-empty">No AI calls recorded this month.</div>'}
-    </div>
-    <div class="ad-card">
-      <h3>Tools the model used</h3>
-      <div class="ad-desc">The calls don't send tools yet, so this stays empty until one does.</div>
-      <div class="ad-empty">${aiToolsText(report.tools)}</div>
     </div>`;
 }
 

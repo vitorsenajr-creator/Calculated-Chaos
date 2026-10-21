@@ -3,16 +3,17 @@
 // month, call type and model (api/_aiUsage.js writes them); the Developer
 // Panel adds the documents up (api/platform.js action 'ai_usage').
 
-// The call types the server records. Keys match what each endpoint sends:
-// analyze-photo's mode, plus the narration, eBay and Pick calls.
+// The call types the server records, named after the app's AI features.
+// Keys match what each endpoint sends: analyze-photo's mode, plus the
+// narration, eBay and Pick calls.
 export const AI_CALL_LABELS = {
-  full: 'Analyze & write listing',
-  listing_only: 'Rewrite listing',
+  full: 'Photo analysis & listing',
+  listing_only: 'Listing rewrite',
   import_map: 'Import column check',
   sale_screenshot: 'Pick: sale screenshot',
   narration_extract: 'Narration extract',
-  suggest_fee: 'Suggest fee',
-  explain_error: 'Explain eBay error',
+  suggest_fee: 'Suggested fee',
+  explain_error: 'eBay error explanation',
 };
 
 // Month key in UTC, 'YYYY-MM', so every server sees the same month.
