@@ -14,7 +14,13 @@ import {
   checkEbaySalesNow, endEbayListingIfSold, listItemOnEbay, showBulkEbayPreflight,
   ebayConnectFlowPending,
   ebayPostSoldMessageLines,
+  removeEbayListingForDelete, ebayEndFailureReason,
 } from './ebay-api.js';
+import { ebayDeleteStep } from './domain/trash.js';
+import { moveItemsToTrash } from './data/trash-store.js';
+import { askEbayBeforeDelete } from './ui/items/delete-dialog.js';
+import { initTrashPanel, openTrash } from './ui/settings/trash-panel.js';
+import { showToast } from './ui/toast.js';
 import {
   MAX_PHOTOS, MAX_PHOTO_DIM, PHOTO_QUALITY,
   PLATFORM_FEES, PLATFORM_LABEL, PLATFORM_NAME, PLATFORM_COLOR, PLATFORM_FAVICON,
@@ -263,15 +269,30 @@ export const app = (function(){
     }
   }
 
-  async function deleteItemFromDb(itemId){
-    try{
-      const { deleteDoc } = window.firestoreFns;
-      await deleteDoc(bizDoc('items', itemId));
-    }catch(e){
-      console.error('Delete error', e);
-      alert("Couldn't delete right now — please check your connection and try again.");
-      throw e;
+  // Moves one item to the trash (v3.26.0). An item with an active eBay
+  // listing is asked first: "Remove from eBay and delete" ends the listing and
+  // then trashes the item; if eBay doesn't confirm, the item stays and the
+  // question comes back with the reason. Resolves true when the item is in
+  // the trash, false when the person kept it or it couldn't be moved.
+  async function trashItem(item){
+    let removedFromEbay = false;
+    if (ebayDeleteStep(item) !== 'none'){
+      let error = '';
+      for (;;){
+        const choice = await askEbayBeforeDelete({ item, step: ebayDeleteStep(item), error });
+        if (choice === null) return false;
+        if (choice === 'app_only') break;
+        const r = await removeEbayListingForDelete(item);
+        if (r.ended){ removedFromEbay = true; break; }
+        error = ebayEndFailureReason(r.reason);
+      }
     }
+    const r = await moveItemsToTrash([{ item, removedFromEbay }]);
+    if (r.error){
+      alert("Couldn't move this item to the trash right now — please check your connection and try again.");
+      return false;
+    }
+    return true;
   }
 
   // ---------- PHOTO SESSION DRAFTS (own Firestore collection) ----------
@@ -1338,11 +1359,15 @@ export const app = (function(){
     if (bulkDeleteBtn){
       bulkDeleteBtn.addEventListener('click', async () => {
         const ids = Array.from(bulkSelectedIds);
-        if (!confirm(`Delete ${ids.length} item${ids.length===1?'':'s'} permanently? This can't be undone.`)) return;
+        if (!confirm(`Move ${ids.length} item${ids.length===1?'':'s'} to the trash? You can restore them for 30 days.`)) return;
         bulkDeleteBtn.disabled = true;
-        bulkStatus(`Deleting ${ids.length} item${ids.length===1?'':'s'}…`);
-        for (const id of ids){
-          try{ await deleteItemFromDb(id); }catch(e){ continue; }
+        // Items with an active eBay listing are asked one at a time (v3.26.0).
+        for (let k = 0; k < ids.length; k++){
+          const id = ids[k];
+          const item = items.find(i => i.id === id);
+          if (!item) continue;
+          bulkStatus(`Moving ${k+1} of ${ids.length} to the trash…`);
+          if (!(await trashItem(item))) continue;
           setItems(items.filter(i => i.id !== id));
         }
         bulkSelectedIds.clear();
@@ -4818,16 +4843,15 @@ export const app = (function(){
 
   document.getElementById('deleteItemBtn').addEventListener('click', async () => {
     if (!currentEditId) return;
-    if (!confirm('Delete this item permanently?')) return;
     const idToDelete = currentEditId;
-    try{
-      await deleteItemFromDb(idToDelete);
-    }catch(e){
-      return;
-    }
+    const item = items.find(i => i.id === idToDelete);
+    if (!item) return;
+    if (ebayDeleteStep(item) === 'none' && !confirm('Move this item to the trash? You can restore it for 30 days.')) return;
+    if (!(await trashItem(item))) return;
     setItems(items.filter(i => i.id !== idToDelete));
     renderAll();
     closeModal();
+    showToast('Moved to the trash. Restore it within 30 days in Settings → Data.');
   });
 
 
@@ -4872,6 +4896,12 @@ export const app = (function(){
     },
   });
   document.addEventListener('openimport', () => { switchToTab('import'); openImport(); });
+  // The trash (v3.26.0, Settings → Data). A restored item joins the catalog in memory.
+  initTrashPanel({
+    getItems: () => items,
+    restored: (item) => { setItems([...items, item]); renderAll(); },
+  });
+  document.addEventListener('opentrash', () => openTrash());
   document.addEventListener('openitem', (e) => {
     const item = items.find(i => i.id === e.detail);
     if (item) openModal(item);

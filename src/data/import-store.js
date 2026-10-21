@@ -2,8 +2,10 @@
 // business's `items` collection in batches (Firestore allows 500 writes per
 // batch; 400 leaves room), each one tagged with its importId so a dropped
 // connection can be continued without duplicates and a whole import can be
-// undone. No new collection: an import is the set of items carrying its id.
+// undone (v3.26.0: undo moves the items to the trash, data/trash-store.js).
+// No new collection: an import is the set of items carrying its id.
 import { bizCol, bizDoc } from '../modules/biz.js';
+import { moveItemsToTrash } from './trash-store.js';
 
 export const IMPORT_BATCH_SIZE = 400;
 
@@ -31,34 +33,24 @@ export async function saveImportBatches(docs, { alreadySaved = new Set(), onProg
   return { saved, error: null };
 }
 
-// The ids of every item saved by this import, read from Firestore (not just
-// this device's copy, so an import made on another device is found too).
-export async function importedItemIds(importId){
+// The items saved by this import, read from Firestore (not just this
+// device's copy, so an import made on another device is found too).
+export async function importedItems(importId){
   const { query, where, getDocs } = window.firestoreFns;
   const snap = await getDocs(query(bizCol('items'), where('importId', '==', importId)));
-  const ids = [];
-  snap.forEach(d => { const data = d.data(); if (data && data.importId === importId) ids.push(d.id); });
-  return ids;
+  const found = [];
+  snap.forEach(d => { const data = d.data(); if (data && data.importId === importId) found.push({ ...data, id: d.id }); });
+  return found;
 }
 
-// Deletes every item of the import, in batches. Returns { deleted, error }.
+// Moves every item of the import to the trash (v3.26.0), in batches. Returns
+// { deleted: [ids], error, stillOnEbay } — stillOnEbay counts the items that
+// had an active eBay listing: the undo doesn't end those, so the caller says so.
 export async function undoImport(importId, { onProgress = () => {} } = {}){
-  const { writeBatch } = window.firestoreFns;
-  let ids;
-  try{ ids = await importedItemIds(importId); }
-  catch(e){ return { deleted: [], error: (e && e.message) || String(e) }; }
-  const deleted = [];
-  for (let k = 0; k < ids.length; k += IMPORT_BATCH_SIZE){
-    const chunk = ids.slice(k, k + IMPORT_BATCH_SIZE);
-    try{
-      const batch = writeBatch(window.db);
-      chunk.forEach(id => batch.delete(bizDoc('items', id)));
-      await batch.commit();
-    }catch(e){
-      return { deleted, error: (e && e.message) || String(e) };
-    }
-    chunk.forEach(id => deleted.push(id));
-    onProgress(deleted.length, ids.length);
-  }
-  return { deleted, error: null };
+  let found;
+  try{ found = await importedItems(importId); }
+  catch(e){ return { deleted: [], error: (e && e.message) || String(e), stillOnEbay: 0 }; }
+  const stillOnEbay = found.filter(item => item.ebayListingId && !item.ebayEndedAt).length;
+  const r = await moveItemsToTrash(found.map(item => ({ item, removedFromEbay: false })), { onProgress });
+  return { deleted: r.moved, error: r.error, stillOnEbay };
 }

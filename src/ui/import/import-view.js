@@ -108,7 +108,7 @@ function uploadHtml(){
         <li>
           <span class="imp-past-text"><b>${escapeHtml(p.fileName || 'Spreadsheet')}</b><small>${new Date(p.importedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} · ${plural(p.count, 'item')}</small></span>
           <button type="button" class="row-btn" data-imp-open="${escapeHtml(p.importId)}">Show</button>
-          <button type="button" class="row-btn danger" data-imp-undo="${escapeHtml(p.importId)}" data-count="${p.count}">${st.undoArm === p.importId ? `Delete ${plural(p.count, 'item')}?` : 'Undo'}</button>
+          <button type="button" class="row-btn danger" data-imp-undo="${escapeHtml(p.importId)}" data-count="${p.count}">${st.undoArm === p.importId ? `Move ${plural(p.count, 'item')} to trash?` : 'Undo'}</button>
         </li>`).join('')}
       </ul>
     </section>` : ''}`;
@@ -142,10 +142,10 @@ function wirePastImports(){
     const id = b.dataset.impUndo;
     if (st.undoArm !== id){ st.undoArm = id; return renderImport(); }
     st.undoArm = null;
-    b.disabled = true; b.textContent = 'Deleting…';
+    b.disabled = true; b.textContent = 'Moving to trash…';
     const r = await undoImport(id);
     if (r.deleted.length) hooks.afterUndo(r.deleted);
-    st.undone = r.error ? `Deleted ${plural(r.deleted.length, 'item')}, then it stopped: ${r.error}. Try Undo again.` : `Deleted ${plural(r.deleted.length, 'item')}.`;
+    st.undone = r.error ? `Moved ${plural(r.deleted.length, 'item')} to the trash, then it stopped: ${r.error}. Try Undo again.` : `Moved ${plural(r.deleted.length, 'item')} to the trash.${onEbayNote(r)}`;
     renderImport();
   }));
 }
@@ -521,13 +521,18 @@ function wireSaving(){
   view().querySelector('[data-imp-continue]')?.addEventListener('click', saveRest);
   view().querySelector('[data-imp-undo-current]')?.addEventListener('click', undoCurrent);
 }
+// Undo doesn't end eBay listings (v3.26.0): say so when some items still have one.
+function onEbayNote(r){
+  if (!r.stillOnEbay) return '';
+  return ` ${plural(r.stillOnEbay, 'item')} still listed on eBay: end ${r.stillOnEbay === 1 ? 'it' : 'them'} there.`;
+}
 async function undoCurrent(){
   const btn = view().querySelector('[data-imp-undo-current]');
-  if (btn && !btn.dataset.armed){ btn.dataset.armed = '1'; btn.textContent = `Delete ${plural(st.saved.size, 'item')}?`; return; }
-  if (btn){ btn.disabled = true; btn.textContent = 'Deleting…'; }
+  if (btn && !btn.dataset.armed){ btn.dataset.armed = '1'; btn.textContent = `Move ${plural(st.saved.size, 'item')} to trash?`; return; }
+  if (btn){ btn.disabled = true; btn.textContent = 'Moving to trash…'; }
   const r = await undoImport(st.importId);
   if (r.deleted.length) hooks.afterUndo(r.deleted);
-  const msg = r.error ? `Deleted ${plural(r.deleted.length, 'item')}, then it stopped: ${r.error}. Use Undo under "Past imports" to finish.` : `Import undone: ${plural(r.deleted.length, 'item')} deleted.`;
+  const msg = r.error ? `Moved ${plural(r.deleted.length, 'item')} to the trash, then it stopped: ${r.error}. Use Undo under "Past imports" to finish.` : `Import undone: ${plural(r.deleted.length, 'item')} moved to the trash.${onEbayNote(r)}`;
   st = fresh();
   st.undone = msg;
   renderImport();

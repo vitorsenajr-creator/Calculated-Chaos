@@ -2005,3 +2005,24 @@
      button and its menu sit directly under body. All of it stays hidden
      behind the login overlay. */
   body.auth-locked > .app-shell, body.auth-locked > .fab, body.auth-locked > .fab-menu{ display:none !important; }
+
+/* The trash and the eBay question before a delete (v3.26.0). Tokens only. */
+.trash-dialog{
+  width:min(520px, calc(100vw - 32px)); max-height:calc(100vh - 32px); padding:0; overflow:auto;
+  border:1px solid var(--line); border-radius:var(--radius); background:var(--surface); color:var(--ink); font-family:var(--font-ui);
+}
+.trash-dialog::backdrop{background:color-mix(in srgb, var(--ink) 45%, transparent);}
+.trash-body{padding:18px 16px 16px;}
+.trash-body h2{margin:0 0 6px; font-size:18px; font-weight:700;}
+.trash-body p{margin:0 0 12px; font-size:14px; line-height:1.45; color:var(--ink-2);}
+.trash-body a{color:var(--brand-2);}
+.trash-error{color:var(--danger, var(--ink)); font-weight:600;}
+.trash-actions{display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px; margin-top:16px;}
+.trash-actions button{min-height:44px;}
+.trash-status{font-size:13.5px; color:var(--ink-2); margin:0 0 8px;}
+.trash-rows{list-style:none; margin:0; padding:0;}
+.trash-row{display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px 12px; padding:10px 0; border-top:1px solid var(--line);}
+.trash-info{display:flex; flex-direction:column; gap:2px; min-width:0; flex:1 1 220px;}
+.trash-info small{font-size:12.5px; color:var(--ink-2);}
+.trash-btns{display:flex; gap:6px; flex-wrap:wrap;}
+.trash-btns button{min-height:44px;}
