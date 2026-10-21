@@ -808,6 +808,8 @@ on any of these:
 
 ## Pending changelog entry (since v3.24.0)
 
+- v3.24.11: Developer Panel tab line without a visible scrollbar (the tabs
+  still scroll sideways on a phone).
 - v3.24.10: Developer Panel header in the theme's main color (`--brand`:
   navy in Parcel, black in Tag Week and Concourse), with the theme's
   on-brand text, as the app's shell does. Tabs and body unchanged.

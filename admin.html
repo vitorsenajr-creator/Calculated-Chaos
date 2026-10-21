@@ -36,8 +36,9 @@
        sideways when the phone is narrow. */
     .ad-tabs{
       display:flex; gap:22px; max-width:1040px; margin:0 auto; padding:0 22px;
-      border-bottom:1px solid var(--line); overflow-x:auto; scrollbar-width:thin;
+      border-bottom:1px solid var(--line); overflow-x:auto; scrollbar-width:none;
     }
+    .ad-tabs::-webkit-scrollbar{ display:none; }
     .ad-tab{
       background:none; border:0; border-bottom:2px solid transparent; margin-bottom:-1px;
       padding:12px 0; min-height:44px; font-size:14px; font-weight:600; color:var(--ink-2);
