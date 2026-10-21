@@ -48,7 +48,13 @@ export default async function handler(req, res) {
     // one eBay connection (ebay_connections/main), we don't hold per-customer data
     // tied to individual eBay usernames yet. When multi-tenant support is
     // added, this is where we'd delete that specific user's stored data.
-    console.log('eBay account deletion notification received:', JSON.stringify(req.body));
+    // Log only what identifies the notification. The body carries the
+    // seller's username and user id, which must not go to the logs.
+    console.log('eBay account deletion notification received:', JSON.stringify({
+      topic: req.body?.metadata?.topic ?? null,
+      notificationId: req.body?.notification?.notificationId ?? null,
+      publishDate: req.body?.notification?.publishDate ?? null,
+    }));
     return res.status(200).json({ received: true });
   }
 

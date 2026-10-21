@@ -819,6 +819,14 @@ on any of these:
 
 ## Pending changelog entry (since v3.25.0)
 
+- v3.25.8: The eBay account-deletion notification logs only its topic,
+  notification id and publish date, not the body (the body has the seller's
+  username and user id). The POST still answers 200 and deletes nothing, as
+  before. **Open:** the notification's signature (`x-ebay-signature`) is not
+  checked yet: eBay's own page does not give the header format or the key
+  endpoint in full, so this waits for the Notification API reference and a
+  test in the eBay sandbox. A wrong check would return 412 to every notice.
+
 - v3.25.7: Form field borders reach 3:1 (WCAG 1.4.11) in the three themes.
   New token `--control-line` (per theme, on `:root`): the borders of the
   `.field`, settings, stock and pick code inputs use it; `--line` stays for
