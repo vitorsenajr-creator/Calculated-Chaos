@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "test": "node --test tests/domain/*.test.mjs",
     "dev": "vite",
     "dev:vercel": "vercel dev",
     "build": "vite build",
