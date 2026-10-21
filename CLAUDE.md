@@ -806,78 +806,9 @@ on any of these:
 - Quick Labels one-by-one queue and PDF export (v3.13.106/107), label font
   sizing (v3.13.102-105), inspection flag icon (v3.13.114).
 
-## Pending changelog entry (since v3.24.0)
+## Pending changelog entry (since v3.25.0)
 
-- v3.24.12: Item form quantity. The Quantity field stays visible after a
-  save: on an item being edited it reads "Add copies" (0 by default) and
-  makes that many unsold copies with the same details, numbered after the
-  base code (`domain/item-copies.js`); the original keeps its code and the
-  form reopens on it. Quantity sits beside Product code with − and +
-  buttons; Storage box moves next to Source. ✨ Analyze and Narrate use
-  the theme's main color (Concourse's Analyze is its signal yellow).
-- v3.24.11: Developer Panel tab line without a visible scrollbar (the tabs
-  still scroll sideways on a phone).
-- v3.24.10: Developer Panel header in the theme's main color (`--brand`:
-  navy in Parcel, black in Tag Week and Concourse), with the theme's
-  on-brand text, as the app's shell does. Tabs and body unchanged.
-- v3.24.9: Home design pass (critique of the default settings in all three themes).
-  Phone: the + button no longer covers Home's row buttons (rows keep 64px
-  on the right, and the list clears the + and the bottom bar). The stock
-  insight no longer repeats the summary's projected profit and unsold count.
-  Goals with no goal set is one compact row. Tag Week's shelf hides empty
-  weeks. Concourse's sidebar icons are 32px squares with a legible glyph.
-
-- v3.24.8: Developer Panel follows the business Appearance (`config/settings.theme`,
-  the same setting Settings → Appearance saves; before it loads or with no
-  business, the device's last theme). No theme picker in the panel. Layout:
-  one header (the way back is text, no arrow glyph), a tab line with an
-  indicator, flat sections separated by rules (no cards inside cards), the
-  fixed type scale, sticky first column in tables, 44px targets on phones.
-  Replaces the per-admin choice of v3.24.7 (users/{uid}.adminTheme is no
-  longer read; the field can stay unused).
-
-- v3.24.6: AI usage tab names the features ("Photo analysis & listing",
-  "Listing rewrite", "Pick: sale screenshot", …) and drops the tools card
-  and column. The tool counts are still stored for later.
-- v3.24.5: AI usage meter, phase 0 (measure only, nothing charged).
-  Every successful AI call is counted on the server per user, month, call
-  type and model (analysis, rewrite, import check, Pick screenshot,
-  narration, suggested fee, eBay error explanation), with input, output
-  and cache tokens and any tool calls. The Developer Panel has an "AI
-  usage" tab: totals, per user (e-mail, role, business) and per call
-  type. Server only (`ai_usage` rule, Console paste, done 2026-10-21).
-
-- v3.24.4: Mark sold from Pick. Records the screenshots' sales on their
-  items in one go: price and platform from the screenshot, the fee
-  worked out per order (a bundle's fee on the order total, split by
-  price), shipping paid, and the sales profit. The eBay listing is ended
-  when the piece sold elsewhere, and the order number is kept so the same
-  sale can't be recorded twice. Recorded pieces show "Recorded as sold"
-  and where they're still listed.
-
-- v3.24.3: Pick checklist and clearer details. "Print checklist" prints
-  the pick list on 100 × 210 mm labels (black, a box to tick per piece,
-  warnings like DELIST or ALREADY MARKED SOLD, a "Picked by / Date"
-  line). Lines skipped as repeats now show the item, the order and the
-  two screenshots. An order whose platform wasn't recognized asks "Sold
-  on" instead of telling you to delist it from the platform it may have
-  sold on. Box names that already start with "Box" no longer read "Box
-  Box 2".
-
-- v3.24.2: Stock → Pick. Add screenshots of your sales (Poshmark, eBay,
-  Mercari…) and the app lists the sold pieces box by box: found by SKU,
-  by an imported item's old code or by name (with a "check this" note
-  and other matches), with a tick per piece picked. It warns when a piece
-  is already marked sold, is still listed on another platform, or two
-  sales point to it. Each screenshot uses one AI analysis; nothing is
-  saved to the catalog yet.
-
-- v3.24.1: AI writing instructions (Nifty P2 item 2). Settings →
-  Listings → "AI writing instructions": tell the AI how you like your
-  listings written (up to 1,500 characters, with example chips like "No
-  emojis." or "Put the brand first in the title."). ✨ analysis and
-  Rewrite follow them for the title and description only; the item's
-  details, the price and the closing text stay as before.
+- None yet.
 
 ## Backlog (not started)
 
