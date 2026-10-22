@@ -472,6 +472,13 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
   v3.26.0 the delete just removed the document, leaving the listing live
   and the sale tracker with no item to match). The delete now asks first;
   do not add a delete path that skips the question.
+- **The Catalog draws its cards in batches of 300 (v3.26.12,
+  `CATALOG_BATCH` in `main.js`).** An item can have no card in the page.
+  Work from the data (`applyFilters(items)`, `bulkSelectedIds`), never from
+  `document.querySelectorAll('.item-card')`. Card clicks are one delegated
+  handler on `#catalogListArea`, so cards drawn later need no wiring. The
+  count goes back to one batch only when the search, the filters or the sort
+  change (`catalogListKey`); a redraw of the same list keeps it.
 
 ## Open items
 
@@ -871,6 +878,19 @@ on any of these:
   sizing (v3.13.102-105), inspection flag icon (v3.13.114).
 
 ## Pending changelog entry (since v3.26.0)
+
+- v3.26.12: the Catalog draws 300 cards first and the next 300 as the end of
+  the list comes near the screen (an observer, plus a "Show more" button).
+  Search, filters and sort still work on every item; "Select all N" still
+  takes all N. With 1,500 sample items and the CPU slowed 4x, going back to
+  the Catalog took a median of 232 ms (after v3.26.11) and now takes 59 ms;
+  a key in the search box took 1,090 ms and now takes 263 ms. The first 300
+  cards, and all 1,500 once drawn, are byte-for-byte the same HTML as
+  before. Card clicks moved to one handler on the list. Checked in a build
+  with the Firebase SDK stubbed; unverified in production: a real phone and
+  real photos. Open: Finances redraws on every tab switch since v3.26.9
+  (about 0.8 s with 1,500 items); a search key still takes about 260 ms at
+  4x.
 
 - v3.26.11: showing the Catalog again after another tab no longer lays out
   every card. `.item-card` has `content-visibility: auto` with a per-theme

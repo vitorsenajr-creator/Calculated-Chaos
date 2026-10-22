@@ -176,6 +176,13 @@ export const app = (function(){
   let bulkSelectMode = false;
   let bulkSelectedIds = new Set();
   let searchQuery = '';
+  // The Catalog draws its cards in batches (v3.26.12). `catalogShown` is how
+  // many are drawn; it goes back to one batch when the list changes.
+  const CATALOG_BATCH = 300;
+  let catalogShown = CATALOG_BATCH;
+  let catalogListKey = '';
+  let catalogMore = null;          // { sorted, build } of the list on screen
+  let catalogMoreObserver = null;
   let lastUsedBox = ''; // pre-fills the storage box field with whatever was used last
   let lastUsedSource = ''; // pre-fills the source field with whatever was used last
   let lastUsedCategory = 'Clothing'; // pre-fills the category field with whatever was used last
@@ -933,6 +940,8 @@ export const app = (function(){
   function renderCatalogList(){
     const listArea = document.getElementById('catalogListArea');
     if (!listArea) return;
+    if (catalogMoreObserver){ catalogMoreObserver.disconnect(); catalogMoreObserver = null; }
+    catalogMore = null;
     const filtered = applyFilters(items);
 
     if (items.length === 0){
@@ -960,10 +969,18 @@ export const app = (function(){
     }
 
     const sorted = sortCatalog(filtered, catalogSort);
+    // A different search, filter or sort is a different list: start again at
+    // the first batch. A redraw of the same list (a save, a bulk tap) keeps
+    // how far the list was drawn, so it doesn't shrink under the person.
+    const listKey = JSON.stringify([catalogSection, catalogSort, searchQuery, activeFilters]);
+    if (listKey !== catalogListKey){
+      catalogListKey = listKey;
+      catalogShown = CATALOG_BATCH;
+    }
     const ctx = issueCtx();
     const STAGES = ['catalogado', 'anunciado', 'vendido'];
     const theme = currentTheme();
-    const cardsHtml = sorted.map(item => {
+    const buildCard = (item) => {
       const photo = item.photos && item.photos[0];
       const hasListPrice = parseFloat(item.listPrice) > 0;
       const issues = _itemIssues(item, ctx);
@@ -1096,7 +1113,9 @@ export const app = (function(){
           </div>
         </div>
       </div>`;
-    }).join('');
+    };
+    const shown = Math.min(catalogShown, sorted.length);
+    const cardsHtml = sorted.slice(0, shown).map(item => buildCard(item)).join('');
 
     // Bulk bar (v3.20.1): the everyday actions up front, the rest under
     // "More actions", with Delete last and set apart.
@@ -1143,8 +1162,54 @@ export const app = (function(){
       // Only a narrowed list needs a count line; the full catalog doesn't.
       : (searchQuery.trim() || filtersActiveCount() || filtered.length !== items.length)
         ? `<div class="list-count">${filtered.length} match${filtered.length===1?'':'es'} of ${items.length}</div>` : '';
-    listArea.innerHTML = `${countLine}<div class="catalog-grid">${cardsHtml}</div>` + (bulkSelectMode ? `<div class="bulk-spacer"></div>` : '') + bulkBarHtml;
+    const remaining = sorted.length - shown;
+    const moreHtml = remaining > 0 ? `
+      <div class="catalog-more" id="catalogMore">
+        <span id="catalogMoreText">Showing ${shown} of ${sorted.length}</span>
+        <button type="button" class="secondary-btn" id="catalogMoreBtn">Show ${Math.min(CATALOG_BATCH, remaining)} more</button>
+      </div>` : '';
+    listArea.innerHTML = `${countLine}<div class="catalog-grid">${cardsHtml}</div>${moreHtml}` + (bulkSelectMode ? `<div class="bulk-spacer"></div>` : '') + bulkBarHtml;
+    if (remaining > 0){
+      catalogMore = { sorted, build: buildCard };
+      wireCatalogMore();
+    }
     wireCatalogListEvents();
+  }
+
+  // Draws the next batch of cards at the end of the list, without redrawing
+  // the ones already there (v3.26.12). Called by the "Show more" button and
+  // by the observer when the end of the list comes near the screen.
+  function showMoreCards(){
+    const more = catalogMore;
+    const grid = document.querySelector('#catalogListArea .catalog-grid');
+    if (!more || !grid || catalogShown >= more.sorted.length) return;
+    const next = Math.min(catalogShown + CATALOG_BATCH, more.sorted.length);
+    grid.insertAdjacentHTML('beforeend', more.sorted.slice(catalogShown, next).map(more.build).join(''));
+    catalogShown = next;
+    const box = document.getElementById('catalogMore');
+    if (catalogShown >= more.sorted.length){
+      if (box) box.remove();
+      if (catalogMoreObserver){ catalogMoreObserver.disconnect(); catalogMoreObserver = null; }
+      catalogMore = null;
+      return;
+    }
+    const remaining = more.sorted.length - catalogShown;
+    document.getElementById('catalogMoreText').textContent = `Showing ${catalogShown} of ${more.sorted.length}`;
+    document.getElementById('catalogMoreBtn').textContent = `Show ${Math.min(CATALOG_BATCH, remaining)} more`;
+    // Look again: the end of the list may still be near the screen.
+    if (catalogMoreObserver && box){ catalogMoreObserver.unobserve(box); catalogMoreObserver.observe(box); }
+  }
+  function wireCatalogMore(){
+    const btn = document.getElementById('catalogMoreBtn');
+    const box = document.getElementById('catalogMore');
+    if (!btn || !box) return;
+    btn.addEventListener('click', showMoreCards);
+    if ('IntersectionObserver' in window){
+      catalogMoreObserver = new IntersectionObserver((entries) => {
+        if (entries.some(en => en.isIntersecting)) showMoreCards();
+      }, { rootMargin: '1500px 0px' });
+      catalogMoreObserver.observe(box);
+    }
   }
 
   // Wires the search field, filter toggle, bulk-mode toggle, and the drafts
@@ -1234,8 +1299,14 @@ export const app = (function(){
   // Wires everything INSIDE #catalogListArea (item cards, bulk action bar) —
   // runs after both a full renderCatalog() and a list-only renderCatalogList().
   function wireCatalogListEvents(){
-    document.querySelectorAll('.item-card').forEach(card => {
-      card.addEventListener('click', (e) => {
+    // One click handler on the list, so cards drawn later (the next batches)
+    // need no wiring of their own (v3.26.12).
+    const cardList = document.getElementById('catalogListArea');
+    if (cardList && !cardList.dataset.cardClicks){
+      cardList.dataset.cardClicks = '1';
+      cardList.addEventListener('click', (e) => {
+        const card = e.target.closest('.item-card');
+        if (!card) return;
         if (bulkSelectMode){
           const id = card.dataset.id;
           if (bulkSelectedIds.has(id)) bulkSelectedIds.delete(id);
@@ -1276,7 +1347,7 @@ export const app = (function(){
         const item = items.find(i => i.id === card.dataset.id);
         if (item) openModal(item);
       });
-    });
+    }
 
     // ---------- BULK ACTIONS ----------
     const bulkStatus = (msg, isError) => {
