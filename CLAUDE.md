@@ -273,8 +273,11 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
     plain bands and keeps the long side ≤1,568 px so text stays legible.
     Matching: SKU = product code without "#" (Poshmark shows "SKU: 0897"
     for #0897; copies "-1"/"-2" share the base, two sales take two
-    copies), then `legacyCode`, then title words + size + price (unsold
-    only, with a confidence and alternatives). Flags: already sold, still
+    copies), then `legacyCode`, then title words + size + price (v3.27.6:
+    sold pieces too, shown as already sold; an unsold one wins a near tie; a
+    different kind of garment never matches and a brand + price alone is no
+    match; no match → "Not found" with up to 3 suggestion cards and "Use
+    this"; with a confidence and alternatives). Flags: already sold, still
     listed elsewhere, two sales on one item, SKU not in the catalog. Same
     order line in two screenshots counts once; the skipped lines are
     listed with their item and both screenshots (v3.24.3). An order whose
@@ -591,6 +594,13 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
 
 ### Unverified in production (build-verified only)
 
+- Pick name matching (v3.27.6): Node tests (61 pass: the Love Tree case, a
+  sold piece found, brand + price alone, size in the name, unsold vs sold
+  tie; the index against a per-item reference on random catalogs) and a
+  Chromium test of the built app with a stubbed Firebase: the dress is not
+  offered, a close piece is suggested and "Use this" moves it into its box, a
+  sold skirt is found and flagged as sold, no page errors. Not run: real
+  screenshots and catalog, a phone.
 - Stock and Finances draw on demand, Pick matching on an index (v3.27.4):
   Node test of the index against the matching it replaced (random catalogs
   of 400 items and 300 lines, five seeds: the same item, how, confidence,
@@ -993,6 +1003,21 @@ on any of these:
   (8 tests). Unverified in production: two real devices, the SDK's
   reconnect after a long offline period (it may re-read the collection), the
   watch against the real rules.
+
+- v3.27.6: Pick stops matching the wrong piece by name. A Love Tree skirt
+  with no SKU was matched to a Love Tree dress (brand and price in common, 53%).
+  Now the garment type (skirt, dress, top, jacket, pants, shorts, jumpsuit,
+  shoes, bag) must not conflict, at least one word besides the brand must be
+  shared, and a "Size S" written in the item's name counts when the size field
+  is empty. Sold pieces are matched by name too and shown as "Already marked
+  sold" (an unsold copy wins when it fits within 0.1). A line with no fit goes
+  to "Not found in the catalog" with up to three suggestion cards (photo, code,
+  box, size, price, score, Sold tag; "Use this" / "Open"), never a different
+  kind of garment. A name match that isn't sure also shows the order's own
+  title. `tests/domain/sale-match-guard.test.mjs` (6 tests) and the index test
+  now compares with the new rules. Unverified in production: Vitor's real
+  screenshots and catalog (the garment word lists may need more words), the
+  cards on an iPhone.
 
 - v3.27.4: Stock stops being slow with a Pick list. Opening Stock matched
   every sale line against the whole catalog and split every item's words
