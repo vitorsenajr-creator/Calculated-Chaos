@@ -181,6 +181,7 @@ export const app = (function(){
   // The Catalog draws its cards in batches (v3.26.12). `catalogShown` is how
   // many are drawn; it goes back to one batch when the list changes.
   const CATALOG_BATCH = 300;
+  const SEARCH_DELAY_MS = 200; // the search box waits this long after a key before drawing results
   let catalogShown = CATALOG_BATCH;
   let catalogListKey = '';
   let catalogMore = null;          // { sorted, build } of the list on screen
@@ -1221,12 +1222,17 @@ export const app = (function(){
   function wireCatalogControls(){
     const searchInput = document.getElementById('searchInput');
     if (searchInput){
+      let searchTimer = null;
       searchInput.addEventListener('input', (e) => {
         searchQuery = e.target.value;
+        // The results draw once the typing pauses (v3.26.14): each draw builds
+        // the cards again, and one per key made a long catalog lag behind the
+        // keyboard. The query itself is saved at once.
         // Refresh only the results list — #searchInput itself is never
         // touched, so its focus/cursor and the on-screen keyboard's
         // current mode (letters vs. "123") stay exactly as they were.
-        renderCatalogList();
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(renderCatalogList, SEARCH_DELAY_MS);
       });
     }
     const filterToggleBtn = document.getElementById('filterToggleBtn');
