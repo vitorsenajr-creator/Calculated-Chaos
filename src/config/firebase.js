@@ -4,7 +4,7 @@
   import { initializeApp } from "firebase/app";
   import {
     getFirestore, collection, doc, getDocs, getDoc, setDoc, updateDoc, deleteDoc,
-    query, where, runTransaction, writeBatch
+    query, where, runTransaction, writeBatch, onSnapshot
   } from "firebase/firestore";
   import {
     getStorage, ref, uploadString, getDownloadURL
@@ -25,7 +25,7 @@
 
   const app = initializeApp(firebaseConfig);
   window.db = getFirestore(app);
-  window.firestoreFns = { collection, doc, getDocs, getDoc, setDoc, updateDoc, deleteDoc, query, where, runTransaction, writeBatch };
+  window.firestoreFns = { collection, doc, getDocs, getDoc, setDoc, updateDoc, deleteDoc, query, where, runTransaction, writeBatch, onSnapshot };
   window.storage = getStorage(app);
   window.storageFns = { ref, uploadString, getDownloadURL };
 

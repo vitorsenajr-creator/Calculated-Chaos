@@ -21,6 +21,8 @@ import { moveItemsToTrash } from './data/trash-store.js';
 import { askEbayBeforeDelete } from './ui/items/delete-dialog.js';
 import { lazyScreen } from './ui/lazy-screen.js';
 import { showToast } from './ui/toast.js';
+import { watchCollection } from './data/live-sync.js';
+import { applyChanges } from './domain/live-changes.js';
 import {
   MAX_PHOTOS, MAX_PHOTO_DIM, PHOTO_QUALITY,
   PLATFORM_FEES, PLATFORM_LABEL, PLATFORM_NAME, PLATFORM_COLOR, PLATFORM_FAVICON,
@@ -281,25 +283,23 @@ export const app = (function(){
   // ---------- STORAGE (Firebase Firestore) ----------
   // Each item is stored as its own document in the 'items' collection,
   // so a large catalog (with photos) never approaches Firestore's 1MB-per-document limit.
-  async function loadItems(){
-    try{
-      const { getDocs } = window.firestoreFns;
-      const snap = await getDocs(bizCol('items'));
-      setItems(snap.docs.map(d => d.data()));
-      // Migration: the listing title/description fields used to be named
-      // poshmarkTitle/poshmarkDescription (back when eBay had its own
-      // separate, broken description builder, before this became a
-      // shared cross-platform field) — normalize older saved items to the
-      // new field names in memory. Not written back here; it happens
-      // naturally the next time she saves that item.
-      items.forEach(i => {
-        if (!i.listingTitle && i.poshmarkTitle) i.listingTitle = i.poshmarkTitle;
-        if (!i.listingDescription && i.poshmarkDescription) i.listingDescription = i.poshmarkDescription;
-      });
-    }catch(e){
-      console.error('Load error', e);
-      setItems([]);
-    }
+  // The catalog is a live copy (v3.27.5): the first answer is the whole
+  // collection, and what another device changes afterwards arrives by itself
+  // (data/live-sync.js), so two devices stay current without a reload.
+  function normalizeItem(i){
+    // Migration: the listing title/description fields used to be named
+    // poshmarkTitle/poshmarkDescription (back when eBay had its own
+    // separate, broken description builder, before this became a
+    // shared cross-platform field) — normalize older saved items to the
+    // new field names in memory. Not written back here; it happens
+    // naturally the next time she saves that item.
+    if (!i.listingTitle && i.poshmarkTitle) i.listingTitle = i.poshmarkTitle;
+    if (!i.listingDescription && i.poshmarkDescription) i.listingDescription = i.poshmarkDescription;
+    return i;
+  }
+
+  function finishItemsLoad(docs){
+    setItems(docs.map(normalizeItem));
     // lastUsedSource/lastUsedBox used to only update in-memory when an item
     // was saved THIS session — so after any page reload they'd reset to
     // blank even though 288+ items already have a source on file. Seed them
@@ -315,6 +315,99 @@ export const app = (function(){
     itemsLoaded = true;
     renderAll();
   }
+
+  const liveStops = [];
+  let liveFailed = false, liveLastRefresh = 0;
+  let remoteItemChanges = [], remoteDraftChanges = [], remoteTimer = null;
+
+  function stopLiveSync(){
+    while (liveStops.length){ try{ liveStops.pop()(); }catch(e){} }
+    clearTimeout(remoteTimer);
+    remoteItemChanges = []; remoteDraftChanges = [];
+  }
+
+  // Changes from another device wait until nothing is being edited here, so
+  // a redraw never lands under an open item, dialog or focused field.
+  function liveBusy(){
+    if (document.querySelector('dialog[open], .modal-overlay:not(.hidden)')) return true;
+    const a = document.activeElement;
+    return !!(a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName));
+  }
+
+  function queueRemote(kind, changes){
+    (kind === 'items' ? remoteItemChanges : remoteDraftChanges).push(...changes);
+    clearTimeout(remoteTimer);
+    remoteTimer = setTimeout(applyRemote, 800);
+  }
+
+  function applyRemote(){
+    if (liveBusy()){ remoteTimer = setTimeout(applyRemote, 1500); return; }
+    const ic = remoteItemChanges, dc = remoteDraftChanges;
+    remoteItemChanges = []; remoteDraftChanges = [];
+    let n = 0;
+    if (ic.length){
+      const r = applyChanges(items, ic, normalizeItem);
+      setItems(r.list);
+      r.removedIds.forEach(id => bulkSelectedIds.delete(id));
+      n += r.added + r.modified + r.removed;
+    }
+    if (dc.length){
+      const r = applyChanges(draftItems, dc);
+      draftItems = r.list;
+      n += r.added + r.modified + r.removed;
+    }
+    if (!n) return;
+    renderAll();
+    showToast(`Catalog updated: ${n} change${n === 1 ? '' : 's'} from another device`);
+  }
+
+  // Watch one collection. Resolves with the first answer; if the watch can't
+  // start, the collection is read once as before. If it stops later, the app
+  // refreshes by reading again when the person comes back to the tab.
+  function startWatch(name, onDocs, onFail, onChanges){
+    return new Promise(resolve => {
+      let settled = false;
+      const done = (docs) => { if (settled) return; settled = true; onDocs(docs); resolve(); };
+      try{
+        liveStops.push(watchCollection(name, {
+          onFirst: done,
+          onChanges,
+          onError: async (err, beforeFirst) => {
+            console.error('Live sync error (' + name + ')', err);
+            if (!beforeFirst){ liveFailed = true; return; }
+            try{
+              const snap = await window.firestoreFns.getDocs(bizCol(name));
+              done(snap.docs.map(d => d.data()));
+            }catch(e){
+              console.error('Load error (' + name + ')', e);
+              settled = true; onFail(); resolve();
+            }
+            liveFailed = true;
+          }
+        }));
+      }catch(e){
+        console.error('Load error (' + name + ')', e);
+        settled = true; onFail(); resolve();
+      }
+    });
+  }
+
+  function loadItems(){
+    return startWatch('items', finishItemsLoad, () => finishItemsLoad([]), changes => queueRemote('items', changes));
+  }
+
+  document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState !== 'visible' || !liveFailed || !itemsLoaded) return;
+    if (Date.now() - liveLastRefresh < 60000) return;
+    liveLastRefresh = Date.now();
+    try{
+      const { getDocs } = window.firestoreFns;
+      const [is, ds] = await Promise.all([getDocs(bizCol('items')), getDocs(bizCol('drafts'))]);
+      setItems(is.docs.map(d => normalizeItem(d.data())));
+      draftItems = ds.docs.map(d => d.data());
+      renderAll();
+    }catch(e){ console.error('Refresh error', e); }
+  });
 
   async function saveItem(itemData){
     try{
@@ -355,15 +448,8 @@ export const app = (function(){
   }
 
   // ---------- PHOTO SESSION DRAFTS (own Firestore collection) ----------
-  async function loadDrafts(){
-    try{
-      const { getDocs } = window.firestoreFns;
-      const snap = await getDocs(bizCol('drafts'));
-      draftItems = snap.docs.map(d => d.data());
-    }catch(e){
-      console.error('Load drafts error', e);
-      draftItems = [];
-    }
+  function loadDrafts(){
+    return startWatch('drafts', docs => { draftItems = docs; }, () => { draftItems = []; }, changes => queueRemote('drafts', changes));
   }
 
   async function saveDraftToDb(draft){
@@ -1617,6 +1703,7 @@ export const app = (function(){
       header.insertAdjacentHTML('beforeend', `<button type="button" class="header-btn" id="headerSignOutBtn">Sign out</button>`);
       document.getElementById('headerSignOutBtn').addEventListener('click', async () => {
         if (!confirm('Sign out of Calculated Chaos?')) return;
+        stopLiveSync();
         await window.authFns.signOut(window.auth);
       });
     }
@@ -5269,6 +5356,7 @@ export const app = (function(){
   });
 
   document.getElementById('authSignOutBtn').addEventListener('click', async () => {
+    stopLiveSync();
     await window.authFns.signOut(window.auth);
   });
   document.getElementById('authVerifySendBtn').addEventListener('click', async (e) => {
@@ -5312,7 +5400,8 @@ export const app = (function(){
         }
         if (snap.data().status === 'removed'){
           // A device still signed in from before the removal.
-          await window.authFns.signOut(window.auth);
+          stopLiveSync();
+        await window.authFns.signOut(window.auth);
           setAuthError(REMOVED_ACCOUNT_MSG);
           return;
         }
