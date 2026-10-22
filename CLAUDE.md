@@ -603,6 +603,13 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
   with 36 lines went from 557 ms to 232 ms the first time and from about
   500 ms to under 130 ms after. Unconfirmed: the real numbers on a phone with
   Vitor's real Pick list, and whether leaving Stock still sticks.
+- Live sync (v3.27.5): Node test (8 cases) and a Chromium test of the built
+  app with a stubbed `onSnapshot` and 1,500 items: first snapshot loads
+  once; another device's add, edit and remove appear with one toast; a local
+  echo is ignored; a focused search field holds the redraw until blur; drafts
+  and a 200-change burst apply; a watch error before the first answer falls
+  back to `getDocs`; no page errors. Not run: two real devices, the real
+  Firestore watch and rules, reconnect behavior.
 - Faster start and the Catalog (v3.26.8 – v3.26.14): Chromium test of the
   built app with the Firebase SDK stubbed (a signed-in owner, 1,500 sample
   items, CPU slowed 4x): no page errors; every tab, Import and the trash
@@ -972,6 +979,20 @@ on any of these:
   sizing (v3.13.102-105), inspection flag icon (v3.13.114).
 
 ## Pending changelog entry (since v3.27.0)
+
+- v3.27.5: the catalog stays current across devices. Items and drafts are
+  watched with `onSnapshot` (`data/live-sync.js`) instead of read once: the
+  first answer is the whole collection (same reads as before), later ones carry
+  only the documents another device changed (`domain/live-changes.js`
+  `applyChanges`). Changes this device made itself (`hasPendingWrites`) are
+  ignored; remote ones wait until no dialog is open and no field is focused,
+  then redraw once and show "Catalog updated: N changes from another device".
+  If the watch can't start, the collections are read once as before; if it
+  stops later, the app re-reads when the tab becomes visible again (at most
+  once a minute). Sign-out stops the watches. `tests/domain/live-changes.test.mjs`
+  (8 tests). Unverified in production: two real devices, the SDK's
+  reconnect after a long offline period (it may re-read the collection), the
+  watch against the real rules.
 
 - v3.27.4: Stock stops being slow with a Pick list. Opening Stock matched
   every sale line against the whole catalog and split every item's words
