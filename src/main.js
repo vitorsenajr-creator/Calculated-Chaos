@@ -125,9 +125,11 @@ export const app = (function(){
   );
 
   // Redraws for screens that may not have loaded yet. A screen that loads
-  // later draws itself when it is opened.
+  // later draws itself when it is first opened; after that, a redraw comes
+  // from the data changing (renderAll), not from switching to the tab.
+  let financeDrawn = false;
   function refreshFinance(){
-    financeScreen.ifLoaded(f => { f.renderFinance(); f.renderExpenses(); });
+    financeScreen.ifLoaded(f => { financeDrawn = true; f.renderFinance(); f.renderExpenses(); });
   }
   function refreshStock(){
     stockScreen.ifLoaded(s => s.renderStock());
@@ -1684,7 +1686,7 @@ export const app = (function(){
     closeFabMenu();
     if (tab === 'home') renderHome();
     if (tab === 'stock') stockScreen.use(s => s.renderStock());
-    if (FINANCE_PANES[tab]) financeScreen.use(f => { f.renderFinance(); f.renderExpenses(); });
+    if (FINANCE_PANES[tab]) financeScreen.use(() => { if (!financeDrawn) refreshFinance(); });
     // Skip the rebuild while the "paste your eBay token" box is showing and
     // waiting on her — a full re-render replaces the whole Settings section,
     // including that box, with a fresh "Not connected" state (since the

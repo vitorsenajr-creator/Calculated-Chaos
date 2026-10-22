@@ -879,6 +879,17 @@ on any of these:
 
 ## Pending changelog entry (since v3.26.0)
 
+- v3.26.13: switching to a Finances tab no longer redraws Finances. v3.26.9
+  redrew it on every switch (a mistake: before, it only redrew when the
+  data changed); now it draws the first time it is opened, and after that
+  only when the data changes (`renderAll()` through `refreshFinance()`), as
+  before v3.26.9. With 1,500 sample items and the CPU slowed 4x, going to
+  Finances again took 572 ms and 509 ms (the second and third visits) and
+  now takes 39 ms and 32 ms; the first visit still draws (about 700 ms).
+  The text is the same as before on every visit, and a data change still
+  redraws it. Checked in a build with the Firebase SDK stubbed; unverified
+  in production: a real phone.
+
 - v3.26.12: the Catalog draws 300 cards first and the next 300 as the end of
   the list comes near the screen (an observer, plus a "Show more" button).
   Search, filters and sort still work on every item; "Select all N" still
