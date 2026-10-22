@@ -1009,6 +1009,8 @@ on any of these:
 
 ## Pending changelog entry (since v3.27.0)
 
+- v3.27.8: public welcome page (`welcome.html`, a static Vite entry at `/welcome.html`; the app stays at `/`). Parcel tokens, Archivo only, phone first, no script. Sections: hero with a sample Home, five feature blocks (labels and codes, listing drafts, pick list, profit and loss, spreadsheet import), a closing request-access call. Feature visuals are drawn in HTML with sample data until real captures replace them. Local only: not merged. Unverified in production: fonts from Google on a real phone, the request-access path (it links to `/`, the sign-in screen).
+
 - v3.27.5: the catalog stays current across devices. Items and drafts are
   watched with `onSnapshot` (`data/live-sync.js`) instead of read once: the
   first answer is the whole collection (same reads as before), later ones carry
