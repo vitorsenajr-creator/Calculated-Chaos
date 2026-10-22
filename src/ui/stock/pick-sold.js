@@ -7,10 +7,19 @@
 // that sold elsewhere, like the item modal's Sold does.
 import { escapeHtml } from '../../modules/format-utils.js';
 import { orderFeeShares, pickSaleFields, quickSaleDefaults } from '../../domain/pick-sale.js';
+import { hasMissingCost } from '../../domain/sales-ledger.js';
 import { showToast } from '../toast.js';
 
 const money2 = (n) => `$${(Math.round(n * 100) / 100).toFixed(2)}`;
 const v2 = (n) => (n === null || n === undefined || n === '' ? '' : Number(n).toFixed(2));
+
+// Net earnings lower than price − fee: the marketplace took something else
+// off (a shipping label, for example). Said once, never guessed at.
+function netGapNote(l){
+  if (l.orderTotal === null || l.orderFee === null || l.orderNet === null) return '';
+  const gap = Math.round((l.orderTotal - l.orderFee - l.orderNet) * 100) / 100;
+  return gap > 0.005 ? `<p class="pick-note">Net earnings are ${money2(gap)} below price minus fee. Check for shipping or another deduction.</p>` : '';
+}
 
 // Rows the sheet offers: matched, not sold in the app, not recorded yet.
 export function sellableRows(pl){
@@ -56,6 +65,9 @@ export function openMarkSold(pl, allLines, hooks){
           <span><b class="pick-code">${escapeHtml(r.item.productCode || '')}</b> ${escapeHtml(r.item.name || l.title)}</span>
         </label>
         ${why ? `<p class="pick-note">${why}</p>` : ''}
+        ${l.bundleNote ? `<p class="pick-note">${escapeHtml(l.bundleNote)}</p>` : ''}
+        ${l.bundleWarn ? `<p class="pick-note">${escapeHtml(l.bundleWarn)}</p>` : ''}
+        ${netGapNote(l)}
         <div data-ps-body>
           <div class="ps-fields">
             <label class="goal-field"><span>Sold on</span>
@@ -68,6 +80,9 @@ export function openMarkSold(pl, allLines, hooks){
               ${d.noPrice ? '<span class="pick-note">No listed price. Type the sale price.</span>' : ''}</label>
             <label class="goal-field"><span>Shipping paid</span>
               <span class="goal-input"><span class="goal-affix">$</span><input type="text" data-k="shippingCost" inputmode="decimal" autocomplete="off" value="0.00"></span></label>
+            ${hasMissingCost(r.item) ? `<label class="goal-field"><span>Item cost</span>
+              <span class="goal-input"><span class="goal-affix">$</span><input type="text" data-k="cost" inputmode="decimal" autocomplete="off" placeholder="0.00"></span>
+              <span class="pick-note">Not in the catalog yet. Type it to see the profit; 0 if it was free.</span></label>` : ''}
           </div>
           <p class="ps-profit">Fee <b data-ps-fee>—</b> <button type="button" class="row-btn" data-ps-fee-toggle>Change fee</button></p>
           <div class="ps-fields" data-ps-fee-edit hidden>
@@ -82,7 +97,8 @@ export function openMarkSold(pl, allLines, hooks){
   dlg.innerHTML = `
     <form method="dialog" class="goal-form" novalidate>
       <h2 id="psTitle">Mark sold</h2>
-      <p class="ps-desc">Records each ticked sale on its item: price, platform, fee and profit, plus the order number so it can't be recorded twice. A bundle's fee is worked out on the order total and split by price.</p>
+      <p class="ps-desc">Records each ticked sale on its item: price, platform, fee and profit, plus the order number so it can't be recorded twice. When the screenshot shows the order's pricing section, the real total and fee are used (a bundle's discount is spread over its pieces in proportion); otherwise the fee is worked out on the listed total by the platform's rule.</p>
+      ${rows.some(r => r.line.orderTotal === null && r.line.orderFee === null) ? '<p class="pick-note">For exact prices and fees, open "Pricing &amp; Earning Info" in the order before taking the screenshot.</p>' : ''}
       <div class="ps-list">${rows.map(rowHtml).join('')}</div>
       <div class="goal-actions exp-dialog-actions">
         <p class="goal-error" data-ps-all-error role="alert" hidden></p>
@@ -96,7 +112,7 @@ export function openMarkSold(pl, allLines, hooks){
   const rowEl = (key) => dlg.querySelector(`[data-ps-row="${CSS.escape(key)}"]`);
   const field = (key, k) => rowEl(key).querySelector(`[data-k="${k}"]`);
   const manualFee = new Set();
-  const input = (key) => ({ price: field(key, 'price').value, platform: field(key, 'platform').value, fee: field(key, 'fee').value, shippingCost: field(key, 'shippingCost').value });
+  const input = (key) => ({ price: field(key, 'price').value, platform: field(key, 'platform').value, fee: field(key, 'fee').value, shippingCost: field(key, 'shippingCost').value, cost: field(key, 'cost') ? field(key, 'cost').value : '' });
 
   // Every line of the same order counts toward its fee, even one not
   // offered here (sold already, or not found).
@@ -112,15 +128,18 @@ export function openMarkSold(pl, allLines, hooks){
     const platform = first ? field(first, 'platform').value : null;
     const shares = orderFeeShares(groupLines, platform, hooks.fee);
     keysOfOrder.filter(k => byKey.has(k) && !manualFee.has(k)).forEach(k => {
+      // The fee the screenshot showed (v3.27.1) wins over the platform's rule.
+      const real = byKey.get(k).line.paidFee;
       // A saved row keeps no inputs; its price still counts above.
-      field(k, 'fee').value = shares.has(k) ? shares.get(k).toFixed(2) : '';
+      field(k, 'fee').value = real !== null && real !== undefined ? real.toFixed(2) : shares.has(k) ? shares.get(k).toFixed(2) : '';
       refreshProfit(k);
     });
   }
   function refreshProfit(key){
     const r = byKey.get(key);
     const c = pickSaleFields(r.item, input(key), r.line, Date.now());
-    rowEl(key).querySelector('[data-ps-profit]').textContent = c.ok && c.fields.netProfit !== null ? money2(c.fields.netProfit) : '—';
+    rowEl(key).querySelector('[data-ps-profit]').textContent = c.ok && c.fields.netProfit !== null ? money2(c.fields.netProfit)
+      : c.ok && hasMissingCost(r.item) ? 'Add the cost' : '—';
     const fee = parseFloat(field(key, 'fee').value);
     rowEl(key).querySelector('[data-ps-fee]').textContent = Number.isFinite(fee) ? money2(fee) : '—';
   }
@@ -149,6 +168,7 @@ export function openMarkSold(pl, allLines, hooks){
     });
     field(key, 'fee').addEventListener('input', () => { manualFee.add(key); refreshProfit(key); });
     field(key, 'shippingCost').addEventListener('input', () => refreshProfit(key));
+    if (field(key, 'cost')) field(key, 'cost').addEventListener('input', () => refreshProfit(key));
     el.querySelector('[data-ps-fee-toggle]').addEventListener('click', () => {
       el.querySelector('[data-ps-fee-edit]').hidden = false;
       field(key, 'fee').focus();
