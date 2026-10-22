@@ -5394,6 +5394,28 @@ export const app = (function(){
     }
   });
 
+  document.getElementById('authGoogleBtn').addEventListener('click', async (e) => {
+    setAuthError('');
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    const { GoogleAuthProvider, signInWithPopup, signInWithRedirect } = window.authFns;
+    try{
+      await signInWithPopup(window.auth, new GoogleAuthProvider());
+      // onAuthStateChanged takes it from here, as with email sign-in.
+    }catch(err){
+      // Some phones block the popup (for example an installed home-screen app):
+      // continue on the same page with a full redirect instead.
+      if (err.code === 'auth/popup-blocked' || err.code === 'auth/operation-not-supported-in-this-environment'){
+        try{ await signInWithRedirect(window.auth, new GoogleAuthProvider()); return; }
+        catch(err2){ setAuthError(err2.message || 'Google sign-in did not start.'); }
+      } else if (err.code !== 'auth/popup-closed-by-user' && err.code !== 'auth/cancelled-popup-request'){
+        setAuthError(err.message || 'Google sign-in did not start.');
+      }
+    }finally{
+      btn.disabled = false;
+    }
+  });
+
   document.getElementById('authSignOutBtn').addEventListener('click', async () => {
     stopLiveSync();
     await window.authFns.signOut(window.auth);

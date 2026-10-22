@@ -2070,6 +2070,19 @@
 .trash-btns{display:flex; gap:6px; flex-wrap:wrap;}
 .trash-btns button{min-height:44px;}
 
+/* Sign-in: Continue with Google (v3.27.9). Tokens only, so every theme works. */
+.auth-google{
+  width:100%; min-height:48px; margin-top:4px;
+  display:inline-flex; align-items:center; justify-content:center; gap:10px;
+  background:var(--surface); color:var(--ink);
+  border:1px solid var(--surface-2); border-radius:var(--radius-sm);
+  font:600 16px/1 var(--font-ui); cursor:pointer;
+}
+.auth-google:hover{ border-color:var(--ink-2); }
+.auth-google:disabled{ opacity:.6; cursor:default; }
+.auth-or{ display:flex; align-items:center; gap:10px; margin:14px 0; color:var(--ink-2); font-size:13px; }
+.auth-or::before,.auth-or::after{ content:""; flex:1; height:1px; background:var(--surface-2); }
+
 /* Sign-in: forgot password (v3.27.9). Tokens only. */
 .auth-forgot{ margin:10px 0 0; font-size:14px; text-align:right; }
 .auth-forgot a{ color:var(--brand); font-weight:600; min-height:44px; display:inline-flex; align-items:center; }
