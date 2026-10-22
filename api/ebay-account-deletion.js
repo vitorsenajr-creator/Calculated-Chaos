@@ -25,7 +25,8 @@ const ENDPOINT_URL = process.env.EBAY_DELETION_ENDPOINT_URL
 export default async function handler(req, res) {
   if (req.method === 'GET') {
     // Step 1: respond to eBay's verification challenge.
-    const challengeCode = req.query.challenge_code;
+    // WHATWG URL instead of Vercel's req.query, which logs DEP0169 (v3.26.6).
+    const challengeCode = new URL(req.url || '/', 'http://localhost').searchParams.get('challenge_code') ?? undefined;
     if (!challengeCode) {
       return res.status(400).json({ error: 'Missing challenge_code' });
     }

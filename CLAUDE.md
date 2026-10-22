@@ -868,6 +868,15 @@ on any of these:
 
 ## Pending changelog entry (since v3.26.0)
 
+- v3.26.6: `DEP0169` (`url.parse()` deprecated) traced and fixed. With
+  `NODE_OPTIONS=--trace-deprecation` on a preview, the stack pointed at
+  `api/ebay-auth.js:83`, reading `req.query`: Vercel's runtime builds that
+  getter with the legacy `url.parse()`. `api/ebay-auth.js` and
+  `api/ebay-account-deletion.js` now read the query string with
+  `new URL(req.url, 'http://localhost').searchParams`; names, routes and
+  responses are unchanged (both URLs are registered with eBay). No other
+  `api/` file reads `req.query`. Do not use `req.query` in new `api/` code.
+
 - v3.26.5: incident record. After the v3.26.4 deploy (about 15:58), `/api/platform`
   `health` returns 200 with all four checks OK, `/api/ebay-auth` and
   `/api/ebay-check-sales` return 200, and no `ERR_REQUIRE_ESM` appears after
