@@ -69,12 +69,14 @@
     /* Top bar */
     .top{ background:var(--brand); color:#fff; }
     .top .wrap{ display:flex; align-items:center; justify-content:space-between; min-height:60px; }
-    .mark{ white-space:nowrap; color:#fff; font-weight:800; font-stretch:88%; font-size:17px; text-decoration:none; letter-spacing:-0.01em; min-height:44px; display:inline-flex; align-items:center; }
+    .mark{ white-space:nowrap; color:#fff; font-weight:800; font-stretch:88%; font-size:22px; text-decoration:none; letter-spacing:-0.01em; min-height:44px; display:inline-flex; align-items:center; gap:8px; }
+    .mark-icon{ width:26px; height:26px; flex:none; }
     .top nav{ display:flex; align-items:center; gap:2px; }
     .top nav a.plain{ color:#fff; text-decoration:none; font-weight:600; padding:12px 8px; min-height:44px; display:inline-flex; align-items:center; font-size:15px; white-space:nowrap; }
-    .top .btn{ background:#fff; color:var(--brand); white-space:nowrap; padding:0 12px; font-size:14px; }
+    .top .btn{ background:#fff; color:var(--brand); white-space:nowrap; padding:0 10px; font-size:14px; }
     .top .btn:hover{ background:#E6ECF5; }
     .top nav a.plain.hide-phone{ display:none; }
+    @media (max-width: 399px){ .top nav a.sign-in{ display:none; } }
 
     /* Hero */
     .hero{ background:var(--brand); color:#fff; padding:40px 0 56px; }
@@ -185,16 +187,30 @@
       .closing{ padding:104px 0; }
     }
     @media (prefers-reduced-motion: reduce){ html{ scroll-behavior:auto; } }
+    /* Tour: real screens in sequence, one per tab of the app's bottom bar. */
+    .sample-note{ margin-top:12px; font-size:13px; color:#B9C6DD; text-align:center; }
+    .tour{ padding:56px 0 64px; }
+    .tour-wrap{ display:grid; gap:36px; align-items:center; }
+    .tour h2{ font-size:clamp(1.7rem, 5vw, 2.4rem); }
+    .tour p{ margin-top:14px; color:var(--ink-2); max-width:30em; }
+    .tour-tabs{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:22px; }
+    .tour-tabs button{ min-height:44px; padding:0 16px; border-radius:var(--radius-sm); border:1px solid var(--line); background:var(--surface); color:var(--brand); font:600 15px/1 var(--font-ui); cursor:pointer; }
+    .tour-tabs button[aria-selected="true"]{ background:var(--brand); color:#fff; border-color:var(--brand); }
+    .tour-screen{ position:relative; aspect-ratio:780 / 1688; border-radius:26px; overflow:hidden; background:var(--ground); }
+    .tour-img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:top; opacity:0; transition:opacity .5s ease; }
+    .tour-img.is-on{ opacity:1; }
+    @media (prefers-reduced-motion: reduce){ .tour-img{ transition:none; } }
+    @media (min-width: 760px){ .tour-tabs{ display:flex; flex-wrap:wrap; } .tour-wrap{ grid-template-columns:1fr 340px; gap:72px; } .tour{ padding:88px 0 96px; } }
   </style>
 </head>
 <body>
 
 <header class="top">
   <div class="wrap">
-    <a class="mark" href="/welcome.html">Calculated Chaos</a>
+    <a class="mark" href="/welcome.html"><svg class="mark-icon" viewBox="0 0 512 512" aria-hidden="true"><g transform="translate(256,256)"><path d="M-141,-97 L26,-97 L149,26 L26,149 L-141,149 Z" fill="none" stroke="currentColor" stroke-width="26" stroke-linejoin="round"/><circle cx="-77" cy="-33" r="23" fill="currentColor"/></g></svg><span>Calculated Chaos</span></a>
     <nav aria-label="Main">
       <a class="plain hide-phone" href="#features">Features</a>
-      <a class="plain" href="/">Sign in</a>
+      <a class="plain sign-in" href="/">Sign in</a>
       <a class="btn btn-small" href="/">Request access</a>
     </nav>
   </div>
@@ -209,7 +225,7 @@
       <p class="lede">Calculated Chaos runs your secondhand resale business from your phone: a product code on every piece, labels and boxes that show where it is, listings from your photos, and the real profit when it sells.</p>
       <div class="actions">
         <a class="btn" href="/">Request access</a>
-        <a class="link" href="#features">See how it works</a>
+        <a class="link" href="#tour">See how it works</a>
       </div>
       <p class="fine">Works in any modern browser and installs to your iPhone home screen. Access is approved by hand.</p>
     </div>
@@ -217,6 +233,7 @@
     <figure class="phone" aria-label="Home screen of the app with sample numbers">
       <img src="/welcome/home-phone.webp" width="780" height="1688" class="shot-phone" alt="The Home screen with sample data: in stock, sold and profit for the month, and the items that need attention">
     </figure>
+    <p class="sample-note">Sample data. Not a real business.</p>
   </div>
 </section>
 
@@ -226,6 +243,47 @@
   <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Black thermal labels</li>
   <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Verified email, approved access</li>
 </ul>
+
+<section class="tour" id="tour" aria-labelledby="tour-title">
+  <div class="wrap tour-wrap">
+    <div>
+      <h2 id="tour-title">Follow one piece from the shelf to the profit.</h2>
+      <p>Home shows what needs you today. Catalog finds the piece and its box. Stock makes the pick list for a sale. Finances shows what the sale earned.</p>
+      <div class="tour-tabs" role="group" aria-label="Choose a screen">
+        <button type="button" data-step="0" aria-selected="true">Home</button>
+        <button type="button" data-step="1" aria-selected="false">Catalog</button>
+        <button type="button" data-step="2" aria-selected="false">Stock</button>
+        <button type="button" data-step="3" aria-selected="false">Finances</button>
+      </div>
+    </div>
+    <figure class="phone" style="margin:0">
+      <div class="tour-screen">
+        <img class="tour-img is-on" src="/welcome/home-phone.webp" width="780" height="1688" alt="Home with sample numbers and the items that need attention">
+        <img class="tour-img" src="/welcome/catalog-phone.webp" width="780" height="1688" alt="Catalog with sample pieces, product codes and boxes" aria-hidden="true">
+        <img class="tour-img" src="/welcome/pick-phone.webp" width="780" height="1688" alt="Stock pick list grouped by box, with a warning for a piece still listed elsewhere" aria-hidden="true">
+        <img class="tour-img" src="/welcome/finance-phone.webp" width="780" height="1688" alt="Finances overview with sample sales and profit" aria-hidden="true">
+      </div>
+    </figure>
+  </div>
+</section>
+<script>
+(function(){
+  var tour = document.getElementById('tour');
+  if (!tour) return;
+  var imgs = Array.prototype.slice.call(tour.querySelectorAll('.tour-img'));
+  var tabs = Array.prototype.slice.call(tour.querySelectorAll('[data-step]'));
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var at = 0, timer = null;
+  function show(n){
+    at = n;
+    imgs.forEach(function(el, k){ el.classList.toggle('is-on', k === n); el.setAttribute('aria-hidden', k === n ? 'false' : 'true'); });
+    tabs.forEach(function(el, k){ el.setAttribute('aria-selected', k === n ? 'true' : 'false'); });
+  }
+  function stop(){ if (timer) { clearInterval(timer); timer = null; } }
+  tabs.forEach(function(el, k){ el.addEventListener('click', function(){ stop(); show(k); }); });
+  if (!reduce) timer = setInterval(function(){ show((at + 1) % imgs.length); }, 3500);
+})();
+</script>
 
 <section class="section" id="features" aria-labelledby="features-title">
   <div class="wrap">
