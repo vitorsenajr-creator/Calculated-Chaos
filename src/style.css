@@ -1033,6 +1033,9 @@
   /* ---------- ITEM CARD (v3.20.1) ---------- */
   .list-count{font-size:12px; color:var(--ink-2); margin-bottom:8px;}
   .catalog-grid{display:grid; gap:10px; grid-template-columns:minmax(0, 1fr);}
+  /* The end of a long list (v3.26.12): the next batch of cards draws when
+     this comes near the screen; the button is for anyone who gets there first. */
+  .catalog-more{display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:12px; padding:16px 0; font-size:12px; color:var(--ink-2);}
   .item-card{
     background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
     position:relative; overflow:hidden; display:flex; gap:12px; padding:10px; cursor:pointer;
