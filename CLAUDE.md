@@ -868,6 +868,18 @@ on any of these:
 
 ## Pending changelog entry (since v3.26.0)
 
+- v3.26.8: faster first load. Home draws after items, settings, drafts
+  and the eBay connection; the eBay sale log and expenses load behind it,
+  and Home, Finances and the sale check run when they arrive. Catalog and
+  draft photos load lazily. Fonts load beside the stylesheet (no `@import`
+  inside `style.css`; `index.html` and `admin.html` link Google Fonts).
+  Login reads the business and the admin claim together. `/assets/*` is
+  cached `immutable` on Vercel and answered from the service worker's cache
+  first (hashed names, so never stale). Measured in a build copy: the same
+  bundle (522 kB, 151 kB gzip) and the same Firebase SDK; the gain is in
+  the order and the waiting, not in fewer bytes. Unverified in production:
+  the real timings on a phone and the repeat-visit cache.
+
 - v3.26.7: the "+" button opens a new item at once. Holding it (about
   half a second) opens the menu: New item, Quick catalog, Photo session,
   always. Settings → Appearance → "+ button" turns on Quick catalog and

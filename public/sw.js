@@ -26,6 +26,21 @@ self.addEventListener('fetch', (event) => {
   // cache (a cached version.json would hide new releases).
   if (url.pathname.startsWith('/api/') || url.pathname === '/version.json') return;
 
+  // Build files under /assets/ carry a content hash in their name, so a
+  // cached copy is never stale: answer from the cache first (v3.26.8).
+  if (url.pathname.startsWith('/assets/')){
+    event.respondWith(
+      caches.match(request).then((cached) => cached || fetch(request).then((response) => {
+        if (response.ok){
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+        }
+        return response;
+      }))
+    );
+    return;
+  }
+
   event.respondWith(
     fetch(request)
       .then((response) => {
