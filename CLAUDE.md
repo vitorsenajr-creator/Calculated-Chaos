@@ -879,6 +879,17 @@ on any of these:
 
 ## Pending changelog entry (since v3.26.0)
 
+- v3.26.14: the Catalog search box draws its results once the typing pauses
+  (200 ms, `SEARCH_DELAY_MS`), not after every key. The query is still saved
+  at each key; only the redraw waits. With 1,500 sample items and the CPU
+  slowed 4x, typing "number 14" (9 keys, 120 ms apart) redrew the list 9
+  times and blocked the screen for 4,068 ms, so the keys took 4.8 s to go
+  in; now it redraws once, blocks 64 ms and the keys go in at their own
+  pace, with the results 184 ms after the last key. The results are the same
+  111 items, and clearing the search goes back to one batch. Checked in a
+  build with the Firebase SDK stubbed; unverified in production: a real
+  phone and its keyboard.
+
 - v3.26.13: switching to a Finances tab no longer redraws Finances. v3.26.9
   redrew it on every switch (a mistake: before, it only redrew when the
   data changed); now it draws the first time it is opened, and after that
