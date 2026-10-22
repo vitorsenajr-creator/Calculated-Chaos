@@ -1,15 +1,18 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+  // The Firebase SDK comes from npm (firebase@10.13.0, pinned), so the build
+  // keeps only the functions used here. It used to load from the gstatic CDN
+  // as four files that could not be trimmed (v3.26.10).
+  import { initializeApp } from "firebase/app";
   import {
     getFirestore, collection, doc, getDocs, getDoc, setDoc, updateDoc, deleteDoc,
     query, where, runTransaction, writeBatch
-  } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+  } from "firebase/firestore";
   import {
     getStorage, ref, uploadString, getDownloadURL
-  } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
+  } from "firebase/storage";
   import {
     getAuth, setPersistence, browserLocalPersistence, onAuthStateChanged,
     signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, sendEmailVerification
-  } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+  } from "firebase/auth";
 
   const firebaseConfig = {
     apiKey: "AIzaSyBvifh470V63Xi_HrGWL8lyyubjPdw1zGo",

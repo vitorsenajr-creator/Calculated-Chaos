@@ -872,6 +872,18 @@ on any of these:
 
 ## Pending changelog entry (since v3.26.0)
 
+- v3.26.10: the Firebase SDK comes from npm, pinned to `firebase@10.13.0`
+  (exact, in `package.json`), instead of the gstatic CDN. The build keeps
+  only the functions the app uses: the SDK is one shared chunk of 386 kB
+  (117 kB gzip), against about 740 kB (190 kB gzip) in four CDN files, and
+  the startup no longer waits on a CDN chain. The lockfile adds the
+  `firebase` tree; no package the server uses (`firebase-admin` included)
+  changed version. Do not raise the pin without checking sign-in on a
+  preview: the API key only accepts the production origins, so `localhost`
+  gets "requests-from-referer … are blocked" both before and after this
+  change. Unverified in production: sign-in, Firestore reads and writes, and
+  Storage uploads with the bundled SDK.
+
 - v3.26.9: Stock, Finances, Import, Settings and the trash load on first
   use (`ui/lazy-screen.js`: `use()`, `ifLoaded()`, `prefetch()`), not at
   startup. The grouped files are `ui/stock/stock-screens.js` and
