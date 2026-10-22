@@ -19,7 +19,7 @@ import {
 import { ebayDeleteStep } from './domain/trash.js';
 import { moveItemsToTrash } from './data/trash-store.js';
 import { askEbayBeforeDelete } from './ui/items/delete-dialog.js';
-import { initTrashPanel, openTrash } from './ui/settings/trash-panel.js';
+import { lazyScreen } from './ui/lazy-screen.js';
 import { showToast } from './ui/toast.js';
 import {
   MAX_PHOTOS, MAX_PHOTO_DIM, PHOTO_QUALITY,
@@ -56,16 +56,9 @@ import { DEFAULT_SETTINGS } from './modules/settings.js';
 import {
   loadSettings, saveSettings, incrementAiUsage, aiUsageRemaining,
 } from './data/settings-store.js';
-import { renderSettings, renderEbayConnectionStatus, openSettingsGroup } from './ui/settings/index.js';
 import { loadEbaySales, cachedEbaySales } from './data/ebay-sales-store.js';
-import { initImportView, openImport } from './ui/import/import-view.js';
 import { initHomeView, renderHome } from './ui/home/home-view.js';
-import { initStockView, renderStock } from './ui/stock/stock-view.js';
-import { initPickView } from './ui/stock/pick-view.js';
 import { recordPickSale } from './data/pick-sale-store.js';
-import { initFinanceView, renderFinance } from './ui/finance/finance-view.js';
-import { initExpensesView, renderExpenses, exportExpensesCsv } from './ui/finance/expenses-view.js';
-import { initPnlView, exportPnlCsv } from './ui/finance/pnl-view.js';
 import { loadExpenses } from './data/expense-store.js';
 import { initUpdateBanner } from './ui/update-banner.js';
 import { applyTheme, applyAccent, applyLastTheme, currentTheme } from './ui/theme.js';
@@ -106,6 +99,51 @@ import { sendVerificationEmail, refreshEmailVerified, tokenEmailVerified } from 
 export const app = (function(){
   // APP_VERSION / APP_VERSION_DATE live in modules/version.js (shared with
   // the Developer Panel) — bump them there.
+
+  // Screens the first view does not need load the first time they are used
+  // (v3.26.9, ui/lazy-screen.js). Each one's hooks are built further down,
+  // where its screen used to be set up; a loader reads them only when it runs.
+  const stockScreen = lazyScreen(
+    () => import('./ui/stock/stock-screens.js'),
+    (m) => m.mountStock(stockHooks, pickHooks)
+  );
+  const financeScreen = lazyScreen(
+    () => import('./ui/finance/finance-screens.js'),
+    (m) => m.mountFinance(financeHooks, expensesHooks, pnlHooks)
+  );
+  const importScreen = lazyScreen(
+    () => import('./ui/import/import-view.js'),
+    (m) => { m.initImportView(importHooks); return m; }
+  );
+  const trashScreen = lazyScreen(
+    () => import('./ui/settings/trash-panel.js'),
+    (m) => { m.initTrashPanel(trashHooks); return m; }
+  );
+  const settingsScreen = lazyScreen(
+    () => import('./ui/settings/index.js'),
+    (m) => m
+  );
+
+  // Redraws for screens that may not have loaded yet. A screen that loads
+  // later draws itself when it is opened.
+  function refreshFinance(){
+    financeScreen.ifLoaded(f => { f.renderFinance(); f.renderExpenses(); });
+  }
+  function refreshStock(){
+    stockScreen.ifLoaded(s => s.renderStock());
+  }
+  // ebay-api.js calls this from a timer. Settings draws its own connection
+  // status when it opens, so nothing loads just for this.
+  function renderEbayConnectionStatus(){
+    settingsScreen.ifLoaded(s => s.renderEbayConnectionStatus());
+  }
+  // Loads the screens nobody has opened yet while the browser is idle, so
+  // the first visit to each one doesn't wait on its download.
+  function prefetchScreens(){
+    const run = () => [stockScreen, financeScreen, importScreen, trashScreen, settingsScreen].forEach(s => s.prefetch());
+    if ('requestIdleCallback' in window) requestIdleCallback(run, { timeout: 3000 });
+    else setTimeout(run, 1000);
+  }
 
   setAppSettings({ ...DEFAULT_SETTINGS });
   let itemsLoaded = false; // true once the initial Firestore fetch in loadItems() resolves
@@ -1461,10 +1499,10 @@ export const app = (function(){
     });
 
     const expBtn = document.getElementById('exportExpenses');
-    if (expBtn) expBtn.addEventListener('click', exportExpensesCsv);
+    if (expBtn) expBtn.addEventListener('click', () => financeScreen.use(f => f.exportExpensesCsv()));
 
     const pnlBtn = document.getElementById('exportPnl');
-    if (pnlBtn) pnlBtn.addEventListener('click', exportPnlCsv);
+    if (pnlBtn) pnlBtn.addEventListener('click', () => financeScreen.use(f => f.exportPnlCsv()));
   }
 
   // The store's logo and name lead, with "by Calculated Chaos" under the
@@ -1498,9 +1536,8 @@ export const app = (function(){
     renderBrand();
     renderHome();
     renderCatalog();
-    renderFinance();
-    renderExpenses();
-    if (currentTab === 'stock') renderStock();
+    refreshFinance();
+    if (currentTab === 'stock') refreshStock();
     refreshStockTransferBoxListIfOpen();
   }
 
@@ -1524,7 +1561,7 @@ export const app = (function(){
     getEbaySales: () => cachedEbaySales(),
     openEbaySales: () => {
       switchToTab('settings');
-      openSettingsGroup('ebay', 'ebaySalesSection');
+      settingsScreen.use(s => s.openSettingsGroup('ebay', 'ebaySalesSection'));
     },
   });
 
@@ -1575,26 +1612,27 @@ export const app = (function(){
     syncFabShortcuts();
     closeFabMenu();
     if (tab === 'home') renderHome();
-    if (tab === 'stock') renderStock();
+    if (tab === 'stock') stockScreen.use(s => s.renderStock());
+    if (FINANCE_PANES[tab]) financeScreen.use(f => { f.renderFinance(); f.renderExpenses(); });
     // Skip the rebuild while the "paste your eBay token" box is showing and
     // waiting on her — a full re-render replaces the whole Settings section,
     // including that box, with a fresh "Not connected" state (since the
     // token isn't saved yet), so switching tabs and back looked like the
     // connect flow had vanished.
-    if (tab === 'settings' && !ebayConnectFlowPending) renderSettings({ fresh: true });
+    if (tab === 'settings' && !ebayConnectFlowPending) settingsScreen.use(s => s.renderSettings({ fresh: true }));
     window.scrollTo(0, 0);
   }
   document.querySelectorAll('.nav-link, .subtab[data-tab]').forEach(btn => {
     btn.addEventListener('click', () => switchToTab(btn.dataset.tab));
   });
-  initStockView({ openCatalog: openCatalogWith });
+  const stockHooks = { openCatalog: openCatalogWith };
   function pickPlatformLabel(key){
     const custom = getAllPlatforms().find(p => p.key === key);
     return PLATFORM_NAME[key] || (custom ? String(custom.label).replace(/^[^\p{L}\p{N}]+/u, '') : key);
   }
   // Stock → Pick (v3.24.2): one AI call per sale screenshot, counted by
   // the AI usage counter like ✨; refused when the counter is used up.
-  initPickView({
+  const pickHooks = {
     readSaleScreenshot: async (imageBlock) => {
       if (aiUsageRemaining() <= 0) return { ok: false, skipped: true, message: 'the AI usage limit for this period is used up.' };
       const platforms = getAllPlatforms().map(p => ({ key: p.key, label: pickPlatformLabel(p.key) }));
@@ -1624,8 +1662,8 @@ export const app = (function(){
     onChange: () => renderAll(),
     openItem: (id) => { const item = items.find(i => i.id === id); if (item) openModal(item); },
     searchCatalog: (text) => { searchQuery = text; openCatalogWith({ notSold: true }); },
-  });
-  initFinanceView({
+  };
+  const financeHooks = {
     projectedProfit,
     platformLabel: (key) => PLATFORM_NAME[key] || getPlatformLabel(key),
     platformColor: (key) => getPlatformColor(key),
@@ -1636,17 +1674,17 @@ export const app = (function(){
     },
     wireExports: wireReportButtons,
     onDataChange: () => renderAll(),
-  });
-  initExpensesView({
+  };
+  const expensesHooks = {
     canEdit: () => currentUserRole !== 'employee',
     uid: () => window.auth?.currentUser?.uid || null,
     downloadCsv,
-    onChange: () => renderFinance(),
-  });
-  initPnlView({
+    onChange: () => refreshFinance(),
+  };
+  const pnlHooks = {
     platformLabel: (key) => PLATFORM_NAME[key] || getPlatformLabel(key),
     downloadCsv,
-  });
+  };
 
   // ---------- ADD MENU ----------
   // "+" (Home and Catalog only) opens a new item straight away. Holding it
@@ -2383,7 +2421,7 @@ export const app = (function(){
   // src/ui/labels/; printing and file saving in src/platform/. Their
   // listeners are wired here, where they used to be.
   initPrintModal({ saveItem });
-  initStorageBoxes({ saveSettings, refresh: renderStock });
+  initStorageBoxes({ saveSettings, refresh: refreshStock });
   initQuickLabels({ saveItem, saveSettings, getAllStorageBoxes });
   initStockTransfer({ saveItem, saveSettings, getAllStorageBoxes });
   initPrint();
@@ -4938,7 +4976,7 @@ export const app = (function(){
   // Spreadsheet import (v3.23.1, ui/import/import-view.js), from
   // Settings → Data. Saved items join the catalog in memory; an undo
   // takes them out.
-  initImportView({
+  const importHooks = {
     getItems: () => items,
     platforms: () => getAllPlatforms().map(p => ({ key: p.key, label: PLATFORM_NAME[p.key] || String(p.label).replace(/^[^\p{L}\p{N}]+/u, '') })),
     fee: (platform, price) => platformFee(platform, price),
@@ -4948,9 +4986,9 @@ export const app = (function(){
     canImport: () => currentUserRole !== 'employee',
     afterSave: (docs) => { setItems([...items, ...docs]); renderAll(); },
     afterUndo: (ids) => { const gone = new Set(ids); setItems(items.filter(i => !gone.has(i.id))); renderAll(); },
-    back: () => { switchToTab('settings'); openSettingsGroup('data'); },
+    back: () => { switchToTab('settings'); settingsScreen.use(s => s.openSettingsGroup('data')); },
     openImported: (importId) => openCatalogWith({ imported: importId }),
-    openWarnings: () => { switchToTab('settings'); openSettingsGroup('warnings', 'warningsImported'); },
+    openWarnings: () => { switchToTab('settings'); settingsScreen.use(s => s.openSettingsGroup('warnings', 'warningsImported')); },
     // The AI column analysis (v3.23.2): one call per file, counted by the
     // AI usage counter like ✨; skipped when the counter is used up.
     aiMapColumns: async (input) => {
@@ -4959,14 +4997,14 @@ export const app = (function(){
       if (r.ok) await incrementAiUsage();
       return r;
     },
-  });
-  document.addEventListener('openimport', () => { switchToTab('import'); openImport(); });
+  };
+  document.addEventListener('openimport', () => { switchToTab('import'); importScreen.use(m => m.openImport()); });
   // The trash (v3.26.0, Settings → Data). A restored item joins the catalog in memory.
-  initTrashPanel({
+  const trashHooks = {
     getItems: () => items,
     restored: (item) => { setItems([...items, item]); renderAll(); },
-  });
-  document.addEventListener('opentrash', () => openTrash());
+  };
+  document.addEventListener('opentrash', () => trashScreen.use(m => m.openTrash()));
   document.addEventListener('openitem', (e) => {
     const item = items.find(i => i.id === e.detail);
     if (item) openModal(item);
@@ -4985,10 +5023,10 @@ export const app = (function(){
       // Home is the start screen on every device (v3.20.0); an employee
       // lands on Catalog (switchToTab enforces it).
       switchToTab('home');
+      prefetchScreens();
       Promise.all([loadEbaySales(), loadExpenses()]).then(() => {
         renderHome();
-        renderFinance();
-        renderExpenses();
+        refreshFinance();
         checkEbaySalesNow(); // best-effort, silent unless it finds something
       });
     } else {
