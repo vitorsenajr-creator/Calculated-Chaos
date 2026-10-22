@@ -821,7 +821,7 @@ export const app = (function(){
         <div class="panel drafts-list">
           ${draftItems.map(d => `
             <div class="draft-row" data-draft-id="${d.id}">
-              <img src="${d.photos[0]}" alt="">
+              <img src="${d.photos[0]}" alt="" loading="lazy" decoding="async">
               <span class="draft-meta">${d.photos.length} photo${d.photos.length===1?'':'s'}${d.createdAt ? ` · ${daysSince(d.createdAt) === 0 ? 'today' : `${daysSince(d.createdAt)}d ago`}` : ''}</span>
               <button type="button" class="row-btn" data-act="complete-draft" data-draft-id="${d.id}">Complete</button>
               <button type="button" class="row-btn danger" data-act="delete-draft" data-draft-id="${d.id}">Delete</button>
@@ -960,7 +960,7 @@ export const app = (function(){
       const soldWhen = sold && item.soldAt ? new Date(item.soldAt).toLocaleDateString('en-US', { month:'short', day:'numeric' }) : '';
       const soldWhere = sold && item.soldPlatform ? escapeHtml(PLATFORM_NAME[item.soldPlatform] || getPlatformLabel(item.soldPlatform)) : '';
       const bulkCheck = bulkSelectMode ? `<span class="bulk-check${selected ? ' on' : ''}" aria-hidden="true">${selected ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4 10-10"/></svg>' : ''}</span>` : '';
-      const photoInner = `${photo ? `<img src="${photo}" alt="">` : HANGER_SVG}`;
+      const photoInner = `${photo ? `<img src="${photo}" alt="" loading="lazy" decoding="async">` : HANGER_SVG}`;
       const printBtn = `<button type="button" class="ic-btn" data-action="print-label" data-id="${item.id}" aria-label="Print label">${PRINT_SVG}</button>`;
       const warnBtn = issueWarnButton(item, issues);
       const platformNames = (item.listedPlatforms || []).map(p => escapeHtml(PLATFORM_NAME[p] || getPlatformLabel(p))).join(', ');
@@ -1026,7 +1026,7 @@ export const app = (function(){
       <div class="item-card${sold ? ' is-sold' : ''}${selected ? ' bulk-selected' : ''}" data-id="${item.id}">
         ${bulkSelectMode ? `<span class="bulk-check${selected ? ' on' : ''}" aria-hidden="true">${selected ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4 10-10"/></svg>' : ''}</span>` : ''}
         <div class="item-photo" ${photo ? `data-gallery="${item.id}"` : ''}>
-          ${photo ? `<img src="${photo}" alt="">` : `<svg class="ic-placeholder" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 7a2 2 0 1 1 2 2c-1 .4-2 1-2 2v.5"/><path d="M12 11.5 3.4 17.6a1 1 0 0 0 .6 1.9h16a1 1 0 0 0 .6-1.9z"/></svg>`}
+          ${photo ? `<img src="${photo}" alt="" loading="lazy" decoding="async">` : `<svg class="ic-placeholder" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 7a2 2 0 1 1 2 2c-1 .4-2 1-2 2v.5"/><path d="M12 11.5 3.4 17.6a1 1 0 0 0 .6 1.9h16a1 1 0 0 0 .6-1.9z"/></svg>`}
           ${item.photos && item.photos.length > 1 ? `<span class="photo-count-badge">${item.photos.length}</span>` : ''}
         </div>
         <div class="item-body">
@@ -4978,13 +4978,19 @@ export const app = (function(){
   setupSizeAutocomplete();
   async function waitForFirebaseThenLoad(){
     if (window.firebaseReady){
-      await Promise.all([loadSettings(), loadItems(), loadEbayConnection(), loadDrafts(), loadEbaySales(), loadExpenses()]);
-      renderFinance();
-      renderExpenses();
-      checkEbaySalesNow(); // best-effort, silent unless it finds something
+      // Home only needs these to draw. The eBay sale log and the expenses
+      // load behind it (v3.26.8): Home, Finances and the sale check redraw
+      // or run once they arrive, so the first screen isn't held up by them.
+      await Promise.all([loadSettings(), loadItems(), loadEbayConnection(), loadDrafts()]);
       // Home is the start screen on every device (v3.20.0); an employee
       // lands on Catalog (switchToTab enforces it).
       switchToTab('home');
+      Promise.all([loadEbaySales(), loadExpenses()]).then(() => {
+        renderHome();
+        renderFinance();
+        renderExpenses();
+        checkEbaySalesNow(); // best-effort, silent unless it finds something
+      });
     } else {
       setTimeout(waitForFirebaseThenLoad, 50);
     }
@@ -5169,9 +5175,9 @@ export const app = (function(){
         if (snap.data().status === 'approved'){
           currentUserRole = snap.data().role === 'employee' ? 'employee' : 'owner';
           // Picks business vs pre-business data paths before anything loads.
-          await loadActiveBusiness(snap.data());
-          // Admin-only UI (Settings) reads this synchronously later.
-          await loadAdminClaim(user);
+          // Neither depends on the other, so they run together (v3.26.8).
+          // Admin-only UI (Settings) reads the claim synchronously later.
+          await Promise.all([loadActiveBusiness(snap.data()), loadAdminClaim(user)]);
           showApp();
           applyRoleRestrictions();
           waitForFirebaseThenLoad();
