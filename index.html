@@ -3,713 +3,484 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Calculated Chaos</title>
-  <link rel="manifest" href="/manifest.json" />
+  <title>Calculated Chaos: know every piece and what it earned</title>
+  <meta name="description" content="Calculated Chaos runs a secondhand resale business from your phone: a product code on every piece, labels and boxes, listings from your photos, and true profit when it sells." />
   <meta name="theme-color" content="#12285A" />
+  <meta name="color-scheme" content="light" />
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
-  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Calc. Chaos" />
-  <!-- Fonts load next to the stylesheet, not after it: an @import inside
-       style.css waited for that file before asking Google for the fonts (v3.26.8). -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" />
-  <link rel="stylesheet" href="/src/style.css" />
-</head>
-<body class="auth-locked">
-<div id="authOverlay" style="display:flex;">
-  <div class="auth-card">
-    <div id="authCheckingState" style="text-align:center; padding:20px 0; color:var(--plum-soft); font-size:13px;">Checking your session…</div>
-    <div id="authFormState" style="display:none;">
-      <h2 id="authTitle">Welcome back</h2>
-      <p class="auth-sub" id="authSubtitle">Sign in to Calculated Chaos.</p>
-      <button type="button" class="auth-google" id="authGoogleBtn">Continue with Google</button>
-      <div class="auth-or" aria-hidden="true"><span>or</span></div>
-      <form id="authForm">
-        <label for="authEmail">Email</label>
-        <input type="email" id="authEmail" autocomplete="username" required>
-        <label for="authPassword">Password</label>
-        <input type="password" id="authPassword" autocomplete="current-password" required minlength="6">
-        <button type="submit" class="auth-submit" id="authSubmitBtn">Sign in</button>
-      </form>
-      <p class="auth-forgot" id="authForgotBox"><a href="#" id="authForgotLink">Forgot password?</a></p>
-      <div class="auth-note" id="authNote" role="status" style="display:none;"></div>
-      <div class="auth-toggle">
-        <span id="authToggleText">Don't have an account? <a id="authToggleLink">Create one</a></span>
-      </div>
-      <div class="auth-error" id="authError" style="display:none;"></div>
-    </div>
-    <div id="authPendingState" class="auth-pending" style="display:none;">
-      <h2 id="authPendingTitle">Awaiting approval</h2>
-      <p class="auth-sub" id="authPendingText">Your account was created, but it still needs to be approved by the app owner before you can use Calculated Chaos. Ask them to approve it in the Developer Panel.</p>
-      <div id="authVerifyBox" class="auth-verify">
-        <p class="auth-sub" id="authVerifyText"></p>
-        <div id="authVerifyActions">
-          <button id="authVerifySendBtn">Send verification email</button>
-          <button id="authVerifyCheckBtn">I've verified it</button>
-        </div>
-        <div class="auth-verify-msg" id="authVerifyMsg"></div>
-      </div>
-      <button id="authSignOutBtn">Sign out</button>
-    </div>
-  </div>
-</div>
-
-<div class="app-shell">
-  <!-- Desktop sidebar (>=900px) and the phone's bottom bar (nav.bottom-nav,
-       below) list the same five places; both drive switchToTab() through
-       data-tab. -->
-  <nav class="sidebar" id="sidebarNav" aria-label="Main">
-    <div class="brand" data-brand></div>
-    <button type="button" class="nav-link side" data-tab="home"><svg class="nav-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span>Home</span></button>
-    <button type="button" class="nav-link side" data-tab="catalog"><svg class="nav-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 7a2 2 0 1 1 2 2c-1 .4-2 1-2 2v.5"/><path d="M12 11.5 3.4 17.6a1 1 0 0 0 .6 1.9h16a1 1 0 0 0 .6-1.9z"/></svg><span>Catalog</span></button>
-    <button type="button" class="nav-link side" data-tab="stock"><svg class="nav-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7.5 12 3l9 4.5v9L12 21l-9-4.5z"/><path d="M3 7.5 12 12l9-4.5M12 12v9"/></svg><span>Stock</span></button>
-    <button type="button" class="nav-link side" data-tab="finance"><svg class="nav-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 19v-8M11 19V5M17 19v-6M3 20h18"/></svg><span>Finances</span></button>
-    <div class="sidebar-spacer"></div>
-    <button type="button" class="nav-link side" data-tab="settings"><svg class="nav-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg><span>Settings</span></button>
-  </nav>
-
-  <div class="app-column">
-    <header class="app-header">
-      <div class="brand" data-brand></div>
-    </header>
-
-    <main>
-      <div id="homeView"></div>
-      <div id="catalogView" style="display:none;"><div class="loading">Loading your pieces…</div></div>
-      <div id="stockView" style="display:none;">
-        <h1 class="screen-title">Stock</h1>
-        <div class="subtabs" role="tablist" aria-label="Stock">
-          <button type="button" class="subtab" role="tab" data-stock-section="pick">Pick</button>
-          <button type="button" class="subtab" role="tab" data-stock-section="labels">Labels</button>
-          <button type="button" class="subtab" role="tab" data-stock-section="transfer">Transfer</button>
-          <button type="button" class="subtab" role="tab" data-stock-section="boxes">Boxes</button>
-          <button type="button" class="subtab" role="tab" data-stock-section="markers">Wall markers</button>
-        </div>
-        <div id="stockPane-pick" class="stock-pane" hidden></div>
-        <div id="stockPane-labels" class="stock-pane">
-          <section class="panel stock-form">
-            <h2 class="panel-title">Quick labels</h2>
-            <p class="stock-form-desc">Type or scan product codes and print their labels one by one, or save a batch as a PDF.</p>
-            <div class="stock-form-row"><button type="button" class="primary-btn" id="quickLabelOpenBtn">Open Quick labels</button></div>
-          </section>
-        </div>
-        <div id="stockPane-transfer" class="stock-pane" hidden>
-          <section class="panel stock-form">
-            <h2 class="panel-title">Stock transfer</h2>
-            <p class="stock-form-desc">Pick a box once, then scan item codes one after another; each item moves into the box as it's scanned.</p>
-            <div class="stock-form-row"><button type="button" class="primary-btn" id="stockTransferOpenBtn">Start a transfer</button></div>
-          </section>
-        </div>
-        <div id="stockPane-boxes" class="stock-pane" hidden></div>
-        <div id="stockPane-markers" class="stock-pane" hidden></div>
-      </div>
-      <div id="financeArea" style="display:none;">
-        <h1 class="screen-title">Finances</h1>
-        <div class="subtabs" role="tablist" aria-label="Finances">
-          <button type="button" class="subtab" role="tab" data-tab="finance">Overview</button>
-          <button type="button" class="subtab" role="tab" data-tab="months">Sales</button>
-          <button type="button" class="subtab" role="tab" data-tab="expenses">Expenses</button>
-          <button type="button" class="subtab" role="tab" data-tab="reports">Reports</button>
-        </div>
-        <div id="financeView" class="fin-pane"></div>
-        <div id="monthsView" class="fin-pane" style="display:none;"></div>
-        <div id="expensesView" class="fin-pane" style="display:none;"></div>
-        <div id="reportsView" class="fin-pane" style="display:none;"></div>
-      </div>
-      <div id="settingsView" style="display:none;"></div>
-      <div id="importView" style="display:none;"></div>
-    </main>
-  </div>
-
-  <nav class="bottom-nav" aria-label="Main">
-    <button type="button" class="nav-link bottom" data-tab="home"><svg class="nav-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span>Home</span></button>
-    <button type="button" class="nav-link bottom" data-tab="catalog"><svg class="nav-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 7a2 2 0 1 1 2 2c-1 .4-2 1-2 2v.5"/><path d="M12 11.5 3.4 17.6a1 1 0 0 0 .6 1.9h16a1 1 0 0 0 .6-1.9z"/></svg><span>Catalog</span></button>
-    <button type="button" class="nav-link bottom" data-tab="stock"><svg class="nav-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7.5 12 3l9 4.5v9L12 21l-9-4.5z"/><path d="M3 7.5 12 12l9-4.5M12 12v9"/></svg><span>Stock</span></button>
-    <button type="button" class="nav-link bottom" data-tab="finance"><svg class="nav-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 19v-8M11 19V5M17 19v-6M3 20h18"/></svg><span>Finances</span></button>
-    <button type="button" class="nav-link bottom" data-tab="settings"><svg class="nav-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg><span>Settings</span></button>
-  </nav>
-</div>
-
-<button type="button" id="pageBackToTop" aria-label="Back to top" title="Back to top" style="display:none;">↑</button>
-<div class="fab-menu" id="fabMenu" hidden>
-  <button type="button" class="fab-menu-item" id="fabNewItem">New item</button>
-  <button type="button" class="fab-menu-item" id="fabQuickCatalog">Quick catalog</button>
-  <button type="button" class="fab-menu-item" id="fabPhotoSession">Photo session</button>
-</div>
-<div class="fab-shortcuts" id="fabShortcuts" style="display:none;">
-  <button type="button" class="fab-shortcut" id="fabShortcutQuickCatalog">Quick catalog</button>
-  <button type="button" class="fab-shortcut" id="fabShortcutPhotoSession">Photo session</button>
-</div>
-<button type="button" class="fab" id="fabAdd" aria-label="Add new item (hold for more)" aria-expanded="false" aria-controls="fabMenu"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
-
-<!-- MODAL: ADD/EDIT ITEM -->
-<div class="modal-overlay hidden" id="itemModalOverlay">
-  <!-- Deliberately siblings of .modal, not children — .modal has its own
-       overflow-y:auto scroll, and position:fixed descendants of a scrolling
-       (non-body) element don't actually stay put on iOS Safari, they scroll
-       along with it. .modal-overlay itself never scrolls, so fixed children
-       of IT stay pinned to the viewport correctly everywhere. -->
-  <button type="button" id="modalCloseX" aria-label="Close" style="position:fixed; top:16px; right:16px; width:36px; height:36px; border:none; background:var(--cream, #F4EEE2); color:var(--plum, #2B241E); border-radius:50%; font-size:16px; cursor:pointer; z-index:200; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 8px rgba(0,0,0,0.15);">✕</button>
-  <button type="button" id="modalBackToTop" aria-label="Back to top" style="display:none; position:fixed; top:16px; right:60px; width:36px; height:36px; border:none; background:var(--cream, #F4EEE2); color:var(--plum, #2B241E); border-radius:50%; font-size:16px; cursor:pointer; z-index:200; align-items:center; justify-content:center; box-shadow:0 2px 8px rgba(0,0,0,0.15);">↑</button>
-  <div class="modal">
-    <div class="modal-handle"></div>
-    <h2 id="modalTitle">New item</h2>
-
-    <div class="photo-upload-zone" id="photoZone">
-      📷 Tap to add photos
-      <input type="file" id="photoInput" accept="image/*" multiple>
-    </div>
-    <div class="photo-count-hint" id="photoCountHint">0 / 8 photos · front, back, tag, and any flaws work well</div>
-    <div class="photo-gallery-hint" id="photoGalleryHint">💡 Tap <b>Save</b> under each photo to download it to your camera roll — photos taken inside the app aren't saved automatically.</div>
-    <button class="save-all-photos-btn" id="saveAllPhotosBtn">⬇ Save all photos to camera roll</button>
-    <div class="photo-preview-grid" id="photoPreviewGrid"></div>
-
-    <label style="display:flex; align-items:center; gap:8px; font-size:13px; margin:4px 0 10px; cursor:pointer;">
-      <input type="checkbox" id="fNwtQuick">
-      <span>🏷️ <b>New with tags</b> (original store tags attached) — sets Condition and the listing text</span>
-    </label>
-    <button class="btn btn-ai" style="width:100%; margin-bottom:4px;" id="analyzePhotoBtn">✨ Analyze &amp; write listing</button>
-    <div style="font-size:11px; color:var(--plum-soft); margin-bottom:14px; text-align:center;">Fills the form, eBay details and listing text, then saves — reads the first 5 photos, so keep the tag/label photo among them</div>
-    <div id="aiAnalysisArea"></div>
-
-    <button class="btn btn-ai btn-ai-quiet" style="width:100%; margin-bottom:14px;" id="narrateItemBtn">🎙️ Narrate item</button>
-    <div id="narrationAnalysisArea"></div>
-
-    <div class="field-row">
-      <div class="field">
-        <label>Product code</label>
-        <input type="text" class="mono" id="fProductCode" placeholder="#0001">
-      </div>
-      <div class="field" id="fQuantityField">
-        <label id="fQuantityLabel" for="fQuantity">Quantity</label>
-        <div class="qty-stepper">
-          <button type="button" class="qty-btn" data-qty-step="-1" aria-label="One less">−</button>
-          <input type="number" id="fQuantity" inputmode="numeric" value="1" min="1" max="50" step="1">
-          <button type="button" class="qty-btn" data-qty-step="1" aria-label="One more">+</button>
-        </div>
-      </div>
-    </div>
-    <p class="qty-hint" id="fQuantityHint"></p>
-
-    <div class="field">
-      <label>Item name</label>
-      <input type="text" id="fName" placeholder="e.g. Vintage Levi's denim jacket">
-    </div>
-
-    <div class="field-row">
-      <div class="field" style="position:relative;">
-        <label>Source</label>
-        <input type="text" id="fSource" placeholder="e.g. Goodwill" autocomplete="off">
-        <div id="sourceSuggestions" style="display:none; position:absolute; top:100%; left:0; right:0; z-index:20; background:var(--white); border:1px solid var(--line); border-radius:8px; margin-top:2px; max-height:160px; overflow-y:auto; box-shadow:0 4px 10px rgba(0,0,0,0.08);"></div>
-      </div>
-      <div class="field">
-        <label>Storage box</label>
-        <input type="text" id="fStorageBox" list="storageBoxList" placeholder="e.g. Box 1">
-        <datalist id="storageBoxList"></datalist>
-      </div>
-    </div>
-
-    <div class="field-row">
-      <div class="field">
-        <label>Category</label>
-        <select id="fCategory">
-          <option value="__other__" id="fCategoryOtherOption">Add new…</option>
-        </select>
-        <input type="text" id="fCategoryOther" list="categoryList" placeholder="Type a new category…" style="display:none; margin-top:6px;">
-        <datalist id="categoryList"></datalist>
-      </div>
-      <div class="field">
-        <label>Brand</label>
-        <input type="text" id="fBrand" placeholder="Levi's, Nike...">
-      </div>
-    </div>
-
-    <div class="field-row">
-      <div class="field">
-        <label>Gender</label>
-        <select id="fGender">
-          <option value="">—</option>
-          <option value="Women's">Women's</option>
-          <option value="Men's">Men's</option>
-          <option value="Girls'">Girls'</option>
-          <option value="Boys'">Boys'</option>
-          <option value="Unisex">Unisex</option>
-        </select>
-      </div>
-      <div class="field">
-        <label>Clothing Type</label>
-        <select id="fClothingType">
-          <option value="">—</option>
-          <option value="__other__" id="fClothingTypeOtherOption">Other…</option>
-        </select>
-        <input type="text" id="fClothingTypeOther" list="clothingTypeList" placeholder="Type a clothing type…" style="display:none; margin-top:6px;">
-        <datalist id="clothingTypeList"></datalist>
-      </div>
-    </div>
-
-    <div class="field-row">
-      <div class="field">
-        <label>Color</label>
-        <select id="fColor">
-          <option value="">—</option>
-          <option value="__other__" id="fColorOtherOption">Other…</option>
-        </select>
-        <input type="text" id="fColorOther" list="colorList" placeholder="Type a color…" style="display:none; margin-top:6px;">
-        <datalist id="colorList"></datalist>
-      </div>
-      <div class="field" style="position:relative;">
-        <label>Size</label>
-        <input type="text" id="fSize" placeholder="e.g. M, 32x30, 8.5" autocomplete="off">
-        <div id="ebaySizeCheck"></div>
-        <div id="sizeSuggestions" style="display:none; position:absolute; top:100%; left:0; right:0; z-index:20; background:var(--white); border:1px solid var(--line); border-radius:8px; margin-top:2px; max-height:160px; overflow-y:auto; box-shadow:0 4px 10px rgba(0,0,0,0.08);"></div>
-      </div>
-    </div>
-
-    <div class="field">
-      <label>eBay Category <span style="font-weight:400; opacity:0.6;">(required — search and pick the real one)</span></label>
-      <input type="text" id="fEbayCategoryQuery" placeholder="e.g. Skirts, Hardcover Books, Antique Lamps, Microwave Ovens…" autocomplete="off">
-      <div class="ebay-cat-chosen" id="ebayCategoryChosen" style="display:none;">
-        <div class="ebay-cat-chosen-path" id="ebayCategoryChosenPath"></div>
-        <div class="ebay-cat-chosen-actions">
-          <button type="button" class="small-btn" id="ebayCategoryChangeBtn">Change</button>
-          <button type="button" class="small-btn danger" id="ebayCategoryRemoveBtn">Remove</button>
-        </div>
-      </div>
-      <div id="ebayCategoryResults" style="margin-top:6px;"></div>
-      <div id="ebayAspectsContainer" style="margin-top:10px;"></div>
-    </div>
-
-    <div class="field">
-      <label>Condition</label>
-      <select id="fCondition">
-        <option value="novo_etiqueta">New with tags</option>
-        <option value="novo_sem_etiqueta">New without tags</option>
-        <option value="excelente" selected>Used — excellent</option>
-        <option value="bom">Used — good</option>
-        <option value="aceitavel">Used — fair</option>
-        <option value="defeito">Flawed (for parts/repair)</option>
-      </select>
-    </div>
-
-    <div class="field-row">
-      <div class="field">
-        <label>Acquisition cost ($)</label>
-        <input type="number" class="mono" id="fCost" placeholder="0.00" step="0.01">
-      </div>
-      <div class="field">
-        <label>Weight (lb)</label>
-        <input type="number" class="mono" id="fWeight" placeholder="0.0" step="0.1">
-      </div>
-    </div>
-
-    <div class="field-row">
-      <div class="field">
-        <label>Length (in)</label>
-        <input type="number" class="mono" id="fLen" placeholder="0" step="0.5">
-      </div>
-      <div class="field">
-        <label>Width (in)</label>
-        <input type="number" class="mono" id="fWid" placeholder="0" step="0.5">
-      </div>
-      <div class="field">
-        <label>Height (in)</label>
-        <input type="number" class="mono" id="fHei" placeholder="0" step="0.5">
-      </div>
-    </div>
-
-    <div class="field">
-      <label>Notes &amp; details</label>
-      <textarea id="fNotes" placeholder="Wear marks, sizing, material..."></textarea>
-    </div>
-
-    <div class="field">
-      <label>Garment measurements</label>
-      <div class="measure-chip-row" id="measureChipRow"></div>
-      <button type="button" class="btn btn-secondary" style="width:100%;" id="openMeasureToolBtn">📏 Measure with photo</button>
-    </div>
-
-    <label style="display:block; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; color:var(--plum-soft); margin-bottom:7px;">Prep status</label>
-    <div class="prep-row" id="prepRow">
-      <div class="prep-pill" data-prep="needs_wash">Needs wash</div>
-      <div class="prep-pill" data-prep="needs_repair">Needs repair</div>
-      <div class="prep-pill" data-prep="needs_photo">Needs photos</div>
-      <div class="prep-pill" data-prep="ready">Ready to list</div>
-    </div>
-
-    <button class="btn btn-secondary" style="width:100%; margin-bottom:6px;" id="calcSuggestionBtn">✨ Calculate suggested price &amp; shipping</button>
-    <div id="suggestionArea"></div>
-
-    <div class="field" style="margin-top:14px;">
-      <label>Listing price ($) — adjust if you like</label>
-      <input type="number" class="mono" id="fListPrice" placeholder="0.00" step="0.01">
-    </div>
-
-    <div class="field">
-      <label>Shipping</label>
-      <select id="fFreeShipping">
-        <option value="buyer">Buyer pays shipping</option>
-        <option value="seller">I offer free shipping (I absorb the cost)</option>
-      </select>
-    </div>
-
-    <div class="field">
-      <label>Listed on</label>
-      <div class="prep-row" id="listedPlatformsRow"></div>
-    </div>
-
-    <label style="display:block; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; color:var(--plum-soft); margin-bottom:7px;">Status</label>
-    <div class="status-select-row" id="statusRow">
-      <div class="status-pill selected" data-status="catalogado">Cataloged</div>
-      <div class="status-pill" data-status="anunciado">Listed</div>
-      <div class="status-pill" data-status="vendido">Sold</div>
-    </div>
-
-    <div id="soldFieldsArea"></div>
-
-    <label style="display:flex; align-items:center; gap:8px; font-size:12px; margin-top:8px; cursor:pointer;">
-      <input type="checkbox" id="fUseStandardClosing" checked>
-      <span>Include my standard closing line (Settings → Listing text) — uncheck for non-clothing items where it doesn't fit</span>
-    </label>
-    <button class="btn btn-sage" style="width:100%; margin-top:6px;" id="genListingBtn">📝 Generate listing description</button>
-    <button class="btn btn-secondary" style="width:100%; margin-top:6px; display:none;" id="genListingAiBtn">🪄 Generate listing description with AI</button>
-    <div id="genListingAiHint" style="display:none; font-size:11px; color:var(--plum-soft); margin-top:5px; text-align:center;">Rewrites the text from the current fields — uses what ✨ Analyze saw, without re-sending photos when available</div>
-    <div id="listingOutputArea"></div>
-
-    <button class="btn btn-ebay" style="width:100%; margin-top:8px;" id="ebayListBtn">🛒 List on eBay</button>
-    <div id="ebayStatusArea"></div>
-
-    <div id="saveProgressArea" style="display:none; margin-bottom:8px;">
-      <div style="font-size:12px; color:var(--plum-soft); margin-bottom:4px;" id="saveProgressLabel">Saving…</div>
-      <div style="height:6px; background:rgba(0,0,0,0.08); border-radius:999px; overflow:hidden;">
-        <div id="saveProgressBar" style="height:100%; width:0%; background:var(--terracotta); transition:width 0.25s ease;"></div>
-      </div>
-    </div>
-    <div class="modal-actions">
-      <button class="btn btn-secondary" id="cancelItemBtn">Cancel</button>
-      <button class="btn btn-primary" id="saveItemBtn">Save item</button>
-    </div>
-    <div class="modal-actions" style="margin-top:10px;">
-      <button class="btn btn-secondary" id="printLabelItemBtn" style="display:none;">🖨️ Print label</button>
-    </div>
-    <div class="modal-actions" style="margin-top:10px;">
-      <button class="btn btn-ghost" id="duplicateItemBtn" style="display:none;">⧉ Duplicate</button>
-      <button class="btn btn-danger" id="deleteItemBtn" style="display:none;">Delete item</button>
-    </div>
-  </div>
-</div>
-
-<!-- PHOTO SESSION — batch-photograph several pieces first, catalog them later.
-     Each "item" here is just a group of photos; nothing about name/brand/
-     price is captured yet. Every group is saved to the `drafts` collection
-     the moment she taps "Next item" or "Finish session", so nothing is lost
-     if she closes the tab mid-session. -->
-<div class="modal-overlay hidden" id="photoSessionOverlay" style="z-index:115;">
-  <div class="modal" style="max-width:480px;">
-    <div class="modal-handle"></div>
-    <h2>📷 Photo session</h2>
-    <div class="ss-desc">Photograph one piece, then tap "Next item" to start the next — no need to fill in any details now. Each group is saved automatically as a draft.</div>
-    <div id="photoSessionCounter" style="font-size:13px; font-weight:700; color:var(--terracotta-deep); margin:10px 0 8px;">Item 1 — 0 photos</div>
-    <input type="file" id="photoSessionInput" accept="image/*" multiple style="margin-bottom:10px;">
-    <div class="photo-preview-grid" id="photoSessionGrid"></div>
-    <div class="modal-actions" style="margin-top:14px;">
-      <button class="btn btn-secondary" id="photoSessionCancelBtn">Cancel session</button>
-      <button class="btn btn-primary" id="photoSessionNextBtn">Next item →</button>
-    </div>
-    <button class="btn btn-sage" id="photoSessionFinishBtn" style="width:100%; margin-top:10px;">✓ Finish session</button>
-  </div>
-</div>
-
-<!-- MEASUREMENT TOOL -->
-<div class="modal-overlay hidden" id="measureModalOverlay" style="z-index:110;">
-  <div class="modal measure-modal">
-    <div class="modal-handle"></div>
-    <h2>📏 Measure with photo</h2>
-
-    <div id="measureStepPicker">
-      <div class="measure-step-label">Step 1 · Choose a photo</div>
-      <div class="measure-instructions">Pick a photo that shows the item next to a tape measure or ruler laid flat.</div>
-      <div class="measure-photo-picker" id="measurePhotoPicker"></div>
-    </div>
-
-    <div id="measureStepWork" style="display:none;">
-      <div class="measure-canvas-wrap">
-        <canvas id="measureCanvas"></canvas>
-      </div>
-      <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; margin:6px 0 10px;">
-        <span style="font-size:11px; color:var(--plum-soft);">Pinch or drag with 2 fingers to zoom, drag with 1 finger to move around</span>
-        <div style="display:flex; gap:6px; flex-shrink:0;">
-          <button type="button" class="icon-btn" id="measureZoomOutBtn">🔍－</button>
-          <button type="button" class="icon-btn" id="measureZoomResetBtn">Reset</button>
-          <button type="button" class="icon-btn" id="measureZoomInBtn">🔍＋</button>
-        </div>
-      </div>
-      <div class="measure-step-label" id="measureStepLabel"></div>
-      <div class="measure-instructions" id="measureInstructions"></div>
-      <div id="measureCalibWarning" style="display:none; background:rgba(181,86,74,0.12); color:var(--danger); border:1px solid var(--danger); border-radius:8px; padding:8px 12px; font-size:12px; margin-bottom:10px;"></div>
-
-      <button type="button" class="icon-btn" id="measureUndoMarkerBtn" style="display:none; margin-bottom:12px;">↺ Undo last marker</button>
-
-      <div id="measureTypeStep" style="display:none;" class="field">
-        <label>Garment type</label>
-        <select id="measureGarmentType">
-          <option value="Top">Top / Shirt</option>
-          <option value="Pants">Pants / Jeans</option>
-          <option value="Dress">Dress</option>
-          <option value="Outerwear">Jacket / Outerwear</option>
-          <option value="Shoes">Shoes</option>
-          <option value="Other">Other</option>
-        </select>
-      </div>
-
-      <div class="measure-field-list" id="measureFieldList"></div>
-
-      <div class="modal-actions">
-        <button class="btn btn-secondary" id="measureBackBtn">Back</button>
-        <button class="btn btn-secondary" id="measureSavePhotoBtn" style="display:none;">💾 Save photo</button>
-        <button class="btn btn-primary" id="measureApplyBtn" style="display:none;">Apply to item</button>
-      </div>
-    </div>
-
-    <div class="modal-actions" style="margin-top:10px;">
-      <button class="btn btn-ghost" id="measureCancelBtn">Cancel</button>
-    </div>
-  </div>
-</div>
-
-<!-- LIGHTBOX GALLERY -->
-<div class="lightbox-overlay hidden" id="lightboxOverlay">
-  <button class="lightbox-close" id="lightboxClose">✕</button>
-  <div class="lightbox-img-wrap">
-    <button class="lightbox-nav prev" id="lightboxPrev">‹</button>
-    <img id="lightboxImg" src="" alt="">
-    <button class="lightbox-nav next" id="lightboxNext">›</button>
-  </div>
-  <div class="lightbox-counter" id="lightboxCounter"></div>
-  <div class="lightbox-thumbnails" id="lightboxThumbs"></div>
-</div>
-
-<div class="modal-overlay hidden" id="printLabelOverlay" style="z-index:150;">
-  <div class="modal" style="max-width:420px;">
-    <div class="modal-handle"></div>
-    <h3 class="serif" style="margin:0 0 4px; font-size:19px;">Print label</h3>
-    <div class="ss-desc" style="margin-bottom:16px;">Opens your browser's print dialog — pick the Y43BT (or your paired thermal printer) there.</div>
-    <div id="labelPreviewWrap" style="display:flex; justify-content:center; margin-bottom:18px;"></div>
-    <div id="printLabelFlagRow" style="display:flex; align-items:center; gap:8px; margin-bottom:16px;">
-      <input type="checkbox" id="printLabelShipFlagCheck" style="width:20px; height:20px; flex-shrink:0;">
-      <label for="printLabelShipFlagCheck" style="font-size:13px; color:var(--plum-soft); cursor:pointer;">⚠️ Flag for extra outbound inspection</label>
-    </div>
-    <div class="modal-actions">
-      <button class="settings-save-btn" id="labelPrintBtn" style="margin:0; width:auto; flex:1;">🖨️ Print</button>
-      <button class="settings-save-btn" id="labelSaveImgBtn" style="margin:0; width:auto; flex:1; background:var(--sage);">💾 Save image</button>
-    </div>
-    <div class="ss-desc" style="margin-top:10px; margin-bottom:0;">On phone, "Print" may not show your thermal printer — use "Save image" instead and open it from your printer's app (e.g. FlashLabel Pro).</div>
-    <div class="modal-actions" style="margin-top:10px;">
-      <button class="icon-btn" id="labelPrintCancelBtn" style="width:100%;">Cancel</button>
-    </div>
-  </div>
-</div>
-<div id="labelPrintArea">
-  <div id="labelPrintExitBar">
-    <button id="labelPrintExitBtn">✕ Done — back to app</button>
-  </div>
-  <div id="labelPrintContent"></div>
-</div>
-
-<div class="modal-overlay hidden" id="quickLabelOverlay" style="z-index:120;">
-  <div class="modal" style="max-width:380px;">
-    <div class="modal-handle"></div>
-    <h3 class="serif" style="margin:0 0 4px; font-size:19px;">Quick reprint by code</h3>
-    <div class="ss-desc" style="margin-bottom:16px;">Type up to 4 item codes, then print — same label sheet as always.</div>
-    <div id="quickLabelInputs" style="display:flex; flex-direction:column; gap:10px; margin-bottom:6px;">
-      <input type="text" class="quick-label-input" data-idx="0" inputmode="numeric" pattern="[0-9]*" placeholder="Item code" style="width:100%; box-sizing:border-box; padding:12px 14px; font-size:18px; text-align:center; border:1px solid var(--line); border-radius:10px;">
-      <input type="text" class="quick-label-input" data-idx="1" inputmode="numeric" pattern="[0-9]*" placeholder="Item code" style="width:100%; box-sizing:border-box; padding:12px 14px; font-size:18px; text-align:center; border:1px solid var(--line); border-radius:10px;">
-      <input type="text" class="quick-label-input" data-idx="2" inputmode="numeric" pattern="[0-9]*" placeholder="Item code" style="width:100%; box-sizing:border-box; padding:12px 14px; font-size:18px; text-align:center; border:1px solid var(--line); border-radius:10px;">
-      <input type="text" class="quick-label-input" data-idx="3" inputmode="numeric" pattern="[0-9]*" placeholder="Item code" style="width:100%; box-sizing:border-box; padding:12px 14px; font-size:18px; text-align:center; border:1px solid var(--line); border-radius:10px;">
-    </div>
-
-    <label style="font-size:12px; font-weight:600; color:var(--plum); display:block; margin-bottom:3px;">Also move these to a box (optional)</label>
-    <select id="quickLabelBoxSelect" style="width:100%; padding:9px 10px; border:1px solid var(--line); border-radius:8px; font-size:13px; margin-bottom:8px;">
-      <option value="">— No change —</option>
-    </select>
-    <div id="quickLabelNewBoxRow" style="display:none; gap:8px; margin-bottom:8px;">
-      <input type="text" id="quickLabelNewBoxInput" placeholder="New box name" style="flex:1; padding:9px 10px; border:1px solid var(--line); border-radius:8px; font-size:13px;">
-      <button class="settings-save-btn" id="quickLabelNewBoxAddBtn" style="width:auto; margin:0; padding:9px 14px;">Add</button>
-    </div>
-    <button class="icon-btn" id="quickLabelNewBoxToggleBtn" style="width:100%; margin-bottom:14px;">+ New box</button>
-
-    <div id="quickLabelError" style="display:none; color:var(--danger); font-size:13px; margin-bottom:10px;"></div>
-    <div class="modal-actions">
-      <button class="settings-save-btn" id="quickLabelGoBtn" style="margin:0; width:auto; flex:1;">🖨️ Generate labels</button>
-    </div>
-    <div class="modal-actions" style="margin-top:8px;">
-      <button class="icon-btn" id="quickLabelSaveAllBtn" style="width:100%;">📄 Save all as PDF (1 page per label)</button>
-    </div>
-    <div class="modal-actions" style="margin-top:10px;">
-      <button class="icon-btn" id="quickLabelCancelBtn" style="width:100%;">Cancel</button>
-    </div>
-  </div>
-</div>
-
-<div class="modal-overlay hidden" id="stockTransferOverlay" style="z-index:120;">
-  <div class="modal" style="max-width:380px;">
-    <div class="modal-handle"></div>
-    <h3 class="serif" style="margin:0 0 4px; font-size:19px;">Stock transfer</h3>
-    <div class="ss-desc" style="margin-bottom:16px;">Pick a box, then scan item codes one after another — each one moves instantly and the field clears itself.</div>
-
-    <label style="font-size:12px; font-weight:600; color:var(--plum); display:block; margin-bottom:3px;">Destination box</label>
-    <select id="transferBoxSelect" style="width:100%; padding:9px 10px; border:1px solid var(--line); border-radius:8px; font-size:13px; margin-bottom:8px;">
-      <option value="">— Select box —</option>
-    </select>
-    <div id="transferNewBoxRow" style="display:none; gap:8px; margin-bottom:8px;">
-      <input type="text" id="transferNewBoxInput" placeholder="New box name" style="flex:1; padding:9px 10px; border:1px solid var(--line); border-radius:8px; font-size:13px;">
-      <button class="settings-save-btn" id="transferNewBoxAddBtn" style="width:auto; margin:0; padding:9px 14px;">Add</button>
-    </div>
-    <button class="icon-btn" id="transferNewBoxToggleBtn" style="width:100%; margin-bottom:14px;">+ New box</button>
-
-    <input type="text" id="transferCodeInput" inputmode="numeric" pattern="[0-9]*" placeholder="Item code" style="width:100%; box-sizing:border-box; padding:12px 14px; font-size:18px; text-align:center; border:1px solid var(--line); border-radius:10px; margin-bottom:10px;">
-    <label style="display:flex; align-items:center; gap:8px; margin-bottom:10px; font-size:13px; color:var(--plum-soft); cursor:pointer;">
-      <input type="checkbox" id="transferPrintCheck" style="width:18px; height:18px;">
-      🖨️ Also print this item's label after moving it
-    </label>
-    <button class="settings-save-btn" id="transferMoveBtn" style="width:100%; margin:0 0 10px;">➕ Move to box</button>
-    <div id="transferStatus" style="min-height:20px; font-size:13px; text-align:center; margin-bottom:8px;"></div>
-    <div id="transferRecentList" style="margin-bottom:10px;"></div>
-
-    <div class="modal-actions" style="margin-bottom:10px;">
-      <button class="icon-btn" id="transferUndoBtn" style="width:100%;" disabled>↩ Undo last move</button>
-    </div>
-    <div class="modal-actions" style="margin-bottom:10px;">
-      <button class="icon-btn" id="transferToLabelsBtn" style="width:100%;" disabled>🔁 Print labels for these</button>
-    </div>
-    <div class="modal-actions">
-      <button class="icon-btn" id="transferDoneBtn" style="width:100%;">Close</button>
-    </div>
-  </div>
-</div>
-
-<div class="modal-overlay hidden" id="calibInstructionsOverlay" style="z-index:130;">
-  <div class="modal" style="max-width:480px;">
-    <div class="modal-handle"></div>
-    <h3 class="serif" style="margin:0 0 4px; font-size:19px;">Wall marker setup &amp; calibration</h3>
-    <div class="ss-desc" style="margin-bottom:14px;">Mount the 4 markers in a cross around where you'll photograph items — not a rectangle. Only 2 distances have to be right (left↔right and top↔bottom), which is much easier to get accurate than a 4-corner rectangle.</div>
-
-    <svg viewBox="0 0 300 220" style="width:100%; height:auto; background:var(--cream-soft); border-radius:12px; margin-bottom:14px;">
-      <line x1="60" y1="110" x2="240" y2="110" stroke="var(--line)" stroke-width="2" stroke-dasharray="4 4"/>
-      <line x1="150" y1="20" x2="150" y2="200" stroke="var(--line)" stroke-width="2" stroke-dasharray="4 4"/>
-      <rect x="118" y="88" width="64" height="44" rx="4" fill="none" stroke="var(--sage-deep)" stroke-width="2" stroke-dasharray="3 3"/>
-      <text x="150" y="114" text-anchor="middle" font-size="9" fill="var(--sage-deep)" font-family="Inter, sans-serif">item goes here</text>
-
-      <!-- left marker -->
-      <g transform="translate(40,110)" stroke="var(--terracotta-deep)" stroke-width="3">
-        <line x1="-14" y1="0" x2="14" y2="0"/><line x1="0" y1="-14" x2="0" y2="14"/>
-        <circle r="5" fill="var(--cream-soft)" stroke="var(--terracotta-deep)" stroke-width="2"/>
-      </g>
-      <!-- right marker -->
-      <g transform="translate(260,110)" stroke="var(--terracotta-deep)" stroke-width="3">
-        <line x1="-14" y1="0" x2="14" y2="0"/><line x1="0" y1="-14" x2="0" y2="14"/>
-        <circle r="5" fill="var(--cream-soft)" stroke="var(--terracotta-deep)" stroke-width="2"/>
-      </g>
-      <!-- top marker -->
-      <g transform="translate(150,20)" stroke="var(--terracotta-deep)" stroke-width="3">
-        <line x1="-14" y1="0" x2="14" y2="0"/><line x1="0" y1="-14" x2="0" y2="14"/>
-        <circle r="5" fill="var(--cream-soft)" stroke="var(--terracotta-deep)" stroke-width="2"/>
-      </g>
-      <!-- bottom marker -->
-      <g transform="translate(150,200)" stroke="var(--terracotta-deep)" stroke-width="3">
-        <line x1="-14" y1="0" x2="14" y2="0"/><line x1="0" y1="-14" x2="0" y2="14"/>
-        <circle r="5" fill="var(--cream-soft)" stroke="var(--terracotta-deep)" stroke-width="2"/>
-      </g>
-
-      <text x="40" y="140" text-anchor="middle" font-size="10" font-weight="700" fill="var(--plum)" font-family="Inter, sans-serif">LEFT</text>
-      <text x="260" y="140" text-anchor="middle" font-size="10" font-weight="700" fill="var(--plum)" font-family="Inter, sans-serif">RIGHT</text>
-      <text x="150" y="12" text-anchor="middle" font-size="10" font-weight="700" fill="var(--plum)" font-family="Inter, sans-serif">TOP</text>
-      <text x="150" y="216" text-anchor="middle" font-size="10" font-weight="700" fill="var(--plum)" font-family="Inter, sans-serif">BOTTOM</text>
-      <text x="150" y="102" text-anchor="middle" font-size="9" fill="var(--plum-soft)" font-family="Inter, sans-serif">↔ horizontal spacing</text>
-      <text x="150" y="60" text-anchor="middle" font-size="9" fill="var(--plum-soft)" font-family="Inter, sans-serif" transform="rotate(-90 195 60)">↕ vertical spacing</text>
-    </svg>
-
-    <ol style="font-size:13px; color:var(--plum); line-height:1.7; padding-left:20px; margin:0 0 16px;">
-      <li>Print 4 copies of the marker (button above).</li>
-      <li>With a real tape measure, decide your horizontal and vertical spacing (wider for bulky items like dresses) — mark the wall in pencil at those 4 points, in a cross shape like above.</li>
-      <li>Stick each marker so its crosshair's center <b>gap</b> sits exactly on your pencil mark. Use the small tick above each marker to keep it level.</li>
-      <li>Enter those same spacing numbers in the fields above and save.</li>
-      <li>When measuring an item photo, choose <b>🎯 Wall markers</b> as the calibration method, then tap the center gap of each marker in order.</li>
-    </ol>
-
-    <div class="modal-actions">
-      <button class="icon-btn" id="calibInstructionsCloseBtn" style="width:100%;">Close</button>
-    </div>
-  </div>
-</div>
-
-<!-- SOLD CONFIRMATION — shown the moment an item transitions to "Sold"
-     (single item here; bulk "Set: Sold" uses its own review list in the
-     bulk action bar instead, since it covers many items at once). Forces
-     confirming sale price / platform fee / who paid shipping BEFORE the
-     financial calc runs, instead of computing off whatever was already
-     sitting in the form fields. -->
-<div class="modal-overlay hidden" id="soldConfirmOverlay" style="z-index:140;">
-  <div class="modal" style="max-width:440px;">
-    <div class="modal-handle"></div>
-    <h2>Confirm sale details</h2>
-    <div class="ss-desc" style="margin-top:-10px; margin-bottom:16px;">Marking this Sold — confirm the real numbers before it feeds into profit reporting.</div>
-
-    <div class="field">
-      <label>1. Sale price ($)</label>
-      <input type="number" class="mono" id="scPrice" step="0.01">
-    </div>
-
-    <div class="field-row">
-      <div class="field">
-        <label>2. Sold on (which platform fee applies)</label>
-        <select id="scPlatform"></select>
-      </div>
-      <div class="field">
-        <label>Platform fee ($) <span style="font-weight:400; opacity:0.6;">— auto, editable</span></label>
-        <input type="number" class="mono" id="scFee" step="0.01">
-      </div>
-    </div>
-
-    <label style="display:block; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; color:var(--plum-soft); margin-bottom:7px;">3. Who paid for shipping?</label>
-    <div class="status-select-row" id="scShippingWhoRow">
-      <div class="status-pill" data-who="buyer">Buyer paid</div>
-      <div class="status-pill" data-who="seller">I paid (seller)</div>
-    </div>
-    <div class="field" id="scShippingCostField" style="display:none;">
-      <label>Shipping cost ($)</label>
-      <input type="number" class="mono" id="scShippingCost" step="0.01">
-    </div>
-
-    <div class="field">
-      <label>Other costs ($) <span style="font-weight:400; opacity:0.6;">— packaging, extra postage, anything else</span></label>
-      <input type="number" class="mono" id="scOtherCosts" step="0.01" placeholder="0.00">
-    </div>
-
-    <div class="suggestion-box" style="margin-top:16px;">
-      <div class="stamp-corner">Preview</div>
-      <div class="suggestion-row">Shipping cost <b id="scShipPreview">$0.00</b></div>
-      <div class="suggestion-row">Other costs <b id="scOtherPreview">$0.00</b></div>
-      <div class="suggestion-final" id="scNetPreview">Net profit: $0.00</div>
-    </div>
-
-    <div class="modal-actions">
-      <button class="btn btn-secondary" id="scCancelBtn">Cancel</button>
-      <button class="btn btn-primary" id="scConfirmBtn">Confirm sale</button>
-    </div>
-  </div>
-</div>
-
-  <script type="module" src="/src/main.js"></script>
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js');
-      });
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" />
+  <style>
+    /* Parcel tokens, the same values as src/style.css (:root). The page is
+       light only: it is a sales page, not the workplace. */
+    :root{
+      --font-ui: 'Archivo', system-ui, -apple-system, sans-serif;
+      --ground: #F4F6F9;
+      --surface: #FFFFFF;
+      --line: #D5DCE6;
+      --ink: #0E1A2E;
+      --ink-2: #4A5568;
+      --brand: #12285A;
+      --brand-2: #1E3A7B;
+      --urgent: #C8102E;
+      --profit: #1F6B3F;
+      --warn: #8A5A00;
+      --radius: 10px;
+      --radius-sm: 6px;
+      --gutter: 16px;
     }
-  </script>
+
+    *{ box-sizing:border-box; }
+    html{ -webkit-text-size-adjust:100%; scroll-behavior:smooth; }
+    body{
+      margin:0;
+      background:var(--ground);
+      color:var(--ink);
+      font-family:var(--font-ui);
+      font-size:17px;
+      line-height:1.55;
+      -webkit-font-smoothing:antialiased;
+    }
+    ::selection{ background:var(--brand); color:#fff; }
+    :focus-visible{ outline:3px solid var(--brand-2); outline-offset:3px; border-radius:4px; }
+    a{ color:var(--brand); text-underline-offset:0.2em; }
+    img,svg{ display:block; max-width:100%; }
+    h1,h2,h3,p{ margin:0; }
+
+    .wrap{ width:100%; max-width:1120px; margin:0 auto; padding:0 var(--gutter); }
+    .num{ font-stretch:75%; font-weight:700; font-variant-numeric:tabular-nums; letter-spacing:-0.01em; }
+
+    /* Buttons: the one action is navy with white text, 48px tall. */
+    .btn{
+      display:inline-flex; align-items:center; justify-content:center;
+      min-height:48px; padding:0 22px;
+      border-radius:var(--radius-sm);
+      background:var(--brand); color:#fff;
+      font:700 16px/1 var(--font-ui);
+      text-decoration:none;
+      border:0; cursor:pointer;
+    }
+    .btn:hover{ background:var(--brand-2); }
+    .btn-small{ min-height:40px; padding:0 16px; font-size:15px; }
+    .link{ font-weight:600; color:var(--brand); min-height:48px; display:inline-flex; align-items:center; }
+
+    /* Top bar */
+    .top{ background:var(--brand); color:#fff; }
+    .top .wrap{ display:flex; align-items:center; justify-content:space-between; min-height:60px; }
+    .mark{ white-space:nowrap; color:#fff; font-weight:800; font-stretch:88%; font-size:22px; text-decoration:none; letter-spacing:-0.01em; min-height:44px; display:inline-flex; align-items:center; gap:8px; }
+    .mark-icon{ width:26px; height:26px; flex:none; }
+    .top nav{ display:flex; align-items:center; gap:2px; }
+    .top nav a.plain{ color:#fff; text-decoration:none; font-weight:600; padding:12px 8px; min-height:44px; display:inline-flex; align-items:center; font-size:15px; white-space:nowrap; }
+    .top .btn{ background:#fff; color:var(--brand); white-space:nowrap; padding:0 10px; font-size:14px; }
+    .top .btn:hover{ background:#E6ECF5; }
+    .top nav a.plain.hide-phone{ display:none; }
+    @media (max-width: 399px){ .top nav a.sign-in{ display:none; } }
+
+    /* Hero */
+    .hero{ background:var(--brand); color:#fff; padding:40px 0 56px; }
+    .hero .wrap{ display:grid; gap:40px; align-items:center; }
+    h1{
+      font-weight:800; font-stretch:90%;
+      font-size:clamp(2.25rem, 8.5vw, 4rem);
+      line-height:1.02; letter-spacing:-0.035em;
+      text-wrap:balance;
+    }
+    .lede{ margin-top:18px; font-size:19px; color:#D4DDEE; max-width:34em; }
+    .actions{ margin-top:28px; display:flex; flex-wrap:wrap; gap:12px 20px; align-items:center; }
+    .hero .btn{ background:#fff; color:var(--brand); }
+    .hero .btn:hover{ background:#E6ECF5; }
+    .hero .link{ color:#fff; }
+    .fine{ margin-top:18px; font-size:14px; color:#B9C6DD; }
+
+    /* Facts strip */
+    .facts{
+      list-style:none; margin:0; padding:18px 0;
+      background:var(--surface); border-bottom:1px solid var(--line);
+    }
+    .facts .wrap{ display:flex; flex-wrap:wrap; gap:10px 28px; }
+    .facts li{ font-size:15px; font-weight:600; color:var(--ink-2); display:flex; align-items:center; gap:8px; }
+    .facts svg{ width:18px; height:18px; flex:none; color:var(--profit); }
+
+    /* Product frames: drawn with the app's own tokens; sample data only. */
+    .frame{
+      background:var(--surface);
+      border:1px solid var(--line);
+      border-radius:var(--radius);
+      overflow:hidden;
+      color:var(--ink);
+    }
+    .frame figcaption{ padding:10px 14px; font-size:13px; color:var(--ink-2); border-top:1px solid var(--line); background:var(--ground); }
+
+    .phone{ max-width:320px; margin:0 auto; border-radius:34px; padding:10px; background:#0A1530; box-shadow:0 30px 60px -28px rgba(5,12,30,.55); }
+
+    /* Label */
+    .label{ background:#fff; color:#111; border:2px solid #111; border-radius:4px; width:100%; max-width:250px; aspect-ratio:100 / 210; margin:0 auto; padding:14px 14px 12px; display:flex; flex-direction:column; }
+    .label .store{ display:flex; justify-content:space-between; gap:8px; font-size:10px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; border-bottom:1px solid #111; padding-bottom:6px; }
+    .label .code{ align-self:flex-start; margin-top:14px; border:2px solid #111; padding:2px 8px 0; font-stretch:70%; font-weight:800; font-size:46px; line-height:1.15; letter-spacing:-0.01em; font-variant-numeric:tabular-nums; }
+    .label .name{ margin-top:12px; font-weight:700; font-size:15px; line-height:1.25; }
+    .label .grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px 10px; margin-top:12px; border-top:1px solid #111; padding-top:8px; }
+    .label .grid small{ display:block; font-size:9px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; }
+    .label .grid b{ font-size:13px; font-weight:700; font-variant-numeric:tabular-nums; }
+    .label .bar{ height:46px; margin-top:auto; background:repeating-linear-gradient(90deg,#111 0 2px,#fff 2px 4px,#111 4px 5px,#fff 5px 8px,#111 8px 11px,#fff 11px 13px); }
+    .label .foot{ display:flex; justify-content:space-between; align-items:flex-end; margin-top:10px; border-top:1px solid #111; padding-top:8px; }
+    .label .foot span{ font-size:9px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
+    .label .foot b{ font-stretch:70%; font-size:34px; font-weight:800; font-variant-numeric:tabular-nums; }
+
+    /* Pick checklist */
+
+    /* P&L */
+
+    /* Import mapping */
+    .map .r{ display:grid; grid-template-columns:1fr 18px 1fr auto; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid var(--line); font-size:14px; }
+    .map .r:last-child{ border-bottom:0; }
+    .map .sel{ border:1px solid var(--line); border-radius:var(--radius-sm); padding:8px 10px; background:var(--surface); font-weight:600; }
+    .map .sure{ font-size:12px; font-weight:700; color:var(--profit); }
+    .map .ask{ font-size:12px; font-weight:700; color:var(--warn); }
+    .map .arr{ color:var(--ink-2); }
+
+    /* Sections */
+    .section{ padding:72px 0; }
+    .section.alt{ background:var(--surface); border-top:1px solid var(--line); border-bottom:1px solid var(--line); }
+    .feature{ display:grid; gap:28px; align-items:center; }
+    .feature + .feature{ margin-top:72px; }
+    h2{ font-weight:800; font-stretch:92%; font-size:clamp(1.9rem, 5.5vw, 2.75rem); line-height:1.08; letter-spacing:-0.03em; text-wrap:balance; }
+    .feature p{ margin-top:16px; color:var(--ink-2); max-width:34em; font-size:17px; }
+    .feature .lead{ color:var(--ink); font-size:18px; }
+    .feature ul{ margin:18px 0 0; padding:0; list-style:none; display:grid; gap:10px; }
+    .feature li{ position:relative; padding-left:28px; color:var(--ink-2); font-size:16px; }
+    .feature li::before{ content:""; position:absolute; left:0; top:.55em; width:12px; height:2px; background:var(--brand); }
+    .feature .frame{ width:100%; }
+    .feature .frame img{ width:100%; height:auto; }
+    .shot-phone{ width:100%; height:auto; border-radius:26px; }
+    .feature .tracking{ margin-top:18px; display:flex; gap:8px; flex-wrap:wrap; font-size:13px; font-weight:700; color:var(--ink-2); }
+    .feature .tracking span{ border:1px solid var(--line); border-radius:var(--radius-sm); padding:4px 8px; background:var(--ground); }
+
+    .intro{ max-width:36em; }
+    .intro p{ margin-top:14px; color:var(--ink-2); font-size:18px; }
+
+    /* Closing */
+    .closing{ background:var(--brand); color:#fff; padding:72px 0; }
+    .closing h2{ color:#fff; max-width:14em; }
+    .closing p{ margin-top:14px; color:#D4DDEE; max-width:32em; }
+    .closing .actions{ margin-top:26px; }
+    .closing .btn{ background:#fff; color:var(--brand); }
+    .closing .btn:hover{ background:#E6ECF5; }
+    .closing .fine{ margin-top:14px; }
+    .closing .fine a{ color:#fff; min-height:44px; display:inline-flex; align-items:center; }
+
+    footer{ padding:24px 0 32px; font-size:14px; color:var(--ink-2); }
+    footer .wrap{ display:flex; flex-wrap:wrap; justify-content:space-between; gap:12px; }
+    footer a{ color:var(--ink-2); font-weight:600; min-height:44px; display:inline-flex; align-items:center; }
+    footer .wrap > span{ min-height:44px; display:inline-flex; align-items:center; }
+
+    /* Wider screens: two columns, alternating sides */
+    @media (min-width: 760px){
+      body{ font-size:18px; }
+      .top nav a.plain.hide-phone{ display:inline; }
+      .hero{ padding:72px 0 88px; }
+      .hero .wrap{ grid-template-columns:1.05fr .95fr; gap:56px; }
+      .facts .wrap{ justify-content:space-between; }
+      .section{ padding:104px 0; }
+      .feature{ grid-template-columns:1fr 1fr; gap:64px; }
+      .feature.flip .feature-copy{ order:2; }
+      .feature + .feature{ margin-top:112px; }
+      .feature .frame{ max-width:520px; justify-self:end; }
+      .feature.flip .frame{ justify-self:start; }
+      .closing{ padding:104px 0; }
+    }
+    @media (prefers-reduced-motion: reduce){ html{ scroll-behavior:auto; } }
+    /* Tour: real screens in sequence, one per tab of the app's bottom bar. */
+    .sample-note{ margin-top:12px; font-size:13px; color:#B9C6DD; text-align:center; }
+    .tour{ padding:56px 0 64px; }
+    .tour-wrap{ display:grid; gap:36px; align-items:center; }
+    .tour h2{ font-size:clamp(1.7rem, 5vw, 2.4rem); }
+    .tour p{ margin-top:14px; color:var(--ink-2); max-width:30em; }
+    .tour-tabs{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:22px; }
+    .tour-tabs button{ min-height:44px; padding:0 16px; border-radius:var(--radius-sm); border:1px solid var(--line); background:var(--surface); color:var(--brand); font:600 15px/1 var(--font-ui); cursor:pointer; }
+    .tour-tabs button[aria-selected="true"]{ background:var(--brand); color:#fff; border-color:var(--brand); }
+    .tour-screen{ position:relative; aspect-ratio:780 / 1688; border-radius:26px; overflow:hidden; background:var(--ground); }
+    .tour-img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:top; opacity:0; transition:opacity .5s ease; }
+    .tour-img.is-on{ opacity:1; }
+    @media (prefers-reduced-motion: reduce){ .tour-img{ transition:none; } }
+    .carousel{ position:relative; aspect-ratio:3 / 4; border-radius:8px; overflow:hidden; }
+    .slide{ position:absolute; inset:0; display:grid; place-items:center; color:var(--brand); font-weight:700; font-size:13px; opacity:0; transition:opacity .6s ease; }
+    .slide.is-on{ opacity:1; }
+    .dots{ position:absolute; left:0; right:0; bottom:10px; display:flex; justify-content:center; gap:6px; }
+    .dots span{ width:7px; height:7px; border-radius:50%; background:rgba(18,40,90,.35); }
+    .dots span.on{ background:var(--brand); }
+    @media (prefers-reduced-motion: reduce){ .slide{ transition:none; } }
+    .ok-note{ margin-top:12px; display:flex; align-items:center; gap:8px; font-size:14px; font-weight:700; color:var(--profit); }
+    .ok-note svg{ width:18px; height:18px; flex:none; }
+    @media (min-width: 760px){ .tour-tabs{ display:flex; flex-wrap:wrap; } .tour-wrap{ grid-template-columns:1fr 340px; gap:72px; } .tour{ padding:88px 0 96px; } }
+  </style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="mark" href="/"><svg class="mark-icon" viewBox="0 0 512 512" aria-hidden="true"><g transform="translate(256,256)"><path d="M-141,-97 L26,-97 L149,26 L26,149 L-141,149 Z" fill="none" stroke="currentColor" stroke-width="26" stroke-linejoin="round"/><circle cx="-77" cy="-33" r="23" fill="currentColor"/></g></svg><span>Calculated Chaos</span></a>
+    <nav aria-label="Main">
+      <a class="plain hide-phone" href="#features">Features</a>
+      <a class="plain sign-in" href="/app">Sign in</a>
+      <a class="btn btn-small" href="/app">Request access</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+
+<section class="hero" aria-labelledby="hero-title">
+  <div class="wrap">
+    <div>
+      <h1 id="hero-title">Know where every piece is. Know what it really earned.</h1>
+      <p class="lede">Calculated Chaos runs your secondhand resale business from your phone: a product code on every piece, labels and boxes that show where it is, listings from your photos, and the real profit when it sells.</p>
+      <div class="actions">
+        <a class="btn" href="/app">Request access</a>
+        <a class="link" href="#tour">See how it works</a>
+      </div>
+      <p class="fine">Works in any modern browser and installs to your iPhone home screen. Access is approved by hand.</p>
+    </div>
+
+    <figure class="phone" aria-label="Home screen of the app with sample numbers">
+      <img src="/welcome/home-phone.webp" width="780" height="1688" class="shot-phone" alt="The Home screen with sample data: in stock, sold and profit for the month, and the items that need attention">
+    </figure>
+    <p class="sample-note">Sample data. Not a real business.</p>
+  </div>
+</section>
+
+<ul class="facts" aria-label="Highlights">
+  <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Installs to your iPhone home screen</li>
+  <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>eBay connected by API</li>
+  <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Black thermal labels</li>
+  <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Verified email, approved access</li>
+</ul>
+
+<section class="tour" id="tour" aria-labelledby="tour-title">
+  <div class="wrap tour-wrap">
+    <div>
+      <h2 id="tour-title">Follow one piece from the shelf to the profit.</h2>
+      <p>Home shows what needs you today. Catalog finds the piece and its box. Stock makes the pick list for a sale. Finances shows what the sale earned.</p>
+      <div class="tour-tabs" role="group" aria-label="Choose a screen">
+        <button type="button" data-step="0" aria-selected="true">Home</button>
+        <button type="button" data-step="1" aria-selected="false">Catalog</button>
+        <button type="button" data-step="2" aria-selected="false">Stock</button>
+        <button type="button" data-step="3" aria-selected="false">Finances</button>
+      </div>
+    </div>
+    <figure class="phone" style="margin:0">
+      <div class="tour-screen">
+        <img class="tour-img is-on" src="/welcome/home-phone.webp" width="780" height="1688" alt="Home with sample numbers and the items that need attention">
+        <img class="tour-img" src="/welcome/catalog-phone.webp" width="780" height="1688" alt="Catalog with sample pieces, product codes and boxes" aria-hidden="true">
+        <img class="tour-img" src="/welcome/pick-phone.webp" width="780" height="1688" alt="Stock pick list grouped by box, with a warning for a piece still listed elsewhere" aria-hidden="true">
+        <img class="tour-img" src="/welcome/finance-phone.webp" width="780" height="1688" alt="Finances overview with sample sales and profit" aria-hidden="true">
+      </div>
+    </figure>
+  </div>
+</section>
+<script>
+(function(){
+  var tour = document.getElementById('tour');
+  if (!tour) return;
+  var imgs = Array.prototype.slice.call(tour.querySelectorAll('.tour-img'));
+  var tabs = Array.prototype.slice.call(tour.querySelectorAll('[data-step]'));
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var at = 0, timer = null;
+  function show(n){
+    at = n;
+    imgs.forEach(function(el, k){ el.classList.toggle('is-on', k === n); el.setAttribute('aria-hidden', k === n ? 'false' : 'true'); });
+    tabs.forEach(function(el, k){ el.setAttribute('aria-selected', k === n ? 'true' : 'false'); });
+  }
+  function stop(){ if (timer) { clearInterval(timer); timer = null; } }
+  tabs.forEach(function(el, k){ el.addEventListener('click', function(){ stop(); show(k); }); });
+  if (!reduce) timer = setInterval(function(){ show((at + 1) % imgs.length); }, 3500);
+})();
+(function(){
+  var box = document.querySelector('.carousel');
+  if (!box) return;
+  var slides = Array.prototype.slice.call(box.querySelectorAll('.slide'));
+  var dots = Array.prototype.slice.call(box.querySelectorAll('.dots span'));
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var at = 0;
+  function show(n){
+    at = n;
+    slides.forEach(function(el, k){ el.classList.toggle('is-on', k === n); });
+    dots.forEach(function(el, k){ el.classList.toggle('on', k === n); });
+  }
+  if (!reduce) setInterval(function(){ show((at + 1) % slides.length); }, 2600);
+})();
+</script>
+
+<section class="section" id="features" aria-labelledby="features-title">
+  <div class="wrap">
+    <div class="intro">
+      <h2 id="features-title">Built around the piece, from the shelf to the profit.</h2>
+      <p>Most tools start with the listing. Calculated Chaos starts with the piece in your hands, so the listing, the label and the money all point back to it.</p>
+    </div>
+
+    <div class="feature" style="margin-top:56px">
+      <div class="feature-copy">
+        <h2 style="font-size:clamp(1.6rem,4.6vw,2.25rem)">Every piece has a code, a box and a label.</h2>
+        <p class="lead">Each piece gets its own product code and a label you print on the thermal printer, in black.</p>
+        <p>Boxes and wall markers show where the piece is. A stock transfer moves it, so the piece you are looking for is always where the app says it is.</p>
+        <div class="tracking" aria-hidden="true"><span>Code</span><span>Box</span><span>Wall marker</span><span>Transfer</span></div>
+      </div>
+      <figure class="frame" style="margin:0">
+        <div style="padding:22px 18px;background:var(--ground)" role="img" aria-label="Sample label: product code 0897, linen midi skirt, size S, box B-12, price 24 dollars">
+          <div class="label">
+            <div class="store"><span>Sample Boutique</span><span>Calculated Chaos</span></div>
+            <div class="code">#0897</div>
+            <div class="name">Linen midi skirt</div>
+            <div class="grid">
+              <div><small>Size</small><b>S</b></div>
+              <div><small>Box</small><b>B-12</b></div>
+              <div><small>Color</small><b>Sage</b></div>
+              <div><small>Brand</small><b>Madewell</b></div>
+            </div>
+            <div class="bar" aria-hidden="true"></div>
+            <div class="foot"><span>Sample data</span><b>$24.00</b></div>
+          </div>
+        </div>
+        <figcaption>Label preview, 100 × 210 mm, sample data.</figcaption>
+      </figure>
+    </div>
+
+    <div class="feature flip">
+      <div class="feature-copy">
+        <h2 style="font-size:clamp(1.6rem,4.6vw,2.25rem)">Photos turn into listings, with less typing.</h2>
+        <p class="lead">Shoot a batch of photos first, then catalog them when you have time.</p>
+        <p>The ✨ analysis reads the photos and drafts the title, description, category, color, size and a price. You check every field, then publish to eBay straight from the app.</p>
+        <ul>
+          <li>Your own writing rules for titles and descriptions</li>
+          <li>Voice notes can add details to a piece</li>
+        </ul>
+      </div>
+      <figure class="frame" style="margin:0">
+        <div style="padding:18px;background:var(--surface)" role="img" aria-label="Sample listing draft: title, category, color and price fields filled in from a photo">
+          <div style="display:grid;grid-template-columns:1fr 1.25fr;gap:14px;align-items:start">
+            <div class="carousel" role="region" aria-roledescription="carousel" aria-label="Photos of the piece">
+              <div class="slide is-on" style="background:linear-gradient(160deg,#DCE3EE,#B9C5D8)">Photo 1 of 3</div>
+              <div class="slide" style="background:linear-gradient(160deg,#E4E8EF,#C4CCDB)">Photo 2 of 3</div>
+              <div class="slide" style="background:linear-gradient(160deg,#D6DEEA,#AEBBD0)">Photo 3 of 3</div>
+              <div class="dots" aria-hidden="true"><span class="on"></span><span></span><span></span></div>
+            </div>
+            <div style="display:grid;gap:8px;font-size:13px">
+              <div><small style="color:var(--ink-2);font-weight:600">Title</small><div style="font-weight:700;line-height:1.3">Linen Midi Skirt, Wrap Style, Size S</div></div>
+              <div><small style="color:var(--ink-2);font-weight:600">Category</small><div style="font-weight:600">Skirts &gt; Midi</div></div>
+              <div><small style="color:var(--ink-2);font-weight:600">Color</small><div style="font-weight:600">Sage green</div></div>
+              <div><small style="color:var(--ink-2);font-weight:600">Price</small><div class="num" style="font-size:20px">$24.00</div></div>
+              <div style="font-size:12px;font-weight:700;color:var(--profit)">Check the draft, then publish</div>
+            </div>
+          </div>
+        </div>
+        <figcaption>Listing draft, sample data.</figcaption>
+      </figure>
+    </div>
+
+    <div class="feature">
+      <div class="feature-copy">
+        <h2 style="font-size:clamp(1.6rem,4.6vw,2.25rem)">Turn a sale screenshot into a pick list.</h2>
+        <p class="lead">Upload the order screenshots from Poshmark, eBay, Mercari, Depop, Vinted or any other marketplace.</p>
+        <p>Each piece is matched by its product code or by its name, sorted by box, and printed as a checklist with a package number for each order. When it ships, mark it sold with the real price, fees and sales tax.</p>
+        <ul>
+          <li>Pieces that do not match are shown with suggestions, never guessed</li>
+          <li>A piece already sold or still listed elsewhere gets a warning</li>
+        </ul>
+      </div>
+      <figure class="frame" style="margin:0">
+        <picture>
+          <source media="(max-width: 759px)" srcset="/welcome/pick-phone.webp" width="780" height="1688">
+          <img src="/welcome/pick.webp" width="1968" height="664" alt="The Pick screen with sample data: a To pick list of five items from two orders, grouped by box, each with its package number">
+        </picture>
+        <p class="ok-note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Sold on Poshmark. Its eBay listing was ended for you.</p>
+        <figcaption>Pick list from two sample order screenshots.</figcaption>
+      </figure>
+    </div>
+
+    <div class="feature flip">
+      <div class="feature-copy">
+        <h2 style="font-size:clamp(1.6rem,4.6vw,2.25rem)">Know your real profit, piece by piece.</h2>
+        <p class="lead">Every sale keeps its cost, platform fees, shipping and other costs.</p>
+        <p>Finances shows the month, the sales and the pieces still in stock. Profit &amp; Loss adds your business expenses and your mileage at the IRS rate, and one definition of profit is used on every screen and in every export.</p>
+        <ul>
+          <li>Sales by month, with the missing costs flagged</li>
+          <li>Expenses by category, with a CSV export for your accountant</li>
+        </ul>
+      </div>
+      <figure class="frame" style="margin:0">
+        <picture>
+          <source media="(max-width: 759px)" srcset="/welcome/pnl-phone.webp" width="780" height="1230">
+          <img src="/welcome/pnl.webp" width="1968" height="1404" alt="The Profit and Loss statement with sample data: revenue by platform, cost of goods sold, selling costs and net profit">
+        </picture>
+        <figcaption>Profit &amp; Loss, sample data.</figcaption>
+      </figure>
+    </div>
+
+    <div class="feature">
+      <div class="feature-copy">
+        <h2 style="font-size:clamp(1.6rem,4.6vw,2.25rem)">Bring the spreadsheet you already keep.</h2>
+        <p class="lead">Import your inventory and past sales from Excel or CSV.</p>
+        <p>The app suggests which column is which and which words mean sold or new with tags. You see a preview with totals and possible duplicates before anything is saved, and you can undo a whole import.</p>
+        <ul>
+          <li>Column names in English, Portuguese and Spanish</li>
+          <li>Up to 10,000 rows per file</li>
+        </ul>
+      </div>
+      <figure class="frame" style="margin:0">
+        <div class="map" role="img" aria-label="Sample column mapping: Item maps to Title, Cost to Cost, Qty to Quantity, Status to Sold, with one column left for you to choose">
+          <div class="r"><span class="sel">Item</span><span class="arr">→</span><span class="sel">Title</span><span class="sure">Sure</span></div>
+          <div class="r"><span class="sel">Cost</span><span class="arr">→</span><span class="sel">Cost</span><span class="sure">Sure</span></div>
+          <div class="r"><span class="sel">Qty</span><span class="arr">→</span><span class="sel">Quantity</span><span class="sure">Sure</span></div>
+          <div class="r"><span class="sel">Vendido</span><span class="arr">→</span><span class="sel">Sold</span><span class="sure">Sure</span></div>
+          <div class="r"><span class="sel">Notes</span><span class="arr">→</span><span class="sel">Choose a field</span><span class="ask">Ask</span></div>
+        </div>
+        <figcaption>Column mapping, sample data.</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<section class="closing" aria-labelledby="closing-title">
+  <div class="wrap">
+    <h2 id="closing-title">Start with the piece on your shelf.</h2>
+    <p>Request access and we will review it by hand. Once you are in, you verify your email, add your store name and logo, and catalog your first photos.</p>
+    <div class="actions">
+      <a class="btn" href="/app">Request access</a>
+    </div>
+    <p class="fine">Already have an account? <a href="/app">Sign in</a></p>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>Calculated Chaos</span>
+    <a href="/app">Sign in</a>
+  </div>
+</footer>
+
+<script>
+(function(){
+  // A signed-in user goes straight to the app. Firebase keeps the session in
+  // IndexedDB; the home-screen shortcut opens "/", so this runs on every visit.
+  try{
+    var req = indexedDB.open('firebaseLocalStorageDb');
+    req.onsuccess = function(){
+      var db = req.result;
+      try{
+        var tx = db.transaction('firebaseLocalStorage', 'readonly');
+        var keys = tx.objectStore('firebaseLocalStorage').getAllKeys();
+        keys.onsuccess = function(){
+          db.close();
+          var signedIn = (keys.result || []).some(function(k){ return String(k).indexOf('firebase:authUser') === 0; });
+          if (signedIn) location.replace('/app');
+        };
+      }catch(e){ db.close(); }
+    };
+  }catch(e){}
+})();
+</script>
 </body>
 </html>
