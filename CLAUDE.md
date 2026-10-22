@@ -479,6 +479,21 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
   handler on `#catalogListArea`, so cards drawn later need no wiring. The
   count goes back to one batch only when the search, the filters or the sort
   change (`catalogListKey`); a redraw of the same list keeps it.
+- **Stay on `firebase-admin` 13.x (v3.26.4).** Version 14 pulls in
+  `jwks-rsa` 4, which `require`s `jose` 6 (ESM only); Vercel's function
+  loader rejects that with `ERR_REQUIRE_ESM` on the first `verifyIdToken()`,
+  so every token-checked function (`platform`, `ebay-auth`,
+  `ebay-check-sales`) returned 500. Plain Node loads it fine, so offline
+  checks miss it: retry 14.x only on a Vercel preview with a real sign-in.
+- **Never use `req.query` in `api/` code (v3.26.6).** Vercel builds that
+  getter with the deprecated `url.parse()` (`DEP0169`). Read the query with
+  `new URL(req.url, 'http://localhost').searchParams`, as `api/ebay-auth.js`
+  and `api/ebay-account-deletion.js` do.
+- **The browser Firebase SDK is bundled from npm and pinned to
+  `firebase@10.13.0` (v3.26.10).** Don't raise the pin without checking
+  sign-in on a Vercel preview: the API key only accepts the production
+  origins, so `localhost` answers "requests-from-referer … are blocked"
+  whatever the code does.
 
 ## Open items
 
@@ -523,9 +538,38 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
   (inside `isApproved()` and `isAdmin()`), `requireApprovedUser()` on the
   server, and the sign-in gates of the app and Developer Panel (`tokenEmailVerified()`, which reads the token the rules see).
   New employees must have a real email: they verify on first sign-in.
+- **Tab-switch delay (Vitor, 2026-10-22)**: after v3.26.14 loading is much
+  faster, but some delay remains when switching tabs. Home, Stock and
+  Settings redraw on every switch (Settings rebuilds its whole screen), and
+  the first Finances visit draws (about 0.7 s at 4x CPU with 1,500 items).
+  Not measured per tab on a phone: ask which pair of tabs feels slow before
+  changing anything.
+- **Performance work left on purpose (2026-10-22)**: loading `ebay-api.js`
+  (62 kB) and the label screens on demand (the gain is small and printing
+  needs `window.print()` synchronous on iOS), real thumbnail files (needs a
+  migration of old items) and paging the Firestore read of `items` (it only
+  matters at several thousand items; the whole collection loads at sign-in).
+  Revisit if the catalog grows.
 
 ### Unverified in production (build-verified only)
 
+- Faster start and the Catalog (v3.26.8 – v3.26.14): Chromium test of the
+  built app with the Firebase SDK stubbed (a signed-in owner, 1,500 sample
+  items, CPU slowed 4x): no page errors; every tab, Import and the trash
+  show the same text as v3.26.8, with and without the idle prefetch; the
+  first 300 cards and all 1,500 once drawn are byte-for-byte the same HTML
+  as before the batches; scrolling draws 300, 600 … 1,500 with no missing
+  or repeated ids; a card from a later batch opens its own item; search,
+  sort, bulk mode and "Select all N" work; Finances draws once, then only
+  on a data change; the search box redraws once per pause; card boxes on
+  screen are identical with `content-visibility`. Vitor confirmed on
+  2026-10-22 that sign-in and the app work on v3.26.14 and loading is
+  clearly faster. Unconfirmed: real timings on a phone (the numbers in
+  `CHANGELOG.md` are from the throttled test), `content-visibility` only
+  acts on iOS 18 and newer, real photos, the Firebase SDK bundled from npm
+  for Firestore writes and Storage uploads (sign-in and reads worked), and
+  a screen load right after a deploy (an old tab asks for a file name that
+  no longer exists; the message and retry cover it).
 - Trash and eBay question before a delete (v3.26.0): Node test (14 checks:
   the eBay step per item, the trash record and its 30-day expiry, restore
   with and without an eBay removal, the expiry rules, batches of 200, a
@@ -877,143 +921,9 @@ on any of these:
 - Quick Labels one-by-one queue and PDF export (v3.13.106/107), label font
   sizing (v3.13.102-105), inspection flag icon (v3.13.114).
 
-## Pending changelog entry (since v3.26.0)
+## Pending changelog entry (since v3.27.0)
 
-- v3.26.14: the Catalog search box draws its results once the typing pauses
-  (200 ms, `SEARCH_DELAY_MS`), not after every key. The query is still saved
-  at each key; only the redraw waits. With 1,500 sample items and the CPU
-  slowed 4x, typing "number 14" (9 keys, 120 ms apart) redrew the list 9
-  times and blocked the screen for 4,068 ms, so the keys took 4.8 s to go
-  in; now it redraws once, blocks 64 ms and the keys go in at their own
-  pace, with the results 184 ms after the last key. The results are the same
-  111 items, and clearing the search goes back to one batch. Checked in a
-  build with the Firebase SDK stubbed; unverified in production: a real
-  phone and its keyboard.
-
-- v3.26.13: switching to a Finances tab no longer redraws Finances. v3.26.9
-  redrew it on every switch (a mistake: before, it only redrew when the
-  data changed); now it draws the first time it is opened, and after that
-  only when the data changes (`renderAll()` through `refreshFinance()`), as
-  before v3.26.9. With 1,500 sample items and the CPU slowed 4x, going to
-  Finances again took 572 ms and 509 ms (the second and third visits) and
-  now takes 39 ms and 32 ms; the first visit still draws (about 700 ms).
-  The text is the same as before on every visit, and a data change still
-  redraws it. Checked in a build with the Firebase SDK stubbed; unverified
-  in production: a real phone.
-
-- v3.26.12: the Catalog draws 300 cards first and the next 300 as the end of
-  the list comes near the screen (an observer, plus a "Show more" button).
-  Search, filters and sort still work on every item; "Select all N" still
-  takes all N. With 1,500 sample items and the CPU slowed 4x, going back to
-  the Catalog took a median of 232 ms (after v3.26.11) and now takes 59 ms;
-  a key in the search box took 1,090 ms and now takes 263 ms. The first 300
-  cards, and all 1,500 once drawn, are byte-for-byte the same HTML as
-  before. Card clicks moved to one handler on the list. Checked in a build
-  with the Firebase SDK stubbed; unverified in production: a real phone and
-  real photos. Open: Finances redraws on every tab switch since v3.26.9
-  (about 0.8 s with 1,500 items); a search key still takes about 260 ms at
-  4x.
-
-- v3.26.11: showing the Catalog again after another tab no longer lays out
-  every card. `.item-card` has `content-visibility: auto` with a per-theme
-  height guess (`--card-h`: the measured card height minus padding and
-  border, because `contain-intrinsic-size` sizes the content box). With
-  1,500 sample items and the CPU slowed 4x, going back to the Catalog took
-  2,002 ms (median of five moves) and now takes 196 ms. Cards on screen are
-  the same size and place; cards not yet seen use the guess (the page height
-  is off by under 4.5% until it has been scrolled once, then identical). It
-  only takes effect on iOS 18 and newer; older versions keep the old
-  behavior. Unverified in production: a real phone and real photos. Open:
-  Finances redraws on every tab switch since v3.26.9 (about 0.8 s with 1,500
-  items); the Catalog list still builds every card on each redraw.
-
-- v3.26.10: the Firebase SDK comes from npm, pinned to `firebase@10.13.0`
-  (exact, in `package.json`), instead of the gstatic CDN. The build keeps
-  only the functions the app uses: the SDK is one shared chunk of 386 kB
-  (117 kB gzip), against about 740 kB (190 kB gzip) in four CDN files, and
-  the startup no longer waits on a CDN chain. The lockfile adds the
-  `firebase` tree; no package the server uses (`firebase-admin` included)
-  changed version. Do not raise the pin without checking sign-in on a
-  preview: the API key only accepts the production origins, so `localhost`
-  gets "requests-from-referer … are blocked" both before and after this
-  change. Unverified in production: sign-in, Firestore reads and writes, and
-  Storage uploads with the bundled SDK.
-
-- v3.26.9: Stock, Finances, Import, Settings and the trash load on first
-  use (`ui/lazy-screen.js`: `use()`, `ifLoaded()`, `prefetch()`), not at
-  startup. The grouped files are `ui/stock/stock-screens.js` and
-  `ui/finance/finance-screens.js`; main.js builds their hooks as before. A
-  screen's code is downloaded once the first screen is up, while the browser
-  is idle, or on the first tap. The main chunk drops from 522 kB (151 kB
-  gzip) to 281 kB (82 kB gzip). A failed screen load shows a message and is
-  retried on the next use. Checked in a build with the Firebase SDK stubbed
-  (a signed-in owner): no page errors; every tab and Import/trash show the
-  same text as v3.26.8, with and without the idle wait. Unverified in
-  production: a real first tap on a phone, and a screen load right after a
-  deploy (an old tab asks for a file name that no longer exists).
-
-- v3.26.8: faster first load. Home draws after items, settings, drafts
-  and the eBay connection; the eBay sale log and expenses load behind it,
-  and Home, Finances and the sale check run when they arrive. Catalog and
-  draft photos load lazily. Fonts load beside the stylesheet (no `@import`
-  inside `style.css`; `index.html` and `admin.html` link Google Fonts).
-  Login reads the business and the admin claim together. `/assets/*` is
-  cached `immutable` on Vercel and answered from the service worker's cache
-  first (hashed names, so never stale). Measured in a build copy: the same
-  bundle (522 kB, 151 kB gzip) and the same Firebase SDK; the gain is in
-  the order and the waiting, not in fewer bytes. Unverified in production:
-  the real timings on a phone and the repeat-visit cache.
-
-- v3.26.7: the "+" button opens a new item at once. Holding it (about
-  half a second) opens the menu: New item, Quick catalog, Photo session,
-  always. Settings → Appearance → "+ button" turns on Quick catalog and
-  Photo session as buttons above "+" (off by default, Home and Catalog
-  only). Closing the item form (X, Cancel) or deleting from it always
-  lands on Catalog. The eBay category shows in full, wrapped, with Change
-  (search opens, the current choice stays until a new pick, "Keep
-  current" or Escape cancels) and Remove, instead of being cut off and
-  cleared on a tap.
-
-- v3.26.6: `DEP0169` (`url.parse()` deprecated) traced and fixed. With
-  `NODE_OPTIONS=--trace-deprecation` on a preview, the stack pointed at
-  `api/ebay-auth.js:83`, reading `req.query`: Vercel's runtime builds that
-  getter with the legacy `url.parse()`. `api/ebay-auth.js` and
-  `api/ebay-account-deletion.js` now read the query string with
-  `new URL(req.url, 'http://localhost').searchParams`; names, routes and
-  responses are unchanged (both URLs are registered with eBay). No other
-  `api/` file reads `req.query`. Do not use `req.query` in new `api/` code.
-
-- v3.26.5: incident record. After the v3.26.4 deploy (about 15:58), `/api/platform`
-  `health` returns 200 with all four checks OK, `/api/ebay-auth` and
-  `/api/ebay-check-sales` return 200, and no `ERR_REQUIRE_ESM` appears after
-  the deploy (the last one is 15:52:05, before it). The revert was pushed to
-  `main` directly, not through a branch and PR: a breach of the git rule, kept
-  here so the history explains it. Still open: `DEP0169` (`url.parse()`
-  deprecated) is logged by `/api/ebay-auth`. Nothing in `api/` or `src/` calls
-  `url.parse()`; the candidate `@firebase/database-compat` is only loaded by
-  `firebase-admin/database`, which the app does not import. The exact source
-  needs the stack line from the Vercel log.
-
-- v3.26.4: reverts v3.26.3 (`firebase-admin` back to 13.10.0, no `engines`
-  field). On Vercel, firebase-admin 14 pulls in `jwks-rsa` 4, which calls
-  `require('jose')`, and `jose` 6 is ESM only. Vercel's function loader
-  rejects that with `ERR_REQUIRE_ESM` on the first `verifyIdToken()`, so
-  every token-checked function (`platform`, `ebay-auth`, `ebay-check-sales`)
-  exited with a 500. Plain Node 22/24 load it fine, so offline checks miss
-  it: retry 14.x only on a Vercel preview with a real sign-in.
-
-- v3.26.2: `CLAUDE.md` gets a deploy checklist (before and after a push to
-  `main`, and rollback), under Commands & verification. Docs only; the app
-  is unchanged.
-
-- v3.26.1: `npm test` with 25 unit tests for `src/domain/` (`tests/domain/`,
-  Node's built-in test runner, no new packages): the IRS mileage rates by
-  date (including July 1, 2026), the P&L for one month, the bundle fee split
-  and sale validation, the SKU matching (copies and legacy codes), US money
-  and date parsing, and the goal windows and progress. Expected values were
-  worked out by hand. Not in the build: the test files are outside `src/`.
-
-(Empty. v3.25.1 – v3.25.10 and v3.26.0 are in `CHANGELOG.md`.)
+(Empty. v3.26.1 – v3.26.14 and v3.27.0 are in `CHANGELOG.md`.)
 
 ## Backlog (not started)
 
