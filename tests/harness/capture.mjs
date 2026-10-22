@@ -15,7 +15,7 @@ const executablePath = process.env.CHROME_PATH || '/opt/pw-browsers/chromium-119
 
 const VIEWPORTS = {
   phone: { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true },
-  desktop: { viewport: { width: 1280, height: 860 }, deviceScaleFactor: 1 },
+  desktop: { viewport: { width: 1280, height: 860 }, deviceScaleFactor: 2 },
 };
 
 // Each shot: the tab to open (data-tab), an optional Stock sub-tab
@@ -23,7 +23,7 @@ const VIEWPORTS = {
 const SHOTS = [
   { tab: 'home', file: 'home' },
   { tab: 'catalog', file: 'catalog' },
-  { tab: 'stock', section: 'pick', file: 'stock-pick' },
+  { tab: 'stock', section: 'pick', file: 'stock-pick', scrollPhone: 560 },
   { tab: 'finance', file: 'finance-overview' },
   { tab: 'reports', file: 'reports-pnl' },
 ];
@@ -79,7 +79,17 @@ for (const [name, opts] of Object.entries(VIEWPORTS)){
       await page.locator(`[data-stock-section="${shot.section}"]`).filter({ visible: true }).first().click();
       await page.waitForTimeout(600);
     }
+    // On a phone the Pick list starts below the upload card: scroll to it.
+    if (shot.scrollPhone && name === 'phone'){
+      await page.evaluate((y) => window.scrollTo(0, y), shot.scrollPhone);
+      await page.waitForTimeout(200);
+    }
+    // Shots that are cut out of the page hide the app's fixed chrome (bottom bar, back-to-top).
+    const chrome = shot.scrollPhone && name === 'phone'
+      ? await page.addStyleTag({ content: '.bottom-nav,#pageBackToTop{display:none!important}' })
+      : null;
     await page.screenshot({ path: resolve(outDir, `${shot.file}-${name}.png`), fullPage: false });
+    if (chrome) await chrome.evaluate(el => el.remove());
   }
   await page.close();
 }
