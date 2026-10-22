@@ -1037,6 +1037,25 @@
     background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
     position:relative; overflow:hidden; display:flex; gap:12px; padding:10px; cursor:pointer;
   }
+  /* Cards off the screen skip layout and paint (v3.26.11). The catalog keeps
+     every card in the page, and showing it again after another tab laid out
+     all of them: over a second on a phone with 1,500 items. --card-h is only
+     the guess for a card that hasn't been on screen yet; `auto` then keeps
+     its real height. It sizes the content box, so padding and border come on
+     top: the guesses are the measured card heights minus 22px (default card:
+     10px padding + 1px border, twice), 25px (Concourse row) and 0 (Tag Week),
+     per theme, phone then desktop. */
+  .item-card{
+    --card-h:162px;
+    content-visibility:auto; contain-intrinsic-size:auto var(--card-h);
+  }
+  .item-card.tw-card{--card-h:369px;}
+  .item-card.cc-row{--card-h:156px;}
+  @media (min-width: 900px){
+    .item-card{--card-h:118px;}
+    .item-card.tw-card{--card-h:340px;}
+    .item-card.cc-row{--card-h:90px;}
+  }
   .item-card:hover{border-color:var(--brand-2);}
   .item-card.bulk-selected{border-color:var(--brand-2); box-shadow:inset 0 0 0 1px var(--brand-2); background:color-mix(in srgb, var(--brand-2) 6%, var(--surface));}
   .bulk-check{

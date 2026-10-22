@@ -872,6 +872,19 @@ on any of these:
 
 ## Pending changelog entry (since v3.26.0)
 
+- v3.26.11: showing the Catalog again after another tab no longer lays out
+  every card. `.item-card` has `content-visibility: auto` with a per-theme
+  height guess (`--card-h`: the measured card height minus padding and
+  border, because `contain-intrinsic-size` sizes the content box). With
+  1,500 sample items and the CPU slowed 4x, going back to the Catalog took
+  2,002 ms (median of five moves) and now takes 196 ms. Cards on screen are
+  the same size and place; cards not yet seen use the guess (the page height
+  is off by under 4.5% until it has been scrolled once, then identical). It
+  only takes effect on iOS 18 and newer; older versions keep the old
+  behavior. Unverified in production: a real phone and real photos. Open:
+  Finances redraws on every tab switch since v3.26.9 (about 0.8 s with 1,500
+  items); the Catalog list still builds every card on each redraw.
+
 - v3.26.10: the Firebase SDK comes from npm, pinned to `firebase@10.13.0`
   (exact, in `package.json`), instead of the gstatic CDN. The build keeps
   only the functions the app uses: the SDK is one shared chunk of 386 kB
