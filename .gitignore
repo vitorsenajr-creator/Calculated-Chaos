@@ -25,3 +25,6 @@ dist-ssr
 
 .vercel
 .env*
+
+# Screenshot harness output (npm run harness:capture)
+tests/harness/out/
