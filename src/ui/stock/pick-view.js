@@ -10,6 +10,8 @@ import { parseManualCode, addManualCode, removeManualCode, manualLines } from '.
 import { prepareScreenshot } from '../../platform/images.js';
 import { shareChecklist } from './pick-sheet-canvas.js';
 import { openMarkSold, sellableRows } from './pick-sold.js';
+import { openPickLog } from './pick-log-view.js';
+import { logPick } from '../../data/pick-log-store.js';
 
 const SESSION_KEY = 'cc.pick.session';
 const MAX_SHOTS = 20;
@@ -23,6 +25,7 @@ let hooks = {
   onChange: () => {},
   openItem: () => {},
   searchCatalog: () => {},
+  canViewLog: () => false,
 };
 
 // shots: [{ id, name, status: 'reading'|'done'|'failed'|'skipped', result, message }]
@@ -109,6 +112,13 @@ async function readShot(id){
   if (!cur) return; // removed while it was being read
   if (r && r.ok){
     Object.assign(cur, { status: 'done', result: { isSale: !!r.result.isSale, orders: Array.isArray(r.result.orders) ? r.result.orders : [] } });
+    const orders = cur.result.orders;
+    logPick('screenshot', {
+      file: cur.name,
+      orders: orders.length,
+      pieces: orders.reduce((t, o) => t + (o.items || []).length, 0),
+      orderNumbers: orders.map(o => o.orderNumber),
+    });
   } else {
     Object.assign(cur, { status: r && r.skipped ? 'skipped' : 'failed', message: (r && r.message) || "Couldn't read it." });
   }
@@ -371,6 +381,7 @@ export function renderPick(){
       <div class="stock-form-row">
         <label class="primary-btn pick-add">Add screenshots<input type="file" id="pickFileInput" class="visually-hidden" accept="image/*" multiple></label>
         ${st.shots.length || st.manual.length ? '<button type="button" class="secondary-btn" id="pickClearBtn">Clear list</button>' : ''}
+        ${hooks.canViewLog() ? '<button type="button" class="secondary-btn" id="pickLogBtn">Activity log</button>' : ''}
       </div>
       <div class="pick-typed">
         <label class="pick-typed-label" for="pickCodeInput">Item code</label>
@@ -421,8 +432,18 @@ function wire(pane){
     e.target.value = '';
     addFiles(files);
   });
+  pane.querySelector('#pickLogBtn')?.addEventListener('click', openPickLog);
   pane.querySelector('#pickClearBtn')?.addEventListener('click', () => {
     if (!confirm('Clear the screenshots, the typed codes and the picked marks?')) return;
+    const rows = lastList ? lastList.boxes.flatMap(b => b.rows) : [];
+    logPick('clear', {
+      screenshots: st.shots.length,
+      pieces: lastList ? lastList.total : st.manual.length,
+      orders: lastList ? lastList.orders : 0,
+      picked: st.picked.length,
+      recorded: rows.filter(r => r.recorded).length,
+      codes: rows.map(r => r.item.productCode || r.item.name),
+    });
     st = { shots: [], chosen: {}, platforms: {}, picked: [], manual: [] };
     file.clear();
     save();
@@ -461,8 +482,8 @@ function wire(pane){
   // Synchronous inside the click: the share sheet needs the tap (iOS Safari).
   pane.querySelector('#pickShareBtn')?.addEventListener('click', () => {
     if (!lastList) return;
+    logPick('checklist', { pieces: lastList.total, orders: lastList.orders });
     shareChecklist(lastList, {
-      picked: new Set(st.picked),
       storeName: (appSettings.storeName || '').trim(),
       platformLabel: hooks.platformLabel,
     });

@@ -32,8 +32,8 @@ const LEGACY_DOCS = {
 // ebay_sales (v3.22.5, the eBay sale tracker) and expenses (v3.23.3) exist
 // only in the business; in root mode bizCol/bizDoc throw for them and their
 // callers report it (the sale log is skipped, Expenses says it couldn't load).
-// The trash (v3.26.0) is business-only too.
-const BUSINESS_COLLECTIONS = new Set([...Object.keys(LEGACY_COLLECTIONS), 'counters', 'config', 'ebay_sales', 'expenses', 'trash']);
+// The trash (v3.26.0) and the Pick activity log (v3.27.7) are business-only too.
+const BUSINESS_COLLECTIONS = new Set([...Object.keys(LEGACY_COLLECTIONS), 'counters', 'config', 'ebay_sales', 'expenses', 'trash', 'pick_log']);
 
 let activeBizId = null;
 

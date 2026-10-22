@@ -22,6 +22,7 @@ import { askEbayBeforeDelete } from './ui/items/delete-dialog.js';
 import { lazyScreen } from './ui/lazy-screen.js';
 import { showToast } from './ui/toast.js';
 import { watchCollection } from './data/live-sync.js';
+import { logPick } from './data/pick-log-store.js';
 import { applyChanges } from './domain/live-changes.js';
 import {
   MAX_PHOTOS, MAX_PHOTO_DIM, PHOTO_QUALITY,
@@ -1817,6 +1818,7 @@ export const app = (function(){
       if (r.ok) await incrementAiUsage();
       return r;
     },
+    canViewLog: () => currentUserRole !== 'employee',
     platformLabel: (key) => pickPlatformLabel(key),
     platformKeys: () => getAllPlatforms().map(p => p.key),
     fee: (platform, price) => platformFee(platform, price),
@@ -1824,6 +1826,11 @@ export const app = (function(){
     // app-made eBay listing is ended when the piece sold elsewhere.
     markSold: async (item, fields) => {
       if (!(await recordPickSale(item.id, fields))) return { ok: false };
+      logPick('sold', {
+        itemId: item.id, code: item.productCode, name: item.name,
+        orderNumber: fields.saleOrderNumber, buyer: fields.saleBuyer,
+        price: fields.soldPrice, platform: fields.soldPlatform, fee: fields.feesTotal, profit: fields.netProfit,
+      });
       const idx = items.findIndex(i => i.id === item.id);
       const updated = { ...(idx >= 0 ? items[idx] : item), ...fields };
       if (idx >= 0) items[idx] = updated;
