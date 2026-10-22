@@ -84,9 +84,9 @@ function drawBox(ctx, top, b){
   ctx.fillRect(mm(PAD), mm(bottom - 0.4), mm(TEXT_W), mm(0.4));
 }
 
-// One piece: a box to tick, the code and name (at most two lines), the meta
+// One piece: an empty box to tick by hand, the code and name (at most two lines), the meta
 // line and the flags, all clipped to the row's height.
-function drawRow(ctx, top, b, picked, platformLabel){
+function drawRow(ctx, top, b, platformLabel){
   const textX = PAD + ROW.check + ROW.gap + ROW.badge + ROW.badgeGap;
   const textW = mm(TEXT_W - (textX - PAD));
   ctx.save();
@@ -94,21 +94,10 @@ function drawRow(ctx, top, b, picked, platformLabel){
   ctx.rect(0, mm(top), mm(SHEET_MM.width), mm(b.h));
   ctx.clip();
 
-  // The check box: 6 mm square, 0.5 mm stroke, a tick when picked.
+  // The check box: 6 mm square, 0.5 mm stroke, always empty (v3.27.7): the
+  // sheet is ticked by hand, whatever is ticked on screen.
   ctx.lineWidth = mm(0.5);
   ctx.strokeRect(mm(PAD + 0.25), mm(top + ROW.pad + 0.5 + 0.25), mm(5.5), mm(5.5));
-  if (picked){
-    const cx = mm(PAD);
-    const cy = mm(top + ROW.pad + 0.5);
-    ctx.lineWidth = mm(0.8);
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.beginPath();
-    ctx.moveTo(cx + mm(1.4), cy + mm(3.1));
-    ctx.lineTo(cx + mm(2.6), cy + mm(4.4));
-    ctx.lineTo(cx + mm(4.7), cy + mm(1.6));
-    ctx.stroke();
-  }
 
   if (b.row.pack) drawBadge(ctx, PAD + ROW.check + ROW.gap + ROW.badge / 2, top + ROW.pad + 0.5 + 3, ROW.badge, b.row.pack);
   ctx.textBaseline = 'top';
@@ -182,8 +171,8 @@ function drawHead(ctx, pl, storeName, stamp){
 }
 
 // One canvas per 100 × 210 mm page, in the same order and with the same
-// breaks as paginatePick(). `picked` = line keys already ticked on screen.
-export function renderPickPages(pl, { picked = new Set(), storeName = '', when = new Date(), platformLabel = (k) => k } = {}){
+// breaks as paginatePick(). The boxes are always empty.
+export function renderPickPages(pl, { storeName = '', when = new Date(), platformLabel = (k) => k } = {}){
   const pages = paginatePick(pl, platformLabel);
   const stamp = when.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
   return pages.map((blocks, p) => {
@@ -203,7 +192,7 @@ export function renderPickPages(pl, { picked = new Set(), storeName = '', when =
     }
     for (const b of blocks){
       if (b.type === 'box') drawBox(ctx, top, b);
-      else if (b.type === 'row') drawRow(ctx, top, b, picked.has(b.row.line.key), platformLabel);
+      else if (b.type === 'row') drawRow(ctx, top, b, platformLabel);
       else if (b.type === 'pack') drawPack(ctx, top, b);
       else drawSign(ctx, top, b.h);
       top += b.h;

@@ -284,7 +284,15 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
     platform the AI can't tell gets a "Sold on" select under its
     screenshot, and its delist note never names a platform as "delist it
     there" until set. **Read-only**: answers, the person's picks, platforms
-    and ticks stay on the device (`cc.pick.session`). Print checklist
+    and ticks stay on the device (`cc.pick.session`). Activity log (v3.27.7,
+    `domain/pick-log.js`, `data/pick-log-store.js`, `ui/stock/pick-log-view.js`):
+    every screenshot read, sale recorded (Mark sold, one entry per piece),
+    list cleared (with the codes it held) and checklist shared is added to the
+    business's `pick_log` with the user's uid and email; best-effort writes
+    (Pick works if the rule isn't published), never edited or deleted (the rule
+    allows create and read only). Stock → Pick → "Activity log" (owner only, UI
+    check like Expenses) shows one month at a time with a person filter; no
+    images, no CSV (Vitor, 2026-10-22). Print checklist
     (v3.24.3, `ui/stock/pick-print.js`): 100 × 210 mm labels through
     `printHtml()`, black only, fixed row heights in mm so the page breaks
     are computed before the (synchronous) print, "(cont.)" headings, a
@@ -443,7 +451,7 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
     server only too.
   - Multi-business (v3.17.0): `businesses/{bizId}` (`live` = the switch;
     server-written) with `items`, `drafts`, `ebay_error_log`,
-    `ebay_sales` (v3.22.5), `expenses` (v3.23.3), `trash` (v3.26.0),
+    `ebay_sales` (v3.22.5), `expenses` (v3.23.3), `trash` (v3.26.0), `pick_log` (v3.27.7),
     `counters/*`, `config/settings` (members read/write), `members/*`
     (server-written) and the frozen `liveSessions`, `liveItems`,
     `options/main` (admins read only, v3.19.0);
@@ -534,6 +542,10 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
 
 ## Open items
 
+- **Paste `firestore.rules` into the Console** for v3.27.7 (Vitor): the
+  `pick_log` rule (members create entries under their own uid; read for
+  members and admins; no update or delete). Until then Pick works, but the
+  log writes fail quietly and the Activity log says it can't load.
 - **Paste `firestore.rules` into the Console** for v3.26.0 (Vitor): `trash`
   is added to the member collections. Until then the trash can't be read or
   written. Optional: a TTL policy on `trash.expiresAt` in the Console.
@@ -594,6 +606,13 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
 
 ### Unverified in production (build-verified only)
 
+- Pick activity log and empty checklist boxes (v3.27.7): Node tests (66 pass)
+  and a Chromium test of the built app with a stubbed Firebase: sharing the
+  checklist before and after ticking a piece gives byte-identical PNGs, the
+  checklist and clear entries are written with the user's uid and email and
+  the codes held, the log dialog lists them with the person filter, a missing
+  collection shows the "couldn't load" message. Not run: Mark sold and
+  screenshot entries, the real rule, a phone.
 - Pick name matching (v3.27.6): Node tests (61 pass: the Love Tree case, a
   sold piece found, brand + price alone, size in the name, unsold vs sold
   tie; the index against a per-item reference on random catalogs) and a
@@ -1003,6 +1022,19 @@ on any of these:
   (8 tests). Unverified in production: two real devices, the SDK's
   reconnect after a long offline period (it may re-read the collection), the
   watch against the real rules.
+
+- v3.27.7: Pick activity log and an always-empty checklist. Every screenshot
+  read, sale recorded (one entry per piece, with code, order, price, platform,
+  fee and profit), list cleared (with the pieces it held) and checklist shared
+  is added to the business's `pick_log` with who did it. Stock → Pick →
+  "Activity log" (owner only) shows one month at a time with a person filter;
+  entries can't be edited or removed (the rule allows create and read). No
+  images, no CSV. The shared checklist now always draws empty boxes, whatever
+  is ticked on screen. `tests/domain/pick-log.test.mjs` (5 tests). **The
+  `pick_log` rule must be pasted into the Console** (see Open items). Unverified
+  in production: the real rule and writes, the Mark sold and screenshot
+  entries (only checklist and clear ran in the browser test), the dialog on an
+  iPhone, a real share sheet.
 
 - v3.27.6: Pick stops matching the wrong piece by name. A Love Tree skirt
   with no SKU was matched to a Love Tree dress (brand and price in common, 53%).

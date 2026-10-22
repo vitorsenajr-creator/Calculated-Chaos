@@ -84,6 +84,12 @@ service cloud.firestore {
         allow read: if isMember(bizId) || isAdmin();
         allow write: if false;
       }
+      // Pick activity log (v3.27.7): members add entries under their own uid,
+      // nobody edits or deletes one; the owner's screen and admins read it.
+      match /pick_log/{docId} {
+        allow read: if isMember(bizId) || isAdmin();
+        allow create: if isMember(bizId) && request.resource.data.uid == request.auth.uid;
+      }
       match /{sub}/{docId} {
         allow read, write: if isMemberData(sub) && isMember(bizId);
         // Platform admins read any business's data (Developer Panel backup
