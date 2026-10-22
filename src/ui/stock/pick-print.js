@@ -8,7 +8,7 @@ import { boxTitle } from '../../domain/sale-match.js';
 export const SHEET_MM = { width: 100, height: 210 };
 
 // Heights in mm, kept a little generous so a long name never spills.
-const H = { pad: 5, header: 18, footer: 6, box: 7, row: 14, note: 4, sign: 12 };
+const H = { pad: 5, header: 18, footer: 6, box: 7, row: 14, note: 4, sign: 12, pack: 7 };
 
 // The notes printed under a row, in capitals so they stand out in black.
 export function rowFlags(r, platformLabel = (k) => k){
@@ -37,6 +37,12 @@ export function paginatePick(pl, platformLabel = (k) => k){
     blocks.push({ type: 'box', title: 'Not found in the catalog', count: pl.unmatched.length, h: H.box });
     pl.unmatched.forEach(r => blocks.push({ type: 'row', row: r, box: 'Not found in the catalog', flags: [], unmatched: true, h: H.row }));
   }
+  // The packages, one line each (v3.27.2): the number, who it is for, how many
+  // pieces. It is what the person packs from after picking.
+  if (pl.packages && pl.packages.length){
+    blocks.push({ type: 'box', title: 'Packages', count: pl.packages.length, h: H.box });
+    pl.packages.forEach(p => blocks.push({ type: 'pack', pack: p, box: 'Packages', h: H.pack }));
+  }
   blocks.push({ type: 'sign', h: H.sign });
 
   const pages = [[]];
@@ -45,10 +51,10 @@ export function paginatePick(pl, platformLabel = (k) => k){
   blocks.forEach((b, i) => {
     const next = blocks[i + 1];
     // A heading never ends a page alone.
-    const need = b.type === 'box' && next && next.type === 'row' ? b.h + next.h : b.h;
+    const need = b.type === 'box' && next && (next.type === 'row' || next.type === 'pack') ? b.h + next.h : b.h;
     if (need > room && pages[pages.length - 1].length){
       newPage();
-      if (b.type === 'row'){
+      if (b.type === 'row' || b.type === 'pack'){
         const cont = { type: 'box', title: `${b.box} (cont.)`, count: null, h: H.box };
         pages[pages.length - 1].push(cont);
         room -= cont.h;
@@ -58,6 +64,11 @@ export function paginatePick(pl, platformLabel = (k) => k){
     room -= b.h;
   });
   return pages;
+}
+
+// What a package line says: its buyer and its piece count.
+export function packText(p){
+  return `${p.buyer || 'No buyer name'} · ${p.pieces} piece${p.pieces === 1 ? '' : 's'}`;
 }
 
 const orderTail = (n) => (n && n.length > 8 ? `…${n.slice(-6)}` : n || '');

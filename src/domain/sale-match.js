@@ -177,6 +177,23 @@ export function matchSaleLine(line, items){
 // was recorded on, whatever matching would say now.
 export function buildPickList(lines, items, chosen = {}){
   const byId = new Map((items || []).map(i => [i.id, i]));
+  // Package numbers (v3.27.2): one per order, in the order the orders first
+  // appear in the lines (screenshot order), so adding screenshots later keeps
+  // the numbers already printed. A typed code is its own order.
+  const refOf = (l) => l.orderRef || l.key;
+  const packages = [];
+  const packNo = new Map();
+  (lines || []).forEach(l => {
+    const ref = refOf(l);
+    if (!packNo.has(ref)){
+      packNo.set(ref, packages.length + 1);
+      packages.push({ n: packages.length + 1, orderRef: ref, buyer: '', orderNumber: '', pieces: 0 });
+    }
+    const pack = packages[packNo.get(ref) - 1];
+    pack.pieces += 1;
+    if (!pack.buyer && l.buyer) pack.buyer = l.buyer;
+    if (!pack.orderNumber && l.orderNumber) pack.orderNumber = l.orderNumber;
+  });
   const recordedBy = new Map((items || []).filter(i => i.saleLineKey).map(i => [i.saleLineKey, i]));
   const used = new Set();
   const rows = (lines || []).map(original => {
@@ -204,7 +221,7 @@ export function buildPickList(lines, items, chosen = {}){
     const listedElsewhere = item && (!isSold(item) || recorded)
       ? (item.listedPlatforms || []).filter(p => p !== soldOn && !(p === 'ebay' && item.ebayEndedAt))
       : [];
-    return { line, match, item, recorded, alreadySold: isSold(item) && !recorded, listedElsewhere, platformUnknown: !soldOn, soldTwice: false };
+    return { line, match, item, recorded, alreadySold: isSold(item) && !recorded, listedElsewhere, platformUnknown: !soldOn, soldTwice: false, pack: packNo.get(refOf(line)) };
   });
   const perItem = new Map();
   rows.forEach(r => { if (r.item) perItem.set(r.item.id, (perItem.get(r.item.id) || 0) + 1); });
@@ -224,5 +241,5 @@ export function buildPickList(lines, items, chosen = {}){
     }));
   const unmatched = rows.filter(r => !r.item);
   const orders = new Set((lines || []).map(l => l.orderNumber || l.key));
-  return { boxes, unmatched, total: rows.length, matched: rows.length - unmatched.length, orders: orders.size };
+  return { boxes, unmatched, packages, total: rows.length, matched: rows.length - unmatched.length, orders: orders.size };
 }

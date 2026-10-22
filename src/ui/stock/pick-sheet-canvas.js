@@ -3,7 +3,7 @@
 // shared to the label printer app (FlashLabel Pro) instead of going to the
 // browser's print dialog. Black on white: the thermal printer is monochrome.
 // Sizes are in millimeters, as the printed version had them.
-import { SHEET_MM, paginatePick, rowCode, rowName, rowMeta } from './pick-print.js';
+import { SHEET_MM, paginatePick, rowCode, rowName, rowMeta, packText } from './pick-print.js';
 import { saveOrShareFiles } from '../../platform/files.js';
 import { showToast } from '../toast.js';
 
@@ -12,7 +12,7 @@ const PX_PER_PT = (25.4 / 72) * PX_PER_MM;
 const FAMILY = 'Arial, Helvetica, sans-serif';
 const PAD = 5; // mm, the sheet's side and top padding
 const TEXT_W = SHEET_MM.width - 2 * PAD; // mm
-const ROW = { pad: 1.2, check: 6, gap: 2.5, first: 4.2, next: 3.6, meta: 3.3, flag: 4 }; // mm
+const ROW = { pad: 1.2, check: 6, gap: 2.5, first: 4.2, next: 3.6, meta: 3.3, flag: 4, badge: 6, badgeGap: 2 }; // mm
 const mm = (v) => v * PX_PER_MM;
 
 function setFont(ctx, weight, pt){
@@ -44,6 +44,23 @@ function wrapLines(ctx, text, firstW, restW){
   return lines;
 }
 
+// The package number: a black ring with the number inside, centered on
+// (cx, cy) mm. Black only (the printer is monochrome); smaller type for
+// three digits.
+function drawBadge(ctx, cx, cy, d, n){
+  ctx.save();
+  ctx.lineWidth = mm(0.6);
+  ctx.beginPath();
+  ctx.arc(mm(cx), mm(cy), mm(d / 2 - 0.3), 0, Math.PI * 2);
+  ctx.stroke();
+  const text = String(n);
+  setFont(ctx, '700', text.length > 2 ? 6.5 : text.length > 1 ? 8 : 9.5);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, mm(cx), mm(cy) + mm(0.15));
+  ctx.restore();
+}
+
 // A box heading: the title on the left, the count on the right, a rule under.
 function drawBox(ctx, top, b){
   const bottom = top + 7;
@@ -70,8 +87,8 @@ function drawBox(ctx, top, b){
 // One piece: a box to tick, the code and name (at most two lines), the meta
 // line and the flags, all clipped to the row's height.
 function drawRow(ctx, top, b, picked, platformLabel){
-  const textX = PAD + ROW.check + ROW.gap;
-  const textW = mm(TEXT_W - ROW.check - ROW.gap);
+  const textX = PAD + ROW.check + ROW.gap + ROW.badge + ROW.badgeGap;
+  const textW = mm(TEXT_W - (textX - PAD));
   ctx.save();
   ctx.beginPath();
   ctx.rect(0, mm(top), mm(SHEET_MM.width), mm(b.h));
@@ -93,6 +110,7 @@ function drawRow(ctx, top, b, picked, platformLabel){
     ctx.stroke();
   }
 
+  if (b.row.pack) drawBadge(ctx, PAD + ROW.check + ROW.gap + ROW.badge / 2, top + ROW.pad + 0.5 + 3, ROW.badge, b.row.pack);
   ctx.textBaseline = 'top';
   ctx.textAlign = 'left';
   let y = top + ROW.pad;
@@ -124,6 +142,17 @@ function drawRow(ctx, top, b, picked, platformLabel){
   }
   ctx.restore();
 
+  ctx.fillRect(mm(PAD), mm(top + b.h - 0.2), mm(TEXT_W), mm(0.2));
+}
+
+// One package: its number in a ring, then the buyer and the piece count.
+function drawPack(ctx, top, b){
+  const d = 5.2;
+  drawBadge(ctx, PAD + d / 2, top + b.h / 2 - 0.1, d, b.pack.n);
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'left';
+  setFont(ctx, '700', 9);
+  ctx.fillText(fit(ctx, packText(b.pack), mm(TEXT_W - d - 3)), mm(PAD + d + 3), mm(top + b.h / 2));
   ctx.fillRect(mm(PAD), mm(top + b.h - 0.2), mm(TEXT_W), mm(0.2));
 }
 
@@ -175,6 +204,7 @@ export function renderPickPages(pl, { picked = new Set(), storeName = '', when =
     for (const b of blocks){
       if (b.type === 'box') drawBox(ctx, top, b);
       else if (b.type === 'row') drawRow(ctx, top, b, picked.has(b.row.line.key), platformLabel);
+      else if (b.type === 'pack') drawPack(ctx, top, b);
       else drawSign(ctx, top, b.h);
       top += b.h;
     }
