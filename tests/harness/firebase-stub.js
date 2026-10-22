@@ -137,6 +137,7 @@ window.authFns = {
   GoogleAuthProvider: class {},
   signInWithPopup: async () => ({ user }),
   signInWithRedirect: async () => {},
+  sendPasswordResetEmail: async () => {},
 };
 window.firebaseReady = true;
 console.info('[harness] Firebase replaced by the sample data (tests/harness/firebase-stub.js)');

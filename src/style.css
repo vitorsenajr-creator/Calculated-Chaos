@@ -2083,3 +2083,8 @@
 .auth-or{ display:flex; align-items:center; gap:10px; margin:14px 0; color:var(--ink-2); font-size:13px; }
 .auth-or::before,.auth-or::after{ content:""; flex:1; height:1px; background:var(--surface-2); }
 
+/* Sign-in: forgot password (v3.27.9). Tokens only. */
+.auth-forgot{ margin:10px 0 0; font-size:14px; text-align:right; }
+.auth-forgot a{ color:var(--brand); font-weight:600; min-height:44px; display:inline-flex; align-items:center; }
+.auth-note{ margin-top:12px; padding:10px 12px; border-radius:var(--radius-sm); background:var(--surface-2); color:var(--ink); font-size:14px; line-height:1.45; }
+

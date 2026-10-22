@@ -5323,6 +5323,8 @@ export const app = (function(){
       ? 'Requests need to be approved before you get access.'
       : 'Sign in to Calculated Chaos.';
     document.getElementById('authSubmitBtn').textContent = isSignupMode ? 'Create account' : 'Sign in';
+    document.getElementById('authForgotBox').style.display = isSignupMode ? 'none' : '';
+    setAuthNote('');
     document.getElementById('authToggleText').innerHTML = isSignupMode
       ? `Already have an account? <a id="authToggleLink">Sign in</a>`
       : `Don't have an account? <a id="authToggleLink">Create one</a>`;
@@ -5334,6 +5336,36 @@ export const app = (function(){
   }
   applyAuthMode();
 
+  function setAuthNote(msg){
+    const el = document.getElementById('authNote');
+    el.textContent = msg || '';
+    el.style.display = msg ? 'block' : 'none';
+  }
+  document.getElementById('authForgotLink').addEventListener('click', async (e) => {
+    e.preventDefault();
+    setAuthError('');
+    setAuthNote('');
+    const email = document.getElementById('authEmail').value.trim();
+    if (!email){
+      setAuthError('Enter your email above, then tap "Forgot password?" again.');
+      document.getElementById('authEmail').focus();
+      return;
+    }
+    const link = e.currentTarget;
+    link.setAttribute('aria-disabled', 'true');
+    try{
+      await window.authFns.sendPasswordResetEmail(window.auth, email);
+    }catch(err){
+      // Same note for an unknown email, so the form cannot be used to find accounts.
+      if (err.code === 'auth/invalid-email'){
+        setAuthError('That email address is not valid.');
+        link.removeAttribute('aria-disabled');
+        return;
+      }
+    }
+    setAuthNote('If an account exists for that email, we sent a link to reset the password. Check your inbox and spam folder.');
+    link.removeAttribute('aria-disabled');
+  });
   document.getElementById('authForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     setAuthError('');

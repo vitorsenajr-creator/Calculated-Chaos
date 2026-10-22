@@ -12,7 +12,8 @@
   import {
     getAuth, setPersistence, browserLocalPersistence, onAuthStateChanged,
     signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, sendEmailVerification,
-    GoogleAuthProvider, signInWithPopup, signInWithRedirect
+    GoogleAuthProvider, signInWithPopup, signInWithRedirect,
+    sendPasswordResetEmail
   } from "firebase/auth";
 
   const firebaseConfig = {
@@ -34,7 +35,7 @@
   // Platform admins are recognized by the platformAdmin claim in their
   // sign-in token (src/modules/admin-claim.js), not by email (v3.18.1).
   window.auth = getAuth(app);
-  window.authFns = { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, sendEmailVerification, GoogleAuthProvider, signInWithPopup, signInWithRedirect };
+  window.authFns = { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, sendEmailVerification, GoogleAuthProvider, signInWithPopup, signInWithRedirect, sendPasswordResetEmail };
   // Keeps the session on this device/browser until an explicit sign-out —
   // this is what lets a home-screen shortcut stay logged in indefinitely.
   setPersistence(window.auth, browserLocalPersistence).catch(err => console.error('Auth persistence error:', err));
