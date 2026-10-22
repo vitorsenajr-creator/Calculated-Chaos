@@ -1009,6 +1009,8 @@ on any of these:
 
 ## Pending changelog entry (since v3.27.0)
 
+- v3.27.11: sample business funnel set to 176 cataloged and 153 listed (329 in stock, 98 sales this month); welcome screenshots regenerated. Pending: real listing photos for the welcome carousel; the header logo size and the label text size (planned, not applied yet).
+
 - v3.27.10: the welcome page is the root (`/`, `index.html`); the app moved to `/app` (`app.html`, Vercel rewrite). The sign-in page redirects a signed-in user to `/app` (Firebase session in IndexedDB; not yet tested on an installed iPhone app). Manifest `start_url` is `/app`; service worker cache `cc-shell-v2`. The welcome's Sign in and Request access go to `/app`. Pending: auth emails use the Firebase default sender; the app-email service is not chosen. Unverified in production: the redirect on an installed iPhone app, and the `/app` rewrite on the Vercel domains.
 
 - v3.27.9: sign-in gets "Forgot password?" (Firebase reset email; the note is the same whether or not the account exists). Pending: auth emails use the Firebase default sender (branded sender and action domain on calculatedchaos.app); the app-email service is not chosen yet;  Infra reference: `docs/infrastructure.md`. Unverified in production: the reset email arriving and the link opening the reset screen.
