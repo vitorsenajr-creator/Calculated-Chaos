@@ -280,7 +280,13 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
     (v3.24.3, `ui/stock/pick-print.js`): 100 × 210 mm labels through
     `printHtml()`, black only, fixed row heights in mm so the page breaks
     are computed before the (synchronous) print, "(cont.)" headings, a
-    "Picked by / Date" line. Mark sold (v3.24.4, `domain/pick-sale.js`,
+    "Picked by / Date" line. Package numbers (v3.27.2): every order gets a
+    number in the order its first line appears (`buildPickList()` →
+    `pl.packages`, `row.pack`; a typed code is its own order; adding
+    screenshots later keeps the numbers already printed). The sheet draws
+    it as a black ring beside the tick box on every row, and ends with a
+    "Packages" list (number, buyer, piece count); the Pick screen shows the
+    same ring. Mark sold (v3.24.4, `domain/pick-sale.js`,
     `data/pick-sale-store.js`, `ui/stock/pick-sold.js`): a sheet of the
     matched, unsold pieces (unsure name matches and double sales start
     unticked) prefilled with the screenshot's price and platform. Real
@@ -934,6 +940,15 @@ on any of these:
   sizing (v3.13.102-105), inspection flag icon (v3.13.114).
 
 ## Pending changelog entry (since v3.27.0)
+
+- v3.27.2: package numbers on the Pick checklist. Each order gets a number
+  (in the order its first line appears in the screenshots), drawn as a black
+  ring next to the tick box of each of its pieces, so the pieces of one
+  bundle can be matched across boxes. The sheet ends with a "Packages"
+  list (number, buyer, piece count); the Pick screen shows the same ring.
+  Still organized by box. `tests/domain/pick-packages.test.mjs` (4 tests).
+  Unverified in production: a real print of the new rows on the thermal
+  printer (the ring and the narrower text at 100 × 210 mm).
 
 - v3.27.1: Pick reads the real money of an order. With "Pricing & Earning
   Info" open in the screenshot, the AI reads the order's total ("Price" or

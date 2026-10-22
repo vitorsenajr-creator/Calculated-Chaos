@@ -142,6 +142,11 @@ function matchBadge(r){
   return `<span class="pick-badge${r.match.confidence === 'high' ? '' : ' warn'}">By name · ${pct}%</span>`;
 }
 
+// The package's number in a ring, as printed on the checklist (v3.27.2).
+function packBadge(r){
+  return r.pack ? `<span class="pick-pack" title="Package ${r.pack}"><span class="visually-hidden">Package </span>${r.pack}</span>` : '';
+}
+
 function rowNotes(r){
   const notes = [];
   if (r.recorded){
@@ -188,7 +193,7 @@ function renderRow(r, done){
       </label>
       ${photo ? `<img class="pick-thumb" src="${escapeHtml(photo)}" alt="" loading="lazy">` : '<span class="pick-thumb empty" aria-hidden="true"></span>'}
       <div class="pick-main">
-        <div class="pick-top"><span class="pick-code">${escapeHtml(item.productCode || 'No code')}</span>${matchBadge(r)}</div>
+        <div class="pick-top">${packBadge(r)}<span class="pick-code">${escapeHtml(item.productCode || 'No code')}</span>${matchBadge(r)}</div>
         <div class="pick-title">${escapeHtml(item.name || r.line.title)}</div>
         <div class="pick-sub">${saleLine(r.line)}</div>
         ${rowNotes(r)}
@@ -304,7 +309,7 @@ export function renderPick(){
         <div class="pick-row">
           <span class="pick-thumb empty" aria-hidden="true"></span>
           <div class="pick-main">
-            <div class="pick-top">${r.line.sku ? `<span class="pick-code">SKU ${escapeHtml(r.line.sku)}</span>` : ''}</div>
+            <div class="pick-top">${packBadge(r)}${r.line.sku ? `<span class="pick-code">SKU ${escapeHtml(r.line.sku)}</span>` : ''}</div>
             <div class="pick-title">${escapeHtml(r.line.title)}</div>
             <div class="pick-sub">${saleLine(r.line)}</div>
             ${r.line.partial ? '<div class="pick-note">Part of this line was cut off in the screenshot.</div>' : ''}
