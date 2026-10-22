@@ -9,6 +9,7 @@
 // the title's words (old listings without a SKU). Nothing here saves
 // anything: the person checks every match.
 import { parseMoney } from './import-sheet.js';
+import { allocateOrder } from './pick-sale.js';
 
 // "#0897", "0897", " 897 " → "897"; "#4578-2" → "4578-2". Other codes
 // (an imported sheet's "AB-12") only lose "#", spaces and case.
@@ -50,10 +51,28 @@ export function boxTitle(name){
 // `skipped`, each with `firstSource`, the screenshot that had it first.
 // `platforms` (order ref → platform key) is the person's own choice for an
 // order whose platform the AI couldn't tell. Returns { lines, skipped }.
+// Each line also carries its order's real money (v3.27.1): the pricing
+// section's total, fee, sales tax and net earnings (null when the section
+// was closed in the screenshot), and what this piece really sold for, its
+// share of the fee and of the tax (`paid`, `paidFee`, `paidTax`, see
+// allocateOrder). The same order read from two screenshots shares the
+// money of whichever one showed it.
+const moneyOf = (v) => { const n = parseMoney(v); return Number.isFinite(n) ? Math.abs(n) : null; };
 export function saleLines(results, platforms = {}){
   const lines = [];
   const skipped = [];
   const seen = new Map();
+  const moneyByOrder = new Map();
+  (results || []).forEach(({ result }) => {
+    ((result && result.orders) || []).forEach(order => {
+      const n = String(order.orderNumber || '').trim();
+      if (!n) return;
+      const cur = moneyByOrder.get(n) || { total: null, fee: null, net: null, tax: null };
+      const read = { total: moneyOf(order.total), fee: moneyOf(order.fee), net: moneyOf(order.netEarnings), tax: moneyOf(order.salesTax) };
+      Object.keys(cur).forEach(k => { if (cur[k] === null) cur[k] = read[k]; });
+      moneyByOrder.set(n, cur);
+    });
+  });
   (results || []).forEach(({ source, result }) => {
     ((result && result.orders) || []).forEach((order, oi) => {
       (order.items || []).forEach((it, i) => {
@@ -66,6 +85,8 @@ export function saleLines(results, platforms = {}){
         const key = `${orderNumber || `${source}#${oi}.${i}`}|${piece}`;
         const read = order.platform && order.platform !== 'unknown' ? order.platform : null;
         const price = parseMoney(it.price);
+        const own = { total: moneyOf(order.total), fee: moneyOf(order.fee), net: moneyOf(order.netEarnings), tax: moneyOf(order.salesTax) };
+        const money = (orderNumber && moneyByOrder.get(orderNumber)) || own;
         const line = {
           key, source, orderRef, sku, title,
           platform: platforms[orderRef] || read,
@@ -73,11 +94,22 @@ export function saleLines(results, platforms = {}){
           orderNumber, orderDate: String(order.orderDate || ''), buyer: String(order.buyer || ''),
           priceText: String(it.price || ''), price: Number.isFinite(price) ? price : null,
           size: String(it.size || ''), partial: !!it.partial,
+          orderTotal: money.total, orderFee: money.fee, orderNet: money.net, orderTax: money.tax,
+          paid: null, paidFee: null, paidTax: null, bundleNote: '', bundleWarn: '',
         };
         if (seen.has(key)){ skipped.push({ ...line, firstSource: seen.get(key) }); return; }
         seen.set(key, source);
         lines.push(line);
       });
+    });
+  });
+  const byOrder = new Map();
+  lines.forEach(l => { if (!byOrder.has(l.orderRef)) byOrder.set(l.orderRef, []); byOrder.get(l.orderRef).push(l); });
+  byOrder.forEach(group => {
+    const shares = allocateOrder(group);
+    group.forEach(l => {
+      const a = shares.get(l.key);
+      l.paid = a.paid; l.paidFee = a.paidFee; l.paidTax = a.paidTax; l.bundleNote = a.note; l.bundleWarn = a.warn;
     });
   });
   return { lines, skipped };

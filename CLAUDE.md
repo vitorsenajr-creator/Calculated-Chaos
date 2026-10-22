@@ -283,12 +283,24 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
     "Picked by / Date" line. Mark sold (v3.24.4, `domain/pick-sale.js`,
     `data/pick-sale-store.js`, `ui/stock/pick-sold.js`): a sheet of the
     matched, unsold pieces (unsure name matches and double sales start
-    unticked) prefilled with the screenshot's price and platform; a
-    bundle's fee is computed on the order total and split by price.
-    **Writes only the 11 sale fields (plus `manualSale` for typed pieces) with `updateDoc`** (`status`,
+    unticked) prefilled with the screenshot's price and platform. Real
+    money (v3.27.1): the AI also reads the order's pricing section when it
+    is open (`total` = "Price" or "Offer Price", `fee`, `netEarnings`,
+    `salesTax`); `saleLines()` gives every line its share
+    (`allocateOrder()` in `domain/pick-sale.js`): the real total is spread
+    over a bundle's pieces in proportion to their listed prices (28.57% off
+    $112 → every piece loses 28.57%), the fee and the tax follow, the last
+    piece takes the rounding cents. A closed section = the old behavior
+    (listed price, platform fee rule); a cut-off line or a total above the
+    listed prices is not split and says so. The sales tax is kept apart as
+    `saleTax`, never in price or fee. An item with no cost gets a cost field
+    on the sheet (left empty = sold with no profit yet, shown as missing in
+    Finances → Sales).
+    **Writes only the sale fields (plus `manualSale` for typed pieces) with `updateDoc`** (`status`,
     `soldPrice`, `soldPlatform`, `feesTotal`, `shippingCost`,
     `otherCosts`, `netProfit`, `soldAt` = order date at noon or now,
-    `saleOrderNumber`, `saleBuyer`, `saleLineKey`), then ends an
+    `saleOrderNumber`, `saleBuyer`, `saleLineKey`, and `saleTax` when read,
+    `cost` when it was empty and typed), then ends an
     app-made eBay listing when it sold elsewhere (`endEbayListingIfSold`,
     which full-saves the merged item). `saleLineKey` = the screenshot
     line's key: a recorded line stays on its item and can't be recorded
@@ -923,7 +935,23 @@ on any of these:
 
 ## Pending changelog entry (since v3.27.0)
 
-(Empty. v3.26.1 – v3.26.14 and v3.27.0 are in `CHANGELOG.md`.)
+- v3.27.1: Pick reads the real money of an order. With "Pricing & Earning
+  Info" open in the screenshot, the AI reads the order's total ("Price" or
+  "Offer Price"), fee, net earnings and sales tax. A bundle's listed prices
+  are before its discount ($112 listed, $80 offer): the total is spread over
+  the pieces in proportion to their listed prices, and the real fee and tax
+  follow, so Mark sold records the real price, fee and profit. The sales tax
+  goes in `saleTax`, apart from price and fee. A closed section keeps the
+  old behavior (listed price, fee by the platform's rule) and the sheet says
+  how to get exact numbers. An item with no cost gets a cost field on the
+  Mark sold sheet. A plain item save now keeps `saleOrderNumber`,
+  `saleBuyer`, `saleLineKey` and `saleTax` (it used to drop the first
+  three, which freed a recorded screenshot line to be recorded again).
+  `tests/domain/pick-bundle.test.mjs` (10 tests). Unverified in production:
+  the real Haiku reading the open pricing section on real screenshots
+  (Poshmark's "Price" / "Offer Price" rows, other marketplaces), whether a
+  paid shipping label shows as its own row or inside Net Earnings (the sheet
+  flags a net lower than price − fee), the sheet on an iPhone.
 
 ## Backlog (not started)
 

@@ -4833,6 +4833,13 @@ export const app = (function(){
       // Sold from Stock → Pick by its code (v3.25.3): written by pick-sale, kept
       // here so a plain save doesn't drop the flag of an incomplete sale.
       manualSale: existingItem?.manualSale || null,
+      // The rest of a Pick sale (v3.24.4, v3.27.1): the order, buyer, the recorded
+      // line (it stops the same screenshot line being recorded twice) and the
+      // sales tax. No form input has them, so a plain save would wipe them.
+      saleOrderNumber: existingItem?.saleOrderNumber || null,
+      saleBuyer: existingItem?.saleBuyer || null,
+      saleLineKey: existingItem?.saleLineKey || null,
+      saleTax: existingItem?.saleTax ?? null,
       hostedPhotoUrls: existingItem?.hostedPhotoUrls || null,
       // Quantity > 1 tags every copy "-1", "-2", etc. off the same base code
       // (e.g. "#4578-1", "#4578-2") instead of consuming several numbers from
