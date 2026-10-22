@@ -118,7 +118,7 @@ function renderOverview(){
   if (!view) return;
   const now = Date.now();
   const period = getPeriod();
-  const { totals, previous, sellThrough, split, lastTwelve, byPlatform, topBrands, topCategories, stock } = computeFinanceOverview(items, {
+  const { totals, salesTax, previous, sellThrough, split, lastTwelve, byPlatform, topBrands, topCategories, stock } = computeFinanceOverview(items, {
     period, now, projectedProfit: hooks.projectedProfit,
   });
   const suffix = periodSuffix(period, now);
@@ -135,6 +135,9 @@ function renderOverview(){
   const periodExpenses = hasExpenses ? expensesForPeriod(allExpenses, period, now) : 0;
   const netProfit = Math.round((totals.profit - periodExpenses) * 100) / 100;
   const afterExpenses = hasExpenses ? `<p class="fin-note fin-summary-note fin-after-exp">Net profit = sales profit \u2212 ${money2(periodExpenses)} expenses${suffix}. <button type="button" class="link-btn" data-finance-goto="reports" data-pnl-from="${period}">See P&amp;L</button></p>` : '';
+
+  // Sales tax collected (v3.27.3): a quiet line, outside every total above.
+  const taxNote = salesTax.recorded ? `<p class="fin-note fin-summary-note fin-sales-tax">Sales tax collected${suffix}: ${money2(salesTax.total)}, recorded on ${salesTax.recorded.toLocaleString('en-US')} of ${salesTax.sales.toLocaleString('en-US')} sale${salesTax.sales === 1 ? '' : 's'}. Not part of revenue or profit.</p>` : '';
 
   const compare = previous ? compareName(previous, now) : '';
   const cell = (label, value, extraClass = '', change = '') => `
@@ -234,6 +237,7 @@ function renderOverview(){
     </section>
     ${sellThrough.available ? `<p class="fin-note fin-summary-note">Sell-through: ${sellThrough.sold.toLocaleString('en-US')} sold of ${sellThrough.available.toLocaleString('en-US')} item${sellThrough.available === 1 ? '' : 's'} in stock or cataloged${period === 'all' ? '' : suffix}.</p>` : ''}
     ${afterExpenses}
+    ${taxNote}
     ${panel('Where each dollar went', money(totals.revenue) + ' revenue', splitBody, ' split')}
     ${panel('Sales profit, last 12 months', range > 0 ? `${money(twelveTotal)} total` : '', chartBody, ' months-chart')}
     <div class="home-lower">

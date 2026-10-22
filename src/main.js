@@ -3460,6 +3460,9 @@ export const app = (function(){
     // rather than recomputing and silently overwriting it.
     const feesTotalVal = item?.feesTotal !== undefined ? item.feesTotal : (soldPlatformVal && soldPriceVal ? platformFee(soldPlatformVal, parseFloat(soldPriceVal)) : 0);
     const otherCostsVal = item?.otherCosts || '';
+    // The sales tax the marketplace collected (v3.27.3): a typed 0 is recorded, empty is not.
+    const saleTaxNum = item && item.saleTax !== null && item.saleTax !== undefined && item.saleTax !== '' ? parseFloat(item.saleTax) : NaN;
+    const saleTaxVal = Number.isFinite(saleTaxNum) ? saleTaxNum.toFixed(2) : '';
     area.innerHTML = `
       <div class="field-row">
         <div class="field">
@@ -3488,8 +3491,13 @@ export const app = (function(){
           ${getAllPlatforms().map(p => `<option value="${p.key}" ${soldPlatformVal===p.key?'selected':''}>${escapeHtml(PLATFORM_NAME[p.key] || p.label)}</option>`).join('')}
         </select>
       </div>
+      <div class="field">
+        <label>Sales tax collected ($)</label>
+        <input type="number" class="mono" id="fSaleTax" step="0.01" min="0" value="${saleTaxVal}" placeholder="Not recorded">
+        <small class="field-hint">Collected by the marketplace for the state. It is not part of the price or the profit.</small>
+      </div>
     `;
-    attachCurrencyFormatting(['fSoldPrice','fShippingCost','fFeesTotal','fOtherCosts']);
+    attachCurrencyFormatting(['fSoldPrice','fShippingCost','fFeesTotal','fOtherCosts','fSaleTax']);
   }
 
   // ---------- PHOTOS ----------
@@ -4925,6 +4933,12 @@ export const app = (function(){
       itemData.soldPlatform = soldPlatform;
       itemData.feesTotal = feesTotal;
       itemData.otherCosts = otherCosts;
+      // Sales tax (v3.27.3): recorded only when typed; it never enters the profit below.
+      const saleTaxInput = document.getElementById('fSaleTax')?.value;
+      if (saleTaxInput !== undefined){
+        const tax = parseFloat(saleTaxInput);
+        itemData.saleTax = Number.isFinite(tax) && tax >= 0 ? Math.round(tax * 100) / 100 : null;
+      }
       itemData.soldAt = existingItem?.soldAt || Date.now();
       itemData.netProfit = soldPrice - (parseFloat(itemData.cost)||0) - feesTotal - shippingCost - otherCosts;
     }
