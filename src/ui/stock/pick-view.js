@@ -5,7 +5,7 @@
 // person's own picks and the "picked" ticks live on this device only.
 import { items, appSettings } from '../../modules/state.js';
 import { escapeHtml } from '../../modules/format-utils.js';
-import { saleLines, buildPickList, matchSaleLine, boxTitle } from '../../domain/sale-match.js';
+import { saleLines, buildPickList, boxTitle } from '../../domain/sale-match.js';
 import { parseManualCode, addManualCode, removeManualCode, manualLines } from '../../domain/pick-manual.js';
 import { prepareScreenshot } from '../../platform/images.js';
 import { shareChecklist } from './pick-sheet-canvas.js';
@@ -230,7 +230,7 @@ function platformPickers(shot, shown){
 
 // The lines skipped as repeats, with the item each one was and where it
 // was read first.
-function skippedHtml(skipped){
+function skippedHtml(skipped, matchLine){
   if (!skipped.length) return '';
   const nameOf = (id) => (st.shots.find(s => s.id === id) || {}).name || 'an earlier screenshot';
   return `
@@ -238,7 +238,7 @@ function skippedHtml(skipped){
       <summary><span class="panel-title">Skipped as repeats</span><span class="panel-meta">${plural(skipped.length, 'line')}</span></summary>
       <p class="pick-skipped-desc">These lines were already read from another screenshot of the same order, so they're counted once.</p>
       ${skipped.map(l => {
-        const m = matchSaleLine(l, items);
+        const m = matchLine(l);
         return `
         <div class="pick-skip-row">
           <div class="pick-top">${m.item ? `<span class="pick-code">${escapeHtml(m.item.productCode || '')}</span>` : ''}${l.sku ? `<span class="pick-badge">SKU ${escapeHtml(l.sku)}</span>` : ''}</div>
@@ -360,7 +360,7 @@ export function renderPick(){
     ${summary}
     ${boxesHtml}
     ${unmatchedHtml}
-    ${skippedHtml(skipped)}
+    ${skippedHtml(skipped, pl.matchLine)}
     ${!lines.length && done.length && !reading ? '<div class="attn-empty pick-empty">No sold items were found in these screenshots.</div>' : ''}`;
   flashText = '';
   wire(pane);

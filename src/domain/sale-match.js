@@ -133,28 +133,77 @@ export function nameScore(line, item){
 
 export const NAME_MIN_SCORE = 0.45;
 
+// A lookup built once for a catalog (v3.27.4). Matching a line used to walk
+// every item, and to split each unsold item's words again for every line, so
+// a pick list of a few dozen lines on a catalog of 1,500 items took seconds on
+// a phone. Here the codes sit in maps and each unsold item's words are ready;
+// the answers are the same (tests/domain/sale-match-index.test.mjs).
+export function prepareItems(items){
+  const byCode = new Map();
+  const byBase = new Map();
+  const byLegacy = new Map();
+  const add = (map, key, item) => {
+    const list = map.get(key);
+    if (list) list.push(item); else map.set(key, [item]);
+  };
+  const unsold = [];
+  (items || []).forEach(i => {
+    if (i.productCode){
+      add(byCode, canonCode(i.productCode), i);
+      add(byBase, baseCode(i.productCode), i);
+    }
+    if (i.legacyCode) add(byLegacy, canonCode(i.legacyCode), i);
+    if (!isSold(i)){
+      const listing = i.listingTitle ? titleWords(i.listingTitle) : [];
+      unsold.push({
+        item: i,
+        have: new Set(titleWords([i.name, i.listingTitle, i.brand, i.color, i.clothingType, i.category].join(' '))),
+        brand: titleWords(i.brand),
+        size: canonSize(i.size),
+        listPrice: parseMoney(i.listPrice),
+        listingKey: listing.length ? listing.join(' ') : null,
+      });
+    }
+  });
+  return { byCode, byBase, byLegacy, unsold };
+}
+
+// nameScore() for a prepared item: the same sums in the same order.
+function scorePrepared(words, wordsKey, lineSize, line, p){
+  if (p.listingKey !== null && p.listingKey === wordsKey) return 1;
+  let score = words.filter(w => p.have.has(w)).length / words.length;
+  if (p.brand.length && p.brand.every(w => words.includes(w))) score += 0.15;
+  if (lineSize && p.size) score += lineSize === p.size ? 0.1 : -0.25;
+  if (line.price !== null && Number.isFinite(p.listPrice) && Math.abs(p.listPrice - line.price) < 0.005) score += 0.1;
+  return Math.max(0, Math.min(1, score));
+}
+
 // The item a line belongs to. Returns { item, how: 'sku'|'legacy'|'name'|null,
 // confidence: 'exact'|'high'|'medium'|'low'|null, score, copies, alternatives,
 // skuNotFound }. An unsold item always wins over a sold one with the same code.
-export function matchSaleLine(line, items){
-  const list = items || [];
+// `index` is prepareItems(items); pass it when matching many lines.
+export function matchSaleLine(line, items, index){
+  const idx = index || prepareItems(items);
   const none = { item: null, how: null, confidence: null, score: 0, copies: 0, pool: [], alternatives: [], skuNotFound: false };
   const sku = canonCode(line.sku);
   if (sku){
-    const exact = list.filter(i => i.productCode && canonCode(i.productCode) === sku);
-    const hits = exact.length ? exact : list.filter(i => i.productCode && baseCode(i.productCode) === sku);
+    const exact = idx.byCode.get(sku) || [];
+    const hits = exact.length ? exact : (idx.byBase.get(sku) || []);
     if (hits.length){
       const open = hits.filter(i => !isSold(i)).sort((x, y) => String(x.productCode).localeCompare(String(y.productCode), undefined, { numeric: true }));
       return { ...none, item: open[0] || hits[0], how: 'sku', confidence: 'exact', score: 1, copies: open.length, pool: open };
     }
-    const legacy = list.filter(i => i.legacyCode && canonCode(i.legacyCode) === sku);
+    const legacy = idx.byLegacy.get(sku) || [];
     if (legacy.length){
       const open = legacy.filter(i => !isSold(i));
       return { ...none, item: open[0] || legacy[0], how: 'legacy', confidence: 'exact', score: 1, copies: open.length, pool: open };
     }
   }
-  const ranked = list.filter(i => !isSold(i))
-    .map(item => ({ item, score: nameScore(line, item) }))
+  const words = titleWords(line.title);
+  const wordsKey = words.join(' ');
+  const lineSize = canonSize(line.size);
+  const ranked = (words.length ? idx.unsold : [])
+    .map(p => ({ item: p.item, score: scorePrepared(words, wordsKey, lineSize, line, p) }))
     .filter(r => r.score >= NAME_MIN_SCORE)
     .sort((x, y) => y.score - x.score);
   if (!ranked.length) return { ...none, skuNotFound: !!sku };
@@ -177,6 +226,7 @@ export function matchSaleLine(line, items){
 // was recorded on, whatever matching would say now.
 export function buildPickList(lines, items, chosen = {}){
   const byId = new Map((items || []).map(i => [i.id, i]));
+  const index = prepareItems(items);
   // Package numbers (v3.27.2): one per order, in the order the orders first
   // appear in the lines (screenshot order), so adding screenshots later keeps
   // the numbers already printed. A typed code is its own order.
@@ -198,7 +248,7 @@ export function buildPickList(lines, items, chosen = {}){
   const used = new Set();
   const rows = (lines || []).map(original => {
     let line = original;
-    let match = matchSaleLine(line, items);
+    let match = matchSaleLine(line, items, index);
     const pickedId = chosen[line.key];
     const rec = recordedBy.get(line.key);
     if (rec){
@@ -241,5 +291,8 @@ export function buildPickList(lines, items, chosen = {}){
     }));
   const unmatched = rows.filter(r => !r.item);
   const orders = new Set((lines || []).map(l => l.orderNumber || l.key));
-  return { boxes, unmatched, packages, total: rows.length, matched: rows.length - unmatched.length, orders: orders.size };
+  // matchLine: the same matching for one more line (the skipped repeats), on
+  // the index already built.
+  const matchLine = (line) => matchSaleLine(line, items, index);
+  return { boxes, unmatched, packages, total: rows.length, matched: rows.length - unmatched.length, orders: orders.size, matchLine };
 }

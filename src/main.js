@@ -125,14 +125,25 @@ export const app = (function(){
   );
 
   // Redraws for screens that may not have loaded yet. A screen that loads
-  // later draws itself when it is first opened; after that, a redraw comes
-  // from the data changing (renderAll), not from switching to the tab.
+  // later draws itself when it is first opened. Stock and Finances don't draw
+  // behind the person's back (v3.27.4): when the data changes while one is
+  // hidden it only notes that it is out of date, and draws the next time it is
+  // opened. Hidden, Finances took about 0.8 s of every save, and the Pick list
+  // about a second on every visit to Stock (1,500 items, a slow phone).
   let financeDrawn = false;
-  function refreshFinance(){
+  let stockDrawn = false;
+  function drawFinance(){
     financeScreen.ifLoaded(f => { financeDrawn = true; f.renderFinance(); f.renderExpenses(); });
   }
+  function drawStock(){
+    stockScreen.ifLoaded(s => { stockDrawn = true; s.renderStock(); });
+  }
+  // The data changed: draw now if the screen is on show, else on its next visit.
+  function refreshFinance(){
+    if (FINANCE_PANES[currentTab]) drawFinance(); else financeDrawn = false;
+  }
   function refreshStock(){
-    stockScreen.ifLoaded(s => s.renderStock());
+    if (currentTab === 'stock') drawStock(); else stockDrawn = false;
   }
   // ebay-api.js calls this from a timer. Settings draws its own connection
   // status when it opens, so nothing loads just for this.
@@ -1616,7 +1627,7 @@ export const app = (function(){
     renderHome();
     renderCatalog();
     refreshFinance();
-    if (currentTab === 'stock') refreshStock();
+    refreshStock();
     refreshStockTransferBoxListIfOpen();
   }
 
@@ -1691,8 +1702,8 @@ export const app = (function(){
     syncFabShortcuts();
     closeFabMenu();
     if (tab === 'home') renderHome();
-    if (tab === 'stock') stockScreen.use(s => s.renderStock());
-    if (FINANCE_PANES[tab]) financeScreen.use(() => { if (!financeDrawn) refreshFinance(); });
+    if (tab === 'stock') stockScreen.use(() => { if (!stockDrawn) drawStock(); });
+    if (FINANCE_PANES[tab]) financeScreen.use(() => { if (!financeDrawn) drawFinance(); });
     // Skip the rebuild while the "paste your eBay token" box is showing and
     // waiting on her — a full re-render replaces the whole Settings section,
     // including that box, with a fresh "Not connected" state (since the
