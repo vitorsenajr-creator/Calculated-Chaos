@@ -3,15 +3,16 @@
 // as the reference and compared with the new one on random catalogs.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { canonCode, nameScore, NAME_MIN_SCORE, matchSaleLine, prepareItems, saleLines, buildPickList } from '../../src/domain/sale-match.js';
+import { canonCode, nameFit, SUGGEST_MIN_SCORE, matchSaleLine, prepareItems, saleLines, buildPickList } from '../../src/domain/sale-match.js';
 
 const baseCode = (code) => canonCode(code).replace(/-\d+$/, '');
 const isSold = (item) => item && item.status === 'vendido';
 
-// The matching as it was before the index: every line walks every item.
+// The matching without the index (the rules of v3.27.6): every line walks
+// every item, sold ones included, scoring each with nameFit().
 function referenceMatch(line, items){
   const list = items || [];
-  const none = { item: null, how: null, confidence: null, score: 0, copies: 0, pool: [], alternatives: [], skuNotFound: false };
+  const none = { item: null, how: null, confidence: null, score: 0, copies: 0, pool: [], alternatives: [], suggestions: [], skuNotFound: false };
   const sku = canonCode(line.sku);
   if (sku){
     const exact = list.filter(i => i.productCode && canonCode(i.productCode) === sku);
@@ -26,11 +27,17 @@ function referenceMatch(line, items){
       return { ...none, item: open[0] || legacy[0], how: 'legacy', confidence: 'exact', score: 1, copies: open.length, pool: open };
     }
   }
-  const ranked = list.filter(i => !isSold(i))
-    .map(item => ({ item, score: nameScore(line, item) }))
-    .filter(r => r.score >= NAME_MIN_SCORE)
-    .sort((x, y) => y.score - x.score);
-  if (!ranked.length) return { ...none, skuNotFound: !!sku };
+  const fits = list.map(item => ({ item, sold: isSold(item), ...nameFit(line, item) }));
+  const ranked = fits.filter(r => r.ok).sort((x, y) => y.score - x.score);
+  if (!ranked.length){
+    const suggestions = fits.filter(r => !r.conflict && r.score >= SUGGEST_MIN_SCORE)
+      .sort((x, y) => y.score - x.score).slice(0, 3).map(r => ({ item: r.item, score: r.score }));
+    return { ...none, suggestions, skuNotFound: !!sku };
+  }
+  if (ranked[0].sold){
+    const k = ranked.findIndex(r => !r.sold && ranked[0].score - r.score <= 0.1);
+    if (k > 0) ranked.unshift(...ranked.splice(k, 1));
+  }
   const [top, next] = ranked;
   const clear = !next || top.score - next.score >= 0.15;
   const confidence = top.score >= 0.8 && clear ? 'high' : top.score >= 0.6 && clear ? 'medium' : 'low';

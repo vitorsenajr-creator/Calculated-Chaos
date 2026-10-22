@@ -154,7 +154,7 @@ function rowNotes(r){
     notes.push(`<span class="pick-ok">Recorded as sold: ${money(it.soldPrice || 0)}${it.soldPlatform ? ` on ${escapeHtml(hooks.platformLabel(it.soldPlatform))}` : ''}, profit ${money(it.netProfit || 0)}.</span>`);
   }
   if (r.match.skuNotFound) notes.push(`SKU ${escapeHtml(r.line.sku)} isn't a code in the catalog. Check this is the right piece.`);
-  else if (r.match.how === 'name' && r.match.confidence !== 'high') notes.push('Check this is the right piece.');
+  else if (r.match.how === 'name' && r.match.confidence !== 'high') notes.push(`Check this is the right piece. The order says: ${escapeHtml(r.line.title)}`);
   if (r.alreadySold) notes.push('Already marked sold in the app.');
   if (r.soldTwice) notes.push('Another sale in this list points to this same item. Check both orders.');
   if (r.listedElsewhere.length){
@@ -174,6 +174,33 @@ function saleLine(line){
     line.size ? `Size ${escapeHtml(line.size)}` : '',
     line.buyer ? escapeHtml(line.buyer) : '',
   ].filter(Boolean).join(' · ');
+}
+
+// A line with no match offers the pieces that came close (v3.27.6), each as a
+// small card to compare with the screenshot: "Use this" picks it for the line.
+function suggestionsHtml(r){
+  const list = r.match.suggestions || [];
+  if (!list.length) return '';
+  return `
+    <div class="pick-sug-head">Possible pieces (check before using)</div>
+    ${list.map(a => {
+      const it = a.item;
+      const photo = (it.photos || [])[0];
+      const meta = [it.storageBox ? escapeHtml(boxTitle(it.storageBox)) : '', it.size ? `Size ${escapeHtml(it.size)}` : '', it.listPrice ? money(it.listPrice) : ''].filter(Boolean).join(' · ');
+      return `
+      <div class="pick-sug">
+        ${photo ? `<img class="pick-thumb" src="${escapeHtml(photo)}" alt="" loading="lazy">` : '<span class="pick-thumb empty" aria-hidden="true"></span>'}
+        <div class="pick-sug-main">
+          <div class="pick-top"><span class="pick-code">${escapeHtml(it.productCode || 'No code')}</span><span class="pick-badge warn">${Math.round(a.score * 100)}%</span>${it.status === 'vendido' ? '<span class="pick-badge">Sold</span>' : ''}</div>
+          <div class="pick-title">${escapeHtml(it.name || '')}</div>
+          <div class="pick-sub">${meta}</div>
+          <div class="pick-alts">
+            <button type="button" class="pick-alt" data-choose="${escapeHtml(r.line.key)}" data-item="${escapeHtml(it.id)}">Use this</button>
+            <button type="button" class="pick-alt" data-open-item="${escapeHtml(it.id)}">Open</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('')}`;
 }
 
 function renderRow(r, done){
@@ -313,6 +340,7 @@ export function renderPick(){
             <div class="pick-title">${escapeHtml(r.line.title)}</div>
             <div class="pick-sub">${saleLine(r.line)}</div>
             ${r.line.partial ? '<div class="pick-note">Part of this line was cut off in the screenshot.</div>' : ''}
+            ${suggestionsHtml(r)}
             <div class="pick-alts"><button type="button" class="pick-alt" data-search="${escapeHtml(searchText(r.line))}">Search catalog</button></div>
           </div>
         </div>`).join('')}
