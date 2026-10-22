@@ -240,6 +240,17 @@ ${page('appearance', `
         <div class="settings-success" id="accentSaveMsg">Saved</div>
       </div>
 
+      <!-- ADD BUTTON (v3.26.7): holding "+" always opens the extra entries -->
+      <div class="settings-section" id="fabShortcutsSection">
+        <h3>+ button</h3>
+        <div class="ss-desc">Tap + for a new item. Hold it for Quick catalog and Photo session, whatever this is set to.</div>
+        <div class="settings-row">
+          <div><div class="sr-label">Show them above +</div><div class="sr-sub">Quick catalog and Photo session as buttons on Home and Catalog</div></div>
+          <input type="checkbox" id="sFabShortcuts" aria-label="Show Quick catalog and Photo session above the plus button" ${appSettings.fabShortcuts ? 'checked' : ''}>
+        </div>
+        <div class="settings-success" id="fabShortcutsSaveMsg" role="status">Saved</div>
+      </div>
+
       <!-- APPEARANCE (v3.21.0) -->
       <div class="settings-section" id="appearanceSection">
         <h3>Theme</h3>
@@ -609,6 +620,7 @@ ${page('data', `
   customAccent?.addEventListener('input', () => applyAccent(customAccent.value));
   customAccent?.addEventListener('change', () => window.saveAccent(customAccent.value));
   wireWarningsPanel();
+  document.getElementById('sFabShortcuts')?.addEventListener('change', (e) => window.saveFabShortcuts(e.target.checked));
   document.querySelectorAll('input[name="appTheme"]').forEach(input => {
     input.addEventListener('change', () => window.saveAppearance(input.value));
   });
