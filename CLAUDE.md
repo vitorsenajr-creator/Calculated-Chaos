@@ -293,6 +293,10 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
     which full-saves the merged item). `saleLineKey` = the screenshot
     line's key: a recorded line stays on its item and can't be recorded
     again.
+  - `ui/lazy-screen.js` (v3.26.9): Stock, Finances, Import, Settings and the
+    trash load on first use. Wrap a new heavy screen the same way: `main.js`
+    builds the hooks and calls `use()`; never import a screen statically
+    from `main.js`.
   - `ui/lightbox.js`: `openLightbox(photos, index)`; its state is private.
   - `ui/label-render.js`: label preview markup + canvas drawing.
   - `ui/labels/`: print modal (`openBatchLabelModal`), Quick Labels,
@@ -867,6 +871,19 @@ on any of these:
   sizing (v3.13.102-105), inspection flag icon (v3.13.114).
 
 ## Pending changelog entry (since v3.26.0)
+
+- v3.26.9: Stock, Finances, Import, Settings and the trash load on first
+  use (`ui/lazy-screen.js`: `use()`, `ifLoaded()`, `prefetch()`), not at
+  startup. The grouped files are `ui/stock/stock-screens.js` and
+  `ui/finance/finance-screens.js`; main.js builds their hooks as before. A
+  screen's code is downloaded once the first screen is up, while the browser
+  is idle, or on the first tap. The main chunk drops from 522 kB (151 kB
+  gzip) to 281 kB (82 kB gzip). A failed screen load shows a message and is
+  retried on the next use. Checked in a build with the Firebase SDK stubbed
+  (a signed-in owner): no page errors; every tab and Import/trash show the
+  same text as v3.26.8, with and without the idle wait. Unverified in
+  production: a real first tap on a phone, and a screen load right after a
+  deploy (an old tab asks for a file name that no longer exists).
 
 - v3.26.8: faster first load. Home draws after items, settings, drafts
   and the eBay connection; the eBay sale log and expenses load behind it,
