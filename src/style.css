@@ -1156,7 +1156,19 @@
   }
   .fab svg{transition:transform 180ms ease-out;}
   .fab.open svg{transform:rotate(45deg);}
+  .fab{-webkit-touch-callout:none; -webkit-user-select:none; user-select:none;}
   .fab:active{background:var(--brand);}
+  /* Quick catalog and Photo session as buttons above "+" (Settings → Appearance). */
+  .fab-shortcuts{
+    position:fixed; right:16px; bottom:calc(140px + env(safe-area-inset-bottom)); z-index:60;
+    display:flex; flex-direction:column; align-items:flex-end; gap:8px;
+  }
+  .fab-shortcut{
+    border:1px solid var(--line); background:var(--surface); color:var(--ink);
+    font:600 14px var(--font-ui); padding:10px 14px; border-radius:999px; cursor:pointer; min-height:44px;
+    box-shadow:0 4px 12px rgba(0,0,0,0.14);
+  }
+  .fab-shortcut:hover, .fab-shortcut:focus-visible{background:var(--surface-2);}
   .fab-menu{
     position:fixed; right:16px; bottom:calc(140px + env(safe-area-inset-bottom)); z-index:60;
     display:flex; flex-direction:column; gap:2px; min-width:188px;
@@ -1178,6 +1190,7 @@
   @media (min-width: 900px){
     .fab, #pageBackToTop{bottom:24px;}
     .fab-menu{bottom:88px;}
+    .fab-shortcuts{bottom:88px;}
   }
 
   /* ---------- MODAL ---------- */
@@ -1515,12 +1528,13 @@
   .platform-badge.pb-vinted{background:#09B1BA;}
   .platform-badge.pb-depop{background:#6C2EB5;}
   .platform-badge.pb-outra{background:var(--plum-soft);}
-  /* Shows the chosen eBay category filled-in inside the search field itself
-     (instead of clearing it back to empty + a separate confirmation line
-     below, which read as "still empty" at a glance). */
-  #fEbayCategoryQuery.ebay-cat-confirmed{
-    background:rgba(127,150,120,0.12); border-color:var(--sage); color:var(--sage-deep); font-weight:600; cursor:pointer;
+  /* The chosen eBay category in full: it wraps onto as many lines as it
+     needs instead of being cut off, with Change and Remove under it. */
+  .ebay-cat-chosen{
+    background:rgba(127,150,120,0.12); border:1px solid var(--sage); border-radius:8px; padding:10px 12px;
   }
+  .ebay-cat-chosen-path{font-size:14px; font-weight:600; color:var(--sage-deep); line-height:1.35; overflow-wrap:anywhere;}
+  .ebay-cat-chosen-actions{display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;}
   .ebay-connect-box{
     background:var(--white); border:1px solid var(--line); border-radius:14px;
     padding:14px 15px; margin-top:8px;

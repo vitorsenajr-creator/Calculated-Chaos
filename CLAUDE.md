@@ -868,6 +868,16 @@ on any of these:
 
 ## Pending changelog entry (since v3.26.0)
 
+- v3.26.7: the "+" button opens a new item at once. Holding it (about
+  half a second) opens the menu: New item, Quick catalog, Photo session,
+  always. Settings → Appearance → "+ button" turns on Quick catalog and
+  Photo session as buttons above "+" (off by default, Home and Catalog
+  only). Closing the item form (X, Cancel) or deleting from it always
+  lands on Catalog. The eBay category shows in full, wrapped, with Change
+  (search opens, the current choice stays until a new pick, "Keep
+  current" or Escape cancels) and Remove, instead of being cut off and
+  cleared on a tap.
+
 - v3.26.6: `DEP0169` (`url.parse()` deprecated) traced and fixed. With
   `NODE_OPTIONS=--trace-deprecation` on a preview, the stack pointed at
   `api/ebay-auth.js:83`, reading `req.query`: Vercel's runtime builds that

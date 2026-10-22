@@ -81,6 +81,23 @@ window.saveAccent = async function(hex){
   showSaveMsg('accentSaveMsg');
 };
 
+// The "+" shortcuts (v3.26.7): saved as soon as the box changes. The "+" on
+// Home and Catalog follows the event; a failed save puts the box back.
+window.saveFabShortcuts = async function(on){
+  const ok = await saveSettingsFields({ fabShortcuts: !!on });
+  const box = document.getElementById('sFabShortcuts');
+  const msg = document.getElementById('fabShortcutsSaveMsg');
+  if (box && !ok) box.checked = !on;
+  if (msg){
+    msg.textContent = ok ? 'Saved' : "Couldn't save. Check your connection and try again.";
+    msg.classList.toggle('error', !ok);
+    msg.style.display = 'block';
+    clearTimeout(msg._t);
+    if (ok) msg._t = setTimeout(() => { msg.style.display = 'none'; }, 1800);
+  }
+  if (ok) document.dispatchEvent(new CustomEvent('fabshortcutschange'));
+};
+
 window.saveWallMarkerSettings = async function(){
   appSettings.wallMarkerSpacingHIn = parseFloat(document.getElementById('sMarkerSpacingH').value) || 24;
   appSettings.wallMarkerSpacingVIn = parseFloat(document.getElementById('sMarkerSpacingV').value) || 24;

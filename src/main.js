@@ -1097,6 +1097,7 @@ export const app = (function(){
 
     // The "+" would sit on top of the bulk bar; it comes back when bulk mode ends.
     if (currentTab === 'catalog') document.getElementById('fabAdd').style.display = bulkSelectMode ? 'none' : '';
+    syncFabShortcuts();
     const scope = (CATALOG_STATUS_SEGS.find(sg => sg.match(activeFilters)) || { label: 'Filtered' }).label;
     const sortLabel = (CATALOG_SORTS.find(o => o.key === catalogSort) || CATALOG_SORTS[0]).label.toLowerCase();
     const countLine = theme === 'concourse'
@@ -1571,6 +1572,7 @@ export const app = (function(){
       document.getElementById(id).style.display = t === tab ? '' : 'none';
     });
     document.getElementById('fabAdd').style.display = FAB_TABS.has(tab) ? '' : 'none';
+    syncFabShortcuts();
     closeFabMenu();
     if (tab === 'home') renderHome();
     if (tab === 'stock') renderStock();
@@ -1647,22 +1649,48 @@ export const app = (function(){
   });
 
   // ---------- ADD MENU ----------
-  // One "+" (Home and Catalog only) opens New item / Quick catalog /
-  // Photo session.
+  // "+" (Home and Catalog only) opens a new item straight away. Holding it
+  // opens the menu (New item / Quick catalog / Photo session) for everyone.
+  // The Settings option only puts Quick catalog and Photo session on the
+  // screen as buttons above "+"; the hold menu works either way.
+  const FAB_HOLD_MS = 450;
   const fabMenu = document.getElementById('fabMenu');
   const fabAddBtn = document.getElementById('fabAdd');
+  let fabHoldTimer = null;
+  let fabHeld = false; // the hold just opened the menu; swallow the click that follows
   function closeFabMenu(){
     fabMenu.hidden = true;
     fabAddBtn.setAttribute('aria-expanded', 'false');
     fabAddBtn.classList.remove('open');
   }
+  function openFabMenu(){
+    fabMenu.hidden = false;
+    fabAddBtn.setAttribute('aria-expanded', 'true');
+    fabAddBtn.classList.add('open');
+    document.getElementById('fabNewItem').focus();
+  }
+  function cancelFabHold(){
+    clearTimeout(fabHoldTimer);
+    fabHoldTimer = null;
+  }
+  fabAddBtn.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    fabHeld = false;
+    cancelFabHold();
+    fabHoldTimer = setTimeout(() => {
+      fabHoldTimer = null;
+      fabHeld = true;
+      openFabMenu();
+    }, FAB_HOLD_MS);
+  });
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach(type => fabAddBtn.addEventListener(type, cancelFabHold));
+  // iOS shows its own callout menu on a long press; the hold is ours.
+  fabAddBtn.addEventListener('contextmenu', (e) => e.preventDefault());
   fabAddBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    const opening = fabMenu.hidden;
-    fabMenu.hidden = !opening;
-    fabAddBtn.setAttribute('aria-expanded', opening ? 'true' : 'false');
-    fabAddBtn.classList.toggle('open', opening);
-    if (opening) document.getElementById('fabNewItem').focus();
+    if (fabHeld){ fabHeld = false; return; }
+    if (!fabMenu.hidden){ closeFabMenu(); return; }
+    openModal(null);
   });
   fabMenu.addEventListener('click', () => closeFabMenu());
   document.addEventListener('click', (e) => {
@@ -1671,6 +1699,13 @@ export const app = (function(){
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && !fabMenu.hidden){ closeFabMenu(); fabAddBtn.focus(); }
   });
+  // The shortcut buttons follow the same screens as "+" (Home and Catalog,
+  // not while bulk-selecting) and the Settings option.
+  function syncFabShortcuts(){
+    const on = !!appSettings.fabShortcuts && FAB_TABS.has(currentTab) && !bulkSelectMode;
+    document.getElementById('fabShortcuts').style.display = on ? '' : 'none';
+  }
+  document.addEventListener('fabshortcutschange', syncFabShortcuts);
 
   // ---------- MODAL CONTROL ----------
   const overlay = document.getElementById('itemModalOverlay');
@@ -1690,21 +1725,25 @@ export const app = (function(){
     return s.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
   }
 
+  // The field shows either the search input (no category yet, or "Change"
+  // pressed) or the chosen category in full, wrapping onto as many lines as
+  // it needs, with Change and Remove. A new pick always ends the change.
+  let ebayCategoryEditing = false;
+  function renderEbayCategoryField(){
+    const input = document.getElementById('fEbayCategoryQuery');
+    const chosenBox = document.getElementById('ebayCategoryChosen');
+    const showInput = !chosenEbayCategory || ebayCategoryEditing;
+    input.style.display = showInput ? '' : 'none';
+    chosenBox.style.display = chosenEbayCategory ? '' : 'none';
+    document.getElementById('ebayCategoryChosenPath').textContent = chosenEbayCategory ? chosenEbayCategory.path : '';
+    document.getElementById('ebayCategoryChangeBtn').textContent = ebayCategoryEditing ? 'Keep current' : 'Change';
+  }
+
   function setChosenEbayCategory(cat){
     chosenEbayCategory = cat;
-    const input = document.getElementById('fEbayCategoryQuery');
-    const clearBtn = document.getElementById('ebayCategoryClearBtn');
-    if (cat){
-      input.value = `✓ ${cat.path}`;
-      input.readOnly = true;
-      input.classList.add('ebay-cat-confirmed');
-      clearBtn.style.display = 'block';
-    } else {
-      input.value = '';
-      input.readOnly = false;
-      input.classList.remove('ebay-cat-confirmed');
-      clearBtn.style.display = 'none';
-    }
+    ebayCategoryEditing = false;
+    document.getElementById('fEbayCategoryQuery').value = '';
+    renderEbayCategoryField();
     document.getElementById('ebayCategoryResults').innerHTML = '';
     // Every eBay category accepts a different set of "condition" values —
     // publishing with one it doesn't accept is what causes error 25021.
@@ -2055,15 +2094,30 @@ export const app = (function(){
     clearTimeout(ebayCategorySearchTimer);
     ebayCategorySearchTimer = setTimeout(() => searchEbayCategory(e.target.value), 450);
   });
-  // Once a category is confirmed the field turns readOnly (see
-  // setChosenEbayCategory) — clicking it again is how she reopens search to
-  // change it, same as the ✕ button.
-  document.getElementById('fEbayCategoryQuery').addEventListener('click', (e) => {
-    if (e.target.readOnly) setChosenEbayCategory(null);
+  // Change reopens search and keeps the current category until a new pick;
+  // "Keep current" (or Escape) closes search and changes nothing.
+  document.getElementById('ebayCategoryChangeBtn').addEventListener('click', () => {
+    const input = document.getElementById('fEbayCategoryQuery');
+    if (ebayCategoryEditing){
+      ebayCategoryEditing = false;
+      input.value = '';
+      document.getElementById('ebayCategoryResults').innerHTML = '';
+      renderEbayCategoryField();
+      return;
+    }
+    ebayCategoryEditing = true;
+    input.value = '';
+    renderEbayCategoryField();
+    input.focus();
   });
-  document.getElementById('ebayCategoryClearBtn').addEventListener('click', () => {
+  document.getElementById('ebayCategoryRemoveBtn').addEventListener('click', () => {
     setChosenEbayCategory(null);
     document.getElementById('fEbayCategoryQuery').focus();
+  });
+  document.getElementById('fEbayCategoryQuery').addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && ebayCategoryEditing && chosenEbayCategory){
+      document.getElementById('ebayCategoryChangeBtn').click();
+    }
   });
 
   // Quantity in the item form (v3.24.12): "Quantity" = pieces to make when
@@ -2342,11 +2396,15 @@ export const app = (function(){
     const min = Number(input.min);
     input.value = readQuantity(Number(input.value) + Number(btn.dataset.qtyStep), min);
   }));
-  document.getElementById('fabNewItem').addEventListener('click', () => openModal(null));
-  document.getElementById('fabQuickCatalog').addEventListener('click', () => {
+  // Quick catalog is one entry in the "+" hold menu and, when Settings turns
+  // the shortcuts on, a button above "+". Both call the same function.
+  function startQuickCatalog(){
     quickCatalogMode = true;
     openModal(null);
-  });
+  }
+  document.getElementById('fabNewItem').addEventListener('click', () => openModal(null));
+  document.getElementById('fabQuickCatalog').addEventListener('click', startQuickCatalog);
+  document.getElementById('fabShortcutQuickCatalog').addEventListener('click', startQuickCatalog);
   // Closing with several photos already added risks losing real work (she's
   // usually mid-cataloging by the time that many photos are in) — autosave
   // first rather than silently discarding them. A handful of photos with
@@ -2360,6 +2418,8 @@ export const app = (function(){
     quickCatalogMode = false;
     currentDraftId = null;
     closeModal();
+    // Leaving the item form always lands on the catalog, wherever it was opened.
+    switchToTab('catalog');
   }
   document.getElementById('cancelItemBtn').addEventListener('click', closeModalWithAutosaveIfNeeded);
   document.getElementById('modalCloseX').addEventListener('click', closeModalWithAutosaveIfNeeded);
@@ -2455,10 +2515,14 @@ export const app = (function(){
     photoSessionSavedCount++;
   }
 
-  document.getElementById('fabPhotoSession').addEventListener('click', () => {
+  // Photo session: the hold menu entry and, when Settings turns the shortcuts
+  // on, the button above "+".
+  function startPhotoSession(){
     resetPhotoSession();
     document.getElementById('photoSessionOverlay').classList.remove('hidden');
-  });
+  }
+  document.getElementById('fabPhotoSession').addEventListener('click', startPhotoSession);
+  document.getElementById('fabShortcutPhotoSession').addEventListener('click', startPhotoSession);
 
   document.getElementById('photoSessionInput').addEventListener('change', async (e) => {
     const files = Array.from(e.target.files || []);
@@ -4851,6 +4915,7 @@ export const app = (function(){
     setItems(items.filter(i => i.id !== idToDelete));
     renderAll();
     closeModal();
+    switchToTab('catalog');
     showToast('Moved to the trash. Restore it within 30 days in Settings → Data.');
   });
 

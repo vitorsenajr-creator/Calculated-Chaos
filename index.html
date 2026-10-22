@@ -131,7 +131,11 @@
   <button type="button" class="fab-menu-item" id="fabQuickCatalog">Quick catalog</button>
   <button type="button" class="fab-menu-item" id="fabPhotoSession">Photo session</button>
 </div>
-<button type="button" class="fab" id="fabAdd" aria-label="Add" aria-expanded="false" aria-controls="fabMenu"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+<div class="fab-shortcuts" id="fabShortcuts" style="display:none;">
+  <button type="button" class="fab-shortcut" id="fabShortcutQuickCatalog">Quick catalog</button>
+  <button type="button" class="fab-shortcut" id="fabShortcutPhotoSession">Photo session</button>
+</div>
+<button type="button" class="fab" id="fabAdd" aria-label="Add new item (hold for more)" aria-expanded="false" aria-controls="fabMenu"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
 
 <!-- MODAL: ADD/EDIT ITEM -->
 <div class="modal-overlay hidden" id="itemModalOverlay">
@@ -258,9 +262,13 @@
 
     <div class="field">
       <label>eBay Category <span style="font-weight:400; opacity:0.6;">(required — search and pick the real one)</span></label>
-      <div style="position:relative;">
-        <input type="text" id="fEbayCategoryQuery" placeholder="e.g. Skirts, Hardcover Books, Antique Lamps, Microwave Ovens…" autocomplete="off">
-        <button type="button" id="ebayCategoryClearBtn" style="display:none; position:absolute; top:50%; right:8px; transform:translateY(-50%); background:transparent; border:none; color:var(--plum-soft); font-size:16px; cursor:pointer; padding:4px;">✕</button>
+      <input type="text" id="fEbayCategoryQuery" placeholder="e.g. Skirts, Hardcover Books, Antique Lamps, Microwave Ovens…" autocomplete="off">
+      <div class="ebay-cat-chosen" id="ebayCategoryChosen" style="display:none;">
+        <div class="ebay-cat-chosen-path" id="ebayCategoryChosenPath"></div>
+        <div class="ebay-cat-chosen-actions">
+          <button type="button" class="small-btn" id="ebayCategoryChangeBtn">Change</button>
+          <button type="button" class="small-btn danger" id="ebayCategoryRemoveBtn">Remove</button>
+        </div>
       </div>
       <div id="ebayCategoryResults" style="margin-top:6px;"></div>
       <div id="ebayAspectsContainer" style="margin-top:10px;"></div>
