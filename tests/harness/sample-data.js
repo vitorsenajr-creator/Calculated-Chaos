@@ -37,7 +37,7 @@ const PIECES = [
 ];
 
 // A larger sample catalog, so the Home numbers read as a busy business:
-// 290 pieces in stock and 90 sales in the current month, from a fixed seed.
+// 312 pieces in stock (168 cataloged, 144 listed) and 90 sales in the current month, from a fixed seed.
 const ADJECTIVES = ['Linen', 'Cotton', 'Denim', 'Wool', 'Silk', 'Knit', 'Floral', 'Striped', 'Pleated', 'Corduroy'];
 const KINDS = [['Skirt', 'Skirt', 'Madewell'], ['Top', 'Top', 'Uniqlo'], ['Dress', 'Dress', 'Anthropologie'], ['Jacket', 'Jacket', 'Levi\u2019s'],
   ['Pants', 'Pants', 'Gap'], ['Sweater', 'Sweater', 'J.Crew'], ['Bag', 'Accessory', 'Coach']];
@@ -47,24 +47,24 @@ function seeded(seed){ let x = seed; return () => { x = (x * 1103515245 + 12345)
 function generatedPieces(){
   const rnd = seeded(20261022);
   const out = [];
-  for (let k = 0; k < 380; k++){
+  for (let k = 0; k < 402; k++){
     const [clothingType, category, brand] = KINDS[Math.floor(rnd() * KINDS.length)];
     const adj = ADJECTIVES[Math.floor(rnd() * ADJECTIVES.length)];
-    const inStock = k < 290;
+    const inStock = k < 312;
     const cost = Math.round((4 + rnd() * 12) * 100) / 100;
     const listPrice = Math.round(18 + rnd() * 50);
     const soldPrice = Math.round(30 + rnd() * 50);
     const fees = Math.round(soldPrice * 0.2 * 100) / 100;
     const shipping = Math.round((6 + rnd() * 4) * 100) / 100;
     const platforms = inStock ? (k % 3 === 0 ? ['ebay', 'poshmark'] : [k % 2 ? 'poshmark' : 'ebay']) : [k % 2 ? 'poshmark' : 'ebay'];
-    const soldDays = inStock ? null : (k - 290) % 21;
+    const soldDays = inStock ? null : (k - 312) % 21;
     docsGenerated.push({
       id: 'gen' + String(k + 1).padStart(3, '0'),
       productCode: '#' + String(1000 + k),
       name: `${adj} ${clothingType.toLowerCase()}`,
       clothingType, category, brand,
       size: ['XS', 'S', 'M', 'L'][k % 4], color: COLORS[Math.floor(rnd() * COLORS.length)],
-      cost, listPrice: inStock ? listPrice : soldPrice, status: inStock ? (k % 2 ? 'anunciado' : 'catalogado') : 'vendido',
+      cost, listPrice: inStock ? listPrice : soldPrice, status: inStock ? (k < 144 ? 'anunciado' : 'catalogado') : 'vendido',
       listedPlatforms: platforms, storageBox: 'B-' + String(1 + (k % 12)).padStart(2, '0'), photos: [],
       hostedPhotoUrls: null, condition: 'Excellent', createdAt: Date.now() - Math.floor(rnd() * 90) * DAY,
       ...(inStock ? {} : { soldAt: Date.now() - soldDays * DAY, soldPrice, soldPlatform: platforms[0], feesTotal: fees,
