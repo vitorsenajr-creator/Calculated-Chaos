@@ -517,6 +517,17 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
   sign-in on a Vercel preview: the API key only accepts the production
   origins, so `localhost` answers "requests-from-referer … are blocked"
   whatever the code does.
+- **Stock and Finances draw only when opened, or when the data changes
+  while they are on show (v3.27.4: `stockDrawn`, `financeDrawn`,
+  `refreshStock()`, `refreshFinance()` in `main.js`).** A hidden screen only
+  notes it is out of date and draws on its next visit. Any code that changes
+  items or settings must go through `renderAll()` (as every save does), or
+  those screens stay stale until the data changes again.
+- **Pick matching runs on a prepared index (v3.27.4,
+  `prepareItems()` in `domain/sale-match.js`).** Build it once per list and
+  pass it to `matchSaleLine(line, items, index)`; `buildPickList()` hands
+  back `matchLine` for the skipped lines. Matching without one rebuilds it
+  for every line, which on 1,500 items took seconds on a phone.
 
 ## Open items
 
@@ -562,11 +573,15 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
   server, and the sign-in gates of the app and Developer Panel (`tokenEmailVerified()`, which reads the token the rules see).
   New employees must have a real email: they verify on first sign-in.
 - **Tab-switch delay (Vitor, 2026-10-22)**: after v3.26.14 loading is much
-  faster, but some delay remains when switching tabs. Home, Stock and
-  Settings redraw on every switch (Settings rebuilds its whole screen), and
-  the first Finances visit draws (about 0.7 s at 4x CPU with 1,500 items).
-  Not measured per tab on a phone: ask which pair of tabs feels slow before
-  changing anything.
+  faster, but some delay remained when switching tabs, worst on Stock (the
+  Pick list). v3.27.4 fixed the Pick matching and stopped Stock and Finances
+  from redrawing on every visit. Still open: Home redraws on every switch
+  (about 0.18 s at 4x CPU with 1,500 items), Settings rebuilds its whole
+  screen, and the first Finances visit draws (about 0.7 s). Leaving Stock
+  could not be reproduced (60-136 ms); with real photos on a phone it may be
+  the decode of the Pick thumbnails (full-size photos). Ask which pair of
+  tabs still feels slow, and how many lines the Pick list holds, before
+  changing more.
 - **Performance work left on purpose (2026-10-22)**: loading `ebay-api.js`
   (62 kB) and the label screens on demand (the gain is small and printing
   needs `window.print()` synchronous on iOS), real thumbnail files (needs a
@@ -576,6 +591,18 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
 
 ### Unverified in production (build-verified only)
 
+- Stock and Finances draw on demand, Pick matching on an index (v3.27.4):
+  Node test of the index against the matching it replaced (random catalogs
+  of 400 items and 300 lines, five seeds: the same item, how, confidence,
+  score, copies, pool and alternatives every time; the test fails if the
+  score changes by 0.01), Chromium test of the built app with the Firebase
+  SDK stubbed (1,500 sample items, a Pick list of 12 and 36 lines, CPU slowed
+  4x): the list text is the same, the second visit draws nothing, a data
+  change while hidden draws nothing and the next visit draws, a tick inside
+  Pick still redraws it, Finances the same, no page errors. Entering Stock
+  with 36 lines went from 557 ms to 232 ms the first time and from about
+  500 ms to under 130 ms after. Unconfirmed: the real numbers on a phone with
+  Vitor's real Pick list, and whether leaving Stock still sticks.
 - Faster start and the Catalog (v3.26.8 – v3.26.14): Chromium test of the
   built app with the Firebase SDK stubbed (a signed-in owner, 1,500 sample
   items, CPU slowed 4x): no page errors; every tab, Import and the trash
@@ -945,6 +972,19 @@ on any of these:
   sizing (v3.13.102-105), inspection flag icon (v3.13.114).
 
 ## Pending changelog entry (since v3.27.0)
+
+- v3.27.4: Stock stops being slow with a Pick list. Opening Stock matched
+  every sale line against the whole catalog and split every item's words
+  again for each line, on every visit (36 lines on 1,500 items: about
+  0.6 s at 4x CPU, more on a phone). Matching now runs on an index built
+  once per list (`prepareItems()`; codes in maps, each unsold item's words
+  ready), with the same answers. Stock and Finances also draw only when
+  opened or when the data changes while on show, not on every switch and not
+  while hidden (every save used to recompute the hidden Finances, about
+  0.8 s). With 36 lines: first visit 557 ms → 232 ms, later visits about
+  500 ms → under 130 ms. `tests/domain/sale-match-index.test.mjs` (4 tests,
+  with the old matching kept as the reference). Unverified in production: a
+  phone with the real Pick list.
 
 - v3.27.3: sales tax record. The Overview of Finances shows "Sales tax
   collected" for the period, with how many sales have it recorded, as a line
