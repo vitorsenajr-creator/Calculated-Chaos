@@ -179,7 +179,13 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
     year (`previousWindow()`), sell-through = sold ÷ available in the
     period (`sellThroughOf()`, never over 100%), By platform with average
     profit and days to sell (`createdAt` → `soldAt`), top brands and
-    categories by units sold.
+    categories by units sold. Sales tax (v3.27.3): `salesTaxOf()` sums
+    `item.saleTax` for the period (a typed 0 is recorded, empty is not) and
+    the Overview shows one quiet line, "Sales tax collected … recorded on N
+    of M sales", outside revenue, fees and profit (no other total reads it).
+    `saleTax` comes from Pick's Mark sold or is typed in the sold item's
+    modal ("Sales tax collected"); not in the P&L, the Sales list or the
+    CSVs (Vitor chose only the Overview line, 2026-10-22).
   - `domain/expenses.js` + `data/expense-store.js` +
     `ui/finance/expenses-view.js`: Finances → Expenses (v3.23.3, P2
     item 1, first part). Business costs not tied to one sale, in the
@@ -939,6 +945,15 @@ on any of these:
   sizing (v3.13.102-105), inspection flag icon (v3.13.114).
 
 ## Pending changelog entry (since v3.27.0)
+
+- v3.27.3: sales tax record. The Overview of Finances shows "Sales tax
+  collected" for the period, with how many sales have it recorded, as a line
+  outside revenue, fees and profit. The tax comes from Pick's Mark sold (read
+  from the screenshot, v3.27.1) or is typed in the sold item's modal ("Sales
+  tax collected", empty = not recorded, 0 = recorded). `salesTaxOf()` in
+  `domain/finance-summary.js`; `tests/domain/sales-tax.test.mjs` (3 tests).
+  Unverified in production: the modal field saving with the real Firestore,
+  the line with real sales, the field on an iPhone.
 
 - v3.27.2: package numbers on the Pick checklist. Each order gets a number
   (in the order its first line appears in the screenshots), drawn as a black

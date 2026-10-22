@@ -44,6 +44,23 @@ export function totalsOf(sales){
   };
 }
 
+// The sales tax the marketplaces collected on a list of sales (v3.27.3): the
+// sum of `saleTax` where it is recorded (a typed 0 counts as recorded), and
+// how many sales have it. Kept apart: it is never part of revenue, fees or
+// profit, so no other total reads it.
+export function salesTaxOf(sales){
+  let cents = 0;
+  let recorded = 0;
+  sales.forEach(i => {
+    if (i.saleTax === null || i.saleTax === undefined || i.saleTax === '') return;
+    const t = parseFloat(i.saleTax);
+    if (!Number.isFinite(t)) return;
+    cents += Math.round(t * 100);
+    recorded += 1;
+  });
+  return { total: cents / 100, recorded, sales: sales.length };
+}
+
 // One row per month with sales, newest first ("No date" last).
 export function monthlyTotals(items){
   const byMonth = {};
@@ -193,6 +210,7 @@ export function computeFinanceOverview(items, { period = 'month', now = Date.now
   return {
     period,
     totals,
+    salesTax: salesTaxOf(inPeriod),
     previous,
     sellThrough: sellThroughOf(items, start, Infinity),
     split: revenueSplit(totals),

@@ -1277,6 +1277,7 @@
   .field input.mono{font-family:var(--font-ui);}
   .field-row{display:flex; gap:10px;}
   .field-row .field{flex:1;}
+  .field-hint{display:block; margin-top:4px; font-size:12px; line-height:1.4; color:var(--ink-2);}
 
   /* Quantity stepper in the item form (v3.24.12): − and + around the number. */
   .qty-stepper{
