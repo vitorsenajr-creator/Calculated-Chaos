@@ -1,5 +1,5 @@
-const CACHE_NAME = 'cc-shell-v1';
-const SHELL_FILES = ['/', '/index.html', '/manifest.json'];
+const CACHE_NAME = 'cc-shell-v2';
+const SHELL_FILES = ['/app', '/manifest.json'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -49,7 +49,7 @@ self.addEventListener('fetch', (event) => {
         return response;
       })
       .catch(() =>
-        caches.match(request).then((cached) => cached || caches.match('/index.html'))
+        caches.match(request).then((cached) => cached || caches.match('/app'))
       )
   );
 });

@@ -10,7 +10,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const outDir = resolve(here, 'out');
 mkdirSync(outDir, { recursive: true });
 
-const BASE = process.env.HARNESS_URL || 'http://localhost:5180/';
+const BASE = process.env.HARNESS_URL || 'http://localhost:5180/app.html';
 const executablePath = process.env.CHROME_PATH || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 
 const VIEWPORTS = {

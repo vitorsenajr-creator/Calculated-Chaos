@@ -7,8 +7,8 @@ import { APP_VERSION, APP_VERSION_DATE } from './src/modules/version.js';
 // global, has to be derived from import.meta.url instead.
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// Multi-page build: index.html (the main app) + admin.html (the Developer
-// Panel). Vite only bundles index.html by default; this makes `vite build`
+// Multi-page build: index.html (the welcome page, served at /), app.html (the
+// app, served at /app) and admin.html (the Developer Panel). Vite only bundles index.html by default; this makes `vite build`
 // emit both. (live-catalog.html was removed in v3.19.0.)
 // Every build gets its own BUILD_ID (the Vercel commit, else a timestamp),
 // so a deploy is noticed even when APP_VERSION wasn't bumped. The bundle
@@ -39,9 +39,9 @@ export default defineConfig({
   build: {
     rollupOptions: {
       input: {
-        main: resolve(__dirname, 'index.html'),
+        index: resolve(__dirname, 'index.html'),
+        app: resolve(__dirname, 'app.html'),
         admin: resolve(__dirname, 'admin.html'),
-        welcome: resolve(__dirname, 'welcome.html'),
       },
     },
   },

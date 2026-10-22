@@ -45,5 +45,5 @@ manager and in the Vercel and Firebase consoles.
 ## Open items for this file
 
 - Decide the sender for app emails (service not chosen yet).
-- Decide whether `calculatedchaos.app/` becomes the welcome page and the
-  app moves to `/app` (see the plan in the session of 2026-10-22).
+- The root is the welcome page; the app is at `/app` (v3.27.10). Check on a
+  real installed iPhone app that the home-screen icon opens the app.
