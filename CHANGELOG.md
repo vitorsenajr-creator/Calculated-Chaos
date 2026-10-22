@@ -3,6 +3,65 @@
 Version history for Calculated Chaos. The current version is also shown in
 the badge at the top of the app (`APP_VERSION` in `src/modules/version.js`).
 
+## v3.27.0 — 2026-10-22
+
+A faster start and a faster Catalog. Rolls up v3.26.1 – v3.26.14 and v3.27.0.
+Timings below are from a test build with the Firebase SDK stubbed, a catalog
+of 1,500 sample items and the CPU slowed 4x; none was measured on a phone yet.
+
+- **Search** (v3.26.14). The Catalog search box saves the query at each key
+  but draws the results 200 ms after the last one. Typing nine keys redrew the
+  list nine times and blocked the screen for 4,068 ms; now it redraws once and
+  blocks 64 ms. The results are the same.
+- **Finances** (v3.26.13). Switching to a Finances tab no longer redraws it.
+  v3.26.9 had redrawn it on every switch by mistake; it now draws the first
+  time and then only when the data changes. The second and third visits went
+  from about 500 ms to under 40 ms.
+- **Catalog in batches** (v3.26.12). The Catalog draws 300 cards and the next
+  300 as the end of the list nears the screen, with a "Show more" button as
+  a backup. Search, filters, sort and "Select all N" still work on every
+  item. Going back to the Catalog took a median of 232 ms and now takes
+  59 ms; a key in the search box went from 1,090 ms to 263 ms.
+- **Catalog layout** (v3.26.11). Cards off the screen skip layout and paint
+  (`content-visibility: auto`), so showing the Catalog again after another
+  tab no longer lays out every card: 2,002 ms became 196 ms. It takes effect
+  on iOS 18 and newer; older versions keep the old behavior.
+- **Firebase from npm** (v3.26.10). The Firebase SDK is bundled from npm,
+  pinned to `firebase@10.13.0`, instead of four files from the gstatic CDN:
+  about 117 kB gzip against 190 kB, and no CDN chain at startup. Nothing the
+  server uses changed version.
+- **Screens on first use** (v3.26.9). Stock (with Pick), Finances, Import,
+  Settings and the trash load when first used, or in the background once the
+  first screen is up. The main bundle went from 151 kB to 82 kB gzip. A screen
+  that fails to load shows a message and is tried again.
+- **Faster first load** (v3.26.8). Home draws after items, settings, drafts
+  and the eBay connection; the eBay sale log and expenses load behind it.
+  Catalog and draft photos load lazily, the fonts load beside the stylesheet,
+  login reads the business and the admin claim together, and `/assets/*` is
+  cached for a year and answered from the service worker first.
+- **"+" button and eBay category** (v3.26.7). A tap on "+" opens a new item
+  at once; holding it opens the menu (New item, Quick catalog, Photo session).
+  Closing or deleting from the item form lands on Catalog. The eBay category
+  shows in full, with Change and Remove.
+- **Query strings** (v3.26.6). `DEP0169` traced to `req.query` in
+  `api/ebay-auth.js`; that file and `api/ebay-account-deletion.js` now read
+  the query string with `new URL(...)`. Names, routes and responses are
+  unchanged.
+- **firebase-admin upgrade reverted** (v3.26.3 – v3.26.5). firebase-admin 14
+  broke every token-checked function on Vercel (`ERR_REQUIRE_ESM` from
+  `jose` 6), so v3.26.4 went back to 13.10.0; v3.26.5 records the incident and
+  the open `DEP0169`. The revert was pushed straight to `main`, not through a
+  branch and PR, against the git rule; the record is kept so the history
+  explains it.
+- **Deploy checklist** (v3.26.2). `CLAUDE.md` gets a checklist for a push to
+  `main`, with the rollback steps.
+- **Unit tests** (v3.26.1). `npm test` runs 25 tests of `src/domain/`: IRS
+  mileage rates, the P&L, the bundle fee split, SKU matching, US money and
+  dates, and the goal windows.
+- **Housekeeping** (v3.27.0). The version moves to a new minor, this list is
+  rolled up from `CLAUDE.md`, and the "Unverified in production" notes cover
+  the changes above.
+
 ## v3.26.0 — 2026-10-21
 
 The trash for deleted items, and the eBay question before a delete. Rolls up
