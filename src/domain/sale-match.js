@@ -115,29 +115,88 @@ export function saleLines(results, platforms = {}){
   return { lines, skipped };
 }
 
-// How well an unsold item fits a line's title, size and price: 0..1.
-export function nameScore(line, item){
-  const words = titleWords(line.title);
-  if (!words.length) return 0;
-  if (item.listingTitle && sameText(item.listingTitle, line.title)) return 1;
-  const have = new Set(titleWords([item.name, item.listingTitle, item.brand, item.color, item.clothingType, item.category].join(' ')));
-  let score = words.filter(w => have.has(w)).length / words.length;
-  const brand = titleWords(item.brand);
-  if (brand.length && brand.every(w => words.includes(w))) score += 0.15;
-  const a = canonSize(line.size), b = canonSize(item.size);
-  if (a && b) score += a === b ? 0.1 : -0.25;
-  const listPrice = parseMoney(item.listPrice);
-  if (line.price !== null && Number.isFinite(listPrice) && Math.abs(listPrice - line.price) < 0.005) score += 0.1;
-  return Math.max(0, Math.min(1, score));
+// What kind of garment a title talks about (v3.27.6). A skirt never matches a
+// dress, whatever else the two titles share (a brand, a price).
+const TYPE_OF = {};
+[
+  ['skirt', 'skirt skirts skort skorts'],
+  ['dress', 'dress dresses gown gowns sundress'],
+  ['top', 'top tops tee tees shirt shirts blouse blouses tank tanks cami camisole bustier bodysuit tunic polo henley sweater sweaters pullover cardigan cardigans sweatshirt hoodie jumper'],
+  ['outer', 'jacket jackets coat coats blazer blazers vest vests puffer parka trench windbreaker bomber anorak'],
+  ['pants', 'pants pant jeans jean trousers leggings joggers sweatpants slacks chinos culottes'],
+  ['shorts', 'shorts'],
+  ['jumpsuit', 'jumpsuit romper overalls playsuit'],
+  ['shoes', 'shoes boots sneakers sandals heels flats loafers'],
+  ['bag', 'bag bags purse handbag tote backpack wallet'],
+].forEach(([type, words]) => words.split(' ').forEach(w => { TYPE_OF[w] = type; }));
+const typesOf = (words) => new Set(words.map(w => TYPE_OF[w]).filter(Boolean));
+const sharesType = (a, b) => [...a].some(t => b.has(t));
+
+// "Size S" written in the item's name, for the items whose size field is empty.
+const SIZE_IN_TEXT = /\b(?:size|sz)[:\s]+(xxs|xs|xxxl|xxl|xl|s|m|l|\d{1,2}[a-z]?|[23]x)\b/i;
+function sizeOfItem(item){
+  const own = canonSize(item.size);
+  if (own) return own;
+  const m = SIZE_IN_TEXT.exec(`${item.name || ''} ${item.listingTitle || ''}`);
+  return m ? canonSize(m[1]) : '';
+}
+
+// An item ready to be compared with many lines: its words, brand, size,
+// price and garment types, split once.
+function prepareOne(i){
+  const listing = i.listingTitle ? titleWords(i.listingTitle) : [];
+  const haveWords = titleWords([i.name, i.listingTitle, i.brand, i.color, i.clothingType, i.category].join(' '));
+  return {
+    item: i,
+    sold: isSold(i),
+    have: new Set(haveWords),
+    types: typesOf(haveWords),
+    brand: titleWords(i.brand),
+    size: sizeOfItem(i),
+    listPrice: parseMoney(i.listPrice),
+    listingKey: listing.length ? listing.join(' ') : null,
+  };
 }
 
 export const NAME_MIN_SCORE = 0.45;
+// Below this a piece isn't even offered as a suggestion.
+export const SUGGEST_MIN_SCORE = 0.25;
+
+// How well an item fits a line's title, size and price (a prepared item, see
+// prepareOne). { score 0..1, ok, conflict }: `ok` = good enough to be the
+// piece: the score reaches NAME_MIN_SCORE, at least one word besides the brand
+// is shared (a brand and a price alone are a coincidence), and the two are
+// not different kinds of garment. `conflict` = different kinds of garment.
+function fitPrepared(words, wordsKey, lineSize, lineTypes, line, p){
+  if (p.listingKey !== null && p.listingKey === wordsKey) return { score: 1, ok: true, conflict: false };
+  const brandSet = new Set(p.brand);
+  const shared = words.filter(w => p.have.has(w));
+  const sharedBeyondBrand = shared.filter(w => !brandSet.has(w)).length;
+  let score = shared.length / words.length;
+  if (p.brand.length && p.brand.every(w => words.includes(w))) score += 0.15;
+  if (lineSize && p.size) score += lineSize === p.size ? 0.1 : -0.25;
+  if (line.price !== null && Number.isFinite(p.listPrice) && Math.abs(p.listPrice - line.price) < 0.005) score += 0.1;
+  const conflict = lineTypes.size > 0 && p.types.size > 0 && !sharesType(lineTypes, p.types);
+  if (conflict) score -= 0.5;
+  score = Math.max(0, Math.min(1, score));
+  return { score, ok: !conflict && sharedBeyondBrand >= 1 && score >= NAME_MIN_SCORE, conflict };
+}
+
+// The same for one plain item (the reference the index is tested against).
+export function nameFit(line, item){
+  const words = titleWords(line.title);
+  if (!words.length) return { score: 0, ok: false, conflict: false };
+  return fitPrepared(words, words.join(' '), canonSize(line.size), typesOf(words), line, prepareOne(item));
+}
+export const nameScore = (line, item) => nameFit(line, item).score;
 
 // A lookup built once for a catalog (v3.27.4). Matching a line used to walk
-// every item, and to split each unsold item's words again for every line, so
-// a pick list of a few dozen lines on a catalog of 1,500 items took seconds on
-// a phone. Here the codes sit in maps and each unsold item's words are ready;
-// the answers are the same (tests/domain/sale-match-index.test.mjs).
+// every item, and to split each item's words again for every line, so a pick
+// list of a few dozen lines on a catalog of 1,500 items took seconds on a
+// phone. Here the codes sit in maps and each item's words are ready; the
+// answers are the same (tests/domain/sale-match-index.test.mjs). Since v3.27.6
+// the name matching also looks at sold items, so a piece already sold is found
+// and shown as sold.
 export function prepareItems(items){
   const byCode = new Map();
   const byBase = new Map();
@@ -146,45 +205,29 @@ export function prepareItems(items){
     const list = map.get(key);
     if (list) list.push(item); else map.set(key, [item]);
   };
-  const unsold = [];
+  const named = [];
   (items || []).forEach(i => {
     if (i.productCode){
       add(byCode, canonCode(i.productCode), i);
       add(byBase, baseCode(i.productCode), i);
     }
     if (i.legacyCode) add(byLegacy, canonCode(i.legacyCode), i);
-    if (!isSold(i)){
-      const listing = i.listingTitle ? titleWords(i.listingTitle) : [];
-      unsold.push({
-        item: i,
-        have: new Set(titleWords([i.name, i.listingTitle, i.brand, i.color, i.clothingType, i.category].join(' '))),
-        brand: titleWords(i.brand),
-        size: canonSize(i.size),
-        listPrice: parseMoney(i.listPrice),
-        listingKey: listing.length ? listing.join(' ') : null,
-      });
-    }
+    named.push(prepareOne(i));
   });
-  return { byCode, byBase, byLegacy, unsold };
-}
-
-// nameScore() for a prepared item: the same sums in the same order.
-function scorePrepared(words, wordsKey, lineSize, line, p){
-  if (p.listingKey !== null && p.listingKey === wordsKey) return 1;
-  let score = words.filter(w => p.have.has(w)).length / words.length;
-  if (p.brand.length && p.brand.every(w => words.includes(w))) score += 0.15;
-  if (lineSize && p.size) score += lineSize === p.size ? 0.1 : -0.25;
-  if (line.price !== null && Number.isFinite(p.listPrice) && Math.abs(p.listPrice - line.price) < 0.005) score += 0.1;
-  return Math.max(0, Math.min(1, score));
+  return { byCode, byBase, byLegacy, named };
 }
 
 // The item a line belongs to. Returns { item, how: 'sku'|'legacy'|'name'|null,
 // confidence: 'exact'|'high'|'medium'|'low'|null, score, copies, alternatives,
-// skuNotFound }. An unsold item always wins over a sold one with the same code.
-// `index` is prepareItems(items); pass it when matching many lines.
+// suggestions, skuNotFound }. An unsold item always wins over a sold one with
+// the same code; by name, an unsold one wins over a sold one that fits at most
+// 0.1 better. With no item that fits, `suggestions` holds up to three pieces
+// that come close (never a different kind of garment), for the person to
+// compare and pick. `index` is prepareItems(items); pass it when matching many
+// lines.
 export function matchSaleLine(line, items, index){
   const idx = index || prepareItems(items);
-  const none = { item: null, how: null, confidence: null, score: 0, copies: 0, pool: [], alternatives: [], skuNotFound: false };
+  const none = { item: null, how: null, confidence: null, score: 0, copies: 0, pool: [], alternatives: [], suggestions: [], skuNotFound: false };
   const sku = canonCode(line.sku);
   if (sku){
     const exact = idx.byCode.get(sku) || [];
@@ -202,11 +245,20 @@ export function matchSaleLine(line, items, index){
   const words = titleWords(line.title);
   const wordsKey = words.join(' ');
   const lineSize = canonSize(line.size);
-  const ranked = (words.length ? idx.unsold : [])
-    .map(p => ({ item: p.item, score: scorePrepared(words, wordsKey, lineSize, line, p) }))
-    .filter(r => r.score >= NAME_MIN_SCORE)
-    .sort((x, y) => y.score - x.score);
-  if (!ranked.length) return { ...none, skuNotFound: !!sku };
+  const lineTypes = typesOf(words);
+  const fits = (words.length ? idx.named : [])
+    .map(p => ({ item: p.item, sold: p.sold, ...fitPrepared(words, wordsKey, lineSize, lineTypes, line, p) }));
+  const ranked = fits.filter(r => r.ok).sort((x, y) => y.score - x.score);
+  if (!ranked.length){
+    const suggestions = fits.filter(r => !r.conflict && r.score >= SUGGEST_MIN_SCORE)
+      .sort((x, y) => y.score - x.score).slice(0, 3)
+      .map(r => ({ item: r.item, score: r.score }));
+    return { ...none, suggestions, skuNotFound: !!sku };
+  }
+  if (ranked[0].sold){
+    const k = ranked.findIndex(r => !r.sold && ranked[0].score - r.score <= 0.1);
+    if (k > 0) ranked.unshift(...ranked.splice(k, 1));
+  }
   const [top, next] = ranked;
   const clear = !next || top.score - next.score >= 0.15;
   const confidence = top.score >= 0.8 && clear ? 'high' : top.score >= 0.6 && clear ? 'medium' : 'low';
