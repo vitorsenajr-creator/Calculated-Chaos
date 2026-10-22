@@ -2069,3 +2069,9 @@
 .trash-info small{font-size:12.5px; color:var(--ink-2);}
 .trash-btns{display:flex; gap:6px; flex-wrap:wrap;}
 .trash-btns button{min-height:44px;}
+
+/* Sign-in: forgot password (v3.27.9). Tokens only. */
+.auth-forgot{ margin:10px 0 0; font-size:14px; text-align:right; }
+.auth-forgot a{ color:var(--brand); font-weight:600; min-height:44px; display:inline-flex; align-items:center; }
+.auth-note{ margin-top:12px; padding:10px 12px; border-radius:var(--radius-sm); background:var(--surface-2); color:var(--ink); font-size:14px; line-height:1.45; }
+
