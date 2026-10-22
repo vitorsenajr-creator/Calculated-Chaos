@@ -75,12 +75,22 @@ function sendCallbackPage(res, status, ok, detail){
 </html>`);
 }
 
+// Reads the URL's query string with the WHATWG URL API. Vercel's req.query
+// getter builds its object with the legacy url.parse(), which logs a DEP0169
+// deprecation warning (v3.26.6). Missing params come back as undefined, as
+// they did with req.query.
+function readQuery(req){
+  const params = new URL(req.url || '/', 'http://localhost').searchParams;
+  return (name) => params.get(name) ?? undefined;
+}
+
 export default async function handler(req, res){
+  const query = readQuery(req);
   // eBay's redirect only appends "?code=..." to whatever "Auth accepted URL"
   // was registered for the RuName — it does NOT preserve any extra query
   // params we might want (like ?action=callback). So if a "code" shows up
   // with no explicit action, treat it as the callback automatically.
-  const action = req.query.action || (req.query.code ? 'callback' : undefined);
+  const action = query('action') || (query('code') ? 'callback' : undefined);
 
   // Every action except the callback needs a signed-in, approved user. The
   // callback is eBay's own browser redirect, so it carries no Firebase token.
@@ -132,11 +142,11 @@ export default async function handler(req, res){
   // The one-time state code proves the flow was started from the app by an
   // owner; the tokens go straight to the server-held connection.
   if (action === 'callback'){
-    const code = req.query.code;
+    const code = query('code');
     if (!code){
       return sendCallbackPage(res, 400, false, 'eBay didn\'t send an authorization code. Start again from Settings → eBay.');
     }
-    const state = req.query.state;
+    const state = query('state');
     const started = await consumeOAuthState(state);
     if (!started.ok) return sendCallbackPage(res, started.status, false, started.error);
     if (started.repeat){
