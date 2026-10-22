@@ -116,13 +116,17 @@
     .phone{ max-width:320px; margin:0 auto; border-radius:34px; padding:10px; background:#0A1530; box-shadow:0 30px 60px -28px rgba(5,12,30,.55); }
 
     /* Label */
-    .label{ background:#fff; border:2px solid #111; border-radius:4px; padding:14px; max-width:300px; margin:0 auto; color:#111; }
-    .label .code{ font-stretch:70%; font-weight:800; font-size:64px; line-height:.95; letter-spacing:-0.02em; font-variant-numeric:tabular-nums; }
-    .label .name{ font-weight:700; font-size:16px; margin-top:8px; }
-    .label .meta{ font-size:13px; color:#333; margin-top:2px; }
-    .label .bar{ height:44px; margin-top:12px; background:repeating-linear-gradient(90deg,#111 0 2px,#fff 2px 4px,#111 4px 5px,#fff 5px 8px,#111 8px 11px,#fff 11px 13px); }
-    .label .foot{ display:flex; justify-content:space-between; align-items:flex-end; margin-top:10px; font-size:13px; }
-    .label .foot b{ font-stretch:70%; font-size:30px; font-weight:800; font-variant-numeric:tabular-nums; }
+    .label{ background:#fff; color:#111; border:2px solid #111; border-radius:4px; width:100%; max-width:250px; aspect-ratio:100 / 210; margin:0 auto; padding:14px 14px 12px; display:flex; flex-direction:column; }
+    .label .store{ display:flex; justify-content:space-between; gap:8px; font-size:10px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; border-bottom:1px solid #111; padding-bottom:6px; }
+    .label .code{ align-self:flex-start; margin-top:14px; border:2px solid #111; padding:2px 8px 0; font-stretch:70%; font-weight:800; font-size:46px; line-height:1.15; letter-spacing:-0.01em; font-variant-numeric:tabular-nums; }
+    .label .name{ margin-top:12px; font-weight:700; font-size:15px; line-height:1.25; }
+    .label .grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px 10px; margin-top:12px; border-top:1px solid #111; padding-top:8px; }
+    .label .grid small{ display:block; font-size:9px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; }
+    .label .grid b{ font-size:13px; font-weight:700; font-variant-numeric:tabular-nums; }
+    .label .bar{ height:46px; margin-top:auto; background:repeating-linear-gradient(90deg,#111 0 2px,#fff 2px 4px,#111 4px 5px,#fff 5px 8px,#111 8px 11px,#fff 11px 13px); }
+    .label .foot{ display:flex; justify-content:space-between; align-items:flex-end; margin-top:10px; border-top:1px solid #111; padding-top:8px; }
+    .label .foot span{ font-size:9px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
+    .label .foot b{ font-stretch:70%; font-size:34px; font-weight:800; font-variant-numeric:tabular-nums; }
 
     /* Pick checklist */
 
@@ -200,6 +204,15 @@
     .tour-img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:top; opacity:0; transition:opacity .5s ease; }
     .tour-img.is-on{ opacity:1; }
     @media (prefers-reduced-motion: reduce){ .tour-img{ transition:none; } }
+    .carousel{ position:relative; aspect-ratio:3 / 4; border-radius:8px; overflow:hidden; }
+    .slide{ position:absolute; inset:0; display:grid; place-items:center; color:var(--brand); font-weight:700; font-size:13px; opacity:0; transition:opacity .6s ease; }
+    .slide.is-on{ opacity:1; }
+    .dots{ position:absolute; left:0; right:0; bottom:10px; display:flex; justify-content:center; gap:6px; }
+    .dots span{ width:7px; height:7px; border-radius:50%; background:rgba(18,40,90,.35); }
+    .dots span.on{ background:var(--brand); }
+    @media (prefers-reduced-motion: reduce){ .slide{ transition:none; } }
+    .ok-note{ margin-top:12px; display:flex; align-items:center; gap:8px; font-size:14px; font-weight:700; color:var(--profit); }
+    .ok-note svg{ width:18px; height:18px; flex:none; }
     @media (min-width: 760px){ .tour-tabs{ display:flex; flex-wrap:wrap; } .tour-wrap{ grid-template-columns:1fr 340px; gap:72px; } .tour{ padding:88px 0 96px; } }
   </style>
 </head>
@@ -283,6 +296,20 @@
   tabs.forEach(function(el, k){ el.addEventListener('click', function(){ stop(); show(k); }); });
   if (!reduce) timer = setInterval(function(){ show((at + 1) % imgs.length); }, 3500);
 })();
+(function(){
+  var box = document.querySelector('.carousel');
+  if (!box) return;
+  var slides = Array.prototype.slice.call(box.querySelectorAll('.slide'));
+  var dots = Array.prototype.slice.call(box.querySelectorAll('.dots span'));
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var at = 0;
+  function show(n){
+    at = n;
+    slides.forEach(function(el, k){ el.classList.toggle('is-on', k === n); });
+    dots.forEach(function(el, k){ el.classList.toggle('on', k === n); });
+  }
+  if (!reduce) setInterval(function(){ show((at + 1) % slides.length); }, 2600);
+})();
 </script>
 
 <section class="section" id="features" aria-labelledby="features-title">
@@ -302,10 +329,16 @@
       <figure class="frame" style="margin:0">
         <div style="padding:22px 18px;background:var(--ground)" role="img" aria-label="Sample label: product code 0897, linen midi skirt, size S, box B-12, price 24 dollars">
           <div class="label">
+            <div class="store"><span>Sample Boutique</span><span>Calculated Chaos</span></div>
             <div class="code">#0897</div>
             <div class="name">Linen midi skirt</div>
-            <div class="meta">Size S · Box B-12</div>
-            <div class="bar"></div>
+            <div class="grid">
+              <div><small>Size</small><b>S</b></div>
+              <div><small>Box</small><b>B-12</b></div>
+              <div><small>Color</small><b>Sage</b></div>
+              <div><small>Brand</small><b>Madewell</b></div>
+            </div>
+            <div class="bar" aria-hidden="true"></div>
             <div class="foot"><span>Sample data</span><b>$24.00</b></div>
           </div>
         </div>
@@ -319,7 +352,6 @@
         <p class="lead">Shoot a batch of photos first, then catalog them when you have time.</p>
         <p>The ✨ analysis reads the photos and drafts the title, description, category, color, size and a price. You check every field, then publish to eBay straight from the app.</p>
         <ul>
-          <li>Measurements estimated from a photo</li>
           <li>Your own writing rules for titles and descriptions</li>
           <li>Voice notes can add details to a piece</li>
         </ul>
@@ -327,7 +359,12 @@
       <figure class="frame" style="margin:0">
         <div style="padding:18px;background:var(--surface)" role="img" aria-label="Sample listing draft: title, category, color and price fields filled in from a photo">
           <div style="display:grid;grid-template-columns:1fr 1.25fr;gap:14px;align-items:start">
-            <div style="aspect-ratio:3/4;background:linear-gradient(160deg,#DCE3EE,#B9C5D8);border-radius:8px;display:grid;place-items:center;color:var(--brand);font-weight:700;font-size:13px">Photo</div>
+            <div class="carousel" role="region" aria-roledescription="carousel" aria-label="Photos of the piece">
+              <div class="slide is-on" style="background:linear-gradient(160deg,#DCE3EE,#B9C5D8)">Photo 1 of 3</div>
+              <div class="slide" style="background:linear-gradient(160deg,#E4E8EF,#C4CCDB)">Photo 2 of 3</div>
+              <div class="slide" style="background:linear-gradient(160deg,#D6DEEA,#AEBBD0)">Photo 3 of 3</div>
+              <div class="dots" aria-hidden="true"><span class="on"></span><span></span><span></span></div>
+            </div>
             <div style="display:grid;gap:8px;font-size:13px">
               <div><small style="color:var(--ink-2);font-weight:600">Title</small><div style="font-weight:700;line-height:1.3">Linen Midi Skirt, Wrap Style, Size S</div></div>
               <div><small style="color:var(--ink-2);font-weight:600">Category</small><div style="font-weight:600">Skirts &gt; Midi</div></div>
@@ -344,7 +381,7 @@
     <div class="feature">
       <div class="feature-copy">
         <h2 style="font-size:clamp(1.6rem,4.6vw,2.25rem)">Turn a sale screenshot into a pick list.</h2>
-        <p class="lead">Upload the order screenshots from Poshmark, eBay or Mercari.</p>
+        <p class="lead">Upload the order screenshots from Poshmark, eBay, Mercari, Depop, Vinted or any other marketplace.</p>
         <p>Each piece is matched by its product code or by its name, sorted by box, and printed as a checklist with a package number for each order. When it ships, mark it sold with the real price, fees and sales tax.</p>
         <ul>
           <li>Pieces that do not match are shown with suggestions, never guessed</li>
@@ -356,6 +393,7 @@
           <source media="(max-width: 759px)" srcset="/welcome/pick-phone.webp" width="780" height="1688">
           <img src="/welcome/pick.webp" width="1968" height="664" alt="The Pick screen with sample data: a To pick list of five items from two orders, grouped by box, each with its package number">
         </picture>
+        <p class="ok-note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Sold on Poshmark. Its eBay listing was ended for you.</p>
         <figcaption>Pick list from two sample order screenshots.</figcaption>
       </figure>
     </div>
