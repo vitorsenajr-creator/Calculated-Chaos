@@ -134,6 +134,7 @@ window.authFns = {
   createUserWithEmailAndPassword: async () => ({ user }),
   signOut: async () => {},
   sendEmailVerification: async () => {},
+  sendPasswordResetEmail: async () => {},
 };
 window.firebaseReady = true;
 console.info('[harness] Firebase replaced by the sample data (tests/harness/firebase-stub.js)');
