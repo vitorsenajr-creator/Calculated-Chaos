@@ -43,10 +43,9 @@ After every merge, the next reply reports the current app version
 - Work on the session's named branch and open a PR per change. Whether a
   session binds to `main` or a branch is set when the session is created,
   not by Claude. Vitor is fine with the branch+PR pattern (2026-08-10).
-- **Merging ("always", 2026-08-11; restated 2026-10-21)**: merge each PR
-  once it's open and green, without asking again. This applies only to
-  changes whose plan he already confirmed under the rule above. Confirming
-  the plan covers the PR and the merge.
+- **Merging ("always", 2026-08-11)**: merge each PR once it's open and
+  green, without asking again, for changes whose plan he confirmed (see
+  *Change order* above).
 - If the branch's previous PR was already merged, restart the branch from
   `origin/main` before new work.
 
