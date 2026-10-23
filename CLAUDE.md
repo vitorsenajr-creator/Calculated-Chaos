@@ -365,6 +365,13 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
     `signup_status`; switch off or no answer = "Awaiting approval" as before.
     Steps 2-4 of onboarding and the Getting started checklist come later
     (design canvas "Calculated Chaos Onboarding").
+  - App Check (v3.28.2): `config/app-check.js` (the public reCAPTCHA
+    Enterprise site key; empty = off), `config/firebase.js`
+    (`initializeAppCheck`, `window.appCheckToken()`), `modules/api-auth.js`
+    (`jsonAuthHeaders()` sends `X-Firebase-AppCheck`; every `/api` call must
+    use it), `api/_appCheck.js` (off / monitor / enforce from
+    `platform/appcheck.apiMode`, checked inside `requireApprovedUser()` and
+    the sign-up token check).
   - AI allowance (v3.28.1): `domain/ai-allowance.js` (limit, count, reset,
     message), `api/_aiAllowance.js` (`requireAiAllowance()` before every
     Anthropic call; add it to any new AI call), `data/ai-allowance-store.js`
@@ -625,8 +632,10 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
   verified). Then
   Google sign-in, App Check, admin 2FA, then onboarding/invites (step 5).
   Step 5 started in v3.28.0 ("Create your store", switch off); the AI
-  allowance per business is enforced on the server since v3.28.1; next: App
-  Check, then turning the switch on. The root collections stay, read-only for the business's
+  allowance per business is enforced on the server since v3.28.1; App Check
+  is in the code since v3.28.2, waiting for its site key (Vitor: Google Cloud
+  reCAPTCHA key + Firebase App Check registration, then Monitor, then
+  Enforce); then turning the switch on. The root collections stay, read-only for the business's
   members, until Vitor confirms removing them.
 - **General eBay review**: Vitor plans to review the whole eBay flow soon
   (2026-10-19). The shipping-policy bug is considered resolved; see
@@ -664,6 +673,20 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
   Revisit if the catalog grows.
 
 ### Unverified in production (build-verified only)
+
+- App Check (v3.28.2): a test of the real `api/platform.js` route with a fake
+  Firebase Admin and App Check verifier (off by default; an admin sets
+  monitor, a bad mode is refused, a non-admin can't set it; monitor lets
+  missing and bad tokens through; enforce refuses them with 401 on an
+  ordinary action and on `signup_status`, and accepts a good token; the mode
+  cache), a Chromium test on the harness (with a token every `/api` call
+  carries `X-Firebase-AppCheck` and the sign-in token; without one, none and
+  no page errors) and a load of the production build with no site key
+  (`appCheckToken()` gives null, no errors). Not run: anything with a real
+  site key. With the key set, check the Console metrics before Monitor →
+  Enforce. Lockout recovery: set `platform/appcheck.apiMode` to `off` in the
+  Firestore Console; Firestore, Auth and Storage enforcement is undone in
+  Firebase Console → App Check.
 
 - Server-side AI allowance (v3.28.1): Node tests (5 new) and a handler test
   with a fake Firebase Admin and a mocked Anthropic: three calls pass at a
@@ -1134,6 +1157,24 @@ on any of these:
   sizing (v3.13.102-105), inspection flag icon (v3.13.114).
 
 ## Pending changelog entry (since v3.28.0)
+
+- v3.28.2: Firebase App Check (reCAPTCHA Enterprise, Vitor 2026-10-23), ready
+  but off until its site key is set. `src/config/app-check.js` holds the
+  public site key (empty = off: nothing loads, no token is sent);
+  `src/config/firebase.js` starts App Check before Firestore, Auth and Storage
+  and exposes `window.appCheckToken()`; `jsonAuthHeaders()` sends
+  `X-Firebase-AppCheck`, and the six calls that built their own headers now
+  use it. On the server, `api/_appCheck.js` checks the token from
+  `requireApprovedUser()` and the sign-up token check (every signed-in
+  endpoint; eBay's callback and webhook are not touched), in the mode of
+  `platform/appcheck.apiMode`: off (default), monitor (logs
+  `app-check-monitor`, lets the call through) or enforce (401 "This app
+  couldn't be verified. Reload the app and try again."), read at most once a
+  minute per instance. Developer Panel → App → "App Check on the server"
+  sets the mode (`app_check`, `app_check_set`). Firestore, Auth and Storage
+  are enforced in Firebase Console → App Check, not here. Unverified in
+  production: everything with a real site key (the token, the reCAPTCHA
+  script on an iPhone home-screen app, the Console metrics).
 
 - v3.28.1: the store's monthly AI allowance is enforced on the server. A
   business with `aiMonthlyLimit` on its doc (new stores: 100) may make that

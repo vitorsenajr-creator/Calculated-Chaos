@@ -2091,10 +2091,9 @@ export const app = (function(){
     try{
       const ebayReady = await ensureEbayConnected();
       if (!ebayReady){ container.innerHTML = ''; return; }
-      const idToken = await window.auth.currentUser.getIdToken();
       const res = await fetch('/api/ebay-item-aspects', {
         method: 'POST',
-        headers: {'Content-Type':'application/json', 'Authorization': `Bearer ${idToken}`},
+        headers: await jsonAuthHeaders(),
         body: JSON.stringify({ category_id: categoryId })
       });
       const data = await res.json();
@@ -3855,10 +3854,9 @@ export const app = (function(){
   // `input` is the raw item data; the server builds the prompt and schema
   // from it (buildItemAiRequest() in modules/ai-item.js, v3.15.3).
   async function callAiItemEndpoint({ mode, imageBlocks, input }){
-    const idToken = await window.auth.currentUser.getIdToken();
     const response = await fetch('/api/analyze-photo', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+      headers: await jsonAuthHeaders(),
       body: JSON.stringify({ mode, imageBlocks, input })
     });
     if (!response.ok){

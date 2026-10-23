@@ -2,6 +2,7 @@
 // platform list with flat or tiered fees, adding a custom platform, and
 // "🔍 Suggest %". Moved out of main.js unchanged. Importing it registers
 // window.addCustomPlatform.
+import { jsonAuthHeaders } from '../../modules/api-auth.js';
 import { appSettings } from '../../modules/state.js';
 import { escapeHtml, uid } from '../../modules/format-utils.js';
 import {
@@ -183,10 +184,9 @@ async function suggestPlatformFee(platformKey){
   btn.disabled = true;
   try{
     const label = getPlatformLabel(platformKey).replace(/^\p{Emoji}\s*/u, '');
-    const idToken = await window.auth.currentUser.getIdToken();
     const res = await fetch('/api/ebay-item-aspects', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+      headers: await jsonAuthHeaders(),
       body: JSON.stringify({ mode: 'suggest_fee', platformName: label })
     });
     const data = await res.json();

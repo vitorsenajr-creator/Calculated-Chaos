@@ -15,6 +15,8 @@
     GoogleAuthProvider, signInWithPopup, signInWithRedirect,
     sendPasswordResetEmail
   } from "firebase/auth";
+  import { initializeAppCheck, ReCaptchaEnterpriseProvider, getToken } from "firebase/app-check";
+  import { APP_CHECK_SITE_KEY } from "./app-check.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyBvifh470V63Xi_HrGWL8lyyubjPdw1zGo",
@@ -26,6 +28,33 @@
   };
 
   const app = initializeApp(firebaseConfig);
+
+  // ---------- App Check (v3.28.2) ----------
+  // Started before Firestore, Auth and Storage so their requests carry the
+  // token once the Console enforces it. Off while no site key is set
+  // (src/config/app-check.js). window.appCheckToken() gives the current token
+  // for our own /api calls (modules/api-auth.js), or null.
+  let appCheck = null;
+  if (APP_CHECK_SITE_KEY){
+    try{
+      appCheck = initializeAppCheck(app, {
+        provider: new ReCaptchaEnterpriseProvider(APP_CHECK_SITE_KEY),
+        isTokenAutoRefreshEnabled: true,
+      });
+    }catch(err){
+      console.error('App Check could not start:', err);
+    }
+  }
+  window.appCheckToken = async () => {
+    if (!appCheck) return null;
+    try{
+      const r = await getToken(appCheck, false);
+      return r && r.token ? r.token : null;
+    }catch(err){
+      console.warn('App Check token unavailable:', err);
+      return null;
+    }
+  };
   window.db = getFirestore(app);
   window.firestoreFns = { collection, doc, getDocs, getDoc, setDoc, updateDoc, deleteDoc, query, where, runTransaction, writeBatch, onSnapshot };
   window.storage = getStorage(app);

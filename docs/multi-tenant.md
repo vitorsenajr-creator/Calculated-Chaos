@@ -256,7 +256,12 @@ Enforcement:
    - [x] v3.28.1: server-side AI allowance per business
      (`businesses/{bizId}.aiMonthlyLimit`, 100 for new stores, every AI call
      counted, 429 at the limit; `api/_aiAllowance.js`).
-   - [ ] App Check, before the switch is turned on.
+   - [x] v3.28.2: App Check in the code (reCAPTCHA Enterprise; `api/_appCheck.js`,
+     off / monitor / enforce in Developer Panel → App), off until the site key
+     is set in `src/config/app-check.js`.
+   - [ ] App Check live: site key created and registered (Vitor), Monitor for a
+     few days, then Enforce for our functions and for Firestore, Auth and
+     Storage in the Firebase Console. Then the switch can be turned on.
    - [ ] Onboarding steps 2-4 (how to start, first piece, label setup and
      box) and the Getting started checklist on Home.
    - [ ] Employee invites.

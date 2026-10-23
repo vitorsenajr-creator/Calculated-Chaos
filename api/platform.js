@@ -46,6 +46,10 @@
 //     -> the AI usage meter (_aiUsage.js): totals, per call type, per user
 //        (e-mail, role, business) and tools, for the month.
 //
+//   action: 'app_check' | 'app_check_set', mode (v3.28.2)
+//     -> how our functions treat the App Check token (_appCheck.js,
+//        platform/appcheck): 'off', 'monitor' or 'enforce'.
+//
 //   action: 'self_serve' | 'self_serve_set', on (v3.28.0)
 //     -> the self-serve sign-up switch (_business.js, platform/signup):
 //        read it, or turn it on or off.
@@ -74,6 +78,7 @@ import { usersAuthInfo, userRemove, userRestore, userDeny, employeeCreate } from
 import { aiUsageReport } from './_aiUsage.js';
 import { verifySignedInUser, signupStatus, businessCreate, readSelfServe, selfServeSet } from './_business.js';
 import { getAiAllowance } from './_aiAllowance.js';
+import { readAppCheckMode, setAppCheckMode } from './_appCheck.js';
 import { usageMonth } from '../src/domain/ai-usage.js';
 
 async function handleHealth(auth){
@@ -166,6 +171,14 @@ export default async function handler(req, res){
       const result = action === 'admin_claims' ? await adminClaimsStatus(admin.auth) : await adminClaimsSync(admin.auth);
       if (action === 'admin_claims_sync') console.log('admin-claims-sync', JSON.stringify({ by: auth.uid, admins: result.admins.map(a => a.uid) }));
       return res.status(200).json(result);
+    }
+    if (action === 'app_check' || action === 'app_check_set'){
+      const admin = getFirebaseAdmin();
+      if (!admin.ok) return res.status(503).json({ error: admin.error });
+      if (action === 'app_check') return res.status(200).json({ ok: true, mode: await readAppCheckMode(admin.db, { fresh: true }) });
+      const result = await setAppCheckMode(admin.db, auth, req.body || {});
+      console.log('app-check-set', JSON.stringify({ by: auth.uid, mode: result.mode || null }));
+      return res.status(result.ok ? 200 : result.status).json(result.ok ? result : { error: result.error });
     }
     if (action === 'self_serve' || action === 'self_serve_set'){
       const admin = getFirebaseAdmin();

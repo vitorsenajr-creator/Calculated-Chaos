@@ -5,6 +5,7 @@
 // Hobby's 12-function cap) and turns the answer into the same hint/fix
 // shape the library uses, so the error box renders it the same way.
 
+import { jsonAuthHeaders } from './api-auth.js';
 import { targetForAspect } from './ebay-error-hints.js';
 
 // Maps the AI's "fieldToChange" to a library-style fix.
@@ -34,10 +35,9 @@ export function aiAnswerToFix(answer){
 
 // Returns { text, fix } or throws.
 export async function explainEbayErrorWithAi(result, item, errors){
-  const idToken = await window.auth.currentUser.getIdToken();
   const res = await fetch('/api/ebay-item-aspects', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+    headers: await jsonAuthHeaders(),
     body: JSON.stringify({
       mode: 'explain_error',
       step: result.step || null,
