@@ -24,6 +24,7 @@ import { ACCENT_PRESETS, isHexColor } from '../../domain/accent.js';
 import { shrinkImageToDataUrl } from '../../platform/images.js';
 import { warningsPageHtml, wireWarningsPanel, warningsSummary } from './warnings-panel.js';
 import { ebaySalesSectionHtml, renderEbaySalesPanel } from './ebay-sales-panel.js';
+import { normalizePickMessage, PICK_MESSAGE_MAX } from '../../domain/pick-messages.js';
 
 const GROUP_KEY = 'cc.settings.group';
 const DESKTOP = '(min-width: 900px)';
@@ -416,8 +417,36 @@ ${page('labels', `
           <div><div class="sr-label">Brand</div></div>
           <input type="checkbox" id="sLabelFieldBrand" ${appSettings.labelFields?.brand ? 'checked' : ''}>
         </div>
+        <div class="settings-row">
+          <div><div class="sr-label">Barcode</div><div class="sr-sub">Code 128 of the product code, under the name. Left off when the label is too narrow to print it clearly</div></div>
+          <input type="checkbox" id="sLabelFieldBarcode" ${appSettings.labelFields?.barcode !== false ? 'checked' : ''}>
+        </div>
         <button class="settings-save-btn" onclick="saveLabelSettings()">Save label settings</button>
         <div class="settings-success" id="labelSaveMsg">Saved</div>
+      </div>
+
+      <!-- PICK LIST MESSAGE (v3.27.24) -->
+      <div class="settings-section">
+        <h3>Pick list message</h3>
+        <div class="ss-desc">A line printed above the signature on the last page of the Pick checklist. Random picks a new one of 365 messages each time you share the checklist.</div>
+        ${(() => {
+          const pm = normalizePickMessage(appSettings.pickMessage);
+          return `<div class="settings-row">
+          <div><div class="sr-label">Message</div></div>
+          <select id="sPickMsgMode" onchange="pickMessageModeChange()">
+            <option value="off" ${pm.mode === 'off' ? 'selected' : ''}>Off</option>
+            <option value="fixed" ${pm.mode === 'fixed' ? 'selected' : ''}>Fixed</option>
+            <option value="random" ${pm.mode === 'random' ? 'selected' : ''}>Random</option>
+          </select>
+        </div>
+        <div id="pickMsgFixedWrap" ${pm.mode === 'fixed' ? '' : 'hidden'}>
+          <textarea id="sPickMsgText" class="settings-textarea" maxlength="${PICK_MESSAGE_MAX}" oninput="pickMessageCount()" placeholder="e.g. Small steps every day add up to big results.">${escapeHtml(pm.text)}</textarea>
+          <div class="ai-instr-meta"><span id="pickMsgCount">${pm.text.length} / ${PICK_MESSAGE_MAX}</span></div>
+        </div>`;
+        })()}
+        <button class="settings-save-btn" onclick="savePickMessageSettings()">Save message</button>
+        <div class="settings-success" id="pickMsgSaveMsg">Saved</div>
+        <div class="settings-success error" id="pickMsgErrMsg">Couldn\u2019t save. Check your connection and try again.</div>
       </div>`)}
 ${page('ai', `
       <!-- AI USAGE COUNTER -->

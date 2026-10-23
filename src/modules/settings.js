@@ -42,6 +42,8 @@ export const DEFAULT_SETTINGS = {
   // — see loadSettings() migration).
   listingStandardText: '',
   aiInstructions: '',
+  // The line above the Pick checklist's signature (v3.27.24).
+  pickMessage: { mode: 'off', text: '' },
 
   // Platform management (Settings → Platforms). The 5 built-in platforms
   // (ebay/mercari/poshmark/vinted/depop) keep their fixed keys — eBay
@@ -66,6 +68,7 @@ export const DEFAULT_SETTINGS = {
     name: true,
     category: false,
     brand: false,
+    barcode: true,
   },
 
   // 5. Wall measurement markers — real-world center-to-center spacing of

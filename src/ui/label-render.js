@@ -8,6 +8,30 @@
 // labels/print-modal.js's openBatchLabelModal (one pipeline, see CLAUDE.md).
 import { appSettings } from '../modules/state.js';
 import { escapeHtml } from '../modules/format-utils.js';
+import { barcodeLayout, BARCODE_HEIGHT_IN } from '../domain/code128.js';
+
+// The Code 128 barcode of an item's product code (v3.27.24), on by default
+// (Settings → Labels → Barcode). null when it is off, the item has no code, or
+// the label is too narrow to print its bars at a readable width.
+function labelBarcode(item, w, fields){
+  if (fields.barcode === false) return null;
+  return barcodeLayout(item, w, 300);
+}
+
+// The bars as one SVG path (a rect per run of black modules), sized in
+// inches like the rest of the label markup.
+function barcodeSvg(layout){
+  let d = '';
+  const bits = layout.bits;
+  for (let i = 0; i < bits.length;){
+    if (bits[i] !== '1'){ i++; continue; }
+    let j = i;
+    while (j < bits.length && bits[j] === '1') j++;
+    d += `M${i} 0h${j - i}v1h-${j - i}z`;
+    i = j;
+  }
+  return `<svg viewBox="0 0 ${bits.length} 1" preserveAspectRatio="none" shape-rendering="crispEdges" width="${layout.widthIn}in" height="${BARCODE_HEIGHT_IN}in" role="img" aria-label="Barcode"><path d="${d}" fill="#000"/></svg>`;
+}
 
 // Builds the label's inner markup (code / box / secondary line), sized in
 // CSS "in" units so the exact same markup looks right both in the on-screen
@@ -24,6 +48,7 @@ export function buildLabelInnerHtml(item){
   if (fields.brand && item.brand) secondaryParts.push(item.brand);
   const secondary = secondaryParts.join(' · ');
   const flagSizeIn = Math.min(0.32, h * 0.14, w * 0.14);
+  const barcode = labelBarcode(item, w, fields);
 
   // Priority order top-to-bottom: SKU code, then name/color, then storage
   // box — matches how important each detail is when scanning the label.
@@ -37,6 +62,7 @@ export function buildLabelInnerHtml(item){
         ${item.shipInspectionFlag ? `<div class="label-flag" style="width:${flagSizeIn}in; height:${flagSizeIn}in;" title="Inspect before shipping"><svg viewBox="0 0 100 100" width="100%" height="100%"><path d="M50 4 L96 90 L4 90 Z" fill="#000" stroke="#000" stroke-width="8" stroke-linejoin="round"/><rect x="44" y="31" width="12" height="34" fill="#fff"/><circle cx="50" cy="76" r="7" fill="#fff"/></svg></div>` : ''}
         <div class="label-code">${escapeHtml(item.productCode || '')}</div>
         ${secondary ? `<div class="label-secondary">${escapeHtml(secondary)}</div>` : ''}
+        ${barcode ? `<div class="label-barcode">${barcodeSvg(barcode)}</div>` : ''}
         ${fields.box !== false && item.storageBox ? `<div class="label-box">📦 ${escapeHtml(item.storageBox)}</div>` : ''}
       </div>
     `;
@@ -173,6 +199,7 @@ function measureItemLabelFonts(ctx, item, w, dpi, h){
   if (fields.brand && item.brand) secondaryParts.push(item.brand);
   const secondary = secondaryParts.join(' · ');
   const boxText = (fields.box !== false && item.storageBox) ? ('📦 ' + item.storageBox) : '';
+  const barcode = labelBarcode(item, w, fields);
 
   // Code is the most important thing to scan at a glance, so its cap is
   // generous enough to actually use most of a tall/wide label instead of
@@ -181,7 +208,9 @@ function measureItemLabelFonts(ctx, item, w, dpi, h){
   // name, is never adjusted for anything else on the label — per Vitor's
   // request, the storage box's own text always gets the same treatment
   // regardless of how long the item name happens to be.
-  let codeFontIn = fitFontIn(code, "'JetBrains Mono', monospace", 700, Math.min(1.19, h * 0.4675), 0.14);
+  // With a barcode on the label (v3.27.24) the code's ceiling is lower so the
+  // bars and the name still fit under it.
+  let codeFontIn = fitFontIn(code, "'JetBrains Mono', monospace", 700, barcode ? Math.min(1.19, h * 0.28) : Math.min(1.19, h * 0.4675), 0.14);
   let boxFontIn = boxText ? fitFontIn(boxText, "'Inter', sans-serif", 600, Math.min(0.16, h * 0.075), 0.09) : 0;
 
   const gapIn = 0.035, lineHeightMult = 1.15;
@@ -194,7 +223,7 @@ function measureItemLabelFonts(ctx, item, w, dpi, h){
   // budget when code+box already consume all of maxBlockIn (or more) is
   // exactly what let the box line get cut off — the name's own minFontIn
   // loop below is the only floor that's safe to rely on.
-  const nameBudgetIn = maxBlockIn - codeFontIn - (boxText ? gapIn + boxFontIn : 0) - (secondary ? gapIn : 0);
+  const nameBudgetIn = maxBlockIn - codeFontIn - (boxText ? gapIn + boxFontIn : 0) - (secondary ? gapIn : 0) - (barcode ? gapIn + BARCODE_HEIGHT_IN : 0);
 
   let secFontIn = 0;
   if (secondary){
@@ -209,7 +238,7 @@ function measureItemLabelFonts(ctx, item, w, dpi, h){
     secFontIn = fontIn;
   }
 
-  return { code, secondary, boxText, codeFontIn, secFontIn, boxFontIn };
+  return { code, secondary, boxText, barcode, codeFontIn, secFontIn, boxFontIn };
 }
 
 // Finds the uniform font sizes (smallest needed by any item that has
@@ -246,13 +275,15 @@ function drawBatchItemAt(ctx, w, dpi, yTopIn, h, fonts, m){
   }
 
   const secBlockIn = secLines.length ? fonts.secFontIn * lineHeightMult * secLines.length : 0;
-  const totalIn = fonts.codeFontIn + (secLines.length ? gapIn + secBlockIn : 0) + (m.boxText ? gapIn + fonts.boxFontIn : 0);
+  const totalIn = fonts.codeFontIn + (secLines.length ? gapIn + secBlockIn : 0) + (m.barcode ? gapIn + BARCODE_HEIGHT_IN : 0) + (m.boxText ? gapIn + fonts.boxFontIn : 0);
 
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   let curY = (yTopIn + (h - totalIn) / 2 + fonts.codeFontIn / 2) * dpi;
 
-  ctx.fillStyle = '#2B241E';
+  // Pure black: the thermal printer is monochrome, so a brown or a gray is a
+  // threshold away from vanishing (v3.27.24).
+  ctx.fillStyle = '#000';
   ctx.font = `700 ${fonts.codeFontIn * dpi}px 'JetBrains Mono', monospace`;
   ctx.fillText(m.code, canvasWidthPx / 2, curY);
   curY += (fonts.codeFontIn / 2) * dpi;
@@ -260,17 +291,34 @@ function drawBatchItemAt(ctx, w, dpi, yTopIn, h, fonts, m){
   if (secLines.length){
     curY += (gapIn + fonts.secFontIn * lineHeightMult / 2) * dpi;
     ctx.font = `700 ${fonts.secFontIn * dpi}px 'Inter', sans-serif`;
-    ctx.fillStyle = '#2B241E';
+    ctx.fillStyle = '#000';
     for (let i = 0; i < secLines.length; i++){
       ctx.fillText(secLines[i], canvasWidthPx / 2, curY + i * fonts.secFontIn * lineHeightMult * dpi);
     }
     curY += (secLines.length - 0.5) * fonts.secFontIn * lineHeightMult * dpi;
   }
 
+  if (m.barcode){
+    // Bars of a whole number of pixels, centered; curY is the bottom of what
+    // is above, so the bars start a gap below it.
+    const top = curY + gapIn * dpi;
+    const left = Math.round((canvasWidthPx - m.barcode.widthPx) / 2);
+    ctx.fillStyle = '#000';
+    const bits = m.barcode.bits;
+    for (let i = 0; i < bits.length;){
+      if (bits[i] !== '1'){ i++; continue; }
+      let j = i;
+      while (j < bits.length && bits[j] === '1') j++;
+      ctx.fillRect(left + i * m.barcode.modulePx, top, (j - i) * m.barcode.modulePx, BARCODE_HEIGHT_IN * dpi);
+      i = j;
+    }
+    curY = top + BARCODE_HEIGHT_IN * dpi;
+  }
+
   if (m.boxText){
     curY += (gapIn + fonts.boxFontIn / 2) * dpi;
     ctx.font = `600 ${fonts.boxFontIn * dpi}px 'Inter', sans-serif`;
-    ctx.fillStyle = '#6E5F4E';
+    ctx.fillStyle = '#000';
     ctx.fillText(m.boxText, canvasWidthPx / 2, curY);
   }
 }
@@ -317,7 +365,7 @@ export function drawBoxLabelToCanvas(box){
   const bottomLineY = (h - bottomMarginIn) * dpi;
   const topLineY = bottomLineY - blockOuterIn * dpi;
 
-  ctx.strokeStyle = '#6E5F4E';
+  ctx.strokeStyle = '#000';
   ctx.lineWidth = lineThicknessIn * dpi;
   ctx.beginPath();
   ctx.moveTo(marginXIn * dpi, topLineY);
@@ -329,13 +377,13 @@ export function drawBoxLabelToCanvas(box){
   ctx.stroke();
 
   let curY = topLineY + (innerPadIn + nameFontIn / 2) * dpi;
-  ctx.fillStyle = '#2B241E';
+  ctx.fillStyle = '#000';
   ctx.font = `700 ${nameFontIn * dpi}px 'Inter', sans-serif`;
   ctx.fillText(nameText, canvas.width / 2, curY);
   curY += (nameFontIn / 2) * dpi + (gapIn + dateFontIn / 2) * dpi;
 
   ctx.font = `600 ${dateFontIn * dpi}px 'Inter', sans-serif`;
-  ctx.fillStyle = '#6E5F4E';
+  ctx.fillStyle = '#000';
   ctx.fillText(dateText, canvas.width / 2, curY);
 
   return canvas;
@@ -405,7 +453,7 @@ export function drawBatchLabelToCanvas(itemsArr){
       drawInspectionFlagIcon(ctx, canvas.width - (0.06 + flagSizeIn) * dpi, (i * h + 0.04) * dpi, flagSizeIn * dpi);
     }
     if (i < itemsArr.length - 1){
-      ctx.strokeStyle = '#6E5F4E';
+      ctx.strokeStyle = '#000';
       ctx.lineWidth = 0.012 * dpi;
       const yPx = (i + 1) * h * dpi;
       ctx.beginPath();

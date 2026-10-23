@@ -1946,21 +1946,25 @@
   /* Priority order top-to-bottom: code (biggest, but kept modest), then
      name/color, then storage box. */
   .label-sheet .label-code{
-    font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--plum);
+    font-family:'JetBrains Mono',monospace; font-weight:700; color:#000;
     line-height:1.05; white-space:nowrap; text-align:center;
   }
   /* Wraps rather than truncates — the full item name always prints, sized
      down by shrinkWrappedToFit (JS) until it fits ~2 lines, or however
      many lines a longer name actually needs. */
   .label-sheet .label-secondary{
-    font-family:'Inter',sans-serif; font-weight:700; color:var(--plum);
+    font-family:'Inter',sans-serif; font-weight:700; color:#000;
     line-height:1.15; text-align:center; margin-top:0.035in;
     max-width:100%; white-space:normal; word-break:break-word;
   }
   .label-sheet .label-box{
-    font-family:'Inter',sans-serif; font-weight:600; color:var(--plum-soft);
+    font-family:'Inter',sans-serif; font-weight:600; color:#000;
     line-height:1.15; white-space:nowrap; text-align:center; margin-top:0.035in;
   }
+  /* The Code 128 barcode (v3.27.24): black bars, a whole-pixel width set by
+     label-render.js. */
+  .label-sheet .label-barcode{ margin-top:0.035in; line-height:0; }
+  .label-sheet .label-barcode svg{ display:block; }
   .label-sheet .label-flag{
     position:absolute; top:0.02in; right:0.02in; line-height:1;
   }

@@ -340,8 +340,25 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
     trash load on first use. Wrap a new heavy screen the same way: `main.js`
     builds the hooks and calls `use()`; never import a screen statically
     from `main.js`.
+  - `domain/pick-messages.js` (v3.27.24): the 365 built-in messages and
+    `pickMessageFor()`. Settings → Labels → Pick list message
+    (`appSettings.pickMessage` `{ mode: off|fixed|random, text ≤120 }`, saved
+    alone with `saveSettingsFields`; default off). Random is a new draw each
+    time the checklist is shared (`checklistMessage()` in `pick-view.js`;
+    never the one the device used last, `cc.pick.lastMessage`). `paginatePick()`
+    takes it as a `quote` block kept with the signature; `quoteLines()` guesses
+    its lines (42 characters each) and `drawQuote()` wraps to them. The Pick
+    type is 15% larger since v3.27.24 (`H` in `pick-print.js` and `ROW` in
+    `pick-sheet-canvas.js` move together; a first page holds 10 plain rows,
+    not 12).
   - `ui/lightbox.js`: `openLightbox(photos, index)`; its state is private.
-  - `ui/label-render.js`: label preview markup + canvas drawing.
+  - `ui/label-render.js`: label preview markup + canvas drawing. Item
+    labels carry a Code 128 barcode of the product code without the "#"
+    (v3.27.24, `domain/code128.js`: set B, 0.16 in tall, 0.2 in quiet zone,
+    bars a whole number of pixels wide; left off when the bars would be
+    under 0.012 in). Settings → Labels → Barcode (`labelFields.barcode`, on
+    unless `false`). Ink is pure black. With a barcode the code's font cap is
+    `h × 0.28` instead of `h × 0.4675`.
   - `ui/labels/`: print modal (`openBatchLabelModal`), Quick Labels,
     storage boxes, Stock Transfer (v3.17.3).
   - `domain/product-code-match.js`: typed digits → item.
@@ -614,6 +631,24 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
   Revisit if the catalog grows.
 
 ### Unverified in production (build-verified only)
+
+- Label barcode, Pick type and message (v3.27.24): Node tests (80 pass: the
+  Code 128 table and check symbol, the encoder compared with the `jsbarcode`
+  library on 103 strings with no difference, a reader written from the spec
+  round-tripping every character, the layout rules; the 365 messages unique
+  and short, the modes, random never repeating the last, pagination with long
+  titles and a 120-character message) and a Chromium test of the real label
+  and checklist code (single label and 3-item batch, 110-character name,
+  barcode on and off, Pick with 4 and 14 pieces over two pages with "(cont.)"
+  and the message in 3 lines). A zxing decoder read `0897`, `0897-1` and
+  `1204` from the batch strips at 300 dpi and again shrunk to 203 dpi and
+  thresholded; on a bare 675 x 375 single label it read nothing until the
+  image had white around it (the library's edge handling, not the bars).
+  Not run: a real print on the thermal printer and a scan of it (a
+  reader or a phone camera), the Settings screen saving `pickMessage` with
+  the real Firestore, the share sheet with the message on an iPhone. A share
+  with Random on is no longer byte-identical between two taps (the v3.27.7
+  check holds with Off or Fixed).
 
 - Pick activity log and empty checklist boxes (v3.27.7): Node tests (66 pass)
   and a Chromium test of the built app with a stubbed Firebase: sharing the
@@ -1017,6 +1052,24 @@ on any of these:
   sizing (v3.13.102-105), inspection flag icon (v3.13.114).
 
 ## Pending changelog entry (since v3.27.0)
+
+- v3.27.24: item label barcode, bigger Pick type and a Pick message. The item
+  label prints a Code 128 barcode of its product code (without the "#", so a
+  scanner types the same digits Pick uses as the SKU), 0.16 in tall under the
+  name, in pure black (the brown and gray inks are gone from item labels; box
+  labels too). The code's font ceiling is lower with a barcode so the name still
+  fits; a very long code on a narrow label leaves the bars off rather than
+  print them too thin. Settings → Labels → Barcode turns it off (on by
+  default). Pick: type, tick boxes and rows are 15% larger (a first page holds
+  10 plain rows instead of 12; long names still stop at two lines with "…").
+  Settings → Labels → Pick list message: Off, Fixed (your text, 120 characters)
+  or Random (one of 365 built-in messages, a new one each time the checklist is
+  shared, never the last one); it prints above "Picked by / Date" on the last
+  page. `domain/code128.js`, `domain/pick-messages.js`,
+  `tests/domain/code128.test.mjs`, `tests/domain/pick-messages.test.mjs`.
+  Unverified in production: a printed label scanned with a real reader or
+  phone, the bars after the printer app's own resampling, the Pick sheet on
+  the thermal printer, Settings saving `pickMessage`.
 
 - v3.27.23: welcome page, mobile pass. Phone hero: the long paragraph becomes one sentence, the "Request access" button rises and the collage starts in the first screen, and the three numbered results (titles only) come after the collage. A "Menu" button (below 900 px) opens a sheet with Features and About us (Escape, outside tap and link tap close it). The tour is a swipeable strip of four cards below 900 px (no reduced motion): the timeline and the box stay on top and follow the swipe, the screen of the card in view scrolls by itself once, the printed label goes on the box at Catalog, and the step buttons scroll to their card; the tour images load when the tour is 1,500 px away (they were lazy and showed empty phones in a full-page capture). The profit sum stacks as a list. Sections have less padding on phones. Tab icon: the 16 px and 32 px favicons have a heavier stroke, a real `favicon.ico` (16, 32 and 48 px) is added, every icon link carries `?v=3` so browsers drop the cached old icon, and the unused Vite sample `public/icons.svg` is removed. Desktop is unchanged. Unverified in production: the tour swipe and its auto-scroll on a real iPhone and Android, the menu on a real phone, whether the tab icon refreshes in the browsers that cached the old one.
 

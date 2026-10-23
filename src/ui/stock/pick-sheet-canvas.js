@@ -12,7 +12,9 @@ const PX_PER_PT = (25.4 / 72) * PX_PER_MM;
 const FAMILY = 'Arial, Helvetica, sans-serif';
 const PAD = 5; // mm, the sheet's side and top padding
 const TEXT_W = SHEET_MM.width - 2 * PAD; // mm
-const ROW = { pad: 1.2, check: 6, gap: 2.5, first: 4.2, next: 3.6, meta: 3.3, flag: 4, badge: 6, badgeGap: 2 }; // mm
+// The rows' type and their measures are 15% larger since v3.27.24 (pick-print.js
+// has the matching heights).
+const ROW = { pad: 1.4, check: 6.9, gap: 2.5, first: 4.8, next: 4.1, meta: 3.8, flag: 4.6, badge: 6.9, badgeGap: 2 }; // mm
 const mm = (v) => v * PX_PER_MM;
 
 function setFont(ctx, weight, pt){
@@ -54,7 +56,7 @@ function drawBadge(ctx, cx, cy, d, n){
   ctx.arc(mm(cx), mm(cy), mm(d / 2 - 0.3), 0, Math.PI * 2);
   ctx.stroke();
   const text = String(n);
-  setFont(ctx, '700', text.length > 2 ? 6.5 : text.length > 1 ? 8 : 9.5);
+  setFont(ctx, '700', text.length > 2 ? 7.5 : text.length > 1 ? 9.2 : 11);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(text, mm(cx), mm(cy) + mm(0.15));
@@ -63,20 +65,20 @@ function drawBadge(ctx, cx, cy, d, n){
 
 // A box heading: the title on the left, the count on the right, a rule under.
 function drawBox(ctx, top, b){
-  const bottom = top + 7;
+  const bottom = top + 8;
   const baseline = mm(bottom - 0.4 - 0.8);
   const countText = b.count === null ? '' : `${b.count} item${b.count === 1 ? '' : 's'}`;
   let countW = 0;
   if (countText){
-    setFont(ctx, '400', 8.5);
+    setFont(ctx, '400', 9.8);
     countW = ctx.measureText(countText).width;
   }
   ctx.textBaseline = 'bottom';
   ctx.textAlign = 'left';
-  setFont(ctx, '700', 11);
+  setFont(ctx, '700', 12.6);
   ctx.fillText(fit(ctx, b.title, mm(TEXT_W) - countW - mm(2)), mm(PAD), baseline);
   if (countText){
-    setFont(ctx, '400', 8.5);
+    setFont(ctx, '400', 9.8);
     ctx.textAlign = 'right';
     ctx.fillText(countText, mm(PAD + TEXT_W), baseline);
     ctx.textAlign = 'left';
@@ -96,24 +98,24 @@ function drawRow(ctx, top, b, platformLabel){
 
   // The check box: 6 mm square, 0.5 mm stroke, always empty (v3.27.7): the
   // sheet is ticked by hand, whatever is ticked on screen.
-  ctx.lineWidth = mm(0.5);
-  ctx.strokeRect(mm(PAD + 0.25), mm(top + ROW.pad + 0.5 + 0.25), mm(5.5), mm(5.5));
+  ctx.lineWidth = mm(0.55);
+  ctx.strokeRect(mm(PAD + 0.275), mm(top + ROW.pad + 0.5 + 0.275), mm(ROW.check - 0.55), mm(ROW.check - 0.55));
 
-  if (b.row.pack) drawBadge(ctx, PAD + ROW.check + ROW.gap + ROW.badge / 2, top + ROW.pad + 0.5 + 3, ROW.badge, b.row.pack);
+  if (b.row.pack) drawBadge(ctx, PAD + ROW.check + ROW.gap + ROW.badge / 2, top + ROW.pad + 0.5 + ROW.badge / 2, ROW.badge, b.row.pack);
   ctx.textBaseline = 'top';
   ctx.textAlign = 'left';
   let y = top + ROW.pad;
   const code = rowCode(b);
-  setFont(ctx, '700', 10);
+  setFont(ctx, '700', 11.5);
   const codeW = ctx.measureText(code).width;
-  setFont(ctx, '400', 8.5);
+  setFont(ctx, '400', 9.8);
   const space = ctx.measureText(' ').width;
   const all = wrapLines(ctx, rowName(b), textW - codeW - space, textW);
   const lines = all.slice(0, 2);
   if (all.length > 2) lines[1] = ellipsize(ctx, lines[1], textW);
-  setFont(ctx, '700', 10);
+  setFont(ctx, '700', 11.5);
   ctx.fillText(code, mm(textX), mm(y));
-  setFont(ctx, '400', 8.5);
+  setFont(ctx, '400', 9.8);
   if (lines[0]) ctx.fillText(lines[0], mm(textX) + codeW + space, mm(y));
   y += ROW.first;
   for (const line of lines.slice(1)){
@@ -121,10 +123,10 @@ function drawRow(ctx, top, b, platformLabel){
     y += ROW.next;
   }
 
-  setFont(ctx, '400', 7.5);
+  setFont(ctx, '400', 8.6);
   ctx.fillText(fit(ctx, rowMeta(b, platformLabel), textW), mm(textX), mm(y));
   y += ROW.meta;
-  setFont(ctx, '700', 7.5);
+  setFont(ctx, '700', 8.6);
   for (const flag of b.flags){
     ctx.fillText(fit(ctx, flag, textW), mm(textX), mm(y));
     y += ROW.flag;
@@ -136,11 +138,11 @@ function drawRow(ctx, top, b, platformLabel){
 
 // One package: its number in a ring, then the buyer and the piece count.
 function drawPack(ctx, top, b){
-  const d = 5.2;
+  const d = 6;
   drawBadge(ctx, PAD + d / 2, top + b.h / 2 - 0.1, d, b.pack.n);
   ctx.textBaseline = 'middle';
   ctx.textAlign = 'left';
-  setFont(ctx, '700', 9);
+  setFont(ctx, '700', 10.4);
   ctx.fillText(fit(ctx, packText(b.pack), mm(TEXT_W - d - 3)), mm(PAD + d + 3), mm(top + b.h / 2));
   ctx.fillRect(mm(PAD), mm(top + b.h - 0.2), mm(TEXT_W), mm(0.2));
 }
@@ -155,6 +157,32 @@ function drawSign(ctx, top, h){
   setFont(ctx, '400', 8.5);
   ctx.fillText('Picked by', mm(PAD), mm(y + 1.3));
   ctx.fillText('Date', mm(PAD + 62), mm(y + 1.3));
+}
+
+// The message above the signature line (v3.27.24): centered, bold italic,
+// black. It is wrapped to the lines pick-print.js reserved for it; when the
+// text still needs more, the type shrinks a little, and as a last resort the
+// last line ends with an ellipsis.
+function drawQuote(ctx, top, b){
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const maxW = mm(TEXT_W - 6);
+  let pt = 10.5;
+  let lines;
+  for (;;){
+    ctx.font = `italic 700 ${pt * PX_PER_PT}px ${FAMILY}`;
+    lines = wrapLines(ctx, b.text, maxW, maxW);
+    if (lines.length <= b.lines || pt <= 7.5) break;
+    pt -= 0.5;
+  }
+  if (lines.length > b.lines){
+    lines = lines.slice(0, b.lines);
+    lines[b.lines - 1] = ellipsize(ctx, lines[b.lines - 1], maxW);
+  }
+  const lineH = b.h > 0 ? (b.h - 4) / b.lines : 0;
+  lines.forEach((line, i) => ctx.fillText(line, mm(SHEET_MM.width / 2), mm(top + 2 + lineH * (i + 0.5))));
+  ctx.restore();
 }
 
 // The title and the two summary lines, on the first page only.
@@ -172,8 +200,8 @@ function drawHead(ctx, pl, storeName, stamp){
 
 // One canvas per 100 × 210 mm page, in the same order and with the same
 // breaks as paginatePick(). The boxes are always empty.
-export function renderPickPages(pl, { storeName = '', when = new Date(), platformLabel = (k) => k } = {}){
-  const pages = paginatePick(pl, platformLabel);
+export function renderPickPages(pl, { storeName = '', when = new Date(), platformLabel = (k) => k, message = '' } = {}){
+  const pages = paginatePick(pl, platformLabel, message);
   const stamp = when.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
   return pages.map((blocks, p) => {
     const canvas = document.createElement('canvas');
@@ -194,6 +222,7 @@ export function renderPickPages(pl, { storeName = '', when = new Date(), platfor
       if (b.type === 'box') drawBox(ctx, top, b);
       else if (b.type === 'row') drawRow(ctx, top, b, platformLabel);
       else if (b.type === 'pack') drawPack(ctx, top, b);
+      else if (b.type === 'quote') drawQuote(ctx, top, b);
       else drawSign(ctx, top, b.h);
       top += b.h;
     }

@@ -8,6 +8,7 @@ import { saveSettings, saveSettingsFields, resetAiCounter } from '../../data/set
 import { renderSettings } from './settings-view.js';
 import { applyTheme, applyAccent, normalizeTheme } from '../theme.js';
 import { isHexColor } from '../../domain/accent.js';
+import { normalizePickMessage } from '../../domain/pick-messages.js';
 
 window.savePriceSettings = async function(){
   appSettings.targetMarginPct = parseFloat(document.getElementById('sMarginPct').value) || 40;
@@ -38,9 +39,32 @@ window.saveLabelSettings = async function(){
     color: document.getElementById('sLabelFieldColor').checked,
     category: document.getElementById('sLabelFieldCategory').checked,
     brand: document.getElementById('sLabelFieldBrand').checked,
+    barcode: document.getElementById('sLabelFieldBarcode').checked,
   };
   await saveSettings();
   showSaveMsg('labelSaveMsg');
+};
+
+// Pick list message (v3.27.24): only the pickMessage field is written, with
+// merge, like the AI writing instructions.
+window.savePickMessageSettings = async function(){
+  const pm = normalizePickMessage({
+    mode: document.getElementById('sPickMsgMode').value,
+    text: document.getElementById('sPickMsgText')?.value,
+  });
+  const ok = await saveSettingsFields({ pickMessage: pm });
+  showSaveMsg(ok ? 'pickMsgSaveMsg' : 'pickMsgErrMsg');
+};
+window.pickMessageCount = function(){
+  const el = document.getElementById('sPickMsgText');
+  const out = document.getElementById('pickMsgCount');
+  if (el && out) out.textContent = `${el.value.length} / ${el.maxLength}`;
+};
+// Shows the text box only for the Fixed mode.
+window.pickMessageModeChange = function(){
+  const mode = document.getElementById('sPickMsgMode').value;
+  const wrap = document.getElementById('pickMsgFixedWrap');
+  if (wrap) wrap.hidden = mode !== 'fixed';
 };
 
 // Appearance (v3.21.0): applied at once, then saved for the business.
