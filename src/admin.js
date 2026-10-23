@@ -548,6 +548,15 @@ function renderApp(){
       </div>
     </div>
     <div class="ad-card">
+      <h3>Self-serve sign-up</h3>
+      <div class="ad-desc">When on, a new account that verifies its email creates its own store ("Create your store") and gets in without approval. When off, new accounts wait in Approvals as before. Turn it on only after the server-side AI limit and App Check are in place.</div>
+      <div id="adSelfServeStatus" class="ad-empty">Loading…</div>
+      <div id="adSelfServeProgress" class="ad-meta" style="margin-top:8px;"></div>
+      <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="ad-btn" id="adSelfServeBtn" disabled>…</button>
+      </div>
+    </div>
+    <div class="ad-card">
       <h3>Business migration</h3>
       <div class="ad-desc">Copies today's catalog, drafts, Live Catalog, counters, settings, eBay error library and eBay connection into one business (businesses/{id}). <b>Copy, never move:</b> the app keeps using the current data until the switch, and nothing is deleted. Safe to run again.</div>
       <div class="ad-desc">Before copying: download a backup in the Backup tab and run a Google Cloud export.</div>
@@ -574,6 +583,8 @@ function renderApp(){
   document.getElementById('adClaimsRefreshBtn').addEventListener('click', () => loadAdminClaims());
   document.getElementById('adClaimsSyncBtn').addEventListener('click', runAdminClaimsSync);
   loadAdminClaims();
+  document.getElementById('adSelfServeBtn').addEventListener('click', toggleSelfServe);
+  loadSelfServe();
   document.getElementById('adMigrationRefreshBtn').addEventListener('click', loadMigrationStatus);
   document.getElementById('adMigrationCopyBtn').addEventListener('click', runMigrationCopy);
   document.getElementById('adMigrationSwitchBtn').addEventListener('click', runMigrationSwitch);
@@ -703,6 +714,48 @@ async function runAdminClaimsSync(){
   }catch(e){
     progress.textContent = `Could not sync: ${e.message || e}`;
   }finally{
+    btn.disabled = false;
+  }
+}
+
+// ---------- Self-serve sign-up (v3.28.0, api/_business.js) ----------
+let selfServeOn = null;
+
+function drawSelfServe(){
+  const el = document.getElementById('adSelfServeStatus');
+  const btn = document.getElementById('adSelfServeBtn');
+  el.innerHTML = selfServeOn
+    ? '<div class="ebay-status-box success">On: new accounts create their own store after verifying their email.</div>'
+    : '<div class="ebay-status-box pending">Off: new accounts wait for approval.</div>';
+  btn.textContent = selfServeOn ? 'Turn off' : 'Turn on';
+  btn.className = selfServeOn ? 'ad-btn danger' : 'ad-btn';
+  btn.disabled = false;
+}
+
+async function loadSelfServe(){
+  try{
+    const r = await platformAction({ action: 'self_serve' });
+    selfServeOn = r.selfServe === true;
+    drawSelfServe();
+  }catch(e){
+    document.getElementById('adSelfServeStatus').innerHTML = `<div class="ebay-status-box error">Could not load the sign-up switch: ${escapeHtml(e.message || String(e))}</div>`;
+  }
+}
+
+async function toggleSelfServe(){
+  const on = !selfServeOn;
+  if (on && !confirm('Turn on self-serve sign-up? Anyone who creates an account and verifies the email will get their own store, with AI use, without your approval.')) return;
+  const btn = document.getElementById('adSelfServeBtn');
+  const progress = document.getElementById('adSelfServeProgress');
+  btn.disabled = true;
+  progress.textContent = on ? 'Turning on…' : 'Turning off…';
+  try{
+    const r = await platformAction({ action: 'self_serve_set', on });
+    selfServeOn = r.selfServe === true;
+    progress.textContent = selfServeOn ? 'Self-serve sign-up is on.' : 'Self-serve sign-up is off.';
+    drawSelfServe();
+  }catch(e){
+    progress.textContent = `Could not change it: ${e.message || e}`;
     btn.disabled = false;
   }
 }

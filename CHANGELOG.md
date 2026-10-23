@@ -3,6 +3,41 @@
 Version history for Calculated Chaos. The current version is also shown in
 the badge at the top of the app (`APP_VERSION` in `src/modules/version.js`).
 
+## v3.28.0 — 2026-10-23
+
+Self-serve sign-up starts: "Create your store", behind a switch that is off.
+Rolls up v3.27.1 – v3.27.26 and v3.28.0.
+
+- **Create your store** (v3.28.0, `docs/multi-tenant.md` step 5). While the
+  new "Self-serve sign-up" switch in the Developer Panel → App is on, a new
+  account verifies its email and then names its store (name, optional logo,
+  where it sells). The server (`api/platform.js` actions `signup_status` and
+  `business_create`, logic in `api/_business.js`) creates the business, its
+  owner member and its settings, and approves the account, in one
+  transaction; asking twice returns the same store. Each new store starts
+  with `aiMonthlyLimit: 100`, not enforced yet. With the switch off (the
+  default) nothing changes: new accounts wait in Approvals. Existing accounts
+  never see the screen. No rules change. `domain/new-business.js`,
+  `ui/onboarding/store-setup.js`, `tests/domain/new-business.test.mjs`.
+- **Labels** (v3.27.24 – v3.27.26). Item labels carry a Code 128 barcode of
+  the product code, in pure black. Settings → Labels opens with a live
+  preview, has a Store name line and warns when a choice makes the label too
+  tight. A product code field holding two codes is flagged, can't be saved
+  from the item form and prints no barcode.
+- **Pick** (v3.27.1 – v3.27.7, v3.27.24). Reads the order's real total, fee
+  and sales tax and splits a bundle by listed price; package numbers on the
+  checklist; better name matching (garment type must agree, sold pieces
+  found, suggestions when nothing fits); an activity log; bigger type and an
+  optional message on the checklist.
+- **Finances** (v3.27.3). A "Sales tax collected" line in the Overview.
+- **Speed and sync** (v3.27.4 – v3.27.5). Pick matching on a prepared index;
+  Stock and Finances draw only when opened; the catalog stays current across
+  devices with `onSnapshot`.
+- **Welcome page and sign-in** (v3.27.8 – v3.27.23). A public welcome page at
+  `/` (the app moved to `/app`), designed for desktop and phone, with a tour
+  of one piece from photo to sale; "Forgot password?" on sign-in; a new tab
+  and home-screen icon.
+
 ## v3.27.0 — 2026-10-22
 
 A faster start and a faster Catalog. Rolls up v3.26.1 – v3.26.14 and v3.27.0.
