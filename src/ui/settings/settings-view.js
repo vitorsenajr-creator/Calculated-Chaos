@@ -12,6 +12,8 @@
 import { appSettings } from '../../modules/state.js';
 import { escapeHtml } from '../../modules/format-utils.js';
 import { aiUsageRemaining, aiUsagePct } from '../../data/settings-store.js';
+import { serverAiAllowance } from '../../data/ai-allowance-store.js';
+import { monthName } from '../../domain/ai-allowance.js';
 import { renderAuthorizeAccessPanel, renderEmployeeAccountsPanel, createEmployeeLogin } from './admin-panels.js';
 import { isPlatformAdmin } from '../../modules/admin-claim.js';
 import { sendVerificationEmail, refreshEmailVerified } from '../../modules/email-verification.js';
@@ -53,7 +55,7 @@ function isDesktop(){
 // The index, in order, under its headings. Team is for platform admins.
 function settingsGroups(){
   const remaining = aiUsageRemaining();
-  const limit = appSettings.aiUsageLimit || 500;
+  const limit = serverAiAllowance()?.limit || appSettings.aiUsageLimit || 500;
   const theme = THEMES.find(t => t.key === normalizeTheme(appSettings.theme));
   const carrier = CARRIER_LABEL[appSettings.defaultCarrier] || appSettings.defaultCarrier || CARRIER_LABEL.usps_ground;
   const platformCount = getAllPlatforms(appSettings).length;
@@ -128,6 +130,36 @@ function accentNote(){
   return adjusted
     ? `Adjusted where needed so text stays readable: buttons and links use <b>${escapeHtml(applied[0])}</b>, the navigation marker <b>${escapeHtml(applied[1])}</b>.`
     : `Used as is: <b>${escapeHtml(appSettings.accentColor.toUpperCase())}</b>.`;
+}
+
+// A store with a server-side AI allowance (v3.28.1): the server's numbers,
+// read only. Its limit comes with the store's plan, not from Settings.
+function serverAiPageHtml(a, pct, valueClass){
+  const resets = `${monthName(a.resetsOn.slice(0, 7))} 1`;
+  return `
+      <div class="settings-section">
+        <h3>AI usage</h3>
+        <div class="ss-desc">Every AI action counts: photo analysis, listing rewrites, voice narration, Pick screenshots, the import column check and the eBay helpers. The count starts over on the first of each month.</div>
+        <div class="ai-counter-box">
+          <div class="ai-counter-stat">
+            <div class="label">Used in ${escapeHtml(monthName(a.month))}</div>
+            <div class="value ${valueClass}">${a.used}</div>
+          </div>
+          <div class="ai-counter-stat">
+            <div class="label">Remaining</div>
+            <div class="value ${valueClass}">${a.remaining}</div>
+          </div>
+          <div class="ai-counter-stat">
+            <div class="label">Monthly limit</div>
+            <div class="value">${a.limit}</div>
+          </div>
+          <div class="ai-counter-stat">
+            <div class="label">Resets on</div>
+            <div class="value small">${escapeHtml(resets)}</div>
+          </div>
+        </div>
+        <div class="ai-meter"><div class="ai-meter-fill ${valueClass}" style="width:${pct}%;"></div></div>
+      </div>`;
 }
 
 // fresh: entering Settings from the nav. The phone starts at the index;
@@ -408,7 +440,7 @@ ${page('picklist', `
         <div class="settings-success" id="pickMsgSaveMsg">Saved</div>
         <div class="settings-success error" id="pickMsgErrMsg">Couldn\u2019t save. Check your connection and try again.</div>
       </div>`)}
-${page('ai', `
+${page('ai', serverAiAllowance() ? serverAiPageHtml(serverAiAllowance(), pct, valueClass) : `
       <!-- AI USAGE COUNTER -->
       <div class="settings-section">
         <h3>AI analysis usage</h3>

@@ -30,6 +30,7 @@
 
 import { requireApprovedUser } from './_requireApprovedUser.js';
 import { recordAiUsage } from './_aiUsage.js';
+import { requireAiAllowance } from './_aiAllowance.js';
 import { getEbayAccessToken, ebayConnectionId } from './_ebayToken.js';
 
 const EBAY_SANDBOX = process.env.EBAY_SANDBOX === 'true';
@@ -216,10 +217,14 @@ export default async function handler(req, res) {
   }
 
   try {
+    // The two AI modes count against the store's monthly AI allowance
+    // (v3.28.1); the aspect lookup is plain eBay and doesn't.
     if (req.body?.mode === 'suggest_fee') {
+      if (!(await requireAiAllowance(authCheck, res))) return;
       return await handleSuggestFee(req, res, authCheck);
     }
     if (req.body?.mode === 'explain_error') {
+      if (!(await requireAiAllowance(authCheck, res))) return;
       return await handleExplainError(req, res, authCheck);
     }
     return await handleAspects(req, res, authCheck);

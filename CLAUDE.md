@@ -365,6 +365,11 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
     `signup_status`; switch off or no answer = "Awaiting approval" as before.
     Steps 2-4 of onboarding and the Getting started checklist come later
     (design canvas "Calculated Chaos Onboarding").
+  - AI allowance (v3.28.1): `domain/ai-allowance.js` (limit, count, reset,
+    message), `api/_aiAllowance.js` (`requireAiAllowance()` before every
+    Anthropic call; add it to any new AI call), `data/ai-allowance-store.js`
+    (the app's copy of the server's numbers). The old `aiUsageCount` /
+    `aiUsageLimit` in settings stay for stores without a server limit.
   - `ui/lightbox.js`: `openLightbox(photos, index)`; its state is private.
   - `ui/label-render.js`: label preview markup + canvas drawing. Item
     labels carry a Code 128 barcode of the product code without the "#"
@@ -619,9 +624,9 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
   sends one); (5) verified email required (v3.18.4, after both accounts
   verified). Then
   Google sign-in, App Check, admin 2FA, then onboarding/invites (step 5).
-  Step 5 started in v3.28.0 ("Create your store", switch off); next: the
-  server-side AI limit per business (`aiMonthlyLimit`, 100 for new stores),
-  then App Check, then turning the switch on. The root collections stay, read-only for the business's
+  Step 5 started in v3.28.0 ("Create your store", switch off); the AI
+  allowance per business is enforced on the server since v3.28.1; next: App
+  Check, then turning the switch on. The root collections stay, read-only for the business's
   members, until Vitor confirms removing them.
 - **General eBay review**: Vitor plans to review the whole eBay flow soon
   (2026-10-19). The shipping-policy bug is considered resolved; see
@@ -659,6 +664,19 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
   Revisit if the catalog grows.
 
 ### Unverified in production (build-verified only)
+
+- Server-side AI allowance (v3.28.1): Node tests (5 new) and a handler test
+  with a fake Firebase Admin and a mocked Anthropic: three calls pass at a
+  limit of 3, the fourth gets 429 with the message and makes no Anthropic call,
+  an eBay explain_error call is refused the same way, `ai_allowance` reports
+  3 used and 0 left, a bad request answers 400 before the check, a business
+  without the field is not limited, a failed usage query lets the call through
+  and logs. Chromium on the harness with `/api/platform` mocked: Settings → AI
+  usage shows "Used in October 37 / Remaining 63 / Monthly limit 100 / Resets
+  on November 1" with no limit field, the index says "37 of 100 used"; a store
+  without a limit keeps the old page; no page errors. Not run: the real
+  Firestore query and meter, a real 429 shown in the item modal, Pick and
+  Import. Confirm on the first new store before relying on it.
 
 - Create your store (v3.28.0): Node tests (6 new for `domain/new-business.js`),
   a server test of `api/_business.js` with a fake Firestore and token check
@@ -1117,7 +1135,25 @@ on any of these:
 
 ## Pending changelog entry (since v3.28.0)
 
-(empty: v3.27.1 – v3.28.0 are rolled up in `CHANGELOG.md`)
+- v3.28.1: the store's monthly AI allowance is enforced on the server. A
+  business with `aiMonthlyLimit` on its doc (new stores: 100) may make that
+  many AI calls per UTC month, every call type counted (Vitor, 2026-10-23):
+  ✨ analysis, rewrite, import column check, Pick screenshot, narration
+  extract, suggested fee, eBay error explanation. `api/_aiAllowance.js`
+  sums the `ai_usage` meter for the business and month before each Anthropic
+  call (`analyze-photo.js`, `narration.js` extract, `ebay-item-aspects.js`
+  AI modes) and answers 429 "Your store used its 100 AI actions for October.
+  They reset on November 1." at the limit. A business without the field (the
+  migrated one) and an account without a business are not limited. A failed
+  read lets the call through (`ai-allowance-error` in the logs). New
+  `api/platform.js` action `ai_allowance` (any approved account); the app
+  loads it after sign-in (`data/ai-allowance-store.js`), uses it for the
+  checks before a call, shows the server's sentence on a 429, and Settings →
+  AI usage shows the server's numbers read only (no limit or reset
+  controls) for such a store. `domain/ai-allowance.js`,
+  `tests/domain/ai-allowance.test.mjs` (5 tests). Unverified in production:
+  the real `ai_usage` query (two equality filters, no index needed), a real
+  429 in the item modal, Pick and Import.
 
 ## Backlog (not started)
 

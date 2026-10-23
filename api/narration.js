@@ -22,6 +22,7 @@
 
 import { requireApprovedUser } from './_requireApprovedUser.js';
 import { recordAiUsage } from './_aiUsage.js';
+import { requireAiAllowance } from './_aiAllowance.js';
 import { buildNarrationExtractPrompt } from '../src/modules/narration-prompts.js';
 
 async function handleTranscribe(req, res){
@@ -72,6 +73,8 @@ async function handleExtract(req, res, auth){
   if (!promptText) {
     return res.status(400).json({ error: 'Unknown narration kind.' });
   }
+  // The store's monthly AI allowance (v3.28.1).
+  if (!(await requireAiAllowance(auth, res))) return;
 
   const anthropicResponse = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',

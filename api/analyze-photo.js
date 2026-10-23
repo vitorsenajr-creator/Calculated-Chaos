@@ -25,6 +25,7 @@
 
 import { requireApprovedUser } from './_requireApprovedUser.js';
 import { recordAiUsage } from './_aiUsage.js';
+import { requireAiAllowance } from './_aiAllowance.js';
 import { buildItemAiRequest } from '../src/modules/ai-item.js';
 import { buildImportMapRequest } from '../src/modules/ai-import.js';
 import { buildSaleScreenshotRequest } from '../src/modules/ai-sale-screenshot.js';
@@ -136,6 +137,10 @@ export default async function handler(req, res) {
   // The import sends no photos; a sale screenshot is read one at a time.
   if (mode === 'import_map') safeImageBlocks.length = 0;
   if (mode === 'sale_screenshot') safeImageBlocks.length = 1;
+
+  // The store's monthly AI allowance (v3.28.1): checked after the request is
+  // known to be valid, so a bad request never counts against it.
+  if (!(await requireAiAllowance(authCheck, res))) return;
 
   try {
     const content = [...safeImageBlocks, { type: 'text', text: promptText }];

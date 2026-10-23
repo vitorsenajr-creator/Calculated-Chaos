@@ -58,6 +58,10 @@
 //     -> { selfServe, hasBusiness }: whether a verified pending account
 //        sees "Create your store" or "Awaiting approval".
 //
+//   action: 'ai_allowance' (v3.28.1, any approved account)
+//     -> { limited, limit, used, remaining, allowed, month, resetsOn } for
+//        the caller's store (_aiAllowance.js).
+//
 //   action: 'business_create', name, logo?, sellsOn?
 //     -> creates the caller's store and approves the account, only while
 //        the switch is on and the email is verified. Returns { bizId }.
@@ -69,6 +73,7 @@ import { adminClaimsStatus, adminClaimsSync } from './_adminClaims.js';
 import { usersAuthInfo, userRemove, userRestore, userDeny, employeeCreate } from './_users.js';
 import { aiUsageReport } from './_aiUsage.js';
 import { verifySignedInUser, signupStatus, businessCreate, readSelfServe, selfServeSet } from './_business.js';
+import { getAiAllowance } from './_aiAllowance.js';
 import { usageMonth } from '../src/domain/ai-usage.js';
 
 async function handleHealth(auth){
@@ -129,6 +134,17 @@ export default async function handler(req, res){
   const auth = await requireApprovedUser(req);
   if (!auth.ok){
     return res.status(auth.status).json({ error: auth.error });
+  }
+  // The caller's store AI allowance (v3.28.1), for Settings → AI usage. Any
+  // approved account; not an admin action.
+  if (action === 'ai_allowance'){
+    try{
+      const a = await getAiAllowance(auth);
+      return res.status(200).json({ ok: true, ...a });
+    }catch(err){
+      console.error('ai-allowance-error', err);
+      return res.status(503).json({ error: 'Could not read the AI allowance right now.' });
+    }
   }
   if (!isPlatformAdminUid(auth.uid)){
     return res.status(403).json({ error: 'Platform admins only.' });
