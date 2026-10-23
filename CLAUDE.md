@@ -341,7 +341,7 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
     builds the hooks and calls `use()`; never import a screen statically
     from `main.js`.
   - `domain/pick-messages.js` (v3.27.24): the 365 built-in messages and
-    `pickMessageFor()`. Settings → Labels → Pick list message
+    `pickMessageFor()`. Settings → Pick list (its own group since v3.27.25)
     (`appSettings.pickMessage` `{ mode: off|fixed|random, text ≤120 }`, saved
     alone with `saveSettingsFields`; default off). Random is a new draw each
     time the checklist is shared (`checklistMessage()` in `pick-view.js`;
@@ -358,7 +358,15 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
     bars a whole number of pixels wide; left off when the bars would be
     under 0.012 in). Settings → Labels → Barcode (`labelFields.barcode`, on
     unless `false`). Ink is pure black. With a barcode the code's font cap is
-    `h × 0.28` instead of `h × 0.4675`.
+    `h × 0.28` instead of `h × 0.4675`. Store name line (v3.27.25,
+    `labelFields.storeName`, off by default): capitals, `appSettings.storeName`,
+    a thin line above the code. Settings → Labels (`ui/settings/labels-panel.js`):
+    a canvas preview drawn by the printing code with the catalog's longest
+    value of each field, the size, one row per line, and a window ("This label
+    is getting tight", Undo / Keep anyway) when `judgeLabelFit()`
+    (`domain/label-fit.js`: name under 0.13 in, code under 0.2 in, block over
+    92% of the height) finds a problem the previous state did not have;
+    `measureItemLabelFit()` in `label-render.js` gives it the measures.
   - `ui/labels/`: print modal (`openBatchLabelModal`), Quick Labels,
     storage boxes, Stock Transfer (v3.17.3).
   - `domain/product-code-match.js`: typed digits → item.
@@ -631,6 +639,16 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
   Revisit if the catalog grows.
 
 ### Unverified in production (build-verified only)
+
+- Settings → Labels page, store name line and tight-label window (v3.27.25):
+  Node tests (86 pass, 6 new for `judgeLabelFit`) and a Chromium test of the
+  built app (harness, phone viewport, sample business): the page lists Preview,
+  Size and What prints; ticking Store name, Category and Brand at 4 x 2 in
+  opens no window; shrinking the height to 1 in opens it with the two problems,
+  Undo puts 2 back, Keep anyway keeps 1, and easing a field afterwards does not
+  ask again; the Pick list group shows Off. Not run: the real settings save with
+  Firestore, an iPhone, a printed label with the store line (the preview is the
+  same drawing code, not a print).
 
 - Label barcode, Pick type and message (v3.27.24): Node tests (80 pass: the
   Code 128 table and check symbol, the encoder compared with the `jsbarcode`
@@ -1052,6 +1070,21 @@ on any of these:
   sizing (v3.13.102-105), inspection flag icon (v3.13.114).
 
 ## Pending changelog entry (since v3.27.0)
+
+- v3.27.25: Settings → Labels, reorganized, with a store name line and a
+  tight-label warning. The page opens with a live preview of the label (the
+  printing code draws it, with the longest name, color, category, brand and box
+  in the catalog), then Size, then What prints: one row per line, all the same
+  format (title and a short hint). New "Store name" row (off by default): the
+  store's name in capitals above the code. Ticking a line or changing the size
+  re-draws the preview; when it leaves the name under 0.13 in (9 pt), the code
+  under 0.2 in or the block over 92% of the label's height, a window says what
+  is tight and offers Undo (the default) or Keep anyway; a change that does not
+  add a new problem never asks. The Pick list message moved out of Labels into
+  its own Settings group, "Pick list". `domain/label-fit.js`,
+  `ui/settings/labels-panel.js`, `tests/domain/label-fit.test.mjs` (6 tests).
+  Unverified in production: the page and the window on a real iPhone, a printed
+  label with the store line.
 
 - v3.27.24: item label barcode, bigger Pick type and a Pick message. The item
   label prints a Code 128 barcode of its product code (without the "#", so a

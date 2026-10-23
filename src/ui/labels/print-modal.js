@@ -63,7 +63,7 @@ export function openBatchLabelModal(itemsArr, session = null){
   const scratch = document.createElement('canvas');
   scratch.width = Math.round(w * dpi);
   scratch.height = Math.round(h * dpi);
-  const { codeFontIn, secFontIn, boxFontIn } =
+  const { codeFontIn, secFontIn, boxFontIn, storeFontIn } =
     computeSharedBatchFonts(scratch.getContext('2d'), itemsArr, w, dpi, h);
 
   const wrap = document.getElementById('labelPreviewWrap');
@@ -73,6 +73,8 @@ export function openBatchLabelModal(itemsArr, session = null){
     const codeEl = strip.querySelector('.label-code');
     const secEl = strip.querySelector('.label-secondary');
     const boxEl = strip.querySelector('.label-box');
+    const storeEl = strip.querySelector('.label-store');
+    if (storeEl) storeEl.style.fontSize = storeFontIn.toFixed(3) + 'in';
     if (codeEl) codeEl.style.fontSize = codeFontIn.toFixed(3) + 'in';
     if (secEl) secEl.style.fontSize = secFontIn.toFixed(3) + 'in';
     if (boxEl) boxEl.style.fontSize = boxFontIn.toFixed(3) + 'in';

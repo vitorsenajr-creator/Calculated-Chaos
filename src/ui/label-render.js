@@ -18,6 +18,14 @@ function labelBarcode(item, w, fields){
   return barcodeLayout(item, w, 300);
 }
 
+// The store name line at the top of an item label (v3.27.25): off unless
+// Settings → Labels → Store name is ticked, and nothing when the store has no
+// name. Capitals so a small line still reads at a glance.
+function labelStoreText(fields){
+  if (fields.storeName !== true) return '';
+  return String(appSettings.storeName || '').trim().toUpperCase();
+}
+
 // The bars as one SVG path (a rect per run of black modules), sized in
 // inches like the rest of the label markup.
 function barcodeSvg(layout){
@@ -49,6 +57,7 @@ export function buildLabelInnerHtml(item){
   const secondary = secondaryParts.join(' · ');
   const flagSizeIn = Math.min(0.32, h * 0.14, w * 0.14);
   const barcode = labelBarcode(item, w, fields);
+  const storeText = labelStoreText(fields);
 
   // Priority order top-to-bottom: SKU code, then name/color, then storage
   // box — matches how important each detail is when scanning the label.
@@ -60,6 +69,7 @@ export function buildLabelInnerHtml(item){
   return `
       <div class="label-content-block">
         ${item.shipInspectionFlag ? `<div class="label-flag" style="width:${flagSizeIn}in; height:${flagSizeIn}in;" title="Inspect before shipping"><svg viewBox="0 0 100 100" width="100%" height="100%"><path d="M50 4 L96 90 L4 90 Z" fill="#000" stroke="#000" stroke-width="8" stroke-linejoin="round"/><rect x="44" y="31" width="12" height="34" fill="#fff"/><circle cx="50" cy="76" r="7" fill="#fff"/></svg></div>` : ''}
+        ${storeText ? `<div class="label-store">${escapeHtml(storeText)}</div>` : ''}
         <div class="label-code">${escapeHtml(item.productCode || '')}</div>
         ${secondary ? `<div class="label-secondary">${escapeHtml(secondary)}</div>` : ''}
         ${barcode ? `<div class="label-barcode">${barcodeSvg(barcode)}</div>` : ''}
@@ -200,6 +210,7 @@ function measureItemLabelFonts(ctx, item, w, dpi, h){
   const secondary = secondaryParts.join(' · ');
   const boxText = (fields.box !== false && item.storageBox) ? ('📦 ' + item.storageBox) : '';
   const barcode = labelBarcode(item, w, fields);
+  const storeText = labelStoreText(fields);
 
   // Code is the most important thing to scan at a glance, so its cap is
   // generous enough to actually use most of a tall/wide label instead of
@@ -212,6 +223,9 @@ function measureItemLabelFonts(ctx, item, w, dpi, h){
   // bars and the name still fit under it.
   let codeFontIn = fitFontIn(code, "'JetBrains Mono', monospace", 700, barcode ? Math.min(1.19, h * 0.28) : Math.min(1.19, h * 0.4675), 0.14);
   let boxFontIn = boxText ? fitFontIn(boxText, "'Inter', sans-serif", 600, Math.min(0.16, h * 0.075), 0.09) : 0;
+  // The store line (v3.27.25) is a thin line: its own small ceiling, never
+  // bigger than the box line.
+  let storeFontIn = storeText ? fitFontIn(storeText, "'Inter', sans-serif", 700, Math.min(0.12, h * 0.06), 0.07) : 0;
 
   const gapIn = 0.035, lineHeightMult = 1.15;
   const maxBlockIn = h * 0.92;
@@ -223,9 +237,10 @@ function measureItemLabelFonts(ctx, item, w, dpi, h){
   // budget when code+box already consume all of maxBlockIn (or more) is
   // exactly what let the box line get cut off — the name's own minFontIn
   // loop below is the only floor that's safe to rely on.
-  const nameBudgetIn = maxBlockIn - codeFontIn - (boxText ? gapIn + boxFontIn : 0) - (secondary ? gapIn : 0) - (barcode ? gapIn + BARCODE_HEIGHT_IN : 0);
+  const nameBudgetIn = maxBlockIn - codeFontIn - (boxText ? gapIn + boxFontIn : 0) - (secondary ? gapIn : 0) - (barcode ? gapIn + BARCODE_HEIGHT_IN : 0) - (storeText ? gapIn + storeFontIn : 0);
 
   let secFontIn = 0;
+  let secLineCount = 0;
   if (secondary){
     let fontIn = Math.min(0.38, h * 0.17);
     let lines;
@@ -236,9 +251,17 @@ function measureItemLabelFonts(ctx, item, w, dpi, h){
       fontIn -= 0.02;
     }
     secFontIn = fontIn;
+    ctx.font = `700 ${fontIn * dpi}px 'Inter', sans-serif`;
+    secLineCount = wrapCanvasText(secondary, maxWidth).length;
   }
 
-  return { code, secondary, boxText, barcode, codeFontIn, secFontIn, boxFontIn };
+  // How tall the whole block comes out, for the fit check in Settings → Labels
+  // (src/domain/label-fit.js).
+  const blockIn = (storeText ? storeFontIn + gapIn : 0) + codeFontIn
+    + (secondary ? gapIn + secFontIn * lineHeightMult * secLineCount : 0)
+    + (barcode ? gapIn + BARCODE_HEIGHT_IN : 0) + (boxText ? gapIn + boxFontIn : 0);
+
+  return { code, secondary, boxText, barcode, storeText, codeFontIn, secFontIn, boxFontIn, storeFontIn, blockIn };
 }
 
 // Finds the uniform font sizes (smallest needed by any item that has
@@ -250,7 +273,9 @@ export function computeSharedBatchFonts(ctx, itemsArr, w, dpi, h){
   const secFontIn = secSizes.length ? Math.min(...secSizes) : 0;
   const boxSizes = measures.filter(m => m.boxText).map(m => m.boxFontIn);
   const boxFontIn = boxSizes.length ? Math.min(...boxSizes) : 0;
-  return { measures, codeFontIn, secFontIn, boxFontIn };
+  const storeSizes = measures.filter(m => m.storeText).map(m => m.storeFontIn);
+  const storeFontIn = storeSizes.length ? Math.min(...storeSizes) : 0;
+  return { measures, codeFontIn, secFontIn, boxFontIn, storeFontIn };
 }
 
 // Draws one item's label using pre-decided (shared) font sizes, centered
@@ -275,11 +300,19 @@ function drawBatchItemAt(ctx, w, dpi, yTopIn, h, fonts, m){
   }
 
   const secBlockIn = secLines.length ? fonts.secFontIn * lineHeightMult * secLines.length : 0;
-  const totalIn = fonts.codeFontIn + (secLines.length ? gapIn + secBlockIn : 0) + (m.barcode ? gapIn + BARCODE_HEIGHT_IN : 0) + (m.boxText ? gapIn + fonts.boxFontIn : 0);
+  const totalIn = (m.storeText ? fonts.storeFontIn + gapIn : 0) + fonts.codeFontIn + (secLines.length ? gapIn + secBlockIn : 0) + (m.barcode ? gapIn + BARCODE_HEIGHT_IN : 0) + (m.boxText ? gapIn + fonts.boxFontIn : 0);
 
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  let curY = (yTopIn + (h - totalIn) / 2 + fonts.codeFontIn / 2) * dpi;
+  let curY = (yTopIn + (h - totalIn) / 2) * dpi;
+
+  if (m.storeText){
+    ctx.fillStyle = '#000';
+    ctx.font = `700 ${fonts.storeFontIn * dpi}px 'Inter', sans-serif`;
+    ctx.fillText(m.storeText, canvasWidthPx / 2, curY + fonts.storeFontIn / 2 * dpi);
+    curY += (fonts.storeFontIn + gapIn) * dpi;
+  }
+  curY += fonts.codeFontIn / 2 * dpi;
 
   // Pure black: the thermal printer is monochrome, so a brown or a gray is a
   // threshold away from vanishing (v3.27.24).
@@ -435,9 +468,9 @@ export function drawBatchLabelToCanvas(itemsArr){
   const scratch = document.createElement('canvas');
   scratch.width = Math.round(w * dpi);
   scratch.height = Math.round(h * dpi);
-  const { measures, codeFontIn, secFontIn, boxFontIn } =
+  const { measures, codeFontIn, secFontIn, boxFontIn, storeFontIn } =
     computeSharedBatchFonts(scratch.getContext('2d'), itemsArr, w, dpi, h);
-  const fonts = { codeFontIn, secFontIn, boxFontIn };
+  const fonts = { codeFontIn, secFontIn, boxFontIn, storeFontIn };
 
   const canvas = document.createElement('canvas');
   canvas.width = Math.round(w * dpi);
@@ -463,6 +496,20 @@ export function drawBatchLabelToCanvas(itemsArr){
     }
   });
   return canvas;
+}
+
+// How one item's label comes out with the current settings, measured with the
+// printing code itself (v3.27.25): the font sizes it ends up with and the
+// height of its block, for src/domain/label-fit.js. Single-label height, like
+// the card's print button.
+export function measureItemLabelFit(item){
+  const w = appSettings.labelWidthIn || 2.25;
+  const h = appSettings.labelHeightIn || 1.25;
+  const scratch = document.createElement('canvas');
+  scratch.width = Math.round(w * 300);
+  scratch.height = Math.round(h * 300);
+  const m = measureItemLabelFonts(scratch.getContext('2d'), item, w, 300, h);
+  return { codeFontIn: m.codeFontIn, secFontIn: m.secFontIn, hasSecondary: !!m.secondary, blockIn: m.blockIn, heightIn: h };
 }
 
 // Shrinks an element's font-size (in inches) until it fits its container's

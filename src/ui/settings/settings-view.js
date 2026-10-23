@@ -25,7 +25,9 @@ import { shrinkImageToDataUrl } from '../../platform/images.js';
 import { warningsPageHtml, wireWarningsPanel, warningsSummary } from './warnings-panel.js';
 import { ebaySalesSectionHtml, renderEbaySalesPanel } from './ebay-sales-panel.js';
 import { normalizePickMessage, PICK_MESSAGE_MAX } from '../../domain/pick-messages.js';
+import { labelsPageHtml, wireLabelsPanel } from './labels-panel.js';
 
+const PICK_MODE_LABEL = { off: 'Message off', fixed: 'Fixed message', random: 'Random message' };
 const GROUP_KEY = 'cc.settings.group';
 const DESKTOP = '(min-width: 900px)';
 const CARRIER_LABEL = { usps_ground: 'USPS Ground Advantage', usps_priority: 'USPS Priority Mail', ups_ground: 'UPS Ground' };
@@ -66,6 +68,7 @@ function settingsGroups(){
       { key: 'listings', title: 'Listings', summary: [appSettings.listingStandardText ? 'Closing text set' : 'No closing text yet', appSettings.aiInstructions ? 'AI instructions set' : ''].filter(Boolean).join(' \u00b7 ') },
       { key: 'warnings', title: 'Warnings', summary: warningsSummary() },
       { key: 'labels', title: 'Labels', summary: `${appSettings.labelWidthIn || 2.25} × ${appSettings.labelHeightIn || 1.25} in` },
+      { key: 'picklist', title: 'Pick list', summary: PICK_MODE_LABEL[normalizePickMessage(appSettings.pickMessage).mode] },
       { key: 'ai', title: 'AI usage', summary: `${limit - remaining} of ${limit} used` },
       ...(isPlatformAdmin() ? [{ key: 'team', title: 'Team', summary: 'Employee logins' }] : []),
     ] },
@@ -380,51 +383,8 @@ ${page('listings', `
         <div class="settings-success error" id="aiInstrErrMsg">Couldn\u2019t save. Check your connection and try again.</div>
       </div>`)}
 ${page('warnings', warningsPageHtml())}
-${page('labels', `
-      <!-- THERMAL LABEL PRINTING -->
-      <div class="settings-section">
-        <h3>Label printing</h3>
-        <div class="ss-desc">Sets the size of the labels loaded in your thermal printer and which details print on them. This is used by the print button on each item. Printed top-to-bottom by priority: product code, then name/color, then storage box — pinned to the top of the label with minimal margins so a larger sheet can be trimmed below it.</div>
-        <div class="settings-row">
-          <div><div class="sr-label">Label width</div><div class="sr-sub">Inches</div></div>
-          <input type="number" id="sLabelWidth" value="${appSettings.labelWidthIn || 2.25}" min="1" max="6" step="0.05">
-        </div>
-        <div class="settings-row">
-          <div><div class="sr-label">Label height</div><div class="sr-sub">Inches</div></div>
-          <input type="number" id="sLabelHeight" value="${appSettings.labelHeightIn || 1.25}" min="0.5" max="6" step="0.05">
-        </div>
-        <div class="settings-row">
-          <div><div class="sr-label">Product code</div><div class="sr-sub">Always printed</div></div>
-          <input type="checkbox" checked disabled>
-        </div>
-        <div class="settings-row">
-          <div><div class="sr-label">Item name</div></div>
-          <input type="checkbox" id="sLabelFieldName" ${appSettings.labelFields?.name !== false ? 'checked' : ''}>
-        </div>
-        <div class="settings-row">
-          <div><div class="sr-label">Color</div></div>
-          <input type="checkbox" id="sLabelFieldColor" ${appSettings.labelFields?.color !== false ? 'checked' : ''}>
-        </div>
-        <div class="settings-row">
-          <div><div class="sr-label">Storage box</div></div>
-          <input type="checkbox" id="sLabelFieldBox" ${appSettings.labelFields?.box !== false ? 'checked' : ''}>
-        </div>
-        <div class="settings-row">
-          <div><div class="sr-label">Category / type</div></div>
-          <input type="checkbox" id="sLabelFieldCategory" ${appSettings.labelFields?.category ? 'checked' : ''}>
-        </div>
-        <div class="settings-row">
-          <div><div class="sr-label">Brand</div></div>
-          <input type="checkbox" id="sLabelFieldBrand" ${appSettings.labelFields?.brand ? 'checked' : ''}>
-        </div>
-        <div class="settings-row">
-          <div><div class="sr-label">Barcode</div><div class="sr-sub">Code 128 of the product code, under the name. Left off when the label is too narrow to print it clearly</div></div>
-          <input type="checkbox" id="sLabelFieldBarcode" ${appSettings.labelFields?.barcode !== false ? 'checked' : ''}>
-        </div>
-        <button class="settings-save-btn" onclick="saveLabelSettings()">Save label settings</button>
-        <div class="settings-success" id="labelSaveMsg">Saved</div>
-      </div>
-
+${page('labels', labelsPageHtml())}
+${page('picklist', `
       <!-- PICK LIST MESSAGE (v3.27.24) -->
       <div class="settings-section">
         <h3>Pick list message</h3>
@@ -649,6 +609,7 @@ ${page('data', `
   customAccent?.addEventListener('input', () => applyAccent(customAccent.value));
   customAccent?.addEventListener('change', () => window.saveAccent(customAccent.value));
   wireWarningsPanel();
+  wireLabelsPanel();
   document.getElementById('sFabShortcuts')?.addEventListener('change', (e) => window.saveFabShortcuts(e.target.checked));
   document.querySelectorAll('input[name="appTheme"]').forEach(input => {
     input.addEventListener('change', () => window.saveAppearance(input.value));
