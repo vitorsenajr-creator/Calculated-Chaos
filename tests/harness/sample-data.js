@@ -13,6 +13,9 @@ const PICK_PHOTOS = {
   '#0662': '/tests/harness/photos/pick-pants.webp',
   '#0679': '/welcome/sample-photo-2.webp',
   '#0688': '/tests/harness/photos/pick-beanie.webp',
+  '#1498': '/tests/harness/photos/pick-shorts.webp',
+  '#1484': '/tests/harness/photos/pick-bodysuit.webp',
+  '#1485': '/tests/harness/photos/pick-hoodie.webp',
 };
 
 // [code, name, clothingType, brand, size, color, cost, listPrice, status,
@@ -43,6 +46,10 @@ const PIECES = [
   ['#0774', 'Quilted jacket', 'Jacket', 'Lands’ End', 'L', 'Green', 8, 40, 'catalogado', [], 'B-07', 0, null, null, null, null],
   ['#0779', 'Athletic leggings', 'Pants', 'Lululemon', '6', 'Black', 5, 24, 'catalogado', [], 'B-03', 0, null, null, null, null],
   ['#0781', 'Denim mini skirt', 'Skirt', 'Abercrombie', '4', 'Indigo', 3, 16, 'catalogado', [], 'B-12', 0, null, null, null, null],
+  // The three pieces on the sample Pick list (photos and names from the owner's cards).
+  ['#1498', "Lee Women's Denim Pink Fringe Rhinestone Sequin Shorts Western Festival Sz 20", 'Shorts', 'Lee', '20', 'Blue', 6, 22, 'anunciado', ['poshmark'], 'B-06', 1, null, null, null, null],
+  ['#1484', "Zara Women's Sheer Mesh Panel Sleeveless Bodysuit Pink Thong Cut Size S", 'Bodysuit', 'Zara', 'S', 'Pink', 5, 18, 'anunciado', ['poshmark'], 'B-06', 2, null, null, null, null],
+  ['#1485', "Adidas Women's Cotton Blend Floral Logo Graphic Pullover Hoodie Pink Size M", 'Hoodie', 'Adidas', 'M', 'Pink', 8, 19, 'anunciado', ['poshmark'], 'B-06', 3, null, null, null, null],
 ];
 
 // A larger sample catalog, so the Home numbers read as a busy business:

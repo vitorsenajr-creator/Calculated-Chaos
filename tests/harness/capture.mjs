@@ -30,25 +30,17 @@ const SHOTS = [
 
 // Two order screenshots already read, so the Pick list shows pieces without
 // calling the AI. Stored as the Pick screen keeps them on the device. The
-// pieces are unsold sample items: #0631, #0648, #0662 and #0679, plus one
-// without a SKU (the name finds #0688).
+// pieces are the three unsold sample items #1498, #1484 and #1485, matched by
+// name (the order lines carry no SKU).
 const PICK_SESSION = {
   shots: [
     { id: 'shot1', name: 'poshmark-order.png', status: 'done', message: '', result: { isSale: true, orders: [{
       platform: 'poshmark', orderNumber: '5F3A1C9E0B7D4A2E8C1F6B09', orderDate: '2026-10-18', buyer: '@maya.k',
       total: '$70.00', fee: '$14.00', netEarnings: '$56.00', salesTax: '',
       items: [
-        { title: 'Leather belt', price: '$32.00', size: 'M', sku: '0631', partial: false },
-        { title: 'Striped button shirt', price: '$15.00', size: 'M', sku: '0648', partial: false },
-        { title: 'Corduroy wide-leg pants', price: '$34.00', size: '26', sku: '0662', partial: false },
-      ],
-    }] } },
-    { id: 'shot2', name: 'ebay-sale.png', status: 'done', message: '', result: { isSale: true, orders: [{
-      platform: 'ebay', orderNumber: '24-05123-44891', orderDate: '2026-10-20', buyer: 'jk_vintage',
-      total: '', fee: '', netEarnings: '', salesTax: '',
-      items: [
-        { title: 'Satin slip dress', price: '$48.00', size: 'XS', sku: '0679', partial: false },
-        { title: 'Knit beanie', price: '$9.00', size: 'One size', sku: '', partial: false },
+        { title: "Lee Women's Denim Pink Fringe Rhinestone Sequin Shorts Western Festival Sz 20", price: '$22.00', size: '20', sku: '', partial: false },
+        { title: "Zara Women's Sheer Mesh Panel Sleeveless Bodysuit Pink Thong Cut Size S", price: '$18.00', size: 'S', sku: '', partial: false },
+        { title: "Adidas Women's Cotton Blend Floral Logo Graphic Pullover Hoodie Pink Size M", price: '$19.00', size: 'M', sku: '', partial: false },
       ],
     }] } },
   ],
