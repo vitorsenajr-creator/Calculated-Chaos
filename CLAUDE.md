@@ -137,7 +137,12 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
     and Home's "Needs attention". Always on: no price, eBay publish error
     (`item.ebayPublishError`, stamped by `ebay-api.js` on a failed
     publish, cleared by a successful one), duplicate product code (all
-    items, sold included). Optional, per business in Settings → Warnings
+    items, sold included), and two codes in one product code field
+    (v3.27.26, `codeHasMultiple()`: more than one piece after the "#", split at
+    spaces, commas, `;`, `/`, `&`; "-1" copies stay one code; Vitor: a product
+    has one code). The item modal refuses to save such a field (autosave on
+    close is let through), the label prints no barcode for it, and Settings →
+    Labels' preview ignores it. Optional, per business in Settings → Warnings
     (`ui/settings/warnings-panel.js`, `appSettings.issueChecks`): photos,
     cost, weight, dimensions, listed 30/45/60/90 days or off. A change
     fires `issuecheckschange`. `catalog-filters.js` and `home-summary.js`
@@ -640,6 +645,16 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
 
 ### Unverified in production (build-verified only)
 
+- Two codes in one field (v3.27.26): Node tests (91 pass, 5 new: what counts as
+  two codes, the issue order, the catalog filter and the Issues chip with the
+  same items, Home's row with the same count, no barcode) and a Chromium test
+  of the built app (harness, one sample item given `#1475 , #1473`): Home row
+  and Fix opening the filtered catalog, the card's "Two codes" warning and its
+  popover, the save refused with the message and the cursor in the field, the
+  same item with one code passing on to the next check, the Labels preview
+  with a single code. Not run: real data, an iPhone, saving a fixed code to
+  the real Firestore.
+
 - Settings → Labels page, store name line and tight-label window (v3.27.25):
   Node tests (86 pass, 6 new for `judgeLabelFit`) and a Chromium test of the
   built app (harness, phone viewport, sample business): the page lists Preview,
@@ -1070,6 +1085,19 @@ on any of these:
   sizing (v3.13.102-105), inspection flag icon (v3.13.114).
 
 ## Pending changelog entry (since v3.27.0)
+
+- v3.27.26: a product has one code. A product code field holding two codes
+  (`#1475 , #1473`) is now flagged and cannot be saved from the item form. New
+  always-on issue "Two codes in one field": a filter chip and a card warning in
+  the catalog (the popover quotes the field and says to keep one), a Home row in
+  Needs attention with Fix (counts the same items as the filter). Saving an item
+  whose Product code has more than one code shows a message and puts the cursor
+  in the field; the autosave on closing the modal still goes through so nothing
+  is lost. The label prints no barcode for such an item (text unchanged), and the
+  Settings → Labels preview and tight-label check take their code from the
+  longest single code instead of that field. `tests/domain/multi-code.test.mjs`
+  (5 tests). Unverified in production: a real catalog's two-code items, the form
+  on an iPhone.
 
 - v3.27.25: Settings → Labels, reorganized, with a store name line and a
   tight-label warning. The page opens with a live preview of the label (the

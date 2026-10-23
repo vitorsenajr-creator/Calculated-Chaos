@@ -4,7 +4,8 @@
 // three always agree. Which optional checks run is a business setting
 // (`appSettings.issueChecks`, Settings → Warnings), passed in as `checks`.
 //
-// Always on: no price, eBay publish error, duplicate product code.
+// Always on: no price, eBay publish error, duplicate product code, more than
+// one code in the product code field (v3.27.26).
 // Optional (on by default): each part of "missing info" (photos, cost,
 // weight, dimensions) and "listed N+ days" (30, 45, 60 or 90; 0 = off).
 // Unsold items get every check; a sold item only the duplicate code,
@@ -22,7 +23,7 @@ export const DEFAULT_ISSUE_CHECKS = { photos: true, cost: true, weight: true, di
 export const MISSING_PARTS = ['photos', 'cost', 'weight', 'dimensions', 'sku'];
 
 // Most urgent first; the card shows the first one.
-export const ISSUE_KEYS = ['sale-info', 'ebay-error', 'duplicate-code', 'no-price', 'missing-info', 'stale'];
+export const ISSUE_KEYS = ['sale-info', 'ebay-error', 'duplicate-code', 'multi-code', 'no-price', 'missing-info', 'stale'];
 
 export function normalizeIssueChecks(raw){
   const r = raw && typeof raw === 'object' ? raw : {};
@@ -79,6 +80,18 @@ export function normalizeCode(code){
   return String(code || '').trim().replace(/^#/, '').replace(/\s+/g, '').toLowerCase();
 }
 
+// A product has one code (v3.27.26). More than one piece in the field once
+// the leading "#" is gone, split at spaces, commas, semicolons, "/" or "&",
+// is two codes written together ("#1475 , #1473"). A copy's "-1" stays part
+// of its code.
+export function codeHasMultiple(code){
+  return String(code || '').replace(/^\s*#/, '').split(/[\s,;/&]+/).filter(Boolean).length > 1;
+}
+
+export function hasMultipleCodes(item){
+  return codeHasMultiple(item.productCode);
+}
+
 // How many items carry each code; pass the whole catalog, not a filtered list.
 export function codeCounts(items){
   const counts = new Map();
@@ -109,6 +122,7 @@ export function itemIssues(item, { checks = DEFAULT_ISSUE_CHECKS, now = Date.now
   if (hasSaleInfoMissing(item)) out.push('sale-info');
   if (hasEbayError(item)) out.push('ebay-error');
   if (hasDuplicateCode(item, counts)) out.push('duplicate-code');
+  if (hasMultipleCodes(item)) out.push('multi-code');
   if (unsold && !hasPrice(item)) out.push('no-price');
   if (unsold && isIncomplete(item, checks)) out.push('missing-info');
   if (isStaleListing(item, now, checks)) out.push('stale');

@@ -3,7 +3,7 @@
 // chosen period, the clock and the projected-profit function (it depends
 // on settings), so this stays testable in plain Node.
 import {
-  isIncomplete, isStaleListing, isMissingPrice, hasPrice, hasEbayError, hasDuplicateCode, codeCounts, normalizeCode,
+  isIncomplete, isStaleListing, isMissingPrice, hasPrice, hasEbayError, hasDuplicateCode, hasMultipleCodes, codeCounts, normalizeCode,
   DEFAULT_ISSUE_CHECKS,
 } from './item-issues.js';
 import { salesToConfirm } from './ebay-sales.js';
@@ -87,6 +87,7 @@ export function computeHomeSummary(items, { drafts = [], period = 'month', now =
   const ebayErrors = active.filter(hasEbayError);
   const counts = codeCounts(items);
   const dupItems = items.filter(i => hasDuplicateCode(i, counts));
+  const multiItems = items.filter(hasMultipleCodes);
 
   // One row per problem, most urgent first; rows with nothing to do are
   // left out. `count` lets a dismissed row come back when it changes.
@@ -112,6 +113,12 @@ export function computeHomeSummary(items, { drafts = [], period = 'month', now =
     attention.push({
       key: 'duplicate-code', count: dupItems.length, title: 'Duplicate codes', action: 'Fix', tone: 'warn',
       detail: `${codes} code${codes === 1 ? '' : 's'} used on more than one item`,
+    });
+  }
+  if (multiItems.length){
+    attention.push({
+      key: 'multi-code', count: multiItems.length, title: 'Two codes in one field', action: 'Fix', tone: 'warn',
+      detail: `A product has one code. Example: ${multiItems[0].productCode}`,
     });
   }
   if (noPrice.length){

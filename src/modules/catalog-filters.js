@@ -4,7 +4,7 @@
 // over them; main.js keeps thin wrappers with the original signatures.
 // Since v3.22.4 the checks themselves live in domain/item-issues.js and
 // follow the business's Warnings settings (`ctx.checks`).
-import { isMissingPrice, isStaleListing, isIncomplete, missingFields, hasEbayError, hasDuplicateCode, hasIssues, DEFAULT_ISSUE_CHECKS } from '../domain/item-issues.js';
+import { isMissingPrice, isStaleListing, isIncomplete, missingFields, hasEbayError, hasDuplicateCode, hasMultipleCodes, hasIssues, DEFAULT_ISSUE_CHECKS } from '../domain/item-issues.js';
 import { weekTagIndex } from '../domain/week-tags.js';
 
 export { isIncomplete, missingFields };
@@ -23,6 +23,7 @@ export function filtersActiveCount(activeFilters){
   if (activeFilters.issues) n++;
   if (activeFilters.ebayError) n++;
   if (activeFilters.duplicateCode) n++;
+  if (activeFilters.multiCode) n++;
   if (activeFilters.imported) n++;
   if (Number.isInteger(activeFilters.weekTag)) n++;
   if (activeFilters.platformsInclude.length || activeFilters.platformsExclude.length) n++;
@@ -50,6 +51,7 @@ export function applyFilters(list, activeFilters, searchQuery, ctx = {}){
     if (activeFilters.issues && !hasIssues(item, { checks, now, counts })) return false;
     if (activeFilters.ebayError && !hasEbayError(item)) return false;
     if (activeFilters.duplicateCode && !hasDuplicateCode(item, counts)) return false;
+    if (activeFilters.multiCode && !hasMultipleCodes(item)) return false;
     // Imported items (v3.23.1): true = any import, a string = that import.
     if (activeFilters.imported && !(activeFilters.imported === true ? item.importId : item.importId === activeFilters.imported)) return false;
     // Tag Week theme: the color-of-the-week dots above the catalog.

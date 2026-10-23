@@ -70,7 +70,7 @@ import { copyCodes, unsoldCopy, readQuantity } from './domain/item-copies.js';
 import { WEEK_TAGS, weekTagIndex } from './domain/week-tags.js';
 import {
   isIncomplete as _isIncomplete, missingFields as _missingFields, isStaleListing as _isStaleListing,
-  itemIssues as _itemIssues, codeCounts, normalizeIssueChecks, normalizeCode as normalizeCodeForMatch,
+  itemIssues as _itemIssues, hasMultipleCodes, codeCounts, normalizeIssueChecks, normalizeCode as normalizeCodeForMatch,
 } from './domain/item-issues.js';
 import { items, setItems, appSettings, setAppSettings } from './modules/state.js';
 import {
@@ -748,6 +748,7 @@ export const app = (function(){
           ${issueChecks().staleDays ? `<div class="filter-chip warn-chip ${activeFilters.stale?'active':''}" id="staleChip">Listed ${issueChecks().staleDays}+ days</div>` : ''}
           <div class="filter-chip warn-chip ${activeFilters.ebayError?'active':''}" id="ebayErrorChip">eBay errors</div>
           <div class="filter-chip warn-chip ${activeFilters.duplicateCode?'active':''}" id="duplicateCodeChip">Duplicate codes</div>
+          <div class="filter-chip warn-chip ${activeFilters.multiCode?'active':''}" id="multiCodeChip">Two codes in one</div>
           ${items.some(i => i.importId) || activeFilters.imported ? `<div class="filter-chip ${activeFilters.imported?'active':''}" id="importedChip">${activeFilters.imported && activeFilters.imported !== true ? 'From this import' : 'Imported'}</div>` : ''}
         </div>
       </div>
@@ -824,6 +825,10 @@ export const app = (function(){
       activeFilters.duplicateCode = !activeFilters.duplicateCode;
       renderAll();
     });
+    document.getElementById('multiCodeChip').addEventListener('click', () => {
+      activeFilters.multiCode = !activeFilters.multiCode;
+      renderAll();
+    });
     document.getElementById('importedChip')?.addEventListener('click', () => {
       activeFilters.imported = activeFilters.imported ? null : true;
       renderAll();
@@ -860,6 +865,7 @@ export const app = (function(){
   function issueShortLabel(item, key){
     if (key === 'ebay-error') return 'eBay error';
     if (key === 'duplicate-code') return 'Duplicate code';
+    if (key === 'multi-code') return 'Two codes';
     if (key === 'sale-info') return 'Sale info missing';
     if (key === 'no-price') return 'No price';
     if (key === 'missing-info'){
@@ -886,6 +892,7 @@ export const app = (function(){
         const others = items.filter(i => i.id !== item.id && normalizeCodeForMatch(i.productCode) === normalizeCodeForMatch(item.productCode));
         return { title: `Code ${item.productCode} is used twice`, detail: `Also on: ${others.slice(0, 3).map(i => i.name || 'an item').join(', ')}${others.length > 3 ? ` and ${others.length - 3} more` : ''}` };
       }
+      if (key === 'multi-code') return { title: 'Two codes in one field', detail: `The Product code field says "${item.productCode}". A product has one code: open the item and keep just one.` };
       if (key === 'sale-info') return { title: 'Sale info missing', detail: 'This sale was recorded by code without its price or platform. Open the item and fill them in.' };
       if (key === 'no-price') return { title: 'No price', detail: 'Set a list price before listing it.' };
       if (key === 'missing-info') return { title: 'Missing info', detail: missingFields(item).map(f => MISSING_FIELD_LABEL[f] || f).join(', ') };
@@ -4816,6 +4823,13 @@ export const app = (function(){
         alert('Give your item a name before saving.');
         return;
       }
+    }
+    // A product has one code (v3.27.26). Autosave on close (skipValidation)
+    // is let through so no work is lost; the issue stays flagged.
+    if (!skipValidation && hasMultipleCodes({ productCode: document.getElementById('fProductCode').value })){
+      alert('A product has one code, and the Product code field has more than one. Keep just one code (for example #1475) and save again. A second piece needs its own item.');
+      document.getElementById('fProductCode').focus();
+      return;
     }
     if (!chosenEbayCategory && !skipValidation){
       alert('Choose an eBay category before saving — tap the eBay Category field and search for it.');

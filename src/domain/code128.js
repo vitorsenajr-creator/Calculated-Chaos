@@ -3,6 +3,8 @@
 // ui/label-render.js. Set B covers every character a product code uses
 // (digits, "-", letters), so one table is enough.
 
+import { codeHasMultiple } from './item-issues.js';
+
 // Bar/space widths of each symbol, bar first, six digits that add up to 11
 // modules. Index = symbol value; 103-105 are Start A/B/C. The stop pattern
 // has seven widths (13 modules).
@@ -56,8 +58,11 @@ export function code128Bits(text){
 
 // What the label's barcode says: the product code without the "#", the same
 // number a Pick screenshot shows as the SKU. '' when the item has no code.
+// Nothing when the field holds more than one code (v3.27.26): a barcode of
+// "1475 , #1473" would be read as one code and match no item.
 export function barcodeTextOf(item){
-  return String(item?.productCode ?? '').replace(/^#/, '').trim();
+  const code = String(item?.productCode ?? '').replace(/^#/, '').trim();
+  return codeHasMultiple(code) ? '' : code;
 }
 
 // Quiet zone (white space each side) and the narrowest bar worth printing

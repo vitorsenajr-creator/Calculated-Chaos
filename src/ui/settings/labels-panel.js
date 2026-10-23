@@ -7,6 +7,7 @@ import { appSettings, items } from '../../modules/state.js';
 import { escapeHtml } from '../../modules/format-utils.js';
 import { drawBatchLabelToCanvas, measureItemLabelFit } from '../label-render.js';
 import { judgeLabelFit } from '../../domain/label-fit.js';
+import { hasMultipleCodes } from '../../domain/item-issues.js';
 
 const SAMPLE = {
   productCode: '#0000-1', name: 'Free People Floral Embroidered Lace Trim Maxi Dress',
@@ -62,7 +63,9 @@ export function labelsPageHtml(){
 // preview and the fit check show the hardest label this business can print.
 function worstCaseItem(){
   const longest = (key, fallback) => items.reduce((best, it) => (String(it[key] || '').length > best.length ? String(it[key]) : best), '') || fallback;
-  const code = longest('productCode', SAMPLE.productCode);
+  // A field holding two codes is a data error flagged elsewhere (v3.27.26):
+  // it must not set the size of the preview.
+  const code = items.reduce((best, it) => (!hasMultipleCodes(it) && String(it.productCode || '').length > best.length ? String(it.productCode) : best), '') || SAMPLE.productCode;
   return {
     productCode: code.length >= SAMPLE.productCode.length ? code : SAMPLE.productCode,
     name: longest('name', SAMPLE.name),
