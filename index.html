@@ -7,6 +7,7 @@
   <meta name="description" content="Calculated Chaos runs a secondhand resale business from your phone: a product code on every piece, labels and boxes, listings from your photos, and true profit when it sells." />
   <meta name="theme-color" content="#12285A" />
   <meta name="color-scheme" content="light" />
+  <link rel="icon" type="image/svg+xml" sizes="any" href="/favicon.svg" />
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -98,16 +99,20 @@
       text-wrap:balance;
     }
     .lede{ margin-top:18px; font-size:19px; color:#D4DDEE; max-width:34em; }
-    .actions{ margin-top:28px; display:flex; flex-wrap:wrap; gap:12px 20px; align-items:center; }
+    .actions{ margin-top:24px; display:flex; flex-wrap:wrap; gap:12px 20px; align-items:center; }
     .hero .btn{ background:#fff; color:var(--brand); }
     .hero .btn:hover{ background:#E6ECF5; }
     .hero .link{ color:#fff; }
-    .fine{ margin-top:18px; font-size:14px; color:#B9C6DD; }
+    .fine{ margin-top:14px; font-size:14px; color:#B9C6DD; }
 
-    /* Highlights: a row of chips under the hero's note */
-    .facts{ list-style:none; margin:24px 0 0; padding:0; display:flex; flex-wrap:wrap; gap:10px; }
-    .facts li{ display:flex; align-items:center; gap:8px; padding:8px 14px; border:1px solid rgba(255,255,255,.3); border-radius:var(--radius-sm); font-size:14px; font-weight:600; color:#fff; }
-    .facts svg{ width:16px; height:16px; flex:none; color:#fff; }
+    /* The three results, numbered, before the action */
+    .results{ list-style:none; margin:28px 0 0; padding:0; max-width:646px; }
+    .results li{ display:grid; grid-template-columns:32px 1fr; gap:14px; align-items:start; padding:12px 0; border-top:1px solid rgba(255,255,255,.2); }
+    .results li:last-child{ border-bottom:1px solid rgba(255,255,255,.2); }
+    .results .num{ font-size:28px; line-height:1.1; color:#fff; }
+    .results b{ display:block; font-size:18px; font-weight:700; line-height:1.25; }
+    .results .d{ display:block; margin-top:2px; font-size:15px; line-height:1.4; color:#B9C6DD; }
+    .also{ margin-top:10px; font-size:14px; color:#B9C6DD; }
 
     /* Product frames: drawn with the app's own tokens; sample data only. */
     .frame{
@@ -166,6 +171,12 @@
     .intro{ max-width:36em; }
     .intro p{ margin-top:14px; color:var(--ink-2); font-size:18px; }
 
+    /* About us */
+    .about{ display:grid; gap:28px; align-items:start; }
+    .about-copy p{ margin-top:16px; color:var(--ink-2); max-width:34em; font-size:17px; }
+    .about-copy .lead{ margin-top:0; color:var(--ink); font-size:19px; }
+    @media (min-width: 760px){ .about{ grid-template-columns:1fr 1.1fr; gap:64px; } }
+
     /* Closing */
     .closing{ background:var(--brand); color:#fff; padding:72px 0; }
     .closing h2{ color:#fff; max-width:14em; }
@@ -184,9 +195,15 @@
     /* Wider screens: two columns, alternating sides */
     @media (min-width: 760px){
       body{ font-size:18px; }
-      .top nav a.plain.hide-phone{ display:inline; }
-      .hero{ padding:72px 0 88px; }
-      .hero .wrap{ grid-template-columns:1.05fr .95fr; gap:56px; }
+      /* Desktop: a 32px gutter, the logo, the text and the phone all on the same two edges. */
+      .wrap{ max-width:1152px; padding:0 32px; }
+      .top nav{ gap:6px; }
+      .top nav a.plain{ padding:12px 12px; }
+      .hero{ padding:56px 0 72px; }
+      .hero .wrap{ grid-template-columns:minmax(0,1fr) 320px; gap:72px; }
+      h1{ font-size:clamp(2.75rem, 4.4vw, 3.75rem); }
+      .hero .btn{ min-height:52px; min-width:200px; padding:0 30px; font-size:17px; }
+      .results .d{ font-size:16px; }
       .section{ padding:104px 0; }
       .feature{ grid-template-columns:1fr 1fr; gap:64px; }
       .feature.flip .feature-copy{ order:2; }
@@ -195,6 +212,8 @@
       .feature.flip .frame{ justify-self:start; }
       .closing{ padding:104px 0; }
     }
+    /* The two section links need the room of a full desktop bar. */
+    @media (min-width: 900px){ .top nav a.plain.hide-phone{ display:inline; } }
     @media (prefers-reduced-motion: reduce){ html{ scroll-behavior:auto; } }
     /* Tour: real screens in sequence, one per tab of the app's bottom bar. */
     .sample-note{ margin-top:12px; font-size:13px; color:#B9C6DD; text-align:center; }
@@ -240,6 +259,7 @@
     <a class="mark" href="/"><svg class="mark-icon" viewBox="96 140 326 282" aria-hidden="true"><g transform="translate(256,256)"><path d="M-141,-97 L26,-97 L149,26 L26,149 L-141,149 Z" fill="none" stroke="currentColor" stroke-width="26" stroke-linejoin="round"/><circle cx="-77" cy="-33" r="23" fill="currentColor"/></g></svg><span>Calculated Chaos</span></a>
     <nav aria-label="Main">
       <a class="plain hide-phone" href="#features">Features</a>
+      <a class="plain hide-phone" href="#about">About us</a>
       <a class="plain sign-in" href="/app">Sign in</a>
       <a class="btn btn-small" href="/app">Request access</a>
     </nav>
@@ -253,17 +273,17 @@
     <div>
       <h1 id="hero-title">Know where every piece is. Know what it really earned.</h1>
       <p class="lede">Calculated Chaos runs your secondhand resale business from your phone: a product code on every piece, labels and boxes that show where it is, listings from your photos, and the real profit when it sells.</p>
+      <ol class="results" aria-label="What you get">
+        <li><span class="num" aria-hidden="true">1</span><div><b>A code and a box on every piece.</b><span class="d">The label shows where it lives.</span></div></li>
+        <li><span class="num" aria-hidden="true">2</span><div><b>Listings drafted from your photos.</b><span class="d">Title, description and details, ready for you to review.</span></div></li>
+        <li><span class="num" aria-hidden="true">3</span><div><b>The real profit when it sells.</b><span class="d">Cost, fees and shipping, piece by piece.</span></div></li>
+      </ol>
       <div class="actions">
         <a class="btn" href="/app">Request access</a>
         <a class="link" href="#tour">See how it works</a>
       </div>
       <p class="fine">Works in any modern browser and installs to your iPhone home screen. Access is approved by hand.</p>
-      <ul class="facts" aria-label="Highlights">
-        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Installs to your iPhone home screen</li>
-        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>eBay connected by API</li>
-        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Black thermal labels</li>
-        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Verified email, approved access</li>
-      </ul>
+      <p class="also">eBay connected by API &middot; Black thermal labels &middot; Verified email, approved access</p>
     </div>
 
     <div class="hero-shot">
@@ -470,6 +490,17 @@
         </div>
         <figcaption>Column mapping, sample data.</figcaption>
       </figure>
+    </div>
+  </div>
+</section>
+
+<section class="section alt" id="about" aria-labelledby="about-title">
+  <div class="wrap about">
+    <h2 id="about-title">Built from a working resale business.</h2>
+    <div class="about-copy">
+      <p class="lead">Calculated Chaos began inside a real secondhand-clothing business, where the hard part was never listing a piece. It was knowing where the piece was, and what it really earned once it sold.</p>
+      <p>So the app starts with the piece, not the listing: one code, one box, and one number for profit that every screen agrees on. It is made to be used one-handed on a phone, between the thrift store, the photo spot and the packing table.</p>
+      <p>We are opening access to new sellers one at a time, and every request is reviewed by hand.</p>
     </div>
   </div>
 </section>

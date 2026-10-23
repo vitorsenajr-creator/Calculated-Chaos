@@ -38,6 +38,15 @@ explicit order.
 After every merge, the next reply reports the current app version
 (`APP_VERSION` from `src/modules/version.js`, as merged on `main`).
 
+### Questions to Vitor go in a form (2026-10-23)
+
+When Claude needs answers from Vitor, it asks them in a form (the
+`AskUserQuestion` tool), never as a text list. Each form carries the
+maximum number of questions the tool accepts (4 today), every question has
+options and the tool's free-text field ("Other") for his own answer. The
+discussion and the plan themselves stay in plain text; only what needs his
+answer goes in the form.
+
 ### Git workflow
 
 - Work on the session's named branch and open a PR per change. Whether a
@@ -1008,6 +1017,8 @@ on any of these:
   sizing (v3.13.102-105), inspection flag icon (v3.13.114).
 
 ## Pending changelog entry (since v3.27.0)
+
+- v3.27.21: welcome page, desktop pass 1. The top bar gets "About us" (shown with Features from 900 px; a new `#about` section before the closing band, with a short text from `PRODUCT.md`: no numbers, testimonials or promises); Pricing is built but not linked or published. The hero shows three numbered results (code and box, listings from photos, real profit) before the "Request access" button, now 52 px tall and 200 px wide at least; the four chips became one quiet line under the note. At 760 px and up the gutter is 32 px, the text column takes the free width and the phone sits on the right edge, so the logo, the text and the phone share two edges (at 1024 px the logo moved from 16 px to 32 px). The tab icon, the home-screen icons and `manifest.json` use the current identity (white tag on navy `#12285A`, the same tag as the logo, centered); the SVG icon is linked on the three pages and the Vite default `favicon.svg` is gone. Service worker cache `cc-shell-v3` so installed copies pick up the new manifest. Mobile is the next pass. Unverified in production: the tab icon in a real browser, the installed iPhone icon and manifest colors, the page on a real desktop. Not touched: the eBay connect page in `api/ebay-auth.js` still uses the old cream and terracotta colors.
 
 - v3.27.20: the welcome hero is redistributed (same colors, fonts and copy): the four highlights moved from a white band under the hero into a row of outlined chips under the hero's note, and the "Sample data" caption sits under the phone instead of under the text. Layout only; the testimonial and chat bubble of the reference were not copied.
 
