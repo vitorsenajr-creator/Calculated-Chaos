@@ -254,18 +254,55 @@
     .cl-track i.end{ background:var(--brand); border:.9cqw solid #fff; }
     .cl-track li:not(:last-child)::before{ content:""; position:absolute; top:2.2cqw; left:50%; width:100%; height:2px; background:rgba(255,255,255,.55); }
 
-    /* Tour: three phones on a staircase, one per step of the piece's journey */
+    /* Tour: one box and one phone follow the piece from the shelf to the profit.
+       The base is a plain list of the four steps (phones, small screens, reduced
+       motion, no script); the script adds .is-pinned on wide screens. */
     .tour{ padding:72px 0 80px; }
-    .tour .head{ max-width:40em; }
     .tour .head h2{ font-size:clamp(1.9rem, 5vw, 2.75rem); }
-    .steps{ list-style:none; margin:48px 0 0; padding:0; display:grid; gap:48px; }
-    .steps li{ display:flex; flex-direction:column; align-items:center; text-align:center; }
-    .step-h{ margin:0 0 20px; display:flex; flex-direction:column; align-items:center; gap:6px; }
-    .step-h b{ font-size:18px; }
-    .step-h .stop{ width:48px; height:48px; display:grid; place-items:center; border-radius:50%; border:2px solid var(--brand); background:var(--surface); color:var(--brand); font-size:22px; }
-    .steps .phone{ width:100%; max-width:260px; margin:0; }
-    .steps .phone img{ width:100%; height:auto; border-radius:26px; }
-    .step-c{ margin:16px 0 0; color:var(--ink-2); font-size:16px; max-width:15em; }
+    .t-line{ display:none; }
+    .t-stops{ list-style:none; margin:48px 0 0; padding:0; display:grid; gap:64px; }
+    .t-stop{ display:flex; flex-direction:column; align-items:center; text-align:center; gap:20px; }
+    .t-n{ margin:0; font-size:13px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-2); }
+    .t-copy h3{ margin-top:6px; font-weight:800; font-stretch:92%; font-size:1.75rem; line-height:1.1; letter-spacing:-0.025em; }
+    .t-c{ margin:10px auto 0; max-width:24em; color:var(--ink-2); font-size:17px; }
+    .t-phone{ width:100%; max-width:260px; margin:0; }
+    .screen{ position:relative; aspect-ratio:780 / 1688; border-radius:26px; overflow:hidden; background:var(--ground); }
+    .screen img{ display:block; max-width:none; }
+    .scr-top{ position:absolute; left:0; top:0; width:100%; height:auto; }
+    .scr-body{ position:absolute; left:0; right:0; top:var(--top); bottom:var(--bot); overflow:hidden; }
+    .scr-img{ position:absolute; left:0; top:0; width:100%; height:auto; will-change:transform; }
+    .scr-swap{ position:absolute; left:0; top:0; width:100%; height:100%; opacity:0; transition:opacity .3s ease; }
+    .scr-nav{ position:absolute; left:0; bottom:0; width:100%; height:auto; }
+
+    .tour.is-pinned{ padding:0; }
+    .tour.is-pinned .tour-pin{ height:600vh; }
+    .tour.is-pinned .tour-stage{ position:sticky; top:0; height:100vh; min-height:640px; display:flex; flex-direction:column; justify-content:center; padding:24px 0; overflow:hidden; }
+    .tour.is-pinned .tour-stage > .wrap{ height:100%; display:flex; flex-direction:column; min-height:0; }
+    .tour.is-pinned .head .lead{ display:none; }
+    .tour.is-pinned .head h2{ font-size:clamp(1.6rem, 2.6vw, 2.2rem); }
+    .tour.is-pinned .t-line{ display:block; position:relative; margin-top:8px; padding-top:116px; }
+    .t-rail{ position:absolute; left:12.5%; right:12.5%; top:138px; height:4px; border-radius:2px; background:var(--line); }
+    .t-fill{ display:block; height:100%; width:0; border-radius:2px; background:var(--brand); }
+    .t-nodes{ position:relative; list-style:none; margin:0; padding:0; display:grid; grid-template-columns:repeat(4,1fr); }
+    .t-nodes li{ display:flex; justify-content:center; }
+    .t-node{ display:flex; flex-direction:column; align-items:center; gap:8px; padding:0 8px 4px; min-height:44px; border:0; background:none; font:inherit; color:var(--ink-2); cursor:pointer; }
+    .t-node .num{ width:44px; height:44px; display:grid; place-items:center; border-radius:50%; border:2px solid var(--brand); background:var(--surface); color:var(--brand); font-size:20px; }
+    .t-lbl{ font-size:15px; font-weight:700; }
+    .t-node[aria-current="step"] .num{ background:var(--brand); color:#fff; }
+    .t-node[aria-current="step"]{ color:var(--ink); }
+    .t-box{ position:absolute; top:26px; left:12.5%; width:96px; transform:translateX(-50%); color:var(--brand); }
+    .t-box svg{ display:block; width:96px; height:auto; }
+    .t-lab{ opacity:var(--lab, 0); }
+    .t-chip{ position:absolute; left:50%; top:-2px; transform:translate(-50%,-100%); white-space:nowrap; padding:3px 8px; border-radius:var(--radius-sm); background:var(--brand); color:#fff; font-size:11px; font-weight:800; letter-spacing:.1em; }
+    .t-box[data-s="3"] .t-chip{ background:var(--profit); }
+    .tour.is-pinned .t-stops{ position:relative; flex:1; min-height:0; margin-top:18px; display:block; }
+    .tour.is-pinned .t-stop{ position:absolute; inset:0; display:grid; grid-template-columns:minmax(0,1fr) auto; gap:48px; align-items:center; text-align:left; pointer-events:none; }
+    .tour.is-pinned .t-copy, .tour.is-pinned .t-phone{ opacity:0; }
+    .tour.is-pinned .t-copy{ max-width:22em; justify-self:start; }
+    .tour.is-pinned .t-copy h3{ font-size:clamp(2rem, 3.4vw, 2.75rem); }
+    .tour.is-pinned .t-c{ margin-left:0; font-size:20px; }
+    .tour.is-pinned .t-phone{ height:100%; width:fit-content; max-width:none; display:flex; justify-self:start; }
+    .tour.is-pinned .screen{ flex:none; height:100%; }
 
     /* Closing */
     .closing{ background:var(--brand); color:#fff; padding:72px 0; }
@@ -307,13 +344,6 @@
       .ship-grid .wide2{ grid-column:1 / -1; }
       .ship{ padding:22px 28px 18px; }
       .hero .collage .phone{ max-width:none; }
-      .steps{ grid-template-columns:repeat(3,1fr); gap:32px; align-items:start; margin-top:64px; }
-      .steps li:nth-child(1) .phone{ margin-top:0; }
-      .steps li:nth-child(2) .phone{ margin-top:56px; }
-      .steps li:nth-child(3) .phone{ margin-top:112px; }
-      .steps li:nth-child(2) .step-h{ margin-bottom:20px; }
-      .steps li:not(:last-child) .step-h::after{ content:""; position:absolute; top:24px; left:calc(50% + 40px); right:calc(-100% + 40px); height:2px; background:var(--brand); }
-      .steps li{ position:relative; }
       .tour{ padding:104px 0 112px; }
     }
     /* The two section links need the room of a full desktop bar. */
@@ -403,31 +433,174 @@
 
 
 <section class="tour" id="tour" aria-labelledby="tour-title">
-  <div class="wrap">
-    <div class="head">
-      <h2 id="tour-title">Follow one piece from the shelf to the profit.</h2>
-      <p class="lead">Home shows what needs you today. Catalog finds the piece and its box. Stock makes the pick list for a sale. Finances shows what the sale earned.</p>
+  <div class="tour-pin">
+    <div class="tour-stage">
+      <div class="wrap">
+        <div class="head">
+          <h2 id="tour-title">Follow one piece from the shelf to the profit.</h2>
+          <p class="lead">Catalog finds the piece and its box. The app lists it on eBay for you. Stock makes the pick list for a sale. Finances shows what the sale earned.</p>
+        </div>
+        <div class="t-line">
+          <div class="t-rail" aria-hidden="true"><span class="t-fill"></span></div>
+          <div class="t-box" aria-hidden="true">
+          <span class="t-chip">CATALOGED</span>
+          <svg viewBox="0 0 120 104" width="96" height="83">
+            <path d="M10 30 L60 10 L110 30 L60 50 Z" fill="#fff" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/>
+            <path d="M10 30 L60 50 L60 98 L10 78 Z" fill="#fff" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/>
+            <path d="M110 30 L60 50 L60 98 L110 78 Z" fill="#E6ECF5" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/>
+            <path d="M35 20 L85 40" stroke="currentColor" stroke-width="7" opacity=".18"/>
+            <g class="t-lab" transform="translate(10 30) skewY(21.8) translate(-10 -30)">
+              <rect x="17" y="42" width="36" height="26" fill="#fff" stroke="#111" stroke-width="2"/>
+              <rect x="20" y="46" width="30" height="9" fill="none" stroke="#111" stroke-width="1.4"/>
+              <text x="35" y="53.5" text-anchor="middle" font-size="7.5" font-weight="800" fill="#111" font-family="Archivo, system-ui, sans-serif">#0412</text>
+              <path d="M20 60 h30 M20 64 h30" stroke="#111" stroke-width="1.6"/>
+            </g>
+          </svg>
+        </div>
+          <ol class="t-nodes" aria-label="Steps"><li><button type="button" class="t-node" data-i="0"><span class="num" aria-hidden="true">1</span><span class="t-lbl">Catalog</span></button></li><li><button type="button" class="t-node" data-i="1"><span class="num" aria-hidden="true">2</span><span class="t-lbl">eBay listing</span></button></li><li><button type="button" class="t-node" data-i="2"><span class="num" aria-hidden="true">3</span><span class="t-lbl">Pick</span></button></li><li><button type="button" class="t-node" data-i="3"><span class="num" aria-hidden="true">4</span><span class="t-lbl">Profit</span></button></li></ol>
+        </div>
+        <ol class="t-stops">
+        <li class="t-stop" data-i="0">
+          <div class="t-copy"><p class="t-n">Step 1 of 4</p><h3>Catalog</h3><p class="t-c">Catalog finds the piece and its box.</p></div>
+          <figure class="phone t-phone">
+        <div class="screen" style="--top:6.635%;--bot:7.109%">
+          <img class="scr-top" src="/welcome/tour-bar.webp" alt="" loading="lazy">
+          <div class="scr-body"><img class="scr-img" src="/welcome/tour-catalog.webp" alt="Catalog with sample pieces, product codes and boxes" loading="lazy"></div>
+          <img class="scr-nav" src="/welcome/tour-nav-catalog.webp" alt="" loading="lazy">
+        </div>
+          </figure>
+        </li>
+        <li class="t-stop" data-i="1">
+          <div class="t-copy"><p class="t-n">Step 2 of 4</p><h3>eBay listing</h3><p class="t-c">The app drafts the listing from your photos and publishes it to eBay for you, with the title, category, price, condition and photos.</p></div>
+          <figure class="phone t-phone">
+        <div class="screen" style="--top:12.677%;--bot:0%">
+          <img class="scr-top" src="/welcome/tour-ebay-top.webp" alt="" loading="lazy">
+          <div class="scr-body"><img class="scr-img" src="/welcome/tour-ebay.webp" alt="The eBay listing step: a ready listing with title, price, category and condition, then the confirmation that it was listed on eBay" loading="lazy">
+            <img class="scr-swap" src="/welcome/tour-ebay-listed.webp" alt="" loading="lazy"></div>
+        </div>
+          </figure>
+        </li>
+        <li class="t-stop" data-i="2">
+          <div class="t-copy"><p class="t-n">Step 3 of 4</p><h3>Pick</h3><p class="t-c">Stock makes the pick list for a sale.</p></div>
+          <figure class="phone t-phone">
+        <div class="screen" style="--top:6.635%;--bot:7.109%">
+          <img class="scr-top" src="/welcome/tour-bar.webp" alt="" loading="lazy">
+          <div class="scr-body"><img class="scr-img" src="/welcome/tour-pick.webp" alt="Stock pick list grouped by box, each piece with its photo and its package number" loading="lazy"></div>
+          <img class="scr-nav" src="/welcome/tour-nav-stock.webp" alt="" loading="lazy">
+        </div>
+          </figure>
+        </li>
+        <li class="t-stop" data-i="3">
+          <div class="t-copy"><p class="t-n">Step 4 of 4</p><h3>Profit</h3><p class="t-c">Finances shows what the sale earned.</p></div>
+          <figure class="phone t-phone">
+        <div class="screen" style="--top:6.635%;--bot:7.109%">
+          <img class="scr-top" src="/welcome/tour-bar.webp" alt="" loading="lazy">
+          <div class="scr-body"><img class="scr-img" src="/welcome/tour-finance.webp" alt="Finances overview with sample sales and profit" loading="lazy"></div>
+          <img class="scr-nav" src="/welcome/tour-nav-finance.webp" alt="" loading="lazy">
+        </div>
+          </figure>
+        </li>
+        </ol>
+      </div>
     </div>
-    <ol class="steps">
-      <li>
-        <p class="step-h"><span class="stop num" aria-hidden="true">1</span><b>Shelf</b></p>
-        <figure class="phone"><img src="/welcome/catalog-phone.webp" width="780" height="1688" loading="lazy" alt="Catalog with sample pieces, product codes and boxes"></figure>
-        <p class="step-c">Catalog finds the piece and its box.</p>
-      </li>
-      <li>
-        <p class="step-h"><span class="stop num" aria-hidden="true">2</span><b>Pick</b></p>
-        <figure class="phone"><img src="/welcome/pick-phone.webp" width="780" height="1688" loading="lazy" alt="Stock pick list grouped by box, each piece with its photo and its package number"></figure>
-        <p class="step-c">Stock makes the pick list for a sale.</p>
-      </li>
-      <li>
-        <p class="step-h"><span class="stop num" aria-hidden="true">3</span><b>Profit</b></p>
-        <figure class="phone"><img src="/welcome/finance-phone.webp" width="780" height="1688" loading="lazy" alt="Finances overview with sample sales and profit"></figure>
-        <p class="step-c">Finances shows what the sale earned.</p>
-      </li>
-    </ol>
   </div>
 </section>
 <script>
+(function(){
+  var sec = document.getElementById('tour');
+  if (!sec) return;
+  var pin = sec.querySelector('.tour-pin');
+  var stops = Array.prototype.slice.call(sec.querySelectorAll('.t-stop'));
+  var nodes = Array.prototype.slice.call(sec.querySelectorAll('.t-node'));
+  var box = sec.querySelector('.t-box');
+  var chip = sec.querySelector('.t-chip');
+  var fill = sec.querySelector('.t-fill');
+  var stamps = ['CATALOGED', 'LISTED', 'PICKED', 'SOLD'];
+  var wide = window.matchMedia('(min-width: 900px)');
+  var calm = window.matchMedia('(prefers-reduced-motion: reduce)');
+  // dwell (the screen scrolls), travel (the box moves), dwell, ...; the numbers are the weights.
+  var W = [2, 1, 2, 1, 2, 1, 2], TOTAL = 11;
+  var on = false, queued = false;
+  function phase(P){
+    var x = P * TOTAL, acc = 0;
+    for (var k = 0; k < W.length; k++){
+      if (x <= acc + W[k] || k === W.length - 1) return { k: k, t: Math.min(1, Math.max(0, (x - acc) / W[k])) };
+      acc += W[k];
+    }
+  }
+  function cut(t, from){ return Math.min(1, Math.max(0, (t - from) / 0.1)); }
+  function fade(t){ return Math.min(1, Math.max(0, (t - 0.4) / 0.2)); }
+  function progress(){
+    var r = pin.getBoundingClientRect();
+    var span = r.height - window.innerHeight;
+    return span > 0 ? Math.min(1, Math.max(0, -r.top / span)) : 0;
+  }
+  function setScroll(stop, v){
+    var body = stop.querySelector('.scr-body'), img = stop.querySelector('.scr-img');
+    var room = Math.max(0, img.offsetHeight - body.offsetHeight);
+    img.style.transform = 'translate3d(0,' + (-room * v) + 'px,0)';
+    var swap = stop.querySelector('.scr-swap');
+    if (swap) swap.style.opacity = v > 0.92 ? '1' : '0';
+  }
+  function draw(){
+    queued = false;
+    if (!on) return;
+    var ph = phase(progress()), i = ph.k >> 1, dwell = ph.k % 2 === 0, t = ph.t;
+    var pos = dwell ? i : i + t;
+    box.style.left = (12.5 + pos * 25) + '%';
+    fill.style.width = (pos / 3 * 100) + '%';
+    var near = Math.round(pos);
+    box.setAttribute('data-s', near);
+    if (chip.textContent !== stamps[near]) chip.textContent = stamps[near];
+    // the label goes on the box while it sits at the Catalog step
+    box.style.setProperty('--lab', near === 0 && i === 0 && dwell ? Math.min(1, t * 3) : (pos > 0 ? 1 : 0));
+    stops.forEach(function(stop, idx){
+      var a = 0, c = 0, v = 0;
+      if (dwell){ a = c = idx === i ? 1 : 0; v = idx === i ? t : 0; }
+      else if (idx === i){ a = 1 - fade(t); c = 1 - cut(t, 0.4); v = 1; }
+      else if (idx === i + 1){ a = fade(t); c = cut(t, 0.5); v = 0; }
+      stop.querySelector('.t-phone').style.opacity = String(a);
+      stop.querySelector('.t-copy').style.opacity = String(c);
+      stop.style.pointerEvents = a > 0.5 ? 'auto' : 'none';
+      stop.setAttribute('aria-hidden', a > 0.5 ? 'false' : 'true');
+      setScroll(stop, v);
+    });
+    nodes.forEach(function(n, idx){
+      if (idx === near) n.setAttribute('aria-current', 'step'); else n.removeAttribute('aria-current');
+    });
+  }
+  function queue(){ if (!queued){ queued = true; window.requestAnimationFrame(draw); } }
+  function reset(){
+    stops.forEach(function(stop){
+      stop.style.pointerEvents = ''; stop.removeAttribute('aria-hidden');
+      stop.querySelector('.t-phone').style.opacity = ''; stop.querySelector('.t-copy').style.opacity = '';
+      var img = stop.querySelector('.scr-img'); if (img) img.style.transform = '';
+      var swap = stop.querySelector('.scr-swap'); if (swap) swap.style.opacity = '';
+    });
+    nodes.forEach(function(n){ n.removeAttribute('aria-current'); });
+  }
+  function sync(){
+    var want = wide.matches && !calm.matches;
+    if (want === on) { if (on) queue(); return; }
+    on = want;
+    sec.classList.toggle('is-pinned', on);
+    if (on) queue(); else reset();
+  }
+  nodes.forEach(function(n){
+    n.addEventListener('click', function(){
+      var i = Number(n.getAttribute('data-i')), before = 0;
+      for (var k = 0; k < i * 2; k++) before += W[k];
+      var r = pin.getBoundingClientRect();
+      var top = r.top + window.pageYOffset;
+      var y = top + (before / TOTAL) * (r.height - window.innerHeight) + 2;
+      window.scrollTo({ top: y, behavior: calm.matches ? 'auto' : 'smooth' });
+    });
+  });
+  window.addEventListener('scroll', queue, { passive: true });
+  window.addEventListener('resize', sync);
+  if (wide.addEventListener) { wide.addEventListener('change', sync); calm.addEventListener('change', sync); }
+  sync();
+})();
 (function(){
   var box = document.querySelector('.carousel');
   if (!box) return;
