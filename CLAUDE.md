@@ -1009,6 +1009,8 @@ on any of these:
 
 ## Pending changelog entry (since v3.27.0)
 
+- v3.27.20: the welcome hero is redistributed (same colors, fonts and copy): the four highlights moved from a white band under the hero into a row of outlined chips under the hero's note, and the "Sample data" caption sits under the phone instead of under the text. Layout only; the testimonial and chat bubble of the reference were not copied.
+
 - v3.27.19: the welcome page's Pick screenshots (desktop and phone) come from the harness's new sample list: one Poshmark order with three pieces (a Lee shorts, a Zara bodysuit and an Adidas hoodie), each with its owner's photo, matched by name. The sample photos are in `tests/harness/photos/`. The screenshots show third-party brand names (Lee, Zara, Adidas) in the titles, and the hoodie photo shows the Adidas logo; the owner confirmed publishing them on 2026-10-23. Pending: the Pick screenshot shows no warning, while the feature list still mentions one.
 
 - v3.27.18: the welcome page's listing card has 16 px of inside space (the text no longer touches the frame or the caption); its Parcel tokens match src/style.css (line, profit and warning colors were off); the welcome brief is `.impeccable/surfaces/index-html.md` and the app shell's is `app-html.md`.

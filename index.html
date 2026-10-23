@@ -104,14 +104,10 @@
     .hero .link{ color:#fff; }
     .fine{ margin-top:18px; font-size:14px; color:#B9C6DD; }
 
-    /* Facts strip */
-    .facts{
-      list-style:none; margin:0; padding:18px 0;
-      background:var(--surface); border-bottom:1px solid var(--line);
-    }
-    .facts .wrap{ display:flex; flex-wrap:wrap; gap:10px 28px; }
-    .facts li{ font-size:15px; font-weight:600; color:var(--ink-2); display:flex; align-items:center; gap:8px; }
-    .facts svg{ width:18px; height:18px; flex:none; color:var(--profit); }
+    /* Highlights: a row of chips under the hero's note */
+    .facts{ list-style:none; margin:24px 0 0; padding:0; display:flex; flex-wrap:wrap; gap:10px; }
+    .facts li{ display:flex; align-items:center; gap:8px; padding:8px 14px; border:1px solid rgba(255,255,255,.3); border-radius:var(--radius-sm); font-size:14px; font-weight:600; color:#fff; }
+    .facts svg{ width:16px; height:16px; flex:none; color:#fff; }
 
     /* Product frames: drawn with the app's own tokens; sample data only. */
     .frame{
@@ -191,7 +187,6 @@
       .top nav a.plain.hide-phone{ display:inline; }
       .hero{ padding:72px 0 88px; }
       .hero .wrap{ grid-template-columns:1.05fr .95fr; gap:56px; }
-      .facts .wrap{ justify-content:space-between; }
       .section{ padding:104px 0; }
       .feature{ grid-template-columns:1fr 1fr; gap:64px; }
       .feature.flip .feature-copy{ order:2; }
@@ -263,21 +258,23 @@
         <a class="link" href="#tour">See how it works</a>
       </div>
       <p class="fine">Works in any modern browser and installs to your iPhone home screen. Access is approved by hand.</p>
+      <ul class="facts" aria-label="Highlights">
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Installs to your iPhone home screen</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>eBay connected by API</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Black thermal labels</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Verified email, approved access</li>
+      </ul>
     </div>
 
+    <div class="hero-shot">
     <figure class="phone" aria-label="Home screen of the app with sample numbers">
       <img src="/welcome/home-phone.webp" width="780" height="1688" class="shot-phone" alt="The Home screen with sample data: in stock, sold and profit for the month, and the items that need attention">
     </figure>
     <p class="sample-note">Sample data. Not a real business.</p>
+    </div>
   </div>
 </section>
 
-<ul class="facts" aria-label="Highlights">
-  <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Installs to your iPhone home screen</li>
-  <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>eBay connected by API</li>
-  <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Black thermal labels</li>
-  <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Verified email, approved access</li>
-</ul>
 
 <section class="tour" id="tour" aria-labelledby="tour-title">
   <div class="wrap tour-wrap">
