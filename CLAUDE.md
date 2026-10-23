@@ -1009,6 +1009,8 @@ on any of these:
 
 ## Pending changelog entry (since v3.27.0)
 
+- v3.27.18: the welcome page's listing card has 16 px of inside space (the text no longer touches the frame or the caption); its Parcel tokens match src/style.css (line, profit and warning colors were off); the welcome brief is `.impeccable/surfaces/index-html.md` and the app shell's is `app-html.md`. Pending: the Pick sample thumbnails (photos for the belt, shirt, pants and beanie are needed first).
+
 - v3.27.16: the listing card shows each sample photo with its own title, category, color and price; the photo and the text change together. On phones the photo sits above the text (it was squeezed to 136 px before).
 
 - v3.27.15: the welcome header on phones shows the buttons on the first line and the logo under them; on desktop the logo is larger (34 px name, 48 px mark).
