@@ -1009,6 +1009,8 @@ on any of these:
 
 ## Pending changelog entry (since v3.27.0)
 
+- v3.27.16: the listing card shows each sample photo with its own title, category, color and price; the photo and the text change together. On phones the photo sits above the text (it was squeezed to 136 px before).
+
 - v3.27.15: the welcome header on phones shows the buttons on the first line and the logo under them; on desktop the logo is larger (34 px name, 48 px mark).
 
 - v3.27.14: sign-in shows the tag mark, the name and the tagline "Know where every piece is."; the listing draft matches photo 1; label small text at 10 px. Pending: a logo over the hero photo (not done); real photos from the seller's own shots for the carousel when available.
