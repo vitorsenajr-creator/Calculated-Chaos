@@ -9,9 +9,24 @@ import { saleLines, buildPickList, boxTitle } from '../../domain/sale-match.js';
 import { parseManualCode, addManualCode, removeManualCode, manualLines } from '../../domain/pick-manual.js';
 import { prepareScreenshot } from '../../platform/images.js';
 import { shareChecklist } from './pick-sheet-canvas.js';
+import { pickMessageFor } from '../../domain/pick-messages.js';
 import { openMarkSold, sellableRows } from './pick-sold.js';
 import { openPickLog } from './pick-log-view.js';
 import { logPick } from '../../data/pick-log-store.js';
+
+// The message for the checklist being shared (v3.27.24, Settings → Labels):
+// a random one is a new pick each time, never the same as the last one this
+// device printed.
+const LAST_MESSAGE_KEY = 'cc.pick.lastMessage';
+function checklistMessage(){
+  let last = -1;
+  try{ last = parseInt(localStorage.getItem(LAST_MESSAGE_KEY), 10); }catch(e){}
+  const { text, index } = pickMessageFor(appSettings.pickMessage, { last: Number.isInteger(last) ? last : -1 });
+  if (index >= 0){
+    try{ localStorage.setItem(LAST_MESSAGE_KEY, String(index)); }catch(e){}
+  }
+  return text;
+}
 
 const SESSION_KEY = 'cc.pick.session';
 const MAX_SHOTS = 20;
@@ -486,6 +501,7 @@ function wire(pane){
     shareChecklist(lastList, {
       storeName: (appSettings.storeName || '').trim(),
       platformLabel: hooks.platformLabel,
+      message: checklistMessage(),
     });
   });
   pane.querySelectorAll('[data-open-item]').forEach(b => b.addEventListener('click', () => hooks.openItem(b.dataset.openItem)));

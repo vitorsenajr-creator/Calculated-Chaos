@@ -7,8 +7,21 @@ import { boxTitle } from '../../domain/sale-match.js';
 
 export const SHEET_MM = { width: 100, height: 210 };
 
-// Heights in mm, kept a little generous so a long name never spills.
-const H = { pad: 5, header: 18, footer: 6, box: 7, row: 14, note: 4, sign: 12, pack: 7 };
+// Heights in mm, kept a little generous so a long name never spills. The
+// type is 15% larger since v3.27.24 (pick-sheet-canvas.js scales it by the
+// same amount), so each row, heading and note is that much taller too.
+export const H = { pad: 5, header: 18, footer: 6, box: 8, row: 16, note: 4.6, sign: 12, pack: 8 };
+
+// The optional message above the signature line (v3.27.24). Its height comes
+// from how many lines it needs: pick-sheet-canvas.js wraps it to that many
+// (and shrinks it a little if it must), so the text count is only an estimate
+// made without a canvas, kept on the generous side.
+const QUOTE_CHARS_PER_LINE = 42;
+const QUOTE_LINE = 4.8;
+export function quoteLines(text){
+  return Math.min(3, Math.max(1, Math.ceil(String(text).length / QUOTE_CHARS_PER_LINE)));
+}
+export function quoteHeight(lines){ return 4 + lines * QUOTE_LINE; }
 
 // The notes printed under a row, in capitals so they stand out in black.
 export function rowFlags(r, platformLabel = (k) => k){
@@ -27,7 +40,7 @@ export function rowFlags(r, platformLabel = (k) => k){
 // Splits the list into pages. Blocks: a box heading (kept with its first
 // row; repeated as "(cont.)" on the next page), rows, the "Not found"
 // part, and the signature line at the end. Returns [[block, …], …].
-export function paginatePick(pl, platformLabel = (k) => k){
+export function paginatePick(pl, platformLabel = (k) => k, message = ''){
   const blocks = [];
   pl.boxes.forEach(b => {
     blocks.push({ type: 'box', title: boxTitle(b.box), count: b.rows.length, h: H.box });
@@ -43,6 +56,11 @@ export function paginatePick(pl, platformLabel = (k) => k){
     blocks.push({ type: 'box', title: 'Packages', count: pl.packages.length, h: H.box });
     pl.packages.forEach(p => blocks.push({ type: 'pack', pack: p, box: 'Packages', h: H.pack }));
   }
+  const text = String(message || '').trim();
+  if (text){
+    const lines = quoteLines(text);
+    blocks.push({ type: 'quote', text, lines, h: quoteHeight(lines) });
+  }
   blocks.push({ type: 'sign', h: H.sign });
 
   const pages = [[]];
@@ -51,7 +69,9 @@ export function paginatePick(pl, platformLabel = (k) => k){
   blocks.forEach((b, i) => {
     const next = blocks[i + 1];
     // A heading never ends a page alone.
-    const need = b.type === 'box' && next && (next.type === 'row' || next.type === 'pack') ? b.h + next.h : b.h;
+    // The message stays with the signature line.
+    const need = b.type === 'box' && next && (next.type === 'row' || next.type === 'pack') ? b.h + next.h
+      : b.type === 'quote' && next ? b.h + next.h : b.h;
     if (need > room && pages[pages.length - 1].length){
       newPage();
       if (b.type === 'row' || b.type === 'pack'){
