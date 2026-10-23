@@ -549,6 +549,11 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
 - **Paste `firestore.rules` into the Console** for v3.26.0 (Vitor): `trash`
   is added to the member collections. Until then the trash can't be read or
   written. Optional: a TTL policy on `trash.expiresAt` in the Console.
+- **Self-service account deletion (Vitor, 2026-10-23, before launch)**: a
+  customer can delete their own account in the app (Settings → Account),
+  with its business data, after a confirm step. Today only the Developer
+  Panel removes accounts (`api/_users.js`), and the Privacy Policy and Terms
+  say to close by email until this exists; update both when it ships.
 - **Production, selling soon (Vitor, 2026-10-20)**: the app is in
   production mode and will be offered to other sellers soon. Treat every
   change as going to paying customers: no half-finished features on
