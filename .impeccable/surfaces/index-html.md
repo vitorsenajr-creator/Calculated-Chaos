@@ -7,7 +7,7 @@ related_targets: []
 
 # Public welcome page (index.html)
 
-Scope: the public page that explains Calculated Chaos and asks for access. Mode: Persuade. Audience: a secondhand reseller who has not signed up yet, probably on an iPhone. Job: understand in one screen that the app keeps every piece, its label, its listing and its real profit together, then request access. Constraints: PRODUCT.md (no testimonials, counts, benchmarks or prices); US English copy; no script; the Parcel tokens from style.css, light only; the feature visuals use sample data.
+Scope: the public page that explains Calculated Chaos and asks for access. Mode: Persuade. Audience: a secondhand reseller who has not signed up yet, probably on an iPhone. Job: understand in one screen that the app keeps every piece, its label, its listing and its real profit together, then request access. Constraints: PRODUCT.md (no testimonials, counts, benchmarks or prices); US English copy; one small inline script for the scroll tour and one for the photo carousel (no library, a plain list without them); the Parcel tokens from style.css, light only; the feature visuals use sample data.
 
 THESIS: the piece is the unit of the page. Each section is one piece's journey, from label to profit, drawn with the app's own surfaces, not with illustrations.
 
