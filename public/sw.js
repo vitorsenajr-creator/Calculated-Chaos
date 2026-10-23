@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cc-shell-v2';
+const CACHE_NAME = 'cc-shell-v3';
 const SHELL_FILES = ['/app', '/manifest.json'];
 
 self.addEventListener('install', (event) => {
