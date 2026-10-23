@@ -16,6 +16,7 @@
 // business is live (v3.17.0, docs/multi-tenant.md); before the switch, or
 // for a user without one, it's null and callers use the pre-business data.
 import { getFirebaseAdmin, FIREBASE_PROJECT_ID } from './_firebaseAdmin.js';
+import { checkAppCheck } from './_appCheck.js';
 
 let warnedNoAdmin = false;
 
@@ -99,6 +100,10 @@ export async function requireApprovedUser(req){
   }
 
   const admin = getFirebaseAdmin();
+  // App Check (v3.28.2, _appCheck.js): off, monitor or enforce, before
+  // anything else is read. Without Firebase Admin it can't be checked.
+  const appCheck = await checkAppCheck(admin, req);
+  if (!appCheck.ok) return appCheck;
   if (admin.ok){
     try{
       return await checkWithAdmin(admin, idToken);

@@ -20,6 +20,7 @@
 //   already holds a different value, via the same browser confirm()
 //   pattern used everywhere else in this app for destructive actions —
 //   most relevant when she's already run photo analysis on the same item.
+import { jsonAuthHeaders } from './api-auth.js';
 import { escapeHtml } from './format-utils.js';
 
 const MAX_RECORDING_MS = 120000; // 2 min safety cutoff — auto-stop if she forgets to tap stop
@@ -205,11 +206,10 @@ export function initNarrationCapture(){
 
     try{
       const audioBase64 = await blobToBase64(blob);
-      const idToken = await window.auth.currentUser.getIdToken();
 
       const transcribeRes = await fetch('/api/narration', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+        headers: await jsonAuthHeaders(),
         body: JSON.stringify({ action: 'transcribe', audioBase64, mimeType: blob.type }),
       });
       if (!transcribeRes.ok){
@@ -233,7 +233,7 @@ export function initNarrationCapture(){
 
       const extractRes = await fetch('/api/narration', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+        headers: await jsonAuthHeaders(),
         body: JSON.stringify({ action: 'extract', kind: 'item', transcript }),
       });
       if (!extractRes.ok){

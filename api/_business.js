@@ -13,6 +13,7 @@
 // Firebase Admin ignores the security rules, so every check is done here.
 
 import { buildNewBusinessDocs } from '../src/domain/new-business.js';
+import { checkAppCheck } from './_appCheck.js';
 
 const SWITCH = ['platform', 'signup'];
 const err = (status, error) => ({ ok: false, status, error });
@@ -25,6 +26,9 @@ export async function verifySignedInUser(admin, req){
   const header = req.headers['authorization'] || '';
   const idToken = header.startsWith('Bearer ') ? header.slice(7) : null;
   if (!idToken) return err(401, 'Missing Authorization header.');
+  // App Check (v3.28.2): sign-up is where bots would aim first.
+  const appCheck = await checkAppCheck(admin, req);
+  if (!appCheck.ok) return appCheck;
   try{
     const decoded = await admin.auth.verifyIdToken(idToken);
     return { ok: true, uid: decoded.uid, email: decoded.email || null, emailVerified: decoded.email_verified === true };

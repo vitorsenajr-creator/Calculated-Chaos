@@ -557,6 +557,17 @@ function renderApp(){
       </div>
     </div>
     <div class="ad-card">
+      <h3>App Check on the server</h3>
+      <div class="ad-desc">How our functions treat the App Check token the app sends (reCAPTCHA Enterprise). <b>Off:</b> not checked. <b>Monitor:</b> calls go on, and calls without a valid token are logged as <code>app-check-monitor</code> in Vercel. <b>Enforce:</b> those calls are refused. Firestore, Auth and Storage are enforced separately, in Firebase Console → App Check. Move to Enforce only after the Console metrics show nearly every request verified.</div>
+      <div id="adAppCheckStatus" class="ad-empty">Loading…</div>
+      <div id="adAppCheckProgress" class="ad-meta" style="margin-top:8px;"></div>
+      <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;" role="group" aria-label="App Check mode">
+        <button class="ad-btn secondary" data-appcheck-mode="off" disabled>Off</button>
+        <button class="ad-btn secondary" data-appcheck-mode="monitor" disabled>Monitor</button>
+        <button class="ad-btn secondary" data-appcheck-mode="enforce" disabled>Enforce</button>
+      </div>
+    </div>
+    <div class="ad-card">
       <h3>Business migration</h3>
       <div class="ad-desc">Copies today's catalog, drafts, Live Catalog, counters, settings, eBay error library and eBay connection into one business (businesses/{id}). <b>Copy, never move:</b> the app keeps using the current data until the switch, and nothing is deleted. Safe to run again.</div>
       <div class="ad-desc">Before copying: download a backup in the Backup tab and run a Google Cloud export.</div>
@@ -585,6 +596,8 @@ function renderApp(){
   loadAdminClaims();
   document.getElementById('adSelfServeBtn').addEventListener('click', toggleSelfServe);
   loadSelfServe();
+  document.querySelectorAll('[data-appcheck-mode]').forEach(btn => btn.addEventListener('click', () => setAppCheckMode(btn.dataset.appcheckMode)));
+  loadAppCheckMode();
   document.getElementById('adMigrationRefreshBtn').addEventListener('click', loadMigrationStatus);
   document.getElementById('adMigrationCopyBtn').addEventListener('click', runMigrationCopy);
   document.getElementById('adMigrationSwitchBtn').addEventListener('click', runMigrationSwitch);
@@ -757,6 +770,48 @@ async function toggleSelfServe(){
   }catch(e){
     progress.textContent = `Could not change it: ${e.message || e}`;
     btn.disabled = false;
+  }
+}
+
+// ---------- App Check on the server (v3.28.2, api/_appCheck.js) ----------
+const APP_CHECK_TEXT = {
+  off: ['pending', 'Off: our functions do not check the App Check token.'],
+  monitor: ['pending', 'Monitor: calls without a valid token go on and are logged (app-check-monitor).'],
+  enforce: ['success', 'Enforce: calls without a valid token are refused.'],
+};
+
+function drawAppCheckMode(mode){
+  const [kind, text] = APP_CHECK_TEXT[mode] || APP_CHECK_TEXT.off;
+  document.getElementById('adAppCheckStatus').innerHTML = `<div class="ebay-status-box ${kind}">${escapeHtml(text)}</div>`;
+  document.querySelectorAll('[data-appcheck-mode]').forEach(btn => {
+    const on = btn.dataset.appcheckMode === mode;
+    btn.className = on ? 'ad-btn' : 'ad-btn secondary';
+    btn.setAttribute('aria-pressed', String(on));
+    btn.disabled = false;
+  });
+}
+
+async function loadAppCheckMode(){
+  try{
+    const r = await platformAction({ action: 'app_check' });
+    drawAppCheckMode(r.mode);
+  }catch(e){
+    document.getElementById('adAppCheckStatus').innerHTML = `<div class="ebay-status-box error">Could not load the App Check mode: ${escapeHtml(e.message || String(e))}</div>`;
+  }
+}
+
+async function setAppCheckMode(mode){
+  if (mode === 'enforce' && !confirm('Enforce App Check on the server? Calls from an app without a valid token (an old cached copy, a blocked reCAPTCHA) will be refused.')) return;
+  const progress = document.getElementById('adAppCheckProgress');
+  document.querySelectorAll('[data-appcheck-mode]').forEach(btn => { btn.disabled = true; });
+  progress.textContent = 'Saving…';
+  try{
+    const r = await platformAction({ action: 'app_check_set', mode });
+    progress.textContent = `Saved. Functions pick it up within a minute.`;
+    drawAppCheckMode(r.mode);
+  }catch(e){
+    progress.textContent = `Could not change it: ${e.message || e}`;
+    loadAppCheckMode();
   }
 }
 

@@ -12,6 +12,7 @@
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
+import { getAppCheck } from 'firebase-admin/app-check';
 
 // Override with the FIREBASE_PROJECT_ID env var; defaults to the current project.
 export const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || 'calculated-chaos-4027a';
@@ -56,13 +57,13 @@ function load(){
       credential: cert({ projectId: sa.project_id, clientEmail: sa.client_email, privateKey }),
       projectId: sa.project_id,
     }, APP_NAME);
-    return { ok: true, auth: getAuth(app), db: getFirestore(app), projectId: sa.project_id, clientEmail: sa.client_email };
+    return { ok: true, auth: getAuth(app), db: getFirestore(app), appCheck: getAppCheck(app), projectId: sa.project_id, clientEmail: sa.client_email };
   }catch(e){
     return { ok: false, error: `Firebase Admin could not start: ${e.message || e}` };
   }
 }
 
-// { ok:true, auth, db, projectId, clientEmail } or { ok:false, error }.
+// { ok:true, auth, db, appCheck, projectId, clientEmail } or { ok:false, error }.
 // Cached per function instance.
 export function getFirebaseAdmin(){
   if (!cached) cached = load();
