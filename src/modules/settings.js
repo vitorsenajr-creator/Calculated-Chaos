@@ -69,6 +69,7 @@ export const DEFAULT_SETTINGS = {
     category: false,
     brand: false,
     barcode: true,
+    storeName: false,
   },
 
   // 5. Wall measurement markers — real-world center-to-center spacing of

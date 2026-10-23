@@ -40,6 +40,7 @@ window.saveLabelSettings = async function(){
     category: document.getElementById('sLabelFieldCategory').checked,
     brand: document.getElementById('sLabelFieldBrand').checked,
     barcode: document.getElementById('sLabelFieldBarcode').checked,
+    storeName: document.getElementById('sLabelFieldStore').checked,
   };
   await saveSettings();
   showSaveMsg('labelSaveMsg');

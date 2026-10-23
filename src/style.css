@@ -1850,6 +1850,11 @@
   }
   .settings-row select{width:auto; min-width:150px; max-width:60%; text-align:left;}
   .settings-row input[type=checkbox]{width:22px; height:22px; accent-color:var(--brand-2);}
+  label.settings-row{cursor:pointer;}
+  /* Settings → Labels (v3.27.25): the live preview and the tight-label warning. */
+  .lbl-preview{display:flex; justify-content:center; padding:14px; background:var(--surface-2); border-radius:var(--radius-sm);}
+  .lbl-preview canvas{max-width:100%; height:auto; background:#fff; box-shadow:0 0 0 1px var(--line);}
+  .lbl-fit-list{margin:0 0 12px; padding-left:18px; font-size:14px; line-height:1.45; color:var(--ink);}
   .settings-textarea{
     width:100%; min-height:80px; padding:10px 12px; border:1px solid var(--line); border-radius:var(--radius-sm);
     background:var(--surface); color:var(--ink); font-family:var(--font-ui); resize:vertical;
@@ -1956,6 +1961,11 @@
     font-family:'Inter',sans-serif; font-weight:700; color:#000;
     line-height:1.15; text-align:center; margin-top:0.035in;
     max-width:100%; white-space:normal; word-break:break-word;
+  }
+  /* The store name line at the top (v3.27.25). */
+  .label-sheet .label-store{
+    font-family:'Inter',sans-serif; font-weight:700; color:#000;
+    line-height:1.15; white-space:nowrap; text-align:center; margin-bottom:0.035in;
   }
   .label-sheet .label-box{
     font-family:'Inter',sans-serif; font-weight:600; color:#000;
