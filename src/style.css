@@ -2088,3 +2088,8 @@
 .auth-forgot a{ color:var(--brand); font-weight:600; min-height:44px; display:inline-flex; align-items:center; }
 .auth-note{ margin-top:12px; padding:10px 12px; border-radius:var(--radius-sm); background:var(--surface-2); color:var(--ink); font-size:14px; line-height:1.45; }
 
+/* Sign-in brand block (v3.27.14): tag mark and name in the business's main color. */
+.auth-brand{ display:flex; align-items:center; justify-content:center; gap:10px; color:var(--brand); font-weight:800; font-size:22px; letter-spacing:-0.01em; margin-bottom:6px; }
+.auth-brand svg{ width:30px; height:30px; flex:none; }
+.auth-tagline{ text-align:center; color:var(--ink-2); font-size:15px; margin:0 0 14px; }
+
