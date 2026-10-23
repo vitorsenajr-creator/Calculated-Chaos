@@ -9,9 +9,9 @@ const BIZ = 'businesses/harness';
 // Thumbnails for the pieces on the Pick list (the photos the Pick screen draws).
 const PICK_PHOTOS = {
   '#0631': '/tests/harness/photos/pick-belt.webp',
-  '#0648': '/tests/harness/photos/pick-shirt.webp',
+  '#0648': '/tests/harness/photos/pick-bodysuit.webp',
   '#0662': '/tests/harness/photos/pick-pants.webp',
-  '#0679': '/tests/harness/photos/pick-dress.webp',
+  '#0679': '/welcome/sample-photo-2.webp',
   '#0688': '/tests/harness/photos/pick-beanie.webp',
 };
 
