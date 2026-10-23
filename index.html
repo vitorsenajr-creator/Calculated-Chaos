@@ -6,10 +6,12 @@
   <title>Calculated Chaos: know every piece and what it earned</title>
   <meta name="description" content="Calculated Chaos runs a secondhand resale business from your phone: a product code on every piece, labels and boxes, listings from your photos, and true profit when it sells." />
   <meta name="theme-color" content="#12285A" />
+  <link rel="icon" href="/favicon.ico?v=3" sizes="48x48" />
+  <link rel="icon" type="image/svg+xml" sizes="any" href="/favicon.svg?v=3" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png?v=3" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png?v=3" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=3" />
   <meta name="color-scheme" content="light" />
-  <link rel="icon" type="image/svg+xml" sizes="any" href="/favicon.svg" />
-  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
-  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" />
@@ -87,11 +89,28 @@
     .top .btn{ background:#fff; color:var(--brand); white-space:nowrap; padding:0 10px; font-size:14px; }
     .top .btn:hover{ background:#E6ECF5; }
     .top nav a.plain.hide-phone{ display:none; }
+    .menu-btn{ min-height:44px; padding:0 12px; border:0; background:none; color:#fff; font:600 15px/1 var(--font-ui); cursor:pointer; display:inline-flex; align-items:center; gap:6px; }
+    .menu-btn::after{ content:""; width:8px; height:8px; border-right:2px solid currentColor; border-bottom:2px solid currentColor; transform:translateY(-2px) rotate(45deg); transition:transform .2s ease; }
+    .menu-btn[aria-expanded="true"]::after{ transform:translateY(2px) rotate(-135deg); }
+    .menu-sheet{ background:var(--brand-2); border-top:1px solid rgba(255,255,255,.18); }
+    .menu-sheet[hidden]{ display:none; }
+    .menu-sheet .wrap{ display:grid; }
+    .menu-sheet a{ color:#fff; text-decoration:none; font-weight:600; font-size:17px; min-height:52px; display:flex; align-items:center; border-bottom:1px solid rgba(255,255,255,.14); }
+    .menu-sheet a:last-child{ border-bottom:0; }
     @media (max-width: 399px){ .top nav a.sign-in{ display:none; } }
 
     /* Hero */
     .hero{ background:var(--brand); color:#fff; padding:40px 0 56px; }
-    .hero .wrap{ display:grid; gap:40px; align-items:center; }
+    .hero .wrap{ display:flex; flex-direction:column; }
+    .hero .wrap > div:first-child{ display:contents; }
+    .hero h1{ order:1; }
+    .hero .lede{ order:2; margin-top:14px; font-size:18px; }
+    .hero .actions{ order:3; margin-top:22px; }
+    .hero .fine{ order:4; margin-top:12px; }
+    .hero .hero-shot{ order:5; margin-top:32px; }
+    .hero .results{ order:6; margin-top:28px; }
+    .hero .also{ order:7; }
+    .lede-d{ display:none; }
     h1{
       font-weight:800; font-stretch:90%;
       font-size:clamp(2.25rem, 8.5vw, 4rem);
@@ -109,9 +128,10 @@
     .results{ list-style:none; margin:28px 0 0; padding:0; max-width:646px; }
     .results li{ display:grid; grid-template-columns:32px 1fr; gap:14px; align-items:start; padding:12px 0; border-top:1px solid rgba(255,255,255,.2); }
     .results li:last-child{ border-bottom:1px solid rgba(255,255,255,.2); }
+    .results .d{ display:none; }
     .results .num{ font-size:28px; line-height:1.1; color:#fff; }
     .results b{ display:block; font-size:18px; font-weight:700; line-height:1.25; }
-    .results .d{ display:block; margin-top:2px; font-size:15px; line-height:1.4; color:#B9C6DD; }
+    .results .d{ margin-top:2px; font-size:15px; line-height:1.4; color:#B9C6DD; }
     .also{ margin-top:10px; font-size:14px; color:#B9C6DD; }
 
     /* Product frames: drawn with the app's own tokens; sample data only. */
@@ -234,7 +254,7 @@
 
 
     /* Hero visual: one piece, from photo to sale. Sizes follow the box (cqw). */
-    .collage{ container-type:inline-size; position:relative; width:100%; max-width:380px; aspect-ratio:380 / 560; margin:0 auto; }
+    .collage{ container-type:inline-size; position:relative; width:100%; max-width:340px; aspect-ratio:380 / 560; margin:0 auto; }
     .cl-phone{ position:absolute; right:0; top:0; width:58%; height:70%; overflow:hidden; border-radius:34px 34px 0 0; -webkit-mask-image:linear-gradient(#000 78%, transparent); mask-image:linear-gradient(#000 78%, transparent); }
     .cl-phone .phone{ margin:0; max-width:none; width:100%; border-radius:34px 34px 0 0; padding:2.6cqw; }
     .cl-photo{ position:absolute; left:0; top:15%; width:50%; aspect-ratio:3 / 4; transform:rotate(-4deg); border:1.4cqw solid var(--surface); border-radius:6px; box-shadow:0 18px 34px -16px rgba(5,12,30,.6); overflow:hidden; background:var(--surface); }
@@ -304,6 +324,33 @@
     .tour.is-pinned .t-phone{ height:100%; width:fit-content; max-width:none; display:flex; justify-self:start; }
     .tour.is-pinned .screen{ flex:none; height:100%; }
 
+
+    /* Phones: tighter rhythm, the sum stacked, a swipeable tour. */
+    @media (max-width: 759px){
+      .section, .band, .closing{ padding:56px 0; }
+      .block{ margin-top:56px; }
+      .cols{ margin-top:32px; }
+      .flow{ margin-top:40px; }
+      .head .lead{ font-size:18px; }
+      .eq{ flex-direction:column; align-items:stretch; gap:6px; margin-top:28px; }
+      .eq i{ display:none; }
+      .eq span{ text-align:left; }
+      .eq span:not(:first-child)::before{ content:"\2212\00a0"; color:var(--ink-2); }
+      .eq span.res:not(:first-child)::before{ content:"=\00a0"; color:#fff; }
+    }
+
+
+    /* Tour on phones and tablets: the steps are cards you swipe, the box follows. */
+    .tour.is-swipe{ padding:56px 0 64px; }
+    .tour.is-swipe .t-line{ display:block; position:relative; margin-top:12px; padding-top:116px; }
+    .tour.is-swipe .t-stops{ display:flex; gap:12px; margin:20px -16px 0; padding:0 16px 4px; overflow-x:auto; scroll-snap-type:x mandatory; scroll-padding:0 16px; overscroll-behavior-x:contain; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
+    .tour.is-swipe .t-stops::-webkit-scrollbar{ display:none; }
+    .tour.is-swipe .t-stop{ flex:0 0 calc(100% - 28px); scroll-snap-align:start; gap:16px; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:20px 16px 24px; }
+    .tour.is-swipe .t-phone{ max-width:230px; }
+    .tour.is-swipe .t-c{ font-size:16px; }
+    .tour.is-swipe .t-lbl{ font-size:13px; }
+    .tour.is-swipe .t-node{ padding:0 2px 4px; }
+
     /* Closing */
     .closing{ background:var(--brand); color:#fff; padding:72px 0; }
     .closing h2{ color:#fff; max-width:14em; }
@@ -327,10 +374,14 @@
       .top nav{ gap:6px; }
       .top nav a.plain{ padding:12px 12px; }
       .hero{ padding:56px 0 72px; }
-      .hero .wrap{ grid-template-columns:minmax(0,1fr) 380px; gap:40px; }
+      .hero .wrap{ display:grid; align-items:center; grid-template-columns:minmax(0,1fr) 380px; gap:40px; }
+      .hero .wrap > div:first-child{ display:block; }
+      .hero .lede{ order:0; margin-top:18px; font-size:19px; }
+      .lede-d{ display:inline; }
+      .lede-m{ display:none; }
       h1{ font-size:clamp(2.5rem, 3.9vw, 3.4rem); }
       .hero .btn{ min-height:52px; min-width:200px; padding:0 30px; font-size:17px; }
-      .results .d{ font-size:16px; }
+      .results .d{ display:block; font-size:16px; }
       .section{ padding:104px 0; }
       .closing{ padding:104px 0; }
       .band{ padding:104px 0; }
@@ -343,11 +394,12 @@
       .ship-grid{ grid-template-columns:1fr 1fr; column-gap:28px; }
       .ship-grid .wide2{ grid-column:1 / -1; }
       .ship{ padding:22px 28px 18px; }
+      .collage{ max-width:380px; }
       .hero .collage .phone{ max-width:none; }
       .tour{ padding:104px 0 112px; }
     }
     /* The two section links need the room of a full desktop bar. */
-    @media (min-width: 900px){ .top nav a.plain.hide-phone{ display:inline; } }
+    @media (min-width: 900px){ .top nav a.plain.hide-phone{ display:inline; } .menu-btn{ display:none; } .menu-sheet{ display:none !important; } }
     @media (prefers-reduced-motion: reduce){ html{ scroll-behavior:auto; } }
     /* Tour: real screens in sequence, one per tab of the app's bottom bar. */
     .sample-note{ margin-top:12px; font-size:13px; color:#B9C6DD; text-align:center; }
@@ -380,11 +432,18 @@
   <div class="wrap">
     <a class="mark" href="/"><svg class="mark-icon" viewBox="96 140 326 282" aria-hidden="true"><g transform="translate(256,256)"><path d="M-141,-97 L26,-97 L149,26 L26,149 L-141,149 Z" fill="none" stroke="currentColor" stroke-width="26" stroke-linejoin="round"/><circle cx="-77" cy="-33" r="23" fill="currentColor"/></g></svg><span>Calculated Chaos</span></a>
     <nav aria-label="Main">
+      <button type="button" class="menu-btn" id="menuBtn" aria-expanded="false" aria-controls="menuSheet">Menu</button>
       <a class="plain hide-phone" href="#features">Features</a>
       <a class="plain hide-phone" href="#about">About us</a>
       <a class="plain sign-in" href="/app">Sign in</a>
       <a class="btn btn-small" href="/app">Request access</a>
     </nav>
+  </div>
+  <div class="menu-sheet" id="menuSheet" hidden>
+    <div class="wrap">
+      <a href="#features">Features</a>
+      <a href="#about">About us</a>
+    </div>
   </div>
 </header>
 
@@ -394,7 +453,7 @@
   <div class="wrap">
     <div>
       <h1 id="hero-title">Know where every piece is. Know what it really earned.</h1>
-      <p class="lede">Calculated Chaos runs your secondhand resale business from your phone: a product code on every piece, labels and boxes that show where it is, listings from your photos, and the real profit when it sells.</p>
+      <p class="lede"><span class="lede-d">Calculated Chaos runs your secondhand resale business from your phone: a product code on every piece, labels and boxes that show where it is, listings from your photos, and the real profit when it sells.</span><span class="lede-m">Run your secondhand resale business from your phone, from the shelf to the real profit.</span></p>
       <ol class="results" aria-label="What you get">
         <li><span class="num" aria-hidden="true">1</span><div><b>A code and a box on every piece.</b><span class="d">The label shows where it lives.</span></div></li>
         <li><span class="num" aria-hidden="true">2</span><div><b>Listings drafted from your photos.</b><span class="d">Title, description and details, ready for you to review.</span></div></li>
@@ -510,6 +569,7 @@
   var sec = document.getElementById('tour');
   if (!sec) return;
   var pin = sec.querySelector('.tour-pin');
+  var track = sec.querySelector('.t-stops');
   var stops = Array.prototype.slice.call(sec.querySelectorAll('.t-stop'));
   var nodes = Array.prototype.slice.call(sec.querySelectorAll('.t-node'));
   var box = sec.querySelector('.t-box');
@@ -518,9 +578,11 @@
   var stamps = ['CATALOGED', 'LISTED', 'PICKED', 'SOLD'];
   var wide = window.matchMedia('(min-width: 900px)');
   var calm = window.matchMedia('(prefers-reduced-motion: reduce)');
-  // dwell (the screen scrolls), travel (the box moves), dwell, ...; the numbers are the weights.
+  // Wide: the section stays fixed and the scroll moves the box (dwell, travel, dwell, ...).
+  // Narrow: the steps are cards you swipe and the box follows the swipe.
   var W = [2, 1, 2, 1, 2, 1, 2], TOTAL = 11;
-  var on = false, queued = false;
+  var mode = 'list', queued = false;
+  var labelOn = false, lastIdx = -1, anim = null;
   function phase(P){
     var x = P * TOTAL, acc = 0;
     for (var k = 0; k < W.length; k++){
@@ -528,13 +590,13 @@
       acc += W[k];
     }
   }
-  function cut(t, from){ return Math.min(1, Math.max(0, (t - from) / 0.1)); }
-  function fade(t){ return Math.min(1, Math.max(0, (t - 0.4) / 0.2)); }
   function progress(){
     var r = pin.getBoundingClientRect();
     var span = r.height - window.innerHeight;
     return span > 0 ? Math.min(1, Math.max(0, -r.top / span)) : 0;
   }
+  function cut(t, from){ return Math.min(1, Math.max(0, (t - from) / 0.1)); }
+  function fade(t){ return Math.min(1, Math.max(0, (t - 0.4) / 0.2)); }
   function setScroll(stop, v){
     var body = stop.querySelector('.scr-body'), img = stop.querySelector('.scr-img');
     var room = Math.max(0, img.offsetHeight - body.offsetHeight);
@@ -542,18 +604,24 @@
     var swap = stop.querySelector('.scr-swap');
     if (swap) swap.style.opacity = v > 0.92 ? '1' : '0';
   }
-  function draw(){
-    queued = false;
-    if (!on) return;
-    var ph = phase(progress()), i = ph.k >> 1, dwell = ph.k % 2 === 0, t = ph.t;
-    var pos = dwell ? i : i + t;
+  function place(pos, lab){
     box.style.left = (12.5 + pos * 25) + '%';
     fill.style.width = (pos / 3 * 100) + '%';
     var near = Math.round(pos);
     box.setAttribute('data-s', near);
     if (chip.textContent !== stamps[near]) chip.textContent = stamps[near];
-    // the label goes on the box while it sits at the Catalog step
-    box.style.setProperty('--lab', near === 0 && i === 0 && dwell ? Math.min(1, t * 3) : (pos > 0 ? 1 : 0));
+    box.style.setProperty('--lab', lab);
+    nodes.forEach(function(n, idx){
+      if (idx === near) n.setAttribute('aria-current', 'step'); else n.removeAttribute('aria-current');
+    });
+    return near;
+  }
+  function drawPin(){
+    queued = false;
+    if (mode !== 'pin') return;
+    var ph = phase(progress()), i = ph.k >> 1, dwell = ph.k % 2 === 0, t = ph.t;
+    var pos = dwell ? i : i + t;
+    place(pos, near0(i, dwell, t, pos));
     stops.forEach(function(stop, idx){
       var a = 0, c = 0, v = 0;
       if (dwell){ a = c = idx === i ? 1 : 0; v = idx === i ? t : 0; }
@@ -565,12 +633,41 @@
       stop.setAttribute('aria-hidden', a > 0.5 ? 'false' : 'true');
       setScroll(stop, v);
     });
-    nodes.forEach(function(n, idx){
-      if (idx === near) n.setAttribute('aria-current', 'step'); else n.removeAttribute('aria-current');
-    });
   }
-  function queue(){ if (!queued){ queued = true; window.requestAnimationFrame(draw); } }
+  // the printed label goes on the box while it sits at the Catalog step
+  function near0(i, dwell, t, pos){
+    return i === 0 && dwell ? Math.min(1, t * 3) : (pos > 0 ? 1 : 0);
+  }
+  function drawSwipe(){
+    queued = false;
+    if (mode !== 'swipe' || !stops.length) return;
+    var step = stops.length > 1 ? stops[1].offsetLeft - stops[0].offsetLeft : track.clientWidth;
+    var pos = Math.min(3, Math.max(0, (track.scrollLeft) / step));
+    var near = place(pos, labelOn || pos > 0.05 ? 1 : 0);
+    if (near !== lastIdx){ lastIdx = near; play(near); }
+  }
+  // in swipe mode the screen of the card in view scrolls by itself, once per visit
+  function play(idx){
+    if (anim) window.cancelAnimationFrame(anim);
+    stops.forEach(function(stop, k){ if (k !== idx) setScroll(stop, 0); });
+    var stop = stops[idx], t0 = null, D = 3200;
+    function frame(ts){
+      if (t0 === null) t0 = ts;
+      var x = Math.min(1, (ts - t0) / D), v = x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2;
+      setScroll(stop, v);
+      if (idx === 0 && v > 0.25 && !labelOn){ labelOn = true; box.style.setProperty('--lab', 1); }
+      if (x < 1) anim = window.requestAnimationFrame(frame);
+    }
+    anim = window.requestAnimationFrame(frame);
+  }
+  function queue(){
+    if (queued) return;
+    queued = true;
+    window.requestAnimationFrame(mode === 'pin' ? drawPin : drawSwipe);
+  }
   function reset(){
+    if (anim) window.cancelAnimationFrame(anim);
+    anim = null; lastIdx = -1;
     stops.forEach(function(stop){
       stop.style.pointerEvents = ''; stop.removeAttribute('aria-hidden');
       stop.querySelector('.t-phone').style.opacity = ''; stop.querySelector('.t-copy').style.opacity = '';
@@ -578,17 +675,26 @@
       var swap = stop.querySelector('.scr-swap'); if (swap) swap.style.opacity = '';
     });
     nodes.forEach(function(n){ n.removeAttribute('aria-current'); });
+    if (track) track.scrollLeft = 0;
   }
   function sync(){
-    var want = wide.matches && !calm.matches;
-    if (want === on) { if (on) queue(); return; }
-    on = want;
-    sec.classList.toggle('is-pinned', on);
-    if (on) queue(); else reset();
+    var want = calm.matches ? 'list' : (wide.matches ? 'pin' : 'swipe');
+    if (want === mode) { if (mode !== 'list') queue(); return; }
+    mode = want;
+    sec.classList.toggle('is-pinned', mode === 'pin');
+    sec.classList.toggle('is-swipe', mode === 'swipe');
+    reset();
+    if (mode !== 'list') queue();
   }
   nodes.forEach(function(n){
     n.addEventListener('click', function(){
-      var i = Number(n.getAttribute('data-i')), before = 0;
+      var i = Number(n.getAttribute('data-i'));
+      if (mode === 'swipe'){
+        var step = stops[1].offsetLeft - stops[0].offsetLeft;
+        track.scrollTo({ left: i * step, behavior: 'smooth' });
+        return;
+      }
+      var before = 0;
       for (var k = 0; k < i * 2; k++) before += W[k];
       var r = pin.getBoundingClientRect();
       var top = r.top + window.pageYOffset;
@@ -597,9 +703,31 @@
     });
   });
   window.addEventListener('scroll', queue, { passive: true });
+  if (track) track.addEventListener('scroll', queue, { passive: true });
   window.addEventListener('resize', sync);
   if (wide.addEventListener) { wide.addEventListener('change', sync); calm.addEventListener('change', sync); }
+  // the screens are big: load them when the tour is near, not before
+  if ('IntersectionObserver' in window){
+    var io = new IntersectionObserver(function(list){
+      if (!list[0].isIntersecting) return;
+      Array.prototype.forEach.call(sec.querySelectorAll('img[loading="lazy"]'), function(img){ img.loading = 'eager'; });
+      io.disconnect();
+    }, { rootMargin: '1500px 0px' });
+    io.observe(sec);
+  }
   sync();
+})();
+(function(){
+  var btn = document.getElementById('menuBtn'), sheet = document.getElementById('menuSheet');
+  if (!btn || !sheet) return;
+  function set(open){
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    sheet.hidden = !open;
+  }
+  btn.addEventListener('click', function(){ set(sheet.hidden); if (!sheet.hidden){ var a = sheet.querySelector('a'); if (a) a.focus(); } });
+  sheet.addEventListener('click', function(e){ if (e.target.tagName === 'A') set(false); });
+  document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && !sheet.hidden){ set(false); btn.focus(); } });
+  document.addEventListener('click', function(e){ if (!sheet.hidden && !sheet.contains(e.target) && e.target !== btn) set(false); });
 })();
 (function(){
   var box = document.querySelector('.carousel');
