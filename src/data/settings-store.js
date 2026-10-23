@@ -19,6 +19,7 @@ import {
   aiUsagePct as _aiUsagePct,
   isScheduledResetDue,
 } from '../modules/settings.js';
+import { serverAiAllowance, noteAiCall } from './ai-allowance-store.js';
 
 export async function loadSettings(){
   // Only true when the read itself succeeded (doc existed and parsed, OR
@@ -94,9 +95,18 @@ export async function resetAiCounter(type){
 }
 
 export async function incrementAiUsage(){
+  noteAiCall();
   appSettings.aiUsageCount = (appSettings.aiUsageCount || 0) + 1;
   await saveSettings();
 }
 
-export function aiUsageRemaining(){ return _aiUsageRemaining(appSettings); }
-export function aiUsagePct(){ return _aiUsagePct(appSettings); }
+// A store with a server limit (v3.28.1) answers from the server's numbers,
+// which are the ones enforced; any other store keeps its own counter.
+export function aiUsageRemaining(){
+  const s = serverAiAllowance();
+  return s ? s.remaining : _aiUsageRemaining(appSettings);
+}
+export function aiUsagePct(){
+  const s = serverAiAllowance();
+  return s ? Math.min(100, Math.round((s.used / s.limit) * 100)) : _aiUsagePct(appSettings);
+}

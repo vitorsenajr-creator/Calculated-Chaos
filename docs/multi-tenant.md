@@ -253,8 +253,9 @@ Enforcement:
      off by default, in Developer Panel → App. No rules change: the server
      writes the business, the owner member and the settings, and approves
      the account with `activeBizId`.
-   - [ ] Server-side AI limit per business (`businesses/{bizId}.aiMonthlyLimit`,
-     100 for new stores), before the switch is turned on.
+   - [x] v3.28.1: server-side AI allowance per business
+     (`businesses/{bizId}.aiMonthlyLimit`, 100 for new stores, every AI call
+     counted, 429 at the limit; `api/_aiAllowance.js`).
    - [ ] App Check, before the switch is turned on.
    - [ ] Onboarding steps 2-4 (how to start, first piece, label setup and
      box) and the Getting started checklist on Home.

@@ -99,6 +99,8 @@ import { jsonAuthHeaders } from './modules/api-auth.js';
 import { loadAdminClaim } from './modules/admin-claim.js';
 import { sendVerificationEmail, refreshEmailVerified, tokenEmailVerified } from './modules/email-verification.js';
 import { signupNextStep } from './domain/new-business.js';
+import { limitMessage } from './domain/ai-allowance.js';
+import { loadAiAllowance, serverAiAllowance, noteAiLimitReached } from './data/ai-allowance-store.js';
 
 export const app = (function(){
   // APP_VERSION / APP_VERSION_DATE live in modules/version.js (shared with
@@ -3864,6 +3866,12 @@ export const app = (function(){
       try{
         const errJson = await response.json();
         detail = errJson?.detail?.error?.message || errJson?.error?.message || errJson?.error || '';
+        // The store's monthly AI allowance is used up (v3.28.1): the server's
+        // own sentence, with the reset date, is the whole message.
+        if (response.status === 429 && errJson?.aiLimit){
+          noteAiLimitReached(errJson.aiLimit);
+          return { ok:false, message: escapeHtml(String(errJson.error)) };
+        }
       }catch(parseErr){ /* body wasn't JSON — leave detail blank */ }
       return { ok:false, message: `Couldn't reach the AI (server said: HTTP ${response.status}${detail ? ' — ' + escapeHtml(String(detail)) : ''}). Try again in a moment — if it keeps happening, tell Vitor this exact message.` };
     }
@@ -3943,7 +3951,10 @@ export const app = (function(){
       return;
     }
     if (aiUsageRemaining() <= 0){
-      area.innerHTML = `<div class="ai-error">❌ You've reached your monthly AI analysis limit (${appSettings.aiUsageLimit || 500} analyses). Go to ⚙ Settings to reset the counter.</div>`;
+      const serverLimit = serverAiAllowance();
+      area.innerHTML = serverLimit
+        ? `<div class="ai-error">${escapeHtml(limitMessage(serverLimit))}</div>`
+        : `<div class="ai-error">❌ You've reached your monthly AI analysis limit (${appSettings.aiUsageLimit || 500} analyses). Go to ⚙ Settings to reset the counter.</div>`;
       return;
     }
 
@@ -5244,6 +5255,9 @@ export const app = (function(){
       // lands on Catalog (switchToTab enforces it).
       switchToTab('home');
       prefetchScreens();
+      // The store's server-side AI allowance (v3.28.1), for Settings and the
+      // checks before an AI call; a store without one answers "not limited".
+      loadAiAllowance();
       Promise.all([loadEbaySales(), loadExpenses()]).then(() => {
         renderHome();
         refreshFinance();
