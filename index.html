@@ -232,6 +232,41 @@
     .ship-foot span{ font-size:11px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; }
     .ship-foot b{ font-size:16px; font-weight:700; }
 
+
+    /* Hero visual: one piece, from photo to sale. Sizes follow the box (cqw). */
+    .collage{ container-type:inline-size; position:relative; width:100%; max-width:380px; aspect-ratio:380 / 560; margin:0 auto; }
+    .cl-phone{ position:absolute; right:0; top:0; width:58%; height:70%; overflow:hidden; border-radius:34px 34px 0 0; -webkit-mask-image:linear-gradient(#000 78%, transparent); mask-image:linear-gradient(#000 78%, transparent); }
+    .cl-phone .phone{ margin:0; max-width:none; width:100%; border-radius:34px 34px 0 0; padding:2.6cqw; }
+    .cl-photo{ position:absolute; left:0; top:15%; width:50%; aspect-ratio:3 / 4; transform:rotate(-4deg); border:1.4cqw solid var(--surface); border-radius:6px; box-shadow:0 18px 34px -16px rgba(5,12,30,.6); overflow:hidden; background:var(--surface); }
+    .cl-photo img{ width:100%; height:100%; object-fit:cover; }
+    .cl-label{ position:absolute; left:34%; top:41%; width:46%; transform:rotate(3deg); background:#fff; color:#111; border:2px solid #111; border-radius:4px; padding:3.2cqw 3.2cqw 2.6cqw; box-shadow:0 18px 34px -16px rgba(5,12,30,.6); }
+    .cl-store{ display:flex; justify-content:space-between; gap:4px; font-size:1.9cqw; font-weight:700; letter-spacing:.1em; text-transform:uppercase; border-bottom:1px solid #111; padding-bottom:1.4cqw; }
+    .cl-code{ display:inline-block; margin-top:2.6cqw; border:2px solid #111; padding:0 2cqw; font-stretch:70%; font-weight:800; font-size:9cqw; line-height:1.2; font-variant-numeric:tabular-nums; }
+    .cl-name{ margin-top:2cqw; font-size:3.1cqw; font-weight:700; line-height:1.25; }
+    .cl-grid{ display:flex; gap:5cqw; margin-top:2.4cqw; border-top:1px solid #111; padding-top:1.6cqw; }
+    .cl-grid small{ display:block; font-size:1.9cqw; font-weight:700; letter-spacing:.1em; text-transform:uppercase; }
+    .cl-grid b{ font-size:3.4cqw; }
+    .cl-bar{ height:7cqw; margin-top:2.4cqw; background:repeating-linear-gradient(90deg,#111 0 2px,#fff 2px 4px,#111 4px 5px,#fff 5px 8px,#111 8px 11px,#fff 11px 13px); }
+    .cl-price{ margin-top:1.6cqw; text-align:right; font-stretch:70%; font-weight:800; font-size:7cqw; line-height:1; }
+    .cl-track{ position:absolute; left:0; right:0; bottom:0; margin:0; padding:0; list-style:none; display:grid; grid-template-columns:repeat(4,1fr); font-size:3.4cqw; font-weight:700; color:#fff; }
+    .cl-track li{ position:relative; display:flex; flex-direction:column; align-items:center; gap:1.4cqw; }
+    .cl-track i{ width:4.6cqw; height:4.6cqw; border-radius:50%; background:#fff; position:relative; z-index:1; }
+    .cl-track i.end{ background:var(--brand); border:.9cqw solid #fff; }
+    .cl-track li:not(:last-child)::before{ content:""; position:absolute; top:2.2cqw; left:50%; width:100%; height:2px; background:rgba(255,255,255,.55); }
+
+    /* Tour: three phones on a staircase, one per step of the piece's journey */
+    .tour{ padding:72px 0 80px; }
+    .tour .head{ max-width:40em; }
+    .tour .head h2{ font-size:clamp(1.9rem, 5vw, 2.75rem); }
+    .steps{ list-style:none; margin:48px 0 0; padding:0; display:grid; gap:48px; }
+    .steps li{ display:flex; flex-direction:column; align-items:center; text-align:center; }
+    .step-h{ margin:0 0 20px; display:flex; flex-direction:column; align-items:center; gap:6px; }
+    .step-h b{ font-size:18px; }
+    .step-h .stop{ width:48px; height:48px; display:grid; place-items:center; border-radius:50%; border:2px solid var(--brand); background:var(--surface); color:var(--brand); font-size:22px; }
+    .steps .phone{ width:100%; max-width:260px; margin:0; }
+    .steps .phone img{ width:100%; height:auto; border-radius:26px; }
+    .step-c{ margin:16px 0 0; color:var(--ink-2); font-size:16px; max-width:15em; }
+
     /* Closing */
     .closing{ background:var(--brand); color:#fff; padding:72px 0; }
     .closing h2{ color:#fff; max-width:14em; }
@@ -255,8 +290,8 @@
       .top nav{ gap:6px; }
       .top nav a.plain{ padding:12px 12px; }
       .hero{ padding:56px 0 72px; }
-      .hero .wrap{ grid-template-columns:minmax(0,1fr) 340px; gap:48px; }
-      h1{ font-size:clamp(2.75rem, 4.4vw, 3.75rem); }
+      .hero .wrap{ grid-template-columns:minmax(0,1fr) 380px; gap:40px; }
+      h1{ font-size:clamp(2.5rem, 3.9vw, 3.4rem); }
       .hero .btn{ min-height:52px; min-width:200px; padding:0 30px; font-size:17px; }
       .results .d{ font-size:16px; }
       .section{ padding:104px 0; }
@@ -271,24 +306,21 @@
       .ship-grid{ grid-template-columns:1fr 1fr; column-gap:28px; }
       .ship-grid .wide2{ grid-column:1 / -1; }
       .ship{ padding:22px 28px 18px; }
-      .hero .phone{ max-width:280px; }
+      .hero .collage .phone{ max-width:none; }
+      .steps{ grid-template-columns:repeat(3,1fr); gap:32px; align-items:start; margin-top:64px; }
+      .steps li:nth-child(1) .phone{ margin-top:0; }
+      .steps li:nth-child(2) .phone{ margin-top:56px; }
+      .steps li:nth-child(3) .phone{ margin-top:112px; }
+      .steps li:nth-child(2) .step-h{ margin-bottom:20px; }
+      .steps li:not(:last-child) .step-h::after{ content:""; position:absolute; top:24px; left:calc(50% + 40px); right:calc(-100% + 40px); height:2px; background:var(--brand); }
+      .steps li{ position:relative; }
+      .tour{ padding:104px 0 112px; }
     }
     /* The two section links need the room of a full desktop bar. */
     @media (min-width: 900px){ .top nav a.plain.hide-phone{ display:inline; } }
     @media (prefers-reduced-motion: reduce){ html{ scroll-behavior:auto; } }
     /* Tour: real screens in sequence, one per tab of the app's bottom bar. */
     .sample-note{ margin-top:12px; font-size:13px; color:#B9C6DD; text-align:center; }
-    .tour{ padding:56px 0 64px; }
-    .tour-wrap{ display:grid; gap:36px; align-items:center; }
-    .tour h2{ font-size:clamp(1.7rem, 5vw, 2.4rem); }
-    .tour p{ margin-top:14px; color:var(--ink-2); max-width:30em; }
-    .tour-tabs{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:22px; }
-    .tour-tabs button{ min-height:44px; padding:0 16px; border-radius:var(--radius-sm); border:1px solid var(--line); background:var(--surface); color:var(--brand); font:600 15px/1 var(--font-ui); cursor:pointer; }
-    .tour-tabs button[aria-selected="true"]{ background:var(--brand); color:#fff; border-color:var(--brand); }
-    .tour-screen{ position:relative; aspect-ratio:780 / 1688; border-radius:26px; overflow:hidden; background:var(--ground); }
-    .tour-img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:top; opacity:0; transition:opacity .5s ease; }
-    .tour-img.is-on{ opacity:1; }
-    @media (prefers-reduced-motion: reduce){ .tour-img{ transition:none; } }
     .carousel{ position:relative; aspect-ratio:3 / 4; border-radius:8px; overflow:hidden; }
     .slide{ position:absolute; inset:0; display:grid; place-items:center; color:var(--brand); font-weight:700; font-size:13px; opacity:0; transition:opacity .6s ease; }
     .slide.is-on{ opacity:1; }
@@ -310,7 +342,6 @@
     @media (prefers-reduced-motion: reduce){ .slide{ transition:none; } }
     .ok-note{ margin-top:12px; display:flex; align-items:center; gap:8px; font-size:14px; font-weight:700; color:var(--profit); }
     .ok-note svg{ width:18px; height:18px; flex:none; }
-    @media (min-width: 760px){ .tour-tabs{ display:flex; flex-wrap:wrap; } .tour-wrap{ grid-template-columns:1fr 340px; gap:72px; } .tour{ padding:88px 0 96px; } }
   </style>
 </head>
 <body>
@@ -348,54 +379,55 @@
     </div>
 
     <div class="hero-shot">
-    <figure class="phone" aria-label="Home screen of the app with sample numbers">
-      <img src="/welcome/home-phone.webp" width="780" height="1688" class="shot-phone" alt="The Home screen with sample data: in stock, sold and profit for the month, and the items that need attention">
-    </figure>
-    <p class="sample-note">Sample data. Not a real business.</p>
+      <div class="collage" role="img" aria-label="One piece followed from photo to sale: its photo, its printed label with code 0412 and box A-03, and the Home screen of the app, with the steps Photo, Label, Box and Sold">
+        <div class="cl-phone" aria-hidden="true">
+          <figure class="phone"><img src="/welcome/home-phone.webp" width="780" height="1688" class="shot-phone" alt=""></figure>
+        </div>
+        <div class="cl-photo" aria-hidden="true"><img src="/welcome/sample-photo-1.webp" alt="" width="900" height="900"></div>
+        <div class="cl-label" aria-hidden="true">
+          <div class="cl-store"><span>Sample Boutique</span><span>Calculated Chaos</span></div>
+          <div class="cl-code">#0412</div>
+          <div class="cl-name">Floral tiered mini dress</div>
+          <div class="cl-grid"><span><small>Size</small><b>S</b></span><span><small>Box</small><b>A-03</b></span></div>
+          <div class="cl-bar"></div>
+          <div class="cl-price">$24.00</div>
+        </div>
+        <ol class="cl-track" aria-hidden="true">
+          <li><i></i>Photo</li><li><i></i>Label</li><li><i></i>Box</li><li><i class="end"></i>Sold</li>
+        </ol>
+      </div>
+      <p class="sample-note">Sample data. Not a real business.</p>
     </div>
   </div>
 </section>
 
 
 <section class="tour" id="tour" aria-labelledby="tour-title">
-  <div class="wrap tour-wrap">
-    <div>
+  <div class="wrap">
+    <div class="head">
       <h2 id="tour-title">Follow one piece from the shelf to the profit.</h2>
-      <p>Home shows what needs you today. Catalog finds the piece and its box. Stock makes the pick list for a sale. Finances shows what the sale earned.</p>
-      <div class="tour-tabs" role="group" aria-label="Choose a screen">
-        <button type="button" data-step="0" aria-selected="true">Home</button>
-        <button type="button" data-step="1" aria-selected="false">Catalog</button>
-        <button type="button" data-step="2" aria-selected="false">Stock</button>
-        <button type="button" data-step="3" aria-selected="false">Finances</button>
-      </div>
+      <p class="lead">Home shows what needs you today. Catalog finds the piece and its box. Stock makes the pick list for a sale. Finances shows what the sale earned.</p>
     </div>
-    <figure class="phone" style="margin:0">
-      <div class="tour-screen">
-        <img class="tour-img is-on" src="/welcome/home-phone.webp" width="780" height="1688" alt="Home with sample numbers and the items that need attention">
-        <img class="tour-img" src="/welcome/catalog-phone.webp" width="780" height="1688" alt="Catalog with sample pieces, product codes and boxes" aria-hidden="true">
-        <img class="tour-img" src="/welcome/pick-phone.webp" width="780" height="1688" alt="Stock pick list grouped by box, each piece with its photo and its package number" aria-hidden="true">
-        <img class="tour-img" src="/welcome/finance-phone.webp" width="780" height="1688" alt="Finances overview with sample sales and profit" aria-hidden="true">
-      </div>
-    </figure>
+    <ol class="steps">
+      <li>
+        <p class="step-h"><span class="stop num" aria-hidden="true">1</span><b>Shelf</b></p>
+        <figure class="phone"><img src="/welcome/catalog-phone.webp" width="780" height="1688" loading="lazy" alt="Catalog with sample pieces, product codes and boxes"></figure>
+        <p class="step-c">Catalog finds the piece and its box.</p>
+      </li>
+      <li>
+        <p class="step-h"><span class="stop num" aria-hidden="true">2</span><b>Pick</b></p>
+        <figure class="phone"><img src="/welcome/pick-phone.webp" width="780" height="1688" loading="lazy" alt="Stock pick list grouped by box, each piece with its photo and its package number"></figure>
+        <p class="step-c">Stock makes the pick list for a sale.</p>
+      </li>
+      <li>
+        <p class="step-h"><span class="stop num" aria-hidden="true">3</span><b>Profit</b></p>
+        <figure class="phone"><img src="/welcome/finance-phone.webp" width="780" height="1688" loading="lazy" alt="Finances overview with sample sales and profit"></figure>
+        <p class="step-c">Finances shows what the sale earned.</p>
+      </li>
+    </ol>
   </div>
 </section>
 <script>
-(function(){
-  var tour = document.getElementById('tour');
-  if (!tour) return;
-  var imgs = Array.prototype.slice.call(tour.querySelectorAll('.tour-img'));
-  var tabs = Array.prototype.slice.call(tour.querySelectorAll('[data-step]'));
-  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  var at = 0, timer = null;
-  function show(n){
-    at = n;
-    imgs.forEach(function(el, k){ el.classList.toggle('is-on', k === n); el.setAttribute('aria-hidden', k === n ? 'false' : 'true'); });
-    tabs.forEach(function(el, k){ el.setAttribute('aria-selected', k === n ? 'true' : 'false'); });
-  }
-  function stop(){ if (timer) { clearInterval(timer); timer = null; } }
-  tabs.forEach(function(el, k){ el.addEventListener('click', function(){ stop(); show(k); }); });
-  if (!reduce) timer = setInterval(function(){ show((at + 1) % imgs.length); }, 3500);
-})();
 (function(){
   var box = document.querySelector('.carousel');
   if (!box) return;
