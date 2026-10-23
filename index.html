@@ -13,20 +13,21 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" />
   <style>
-    /* Parcel tokens, the same values as src/style.css (:root). The page is
-       light only: it is a sales page, not the workplace. */
+    /* Parcel tokens, values copied from src/style.css (:root); --profit is its
+       --ok and --warn its --warn-ink. Keep them in step when style.css changes.
+       The page is light only: it is a sales page, not the workplace. */
     :root{
       --font-ui: 'Archivo', system-ui, -apple-system, sans-serif;
       --ground: #F4F6F9;
       --surface: #FFFFFF;
-      --line: #D5DCE6;
+      --line: #DCE1E8;
       --ink: #0E1A2E;
       --ink-2: #4A5568;
       --brand: #12285A;
       --brand-2: #1E3A7B;
       --urgent: #C8102E;
-      --profit: #1F6B3F;
-      --warn: #8A5A00;
+      --profit: #1F7A4D;
+      --warn: #7A4A00;
       --radius: 10px;
       --radius-sm: 6px;
       --gutter: 16px;
@@ -217,7 +218,7 @@
     .slide{ position:absolute; inset:0; display:grid; place-items:center; color:var(--brand); font-weight:700; font-size:13px; opacity:0; transition:opacity .6s ease; }
     .slide.is-on{ opacity:1; }
     .slide img{ width:100%; height:100%; object-fit:cover; display:block; }
-    .draft{ display:grid; gap:18px; }
+    .draft{ display:grid; gap:18px; padding:16px; }
     .draft .carousel{ width:100%; max-width:300px; margin:0 auto; }
     .draft-body{ min-width:0; }
     .fields{ display:none; gap:12px; font-size:14px; }
