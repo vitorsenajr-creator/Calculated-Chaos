@@ -6,6 +6,15 @@
 const DAY = 24 * 60 * 60 * 1000;
 const BIZ = 'businesses/harness';
 
+// Thumbnails for the pieces on the Pick list (the photos the Pick screen draws).
+const PICK_PHOTOS = {
+  '#0631': '/tests/harness/photos/pick-belt.webp',
+  '#0648': '/tests/harness/photos/pick-shirt.webp',
+  '#0662': '/tests/harness/photos/pick-pants.webp',
+  '#0679': '/tests/harness/photos/pick-dress.webp',
+  '#0688': '/tests/harness/photos/pick-beanie.webp',
+};
+
 // [code, name, clothingType, brand, size, color, cost, listPrice, status,
 //  platforms, box, createdDaysAgo, soldDaysAgo, soldPrice, fees, shipping]
 const PIECES = [
@@ -86,7 +95,7 @@ export function sampleDocs(now = Date.now()){
     const netProfit = sold ? Math.round((soldPrice - fees - shipping - cost) * 100) / 100 : null;
     docs.push([`${BIZ}/items/${id}`, {
       id, productCode: code, name, clothingType, category: 'Women', brand, size, color,
-      cost, listPrice, status, listedPlatforms: platforms, storageBox: box, photos: [],
+      cost, listPrice, status, listedPlatforms: platforms, storageBox: box, photos: PICK_PHOTOS[code] ? [PICK_PHOTOS[code]] : [],
       hostedPhotoUrls: null, condition: 'Excellent', createdAt: now - createdDays * DAY,
       ...(sold ? { soldAt, soldPrice, soldPlatform: platforms[0], feesTotal: fees, shippingCost: shipping, otherCosts: 0, netProfit } : {}),
       ...(i === 9 ? { ebayPublishError: { message: 'Missing item specifics: Brand', at: now - DAY } } : {}),
