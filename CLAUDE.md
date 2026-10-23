@@ -1009,7 +1009,9 @@ on any of these:
 
 ## Pending changelog entry (since v3.27.0)
 
-- v3.27.18: the welcome page's listing card has 16 px of inside space (the text no longer touches the frame or the caption); its Parcel tokens match src/style.css (line, profit and warning colors were off); the welcome brief is `.impeccable/surfaces/index-html.md` and the app shell's is `app-html.md`. Pending: the Pick sample thumbnails (photos for the belt, shirt, pants and beanie are needed first).
+- v3.27.19: the welcome page's Pick screenshots (desktop and phone) come from the harness's new sample list: one Poshmark order with three pieces (a Lee shorts, a Zara bodysuit and an Adidas hoodie), each with its owner's photo, matched by name. The sample photos are in `tests/harness/photos/`. The screenshots show third-party brand names (Lee, Zara, Adidas) in the titles, and the hoodie photo shows the Adidas logo; the owner confirmed publishing them on 2026-10-23. Pending: the Pick screenshot shows no warning, while the feature list still mentions one.
+
+- v3.27.18: the welcome page's listing card has 16 px of inside space (the text no longer touches the frame or the caption); its Parcel tokens match src/style.css (line, profit and warning colors were off); the welcome brief is `.impeccable/surfaces/index-html.md` and the app shell's is `app-html.md`.
 
 - v3.27.16: the listing card shows each sample photo with its own title, category, color and price; the photo and the text change together. On phones the photo sits above the text (it was squeezed to 136 px before).
 
