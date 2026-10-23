@@ -71,7 +71,14 @@
     .top .wrap{ display:flex; align-items:center; justify-content:space-between; min-height:60px; }
     .mark{ white-space:nowrap; color:#fff; font-weight:800; font-stretch:88%; font-size:21px; text-decoration:none; letter-spacing:-0.01em; min-height:44px; display:inline-flex; align-items:center; gap:10px; }
     .mark-icon{ width:30px; height:30px; flex:none; }
-    @media (min-width: 760px){ .mark{ font-size:28px; gap:12px; } .mark-icon{ width:40px; height:40px; } }
+    /* Phone: the buttons on the first line, the logo under them. */
+    @media (max-width: 759px){
+      .top .wrap{ flex-direction:column; align-items:stretch; justify-content:flex-start; min-height:0; padding-top:8px; padding-bottom:12px; gap:6px; }
+      .top nav{ order:-1; justify-content:flex-end; }
+      .mark{ font-size:22px; }
+    }
+    /* Desktop: a larger logo on the left. */
+    @media (min-width: 760px){ .mark{ font-size:34px; gap:14px; } .mark-icon{ width:48px; height:48px; } }
     .top nav{ display:flex; align-items:center; gap:2px; }
     .top nav a.plain{ color:#fff; text-decoration:none; font-weight:600; padding:12px 8px; min-height:44px; display:inline-flex; align-items:center; font-size:15px; white-space:nowrap; }
     .top .btn{ background:#fff; color:var(--brand); white-space:nowrap; padding:0 10px; font-size:14px; }
