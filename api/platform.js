@@ -46,7 +46,21 @@
 //     -> the AI usage meter (_aiUsage.js): totals, per call type, per user
 //        (e-mail, role, business) and tools, for the month.
 //
-// Platform admins only (PLATFORM_ADMIN_UIDS in _firebaseAdmin.js).
+//   action: 'self_serve' | 'self_serve_set', on (v3.28.0)
+//     -> the self-serve sign-up switch (_business.js, platform/signup):
+//        read it, or turn it on or off.
+//
+// Platform admins only (PLATFORM_ADMIN_UIDS in _firebaseAdmin.js), except
+// the two sign-up actions (v3.28.0, _business.js), which any signed-in
+// account may call, pending ones included:
+//
+//   action: 'signup_status'
+//     -> { selfServe, hasBusiness }: whether a verified pending account
+//        sees "Create your store" or "Awaiting approval".
+//
+//   action: 'business_create', name, logo?, sellsOn?
+//     -> creates the caller's store and approves the account, only while
+//        the switch is on and the email is verified. Returns { bizId }.
 
 import { requireApprovedUser } from './_requireApprovedUser.js';
 import { getFirebaseAdmin, isPlatformAdminUid, FIREBASE_PROJECT_ID } from './_firebaseAdmin.js';
@@ -54,6 +68,7 @@ import { migrationStatus, migrationCopy, migrationSwitch } from './_migration.js
 import { adminClaimsStatus, adminClaimsSync } from './_adminClaims.js';
 import { usersAuthInfo, userRemove, userRestore, userDeny, employeeCreate } from './_users.js';
 import { aiUsageReport } from './_aiUsage.js';
+import { verifySignedInUser, signupStatus, businessCreate, readSelfServe, selfServeSet } from './_business.js';
 import { usageMonth } from '../src/domain/ai-usage.js';
 
 async function handleHealth(auth){
@@ -92,6 +107,25 @@ export default async function handler(req, res){
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  const { action } = req.body || {};
+
+  // Sign-up actions (v3.28.0): the caller may still be pending, so they run
+  // before the approved-user and admin checks, with their own token check.
+  if (action === 'signup_status' || action === 'business_create'){
+    try{
+      const admin = getFirebaseAdmin();
+      if (!admin.ok) return res.status(503).json({ error: 'Sign-up is not available right now. Try again later.' });
+      const caller = await verifySignedInUser(admin, req);
+      if (!caller.ok) return res.status(caller.status).json({ error: caller.error });
+      const result = action === 'signup_status' ? await signupStatus(admin, caller) : await businessCreate(admin, caller, req.body || {});
+      if (action === 'business_create') console.log('business-create', JSON.stringify({ uid: caller.uid, ok: result.ok, bizId: result.bizId || null, existing: !!result.existing }));
+      return res.status(result.ok ? 200 : result.status).json(result.ok ? result : { error: result.error });
+    }catch(err){
+      console.error('platform sign-up error:', err);
+      return res.status(500).json({ error: 'Something went wrong. Try again.' });
+    }
+  }
+
   const auth = await requireApprovedUser(req);
   if (!auth.ok){
     return res.status(auth.status).json({ error: auth.error });
@@ -100,7 +134,6 @@ export default async function handler(req, res){
     return res.status(403).json({ error: 'Platform admins only.' });
   }
 
-  const { action } = req.body || {};
   try{
     if (action === 'health') return res.status(200).json(await handleHealth(auth));
     if (action === 'migrate_status' || action === 'migrate_copy' || action === 'migrate_switch'){
@@ -117,6 +150,14 @@ export default async function handler(req, res){
       const result = action === 'admin_claims' ? await adminClaimsStatus(admin.auth) : await adminClaimsSync(admin.auth);
       if (action === 'admin_claims_sync') console.log('admin-claims-sync', JSON.stringify({ by: auth.uid, admins: result.admins.map(a => a.uid) }));
       return res.status(200).json(result);
+    }
+    if (action === 'self_serve' || action === 'self_serve_set'){
+      const admin = getFirebaseAdmin();
+      if (!admin.ok) return res.status(503).json({ error: admin.error });
+      if (action === 'self_serve') return res.status(200).json({ ok: true, selfServe: await readSelfServe(admin.db) });
+      const result = await selfServeSet(admin.db, auth, req.body || {});
+      console.log('self-serve-set', JSON.stringify({ by: auth.uid, on: result.selfServe ?? null }));
+      return res.status(result.ok ? 200 : result.status).json(result.ok ? result : { error: result.error });
     }
     if (action === 'ai_usage'){
       const admin = getFirebaseAdmin();

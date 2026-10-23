@@ -356,6 +356,15 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
     type is 15% larger since v3.27.24 (`H` in `pick-print.js` and `ROW` in
     `pick-sheet-canvas.js` move together; a first page holds 10 plain rows,
     not 12).
+  - Self-serve sign-up (v3.28.0, `docs/multi-tenant.md` step 5):
+    `domain/new-business.js` (store name rules, the new store's documents,
+    `signupNextStep()` for the sign-in gate), `ui/onboarding/store-setup.js`
+    ("Create your store" in the sign-in overlay, `#authStoreState`, loaded on
+    demand), `api/_business.js` (switch `platform/signup.selfServe`, server
+    only; `business_create` in one transaction). A pending account asks
+    `signup_status`; switch off or no answer = "Awaiting approval" as before.
+    Steps 2-4 of onboarding and the Getting started checklist come later
+    (design canvas "Calculated Chaos Onboarding").
   - `ui/lightbox.js`: `openLightbox(photos, index)`; its state is private.
   - `ui/label-render.js`: label preview markup + canvas drawing. Item
     labels carry a Code 128 barcode of the product code without the "#"
@@ -436,7 +445,10 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
   needs Vercel Pro. Underscore files (`_requireApprovedUser.js`,
   `_firebaseAdmin.js`) don't count.
   - `platform.js`: platform-admin actions for the Developer Panel
-    (`health`, `migrate_status`, `migrate_copy`). New platform operations
+    (`health`, `migrate_status`, `migrate_copy`, `self_serve`, …), plus two
+    actions any signed-in account may call, pending included
+    (`signup_status`, `business_create`, v3.28.0), handled before the
+    approved-user check. New platform operations
     (businesses, credits, admin claims) go here as new actions; put the
     logic in an underscore file like `_migration.js`.
   - `_ebayToken.js`: the server-only eBay connection (v3.16.0). Every eBay
@@ -606,7 +618,10 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
   emails automatically**, Vitor 2026-10-19: only the person's own click
   sends one); (5) verified email required (v3.18.4, after both accounts
   verified). Then
-  Google sign-in, App Check, admin 2FA, then onboarding/invites (step 5). The root collections stay, read-only for the business's
+  Google sign-in, App Check, admin 2FA, then onboarding/invites (step 5).
+  Step 5 started in v3.28.0 ("Create your store", switch off); next: the
+  server-side AI limit per business (`aiMonthlyLimit`, 100 for new stores),
+  then App Check, then turning the switch on. The root collections stay, read-only for the business's
   members, until Vitor confirms removing them.
 - **General eBay review**: Vitor plans to review the whole eBay flow soon
   (2026-10-19). The shipping-policy bug is considered resolved; see
@@ -644,6 +659,22 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
   Revisit if the catalog grows.
 
 ### Unverified in production (build-verified only)
+
+- Create your store (v3.28.0): Node tests (6 new for `domain/new-business.js`),
+  a server test of `api/_business.js` with a fake Firestore and token check
+  (switch off creates nothing, unverified refused, one store per account and a
+  repeat returning it, bad name, removed and missing accounts refused, the
+  switch read and set), the route answering 503 without the Admin key, and a
+  Chromium test of the gate on the harness with `/api/platform` mocked (an
+  owner opens the app with no sign-up call; switch off shows Awaiting
+  approval; switch on shows Verify your email, then the store screen; empty
+  name refused; chips, logo shrunk to WebP and removed; the request carrying
+  the trimmed name and platforms; reload after success; a refusal shown with
+  the button back; no horizontal scroll at 320 and 1280; no page errors). Not
+  run: the real transaction and Firestore, a real sign-up with the switch on
+  (email or Google), the reload opening the new store, the Developer Panel
+  card. Before turning the switch on: the server-side AI limit (next PR) and
+  App Check.
 
 - Two codes in one field (v3.27.26): Node tests (91 pass, 5 new: what counts as
   two codes, the issue order, the catalog filter and the Issues chip with the
@@ -1084,172 +1115,9 @@ on any of these:
 - Quick Labels one-by-one queue and PDF export (v3.13.106/107), label font
   sizing (v3.13.102-105), inspection flag icon (v3.13.114).
 
-## Pending changelog entry (since v3.27.0)
+## Pending changelog entry (since v3.28.0)
 
-- v3.27.26: a product has one code. A product code field holding two codes
-  (`#1475 , #1473`) is now flagged and cannot be saved from the item form. New
-  always-on issue "Two codes in one field": a filter chip and a card warning in
-  the catalog (the popover quotes the field and says to keep one), a Home row in
-  Needs attention with Fix (counts the same items as the filter). Saving an item
-  whose Product code has more than one code shows a message and puts the cursor
-  in the field; the autosave on closing the modal still goes through so nothing
-  is lost. The label prints no barcode for such an item (text unchanged), and the
-  Settings → Labels preview and tight-label check take their code from the
-  longest single code instead of that field. `tests/domain/multi-code.test.mjs`
-  (5 tests). Unverified in production: a real catalog's two-code items, the form
-  on an iPhone.
-
-- v3.27.25: Settings → Labels, reorganized, with a store name line and a
-  tight-label warning. The page opens with a live preview of the label (the
-  printing code draws it, with the longest name, color, category, brand and box
-  in the catalog), then Size, then What prints: one row per line, all the same
-  format (title and a short hint). New "Store name" row (off by default): the
-  store's name in capitals above the code. Ticking a line or changing the size
-  re-draws the preview; when it leaves the name under 0.13 in (9 pt), the code
-  under 0.2 in or the block over 92% of the label's height, a window says what
-  is tight and offers Undo (the default) or Keep anyway; a change that does not
-  add a new problem never asks. The Pick list message moved out of Labels into
-  its own Settings group, "Pick list". `domain/label-fit.js`,
-  `ui/settings/labels-panel.js`, `tests/domain/label-fit.test.mjs` (6 tests).
-  Unverified in production: the page and the window on a real iPhone, a printed
-  label with the store line.
-
-- v3.27.24: item label barcode, bigger Pick type and a Pick message. The item
-  label prints a Code 128 barcode of its product code (without the "#", so a
-  scanner types the same digits Pick uses as the SKU), 0.16 in tall under the
-  name, in pure black (the brown and gray inks are gone from item labels; box
-  labels too). The code's font ceiling is lower with a barcode so the name still
-  fits; a very long code on a narrow label leaves the bars off rather than
-  print them too thin. Settings → Labels → Barcode turns it off (on by
-  default). Pick: type, tick boxes and rows are 15% larger (a first page holds
-  10 plain rows instead of 12; long names still stop at two lines with "…").
-  Settings → Labels → Pick list message: Off, Fixed (your text, 120 characters)
-  or Random (one of 365 built-in messages, a new one each time the checklist is
-  shared, never the last one); it prints above "Picked by / Date" on the last
-  page. `domain/code128.js`, `domain/pick-messages.js`,
-  `tests/domain/code128.test.mjs`, `tests/domain/pick-messages.test.mjs`.
-  Unverified in production: a printed label scanned with a real reader or
-  phone, the bars after the printer app's own resampling, the Pick sheet on
-  the thermal printer, Settings saving `pickMessage`.
-
-- v3.27.23: welcome page, mobile pass. Phone hero: the long paragraph becomes one sentence, the "Request access" button rises and the collage starts in the first screen, and the three numbered results (titles only) come after the collage. A "Menu" button (below 900 px) opens a sheet with Features and About us (Escape, outside tap and link tap close it). The tour is a swipeable strip of four cards below 900 px (no reduced motion): the timeline and the box stay on top and follow the swipe, the screen of the card in view scrolls by itself once, the printed label goes on the box at Catalog, and the step buttons scroll to their card; the tour images load when the tour is 1,500 px away (they were lazy and showed empty phones in a full-page capture). The profit sum stacks as a list. Sections have less padding on phones. Tab icon: the 16 px and 32 px favicons have a heavier stroke, a real `favicon.ico` (16, 32 and 48 px) is added, every icon link carries `?v=3` so browsers drop the cached old icon, and the unused Vite sample `public/icons.svg` is removed. Desktop is unchanged. Unverified in production: the tour swipe and its auto-scroll on a real iPhone and Android, the menu on a real phone, whether the tab icon refreshes in the browsers that cached the old one.
-
-- v3.27.22: welcome page, desktop pass 2: each block of the page has its own composition instead of the repeated text-left, picture-right pair. Labels: the path a piece follows (code, box, wall marker, transfer) as four numbered stops joined by a line, then the label. Listings: the photos in a fan, an arrow, then the draft card. Pick: a navy full-width band with the screen as wide as the page allows. Profit: the sum (revenue − cost of goods sold − selling costs − operating expenses = net profit) above the statement. Spreadsheet: a wide mapping with a "Your column / Our field / Match" header. About us: a horizontal shipping label, black on white (From, To, Contents, Handling, a barcode strip and Status), with the same text as v3.27.21. Backgrounds alternate light, white, navy. The hero visual is a collage of one piece from photo to sale (its photo, the printed label #0412 and the cropped Home screen, with a Photo, Label, Box, Sold track) instead of a lone phone; the tour is one box and one phone that follow a piece through four steps (Catalog, eBay listing, Pick, Profit): on screens of 900 px and up (no reduced motion) the section stays fixed for about five screens of scrolling, a cardboard box rides a timeline (it gets the printed label #0412 at Catalog, and a stamp at each step: CATALOGED, LISTED, PICKED, SOLD), the phone screen scrolls inside and changes with the step, and the step buttons jump to their step; everywhere else it is a plain list of the four steps. A second inline script drives it (about 90 lines, no library; the first script is the photo carousel). The Catalog, Pick and Finances screens are long sample-data captures made by `tests/harness/capture-tour.mjs`; the eBay step uses two real captures of the item modal ("Ready to publish" and "Listed on eBay", sewn together; the status bar, the store name and its logo were painted out; Vitor approved publishing the real item on 2026-10-23). The old `.feature` and `.about` rules are gone. Mobile is the next pass: the new blocks stack and have no horizontal scroll at 390 px, but their phone layout is not designed yet. Unverified in production: a real desktop and phone, the pinned scroll on Safari (iPad and desktop) and the feel of the scroll on a real trackpad and wheel.
-
-- v3.27.21: welcome page, desktop pass 1. The top bar gets "About us" (shown with Features from 900 px; a new `#about` section before the closing band, with a short text from `PRODUCT.md`: no numbers, testimonials or promises); Pricing is built but not linked or published. The hero shows three numbered results (code and box, listings from photos, real profit) before the "Request access" button, now 52 px tall and 200 px wide at least; the four chips became one quiet line under the note. At 760 px and up the gutter is 32 px, the text column takes the free width and the phone sits on the right edge, so the logo, the text and the phone share two edges (at 1024 px the logo moved from 16 px to 32 px). The tab icon, the home-screen icons and `manifest.json` use the current identity (white tag on navy `#12285A`, the same tag as the logo, centered); the SVG icon is linked on the three pages and the Vite default `favicon.svg` is gone. Service worker cache `cc-shell-v3` so installed copies pick up the new manifest. Mobile is the next pass. Unverified in production: the tab icon in a real browser, the installed iPhone icon and manifest colors, the page on a real desktop. Not touched: the eBay connect page in `api/ebay-auth.js` still uses the old cream and terracotta colors.
-
-- v3.27.20: the welcome hero is redistributed (same colors, fonts and copy): the four highlights moved from a white band under the hero into a row of outlined chips under the hero's note, and the "Sample data" caption sits under the phone instead of under the text. Layout only; the testimonial and chat bubble of the reference were not copied.
-
-- v3.27.19: the welcome page's Pick screenshots (desktop and phone) come from the harness's new sample list: one Poshmark order with three pieces (a Lee shorts, a Zara bodysuit and an Adidas hoodie), each with its owner's photo, matched by name. The sample photos are in `tests/harness/photos/`. The screenshots show third-party brand names (Lee, Zara, Adidas) in the titles, and the hoodie photo shows the Adidas logo; the owner confirmed publishing them on 2026-10-23. Pending: the Pick screenshot shows no warning, while the feature list still mentions one.
-
-- v3.27.18: the welcome page's listing card has 16 px of inside space (the text no longer touches the frame or the caption); its Parcel tokens match src/style.css (line, profit and warning colors were off); the welcome brief is `.impeccable/surfaces/index-html.md` and the app shell's is `app-html.md`.
-
-- v3.27.16: the listing card shows each sample photo with its own title, category, color and price; the photo and the text change together. On phones the photo sits above the text (it was squeezed to 136 px before).
-
-- v3.27.15: the welcome header on phones shows the buttons on the first line and the logo under them; on desktop the logo is larger (34 px name, 48 px mark).
-
-- v3.27.14: sign-in shows the tag mark, the name and the tagline "Know where every piece is."; the listing draft matches photo 1; label small text at 10 px. Pending: a logo over the hero photo (not done); real photos from the seller's own shots for the carousel when available.
-
-- v3.27.13: the listing preview carousel on the welcome page uses three sample photos (logos removed by inpainting, `public/welcome/sample-photo-*.webp`). The draft text now matches photo 1. The photos are AI-generated by an agent; the owner says they show pieces from the stock. Third-party logos are removed.
-
-- v3.27.11: sample business funnel set to 176 cataloged and 153 listed (329 in stock, 98 sales this month); welcome screenshots regenerated. Pending: real listing photos for the welcome carousel; the header logo size and the label text size (planned, not applied yet).
-
-- v3.27.10: the welcome page is the root (`/`, `index.html`); the app moved to `/app` (`app.html`, Vercel rewrite). The sign-in page redirects a signed-in user to `/app` (Firebase session in IndexedDB; not yet tested on an installed iPhone app). Manifest `start_url` is `/app`; service worker cache `cc-shell-v2`. The welcome's Sign in and Request access go to `/app`. Pending: auth emails use the Firebase default sender; the app-email service is not chosen. Unverified in production: the redirect on an installed iPhone app, and the `/app` rewrite on the Vercel domains.
-
-- v3.27.9: sign-in gets "Forgot password?" (Firebase reset email; the note is the same whether or not the account exists). Pending: auth emails use the Firebase default sender (branded sender and action domain on calculatedchaos.app); the app-email service is not chosen yet;  Infra reference: `docs/infrastructure.md`. Unverified in production: the reset email arriving and the link opening the reset screen.
-
-- v3.27.8: public welcome page (`welcome.html`, a static Vite entry at `/welcome.html`; the app stays at `/`). Parcel tokens, Archivo only, phone first, no script. Sections: hero with a sample Home, five feature blocks (labels and codes, listing drafts, pick list, profit and loss, spreadsheet import), a closing request-access call. Hero Home, the Pick list and the P&L are real captures from the screenshot harness (`npm run harness` + `npm run harness:capture`, sample data, `public/welcome/*.webp`, phone versions for the Pick list and the P&L); the label and listing draft are still drawn. Local only: not merged. Unverified in production: fonts from Google on a real phone, the request-access path (it links to `/`, the sign-in screen).
-
-- v3.27.5: the catalog stays current across devices. Items and drafts are
-  watched with `onSnapshot` (`data/live-sync.js`) instead of read once: the
-  first answer is the whole collection (same reads as before), later ones carry
-  only the documents another device changed (`domain/live-changes.js`
-  `applyChanges`). Changes this device made itself (`hasPendingWrites`) are
-  ignored; remote ones wait until no dialog is open and no field is focused,
-  then redraw once and show "Catalog updated: N changes from another device".
-  If the watch can't start, the collections are read once as before; if it
-  stops later, the app re-reads when the tab becomes visible again (at most
-  once a minute). Sign-out stops the watches. `tests/domain/live-changes.test.mjs`
-  (8 tests). Unverified in production: two real devices, the SDK's
-  reconnect after a long offline period (it may re-read the collection), the
-  watch against the real rules.
-
-- v3.27.7: Pick activity log and an always-empty checklist. Every screenshot
-  read, sale recorded (one entry per piece, with code, order, price, platform,
-  fee and profit), list cleared (with the pieces it held) and checklist shared
-  is added to the business's `pick_log` with who did it. Stock → Pick →
-  "Activity log" (owner only) shows one month at a time with a person filter;
-  entries can't be edited or removed (the rule allows create and read). No
-  images, no CSV. The shared checklist now always draws empty boxes, whatever
-  is ticked on screen. `tests/domain/pick-log.test.mjs` (5 tests). **The
-  `pick_log` rule must be pasted into the Console** (see Open items). Unverified
-  in production: the real rule and writes, the Mark sold and screenshot
-  entries (only checklist and clear ran in the browser test), the dialog on an
-  iPhone, a real share sheet.
-
-- v3.27.6: Pick stops matching the wrong piece by name. A Love Tree skirt
-  with no SKU was matched to a Love Tree dress (brand and price in common, 53%).
-  Now the garment type (skirt, dress, top, jacket, pants, shorts, jumpsuit,
-  shoes, bag) must not conflict, at least one word besides the brand must be
-  shared, and a "Size S" written in the item's name counts when the size field
-  is empty. Sold pieces are matched by name too and shown as "Already marked
-  sold" (an unsold copy wins when it fits within 0.1). A line with no fit goes
-  to "Not found in the catalog" with up to three suggestion cards (photo, code,
-  box, size, price, score, Sold tag; "Use this" / "Open"), never a different
-  kind of garment. A name match that isn't sure also shows the order's own
-  title. `tests/domain/sale-match-guard.test.mjs` (6 tests) and the index test
-  now compares with the new rules. Unverified in production: Vitor's real
-  screenshots and catalog (the garment word lists may need more words), the
-  cards on an iPhone.
-
-- v3.27.4: Stock stops being slow with a Pick list. Opening Stock matched
-  every sale line against the whole catalog and split every item's words
-  again for each line, on every visit (36 lines on 1,500 items: about
-  0.6 s at 4x CPU, more on a phone). Matching now runs on an index built
-  once per list (`prepareItems()`; codes in maps, each unsold item's words
-  ready), with the same answers. Stock and Finances also draw only when
-  opened or when the data changes while on show, not on every switch and not
-  while hidden (every save used to recompute the hidden Finances, about
-  0.8 s). With 36 lines: first visit 557 ms → 232 ms, later visits about
-  500 ms → under 130 ms. `tests/domain/sale-match-index.test.mjs` (4 tests,
-  with the old matching kept as the reference). Unverified in production: a
-  phone with the real Pick list.
-
-- v3.27.3: sales tax record. The Overview of Finances shows "Sales tax
-  collected" for the period, with how many sales have it recorded, as a line
-  outside revenue, fees and profit. The tax comes from Pick's Mark sold (read
-  from the screenshot, v3.27.1) or is typed in the sold item's modal ("Sales
-  tax collected", empty = not recorded, 0 = recorded). `salesTaxOf()` in
-  `domain/finance-summary.js`; `tests/domain/sales-tax.test.mjs` (3 tests).
-  Unverified in production: the modal field saving with the real Firestore,
-  the line with real sales, the field on an iPhone.
-
-- v3.27.2: package numbers on the Pick checklist. Each order gets a number
-  (in the order its first line appears in the screenshots), drawn as a black
-  ring next to the tick box of each of its pieces, so the pieces of one
-  bundle can be matched across boxes. The sheet ends with a "Packages"
-  list (number, buyer, piece count); the Pick screen shows the same ring.
-  Still organized by box. `tests/domain/pick-packages.test.mjs` (4 tests).
-  Unverified in production: a real print of the new rows on the thermal
-  printer (the ring and the narrower text at 100 × 210 mm).
-
-- v3.27.1: Pick reads the real money of an order. With "Pricing & Earning
-  Info" open in the screenshot, the AI reads the order's total ("Price" or
-  "Offer Price"), fee, net earnings and sales tax. A bundle's listed prices
-  are before its discount ($112 listed, $80 offer): the total is spread over
-  the pieces in proportion to their listed prices, and the real fee and tax
-  follow, so Mark sold records the real price, fee and profit. The sales tax
-  goes in `saleTax`, apart from price and fee. A closed section keeps the
-  old behavior (listed price, fee by the platform's rule) and the sheet says
-  how to get exact numbers. An item with no cost gets a cost field on the
-  Mark sold sheet. A plain item save now keeps `saleOrderNumber`,
-  `saleBuyer`, `saleLineKey` and `saleTax` (it used to drop the first
-  three, which freed a recorded screenshot line to be recorded again).
-  `tests/domain/pick-bundle.test.mjs` (10 tests). Unverified in production:
-  the real Haiku reading the open pricing section on real screenshots
-  (Poshmark's "Price" / "Offer Price" rows, other marketplaces), whether a
-  paid shipping label shows as its own row or inside Net Earnings (the sheet
-  flags a net lower than price − fee), the sheet on an iPhone.
+(empty: v3.27.1 – v3.28.0 are rolled up in `CHANGELOG.md`)
 
 ## Backlog (not started)
 

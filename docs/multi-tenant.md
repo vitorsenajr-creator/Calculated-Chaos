@@ -244,7 +244,21 @@ Enforcement:
    (reCAPTCHA) against bot sign-ups and AI-endpoint abuse, and 2FA for
    admins (needs Identity Platform).
 5. [ ] "Create your business" onboarding, members/roles, owner invites
-   employees; new rules.
+   employees; new rules. In progress (decided with Vitor 2026-10-23):
+   self-serve sign-up (no manual approval), behind a switch; onboarding ends
+   at the first piece cataloged and labeled; employee invites later.
+   - [x] v3.28.0: "Create your store" (`api/_business.js`, actions
+     `signup_status` / `business_create` in `api/platform.js`,
+     `ui/onboarding/store-setup.js`). Switch `platform/signup.selfServe`,
+     off by default, in Developer Panel → App. No rules change: the server
+     writes the business, the owner member and the settings, and approves
+     the account with `activeBizId`.
+   - [ ] Server-side AI limit per business (`businesses/{bizId}.aiMonthlyLimit`,
+     100 for new stores), before the switch is turned on.
+   - [ ] App Check, before the switch is turned on.
+   - [ ] Onboarding steps 2-4 (how to start, first piece, label setup and
+     box) and the Getting started checklist on Home.
+   - [ ] Employee invites.
 6. [x] Migration (v3.16.5 copy, v3.17.0 switch; `api/_migration.js`,
    Developer Panel → App → "Business migration"). The copy ran on
    2026-10-19 (1,442 items, all counts matched) and the switch was

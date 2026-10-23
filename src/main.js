@@ -98,6 +98,7 @@ import {
 import { jsonAuthHeaders } from './modules/api-auth.js';
 import { loadAdminClaim } from './modules/admin-claim.js';
 import { sendVerificationEmail, refreshEmailVerified, tokenEmailVerified } from './modules/email-verification.js';
+import { signupNextStep } from './domain/new-business.js';
 
 export const app = (function(){
   // APP_VERSION / APP_VERSION_DATE live in modules/version.js (shared with
@@ -5276,14 +5277,16 @@ export const app = (function(){
     document.getElementById('authCheckingState').style.display = 'none';
     document.getElementById('authFormState').style.display = 'block';
     document.getElementById('authPendingState').style.display = 'none';
+    document.getElementById('authStoreState').style.display = 'none';
     document.body.classList.add('auth-locked');
   }
   // mode 'approval' = waiting for an admin; 'verify' = approved, but the
-  // email isn't verified yet (required since v3.18.4).
+  // email isn't verified yet (required since v3.18.4); 'verify-store' = a
+  // new seller who verifies before creating the store (self-serve, v3.28.0).
   let pendingMode = 'approval';
   function showAuthPending(mode = 'approval'){
     pendingMode = mode;
-    const verifyOnly = mode === 'verify';
+    const verifyOnly = mode === 'verify' || mode === 'verify-store';
     document.getElementById('authPendingTitle').textContent = verifyOnly ? 'Verify your email' : 'Awaiting approval';
     document.getElementById('authPendingText').style.display = verifyOnly ? 'none' : '';
     document.getElementById('authVerifyBox').classList.toggle('auth-verify-only', verifyOnly);
@@ -5291,6 +5294,7 @@ export const app = (function(){
     document.getElementById('authCheckingState').style.display = 'none';
     document.getElementById('authFormState').style.display = 'none';
     document.getElementById('authPendingState').style.display = 'block';
+    document.getElementById('authStoreState').style.display = 'none';
     document.body.classList.add('auth-locked');
     renderPendingVerification();
   }
@@ -5301,6 +5305,8 @@ export const app = (function(){
     const verified = !!(user && user.emailVerified);
     document.getElementById('authVerifyText').textContent = verified
       ? `✅ Your email (${user.email}) is verified.`
+      : pendingMode === 'verify-store'
+        ? `Send yourself a verification email (${user ? user.email : ''}), click the link in it, then tap "I've verified it" to set up your store.`
       : pendingMode === 'verify'
         ? `Calculated Chaos now needs a verified email. Send yourself a verification email (${user ? user.email : ''}), click the link in it, then tap "I've verified it".`
         : `Please also verify your email (${user ? user.email : ''}): send yourself a verification email, click the link in it, then tap "I've verified it".`;
@@ -5445,9 +5451,30 @@ export const app = (function(){
     const verified = await refreshEmailVerified(window.auth.currentUser);
     e.target.disabled = false;
     // Approved and now verified: start over through the gate to open the app.
-    if (verified && pendingMode === 'verify'){ window.location.reload(); return; }
+    // A new seller (self-serve) goes on to the store screen the same way.
+    if (verified && (pendingMode === 'verify' || pendingMode === 'verify-store')){ window.location.reload(); return; }
     renderPendingVerification(verified === null ? '❌ Could not check right now. Try again.' : verified ? '' : 'Not verified yet. Click the link in the email first.');
   });
+
+  // A pending account (v3.28.0): with self-serve sign-up off, or when the
+  // server can't be asked, this is the "Awaiting approval" screen as before.
+  // With it on: verify the email, then "Create your store".
+  async function showPendingStep(user, userDoc){
+    const onboarding = await import('./ui/onboarding/store-setup.js');
+    const status = await onboarding.fetchSignupStatus();
+    const step = signupNextStep({
+      userDoc,
+      emailVerified: await tokenEmailVerified(user),
+      selfServe: !!(status && status.selfServe),
+    });
+    if (step === 'create_store'){
+      onboarding.showStoreSetup({ signOut: async () => { stopLiveSync(); await window.authFns.signOut(window.auth); } });
+    } else if (step === 'verify'){
+      showAuthPending('verify-store');
+    } else {
+      showAuthPending();
+    }
+  }
 
   function waitForFirebaseReady(){
     return new Promise(resolve => {
@@ -5495,7 +5522,7 @@ export const app = (function(){
           applyRoleRestrictions();
           waitForFirebaseThenLoad();
         } else {
-          showAuthPending();
+          await showPendingStep(user, snap.data());
         }
       }catch(e){
         console.error('Auth check failed:', e);

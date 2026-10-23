@@ -62,6 +62,29 @@
       </div>
       <button id="authSignOutBtn">Sign out</button>
     </div>
+    <!-- Create your store (v3.28.0): new sellers, while self-serve sign-up is
+         on. Wired by src/ui/onboarding/store-setup.js. -->
+    <div id="authStoreState" class="auth-store" style="display:none;">
+      <h2>Set up your store</h2>
+      <p class="auth-sub">Your store name goes at the top of the app and on your labels. You can change it later in Settings.</p>
+      <form id="storeForm" novalidate>
+        <label for="storeNameInput">Store name</label>
+        <input type="text" id="storeNameInput" autocomplete="organization" placeholder="e.g. Second Spin Vintage" required>
+        <div class="store-logo-row">
+          <img id="storeLogoPreview" class="store-logo-preview" alt="Your logo" hidden>
+          <label class="store-logo-btn" id="storeLogoLabel">Add logo <span>(optional)</span><input type="file" id="storeLogoInput" accept="image/png,image/jpeg,image/webp,image/svg+xml"></label>
+          <button type="button" class="store-logo-remove" id="storeLogoRemove" hidden>Remove</button>
+        </div>
+        <fieldset class="store-sells">
+          <legend>Where do you sell?</legend>
+          <div id="storeSellsOn" class="store-chips"></div>
+          <p class="store-hint">Pick any that apply. You can connect eBay and set your fees later.</p>
+        </fieldset>
+        <button type="submit" class="auth-submit" id="storeCreateBtn">Create my store</button>
+      </form>
+      <div class="auth-error" id="storeError" role="alert" style="display:none;"></div>
+      <button type="button" class="store-signout" id="storeSignOutBtn">Sign out</button>
+    </div>
   </div>
 </div>
 
