@@ -374,8 +374,13 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
     the sign-up token check).
   - AI allowance (v3.28.1): `domain/ai-allowance.js` (limit, count, reset,
     message), `api/_aiAllowance.js` (`requireAiAllowance()` before every
-    Anthropic call; add it to any new AI call), `data/ai-allowance-store.js`
-    (the app's copy of the server's numbers). The old `aiUsageCount` /
+    Anthropic and Deepgram call; add it to any new AI call),
+    `data/ai-allowance-store.js` (the app's copy of the server's numbers).
+    Since v3.28.8 it reserves one unit in a transaction on
+    `ai_allowance/{bizId}__{month}` (server only) and returns a hold: the
+    caller must `await held.release()` when the upstream call fails or throws.
+    Reserve only after the request is validated. Fail closed (503) when
+    Firestore can't be read (`FAIL_CLOSED`). The old `aiUsageCount` /
     `aiUsageLimit` in settings stay for stores without a server limit.
   - `ui/lightbox.js`: `openLightbox(photos, index)`; its state is private.
   - `ui/label-render.js`: label preview markup + canvas drawing. Item
@@ -525,6 +530,9 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
   - `ai_usage/{month__uid__call__model}` (v3.24.5): AI usage counts, server
     only (Firebase Admin; the rule denies clients). Written by
     `api/_aiUsage.js`, read by `api/platform.js` action `ai_usage`.
+  - `ai_allowance/{bizId}__{month}` (v3.28.8): the store's AI allowance
+    counter `{ bizId, month, used, updatedAt }`, server only, written in
+    transactions by `api/_aiAllowance.js`.
   - Frozen Live Catalog data at the root: `liveSessions`, `liveItems`,
     `live_catalog_options/*` (admins read only, v3.19.0). Nothing deleted.
   - Security rules: the live copy is in the Firebase Console; `firestore.rules`
@@ -605,6 +613,11 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
 
 ## Open items
 
+- **Console steps for v3.28.8 (Vitor)**: set monthly spend limits in the
+  Anthropic Console (Billing → Limits) and the Deepgram Console (project →
+  Billing / usage limits); paste `firestore.rules` (the `ai_allowance`
+  rule, server only; the default already denies it, the rule makes it
+  explicit).
 - **Paste `firestore.rules` into the Console** for v3.27.7 (Vitor): the
   `pick_log` rule (members create entries under their own uid; read for
   members and admins; no update or delete). Until then Pick works, but the
@@ -673,6 +686,16 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
   Revisit if the catalog grows.
 
 ### Unverified in production (build-verified only)
+
+- AI allowance reservation and narration limits (v3.28.8): Node tests (11
+  new) with a fake Firestore whose transactions retry on conflict: two calls
+  on the last slot (one passes), ten on three slots (three pass), the first
+  counter seeded from the meter, release once, fail closed on a read error,
+  the unit back on an Anthropic error, a network failure and a Deepgram
+  error, transcribe 413 over 3 MB and 429 at the limit with no Deepgram
+  call. Not run: the real Firestore transaction and `tx.get(query)` on the
+  meter, a real narration on a phone (the app's count is off by one per
+  transcription until the next load).
 
 - App Check (v3.28.2): a test of the real `api/platform.js` route with a fake
   Firebase Admin and App Check verifier (off by default; an admin sets
@@ -1157,6 +1180,23 @@ on any of these:
   sizing (v3.13.102-105), inspection flag icon (v3.13.114).
 
 ## Pending changelog entry (since v3.28.0)
+
+- v3.28.8: AI allowance reserved in a transaction, and a limit on Deepgram.
+  `api/_aiAllowance.js` keeps one counter per store and month
+  (`ai_allowance/{bizId}__{month}`, server only; a month without one starts
+  from the `ai_usage` meter), adds one unit in a transaction before the call
+  (two calls on the last slot can't both pass) and gives it back when
+  Anthropic or Deepgram fails. A failed Firestore read now refuses the call
+  with 503 "Couldn't check your store's AI allowance right now. Try again in
+  a minute." (fail closed, provisional; `FAIL_CLOSED = false` restores the
+  old let-through). The `suggest_fee` and `explain_error` modes reserve after
+  validating the request. Narration `transcribe` counts as one AI action
+  (a narration is now 2), is recorded on the meter as
+  `narration_transcribe`, refuses audio over 3 MB with 413 "This recording
+  is too long to transcribe. Keep a narration under 2 minutes and try
+  again." and only sends `audio/*` content types. Node tests
+  (`tests/domain/ai-allowance-reserve.test.mjs`, 11). Console: spend
+  limits in Anthropic and Deepgram, the `ai_allowance` rule.
 
 - v3.28.7: the "Listed on eBay!" box in the item form is readable (Vitor,
   2026-10-24). The category shows its last two levels by name (full path on

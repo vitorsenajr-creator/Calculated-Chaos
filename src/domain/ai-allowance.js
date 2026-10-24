@@ -5,8 +5,11 @@
 // A business with a positive `aiMonthlyLimit` on its doc (new stores get
 // 100, domain/new-business.js) may make that many AI calls per calendar
 // month in UTC, every call type counted (Vitor, 2026-10-23). The count is
-// the ai_usage meter (api/_aiUsage.js) for that business and month. A
-// business without the field has no server limit.
+// the store's monthly counter (`ai_allowance/{bizId}__{month}`, v3.28.8),
+// which the server raises by one in a transaction before each call and
+// lowers again when the call fails; a month with no counter yet starts from
+// the ai_usage meter (api/_aiUsage.js). A business without the field has no
+// server limit.
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
   'August', 'September', 'October', 'November', 'December'];
@@ -20,6 +23,17 @@ export function businessAiLimit(bizData){
 // Calls in a list of ai_usage rows.
 export function usedCalls(rows){
   return (rows || []).reduce((sum, r) => sum + (typeof r?.calls === 'number' && r.calls > 0 ? r.calls : 0), 0);
+}
+
+// The store's counter doc id for a month (v3.28.8). Doc ids can't hold '/'.
+export function allowanceDocId(bizId, month){
+  return `${String(bizId).replace(/[^a-zA-Z0-9_.-]/g, '_')}__${month}`;
+}
+
+// Units held on a counter doc (never negative).
+export function counterUsed(data){
+  const v = data && data.used;
+  return typeof v === 'number' && Number.isFinite(v) && v > 0 ? Math.floor(v) : 0;
 }
 
 // 'YYYY-MM' → the first day of the next month, 'YYYY-MM-01'.

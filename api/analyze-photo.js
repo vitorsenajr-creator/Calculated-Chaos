@@ -139,8 +139,10 @@ export default async function handler(req, res) {
   if (mode === 'sale_screenshot') safeImageBlocks.length = 1;
 
   // The store's monthly AI allowance (v3.28.1): checked after the request is
-  // known to be valid, so a bad request never counts against it.
-  if (!(await requireAiAllowance(authCheck, res))) return;
+  // known to be valid, so a bad request never counts against it. The unit
+  // taken here goes back when Anthropic fails (v3.28.8).
+  const held = await requireAiAllowance(authCheck, res);
+  if (!held) return;
 
   try {
     const content = [...safeImageBlocks, { type: 'text', text: promptText }];
@@ -155,6 +157,7 @@ export default async function handler(req, res) {
 
     if (!response.ok) {
       console.error('Anthropic API error:', data);
+      await held.release();
       return res.status(response.status).json({ error: 'Upstream API error', detail: data });
     }
 
@@ -172,6 +175,7 @@ export default async function handler(req, res) {
 
   } catch (err) {
     console.error('Serverless function error:', err);
+    await held.release();
     return res.status(500).json({ error: 'Internal server error' });
   }
 }

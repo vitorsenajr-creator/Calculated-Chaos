@@ -124,5 +124,10 @@ service cloud.firestore {
     // written and summed by the server (api/_aiUsage.js) for the Developer
     // Panel's AI usage tab. No client access at all.
     match /ai_usage/{docId} { allow read, write: if false; }
+
+    // AI allowance counter (v3.28.8): one doc per store and month
+    // ({bizId}__{YYYY-MM}), reserved and released in transactions by the
+    // server (api/_aiAllowance.js). No client access at all.
+    match /ai_allowance/{docId} { allow read, write: if false; }
   }
 }

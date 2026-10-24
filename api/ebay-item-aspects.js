@@ -88,27 +88,36 @@ async function handleSuggestFee(req, res, auth) {
 Respond with ONLY a JSON object, no markdown fences, no preamble: {"feePct": number, "note": "1 sentence explaining what this covers, e.g. whether payment processing is included"}
 If you're not confident about this specific platform, still give your best reasonable estimate rather than refusing — reseller marketplace fees are usually in the 5-25% range.`;
 
-  const anthropicResponse = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01'
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-5-5',
-      // Thinking is on by default for this model and its tokens count toward
-      // max_tokens, so the limit leaves room for it on top of the short answer.
-      max_tokens: 2000,
-      thinking: { type: 'adaptive' },
-      output_config: { effort: 'low' },
-      messages: [{ role: 'user', content: promptText }]
-    })
-  });
+  const held = await requireAiAllowance(auth, res);
+  if (!held) return;
+  let anthropicResponse, data;
+  try {
+    anthropicResponse = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-5-5',
+        // Thinking is on by default for this model and its tokens count toward
+        // max_tokens, so the limit leaves room for it on top of the short answer.
+        max_tokens: 2000,
+        thinking: { type: 'adaptive' },
+        output_config: { effort: 'low' },
+        messages: [{ role: 'user', content: promptText }]
+      })
+    });
 
-  const data = await anthropicResponse.json();
+    data = await anthropicResponse.json();
+  } catch (e) {
+    await held.release();
+    throw e;
+  }
   if (!anthropicResponse.ok) {
     console.error('Anthropic API error:', data);
+    await held.release();
     return res.status(anthropicResponse.status).json({ error: 'Upstream API error', detail: data });
   }
   await recordAiUsage({ auth, call: 'suggest_fee', model: data.model, usage: data.usage, content: data.content });
@@ -165,25 +174,34 @@ Respond with ONLY a JSON object, no markdown fences, no preamble:
  "fieldToChange": one of ${JSON.stringify(EXPLAIN_FIELDS)} or "aspect:<exact item specific name>",
  "suggestedValue": "the exact new value to use, ONLY if it can be determined with confidence from the error or the data above, otherwise an empty string"}`;
 
-  const r = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01'
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-5-5',
-      // Thinking tokens count toward max_tokens (see suggest_fee above).
-      max_tokens: 2000,
-      thinking: { type: 'adaptive' },
-      output_config: { effort: 'low' },
-      messages: [{ role: 'user', content: promptText }]
-    })
-  });
-  const data = await r.json();
+  const held = await requireAiAllowance(auth, res);
+  if (!held) return;
+  let r, data;
+  try {
+    r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-5-5',
+        // Thinking tokens count toward max_tokens (see suggest_fee above).
+        max_tokens: 2000,
+        thinking: { type: 'adaptive' },
+        output_config: { effort: 'low' },
+        messages: [{ role: 'user', content: promptText }]
+      })
+    });
+    data = await r.json();
+  } catch (e) {
+    await held.release();
+    throw e;
+  }
   if (!r.ok) {
     console.error('Anthropic API error:', data);
+    await held.release();
     return res.status(r.status).json({ error: 'Upstream API error', detail: data });
   }
   await recordAiUsage({ auth, call: 'explain_error', model: data.model, usage: data.usage, content: data.content });
@@ -218,13 +236,12 @@ export default async function handler(req, res) {
 
   try {
     // The two AI modes count against the store's monthly AI allowance
-    // (v3.28.1); the aspect lookup is plain eBay and doesn't.
+    // (v3.28.1; reserved inside each handler once the request is valid,
+    // v3.28.8); the aspect lookup is plain eBay and doesn't.
     if (req.body?.mode === 'suggest_fee') {
-      if (!(await requireAiAllowance(authCheck, res))) return;
       return await handleSuggestFee(req, res, authCheck);
     }
     if (req.body?.mode === 'explain_error') {
-      if (!(await requireAiAllowance(authCheck, res))) return;
       return await handleExplainError(req, res, authCheck);
     }
     return await handleAspects(req, res, authCheck);
