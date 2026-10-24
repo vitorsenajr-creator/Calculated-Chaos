@@ -1158,6 +1158,11 @@ on any of these:
 
 ## Pending changelog entry (since v3.28.0)
 
+- v3.28.3: the app version shows in a quiet footer under every screen
+  ("Calculated Chaos v3.28.3 · 2026-10-24", `#appFooter` in `app.html`, set
+  by `main.js` from `modules/version.js`; nothing to edit by hand). Vitor
+  asked for it in the footer (2026-10-24). Build-verified only.
+
 - v3.28.2: Firebase App Check (reCAPTCHA Enterprise, Vitor 2026-10-23), ready
   but off until its site key is set. `src/config/app-check.js` holds the
   public site key (empty = off: nothing loads, no token is sent);
