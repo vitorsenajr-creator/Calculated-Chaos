@@ -66,9 +66,10 @@
 //     -> { limited, limit, used, remaining, allowed, month, resetsOn } for
 //        the caller's store (_aiAllowance.js).
 //
-//   action: 'business_create', name, logo?, sellsOn?
+//   action: 'business_create', name, logo?, sellsOn?, acceptTerms, termsVersion
 //     -> creates the caller's store and approves the account, only while
-//        the switch is on and the email is verified. Returns { bizId }.
+//        the switch is on and the email is verified, and only with the
+//        Terms accepted (400 otherwise). Returns { bizId }.
 
 import { requireApprovedUser } from './_requireApprovedUser.js';
 import { getFirebaseAdmin, isPlatformAdminUid, FIREBASE_PROJECT_ID } from './_firebaseAdmin.js';

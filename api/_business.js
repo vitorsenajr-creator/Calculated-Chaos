@@ -52,10 +52,13 @@ export async function signupStatus(admin, caller){
   return { ok: true, selfServe, hasBusiness: !!(user && user.activeBizId) };
 }
 
-// body: { name, logo?, sellsOn? }. Creates businesses/{bizId}, its owner
-// member, its config/settings, and approves the account with activeBizId,
-// all in one transaction. Asking again after it worked returns the same
-// store instead of a second one.
+// body: { name, logo?, sellsOn?, acceptTerms, termsVersion }. Creates
+// businesses/{bizId}, its owner member, its config/settings, and approves
+// the account with activeBizId, all in one transaction. Asking again after
+// it worked returns the same store instead of a second one. Without the
+// Terms checkbox (or with an old termsVersion) nothing is written and the
+// answer is 400; with it, termsVersion and termsAcceptedAt go on the
+// business doc and on users/{uid}.
 export async function businessCreate(admin, caller, body){
   if (!caller.emailVerified) return err(403, 'Verify your email first.');
   if (!(await readSelfServe(admin.db))) return err(403, 'New stores are not open yet. Your account is waiting for approval.');
@@ -69,6 +72,8 @@ export async function businessCreate(admin, caller, body){
       name: body && body.name,
       logo: body && body.logo,
       sellsOn: body && body.sellsOn,
+      acceptTerms: body && body.acceptTerms,
+      termsVersion: body && body.termsVersion,
       now: Date.now(),
     });
   }catch(e){
