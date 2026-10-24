@@ -500,7 +500,7 @@ ${page('team', `
       <!-- EMPLOYEE ACCOUNTS (admin only) -->
       <div class="settings-section" id="employeeAccountsSection" style="display:none;">
         <h3>Employee accounts</h3>
-        <div class="ss-desc">Create a login for someone who should only see the Catalog — no Home, Stock, Finances, or Settings. This restricts what the app SHOWS them; it isn't a database-level guarantee (see CLAUDE.md for the Firestore rule that closes that gap).</div>
+        <div class="ss-desc">Create a login for someone who should only see the Catalog — no Home, Stock, Finances, or Settings. This restricts what the app SHOWS them; it isn't a database-level guarantee.</div>
         <div class="field-row">
           <div class="field"><label>Employee email</label><input type="email" id="newEmployeeEmail" placeholder="employee@example.com"></div>
           <div class="field"><label>Temporary password</label><input type="text" id="newEmployeePassword" placeholder="At least 6 characters"></div>

@@ -1197,6 +1197,16 @@ on any of these:
 
 ## Pending changelog entry (since v3.28.0)
 
+- v3.28.10: developer wording out of seller-visible text (P0 PR5). "Tell
+  Vitor", "see README", "CLAUDE.md", "Vercel", the Developer Panel, and the
+  printer names Y43BT / FlashLabel Pro are gone from what sellers see. The
+  eBay publish error's DEBUG blocks show only to platform admins, and
+  `api/ebay-list.js` sends the `debug*` fields only to them
+  (`PLATFORM_ADMIN_UIDS`). `analyze-photo.js` and `narration.js` no longer
+  return the provider's raw error body (`detail`); it is logged on the
+  server. `tests/domain/ai-error-bodies.test.mjs`. Left on purpose: the
+  eBay setup panel's "Vercel Environment Variables" text (admin-only
+  screen) and code comments.
 - v3.28.9: no shared eBay connection, no AI without a store (P0 PR1b).
   `ebayConnectionId()` (`api/_ebayToken.js`) throws without a `bizId`, and
   every eBay endpoint answers 403 "This account isn't linked to a store yet."

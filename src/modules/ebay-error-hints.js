@@ -194,7 +194,7 @@ export const EBAY_ERROR_LIBRARY = [
     codes: [25007, 25009],
     match: (err, msg) => /fulfillment|payment policy|return policy|business polic/i.test(msg),
     diagnose: () => ({
-      text: `eBay couldn't use the shipping/payment/return policies on file. Re-run "eBay one-time setup" in Settings and check the policy IDs on Vercel.`,
+      text: `eBay couldn't use the shipping/payment/return policies on file. Re-run "eBay one-time setup" in Settings and, if it keeps happening, contact support.`,
       fix: { type: 'settings', label: 'Open Settings' },
     }),
   },
