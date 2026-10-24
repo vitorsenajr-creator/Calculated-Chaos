@@ -1158,6 +1158,25 @@ on any of these:
 
 ## Pending changelog entry (since v3.28.0)
 
+- v3.28.4: welcome page (`index.html`) refresh, asked for and approved by
+  Vitor (2026-10-24). Hero: a 3D phone with the Home screen and a "Sold on
+  Poshmark" card, the path Photo, Label, List, Sold, a drawn underline under
+  "really earned", slow light behind the hero and a pulsing, shining Request
+  access button. "Photos turn into listings" moves right under the hero: a
+  real piece (the Windsor dress) whose own photo
+  (`public/welcome/listing-before.webp`) turns into the edited one while its
+  real draft fills in (title, fields, eBay category and required aspects,
+  description, style tags), twice, with Play again. The labels block becomes
+  a small Settings › Labels setup (size, what prints, the "getting tight"
+  warning) with the label feeding out of a printer; the path's third stop is
+  now Search (wall markers removed from the copy). New sections before About
+  us: "Nothing changes until you say so" and an FAQ (also in the menu). A
+  sticky Request access bar, a thin scroll-progress bar, count-up and drawn
+  checkmarks. Motion uses transforms and opacity only and stops under
+  reduced motion; the page reads complete without JavaScript. Verified with
+  `npm run build` and a headless-Chromium render at 390 and 1280 px (no JS
+  errors); not checked on a real iPhone.
+
 - v3.28.3: the app version shows in a quiet footer under every screen
   ("Calculated Chaos v3.28.3 · 2026-10-24", `#appFooter` in `app.html`, set
   by `main.js` from `modules/version.js`; nothing to edit by hand). Vitor
