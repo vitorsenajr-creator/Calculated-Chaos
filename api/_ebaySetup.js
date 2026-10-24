@@ -8,6 +8,11 @@
 // the existing policy's ID (or we look it up by name), so it is reused.
 //
 // `ebayRequest` is a parameter only so tests can answer for eBay.
+//
+// Ship-from address (v3.28.19): the location is created with the seller's
+// own city, state and ZIP (src/domain/ship-from.js), never a fixed sample
+// address. When the location already exists, its address is updated with
+// update_location_details (allowed any number of times for a warehouse).
 
 const EBAY_SANDBOX = process.env.EBAY_SANDBOX === 'true';
 const API_BASE = EBAY_SANDBOX ? 'https://api.sandbox.ebay.com' : 'https://api.ebay.com';
@@ -66,8 +71,25 @@ function findPolicyByName(listData, listKey, idField, name){
   return match ? match[idField] : null;
 }
 
+const locationPath = (key) => `/sell/inventory/v1/location/${encodeURIComponent(key)}`;
+
+// The address eBay holds for one location: { ok:true, location } (the raw
+// getInventoryLocation answer) or { ok:false, status, data }.
+export async function readLocation(access_token, key, request = callEbay){
+  const r = await request('GET', locationPath(key), access_token);
+  return r.ok ? { ok: true, location: r.data } : { ok: false, status: r.status, data: r.data };
+}
+
+// Replaces the location's address (city, state, ZIP, country). eBay answers
+// 204 with no body.
+export async function updateLocationAddress(access_token, key, address, request = callEbay){
+  const r = await request('POST', `${locationPath(key)}/update_location_details`, access_token, { location: { address } });
+  return (r.ok || r.status === 204) ? { ok: true } : { ok: false, status: r.status, data: r.data };
+}
+
 // Returns { results, errors, complete } for the connected account.
-export async function setupEbayAccount(access_token, request = callEbay){
+// `address` is a cleaned ship-from address (cleanShipFrom().address).
+export async function setupEbayAccount(access_token, request = callEbay, { address } = {}){
   const ebayRequest = request;
   const results = {};
   const errors = {};
@@ -92,32 +114,31 @@ export async function setupEbayAccount(access_token, request = callEbay){
   }
 
   // ---------- Merchant Location ----------
-  const locationBody = {
-    location: {
-      address: {
-        addressLine1: '123 Main St',
-        city: 'Orlando',
-        stateOrProvince: 'FL',
-        postalCode: '32801',
-        country: 'US',
-      },
-    },
-    name: 'Calculated Chaos Main Location',
-    merchantLocationStatus: 'ENABLED',
-    locationTypes: ['WAREHOUSE'],
-  };
-  const locResult = await ebayRequest('POST', `/sell/inventory/v1/location/${LOCATION_KEY}`, access_token, locationBody);
-  // eBay signals "this location already exists" two different ways: a real
-  // HTTP 409, OR an HTTP 400 with errorId 25803 buried in the body. Either
-  // one means the location is already there and set up correctly — that's
-  // a success for us, not a failure, since the location doesn't need to be
-  // recreated on every setup run.
-  const locationAlreadyExists = locResult.status === 409 ||
-    (locResult.data?.errors || []).some(e => e.errorId === 25803);
-  if (locResult.ok || locResult.status === 204 || locationAlreadyExists){
-    results.merchantLocationKey = LOCATION_KEY;
+  if (!address){
+    errors.location = { message: 'A ship-from address is needed.' };
   } else {
-    errors.location = locResult.data;
+    const locationBody = {
+      location: { address },
+      name: 'Calculated Chaos Main Location',
+      merchantLocationStatus: 'ENABLED',
+      locationTypes: ['WAREHOUSE'],
+    };
+    const locResult = await ebayRequest('POST', locationPath(LOCATION_KEY), access_token, locationBody);
+    // eBay signals "this location already exists" two different ways: a real
+    // HTTP 409, OR an HTTP 400 with errorId 25803 buried in the body. Then
+    // the address is brought up to date instead (an older setup created it
+    // with a sample address).
+    const locationAlreadyExists = locResult.status === 409 ||
+      (locResult.data?.errors || []).some(e => e.errorId === 25803);
+    if (locResult.ok || locResult.status === 204){
+      results.merchantLocationKey = LOCATION_KEY;
+    } else if (locationAlreadyExists){
+      const upd = await updateLocationAddress(access_token, LOCATION_KEY, address, ebayRequest);
+      if (upd.ok) results.merchantLocationKey = LOCATION_KEY;
+      else errors.location = upd.data || { message: 'Could not update the ship-from address on eBay.' };
+    } else {
+      errors.location = locResult.data;
+    }
   }
 
   // ---------- Fulfillment Policy ----------

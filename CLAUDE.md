@@ -648,10 +648,10 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
   Console on 2026-10-24, which covers the `trash` (v3.26.0), `pick_log`
   (v3.27.7), users create (v3.28.8), `invites` (v3.28.12) and `ai_allowance`
   (v3.28.14) rules. Optional: a TTL policy on `trash.expiresAt`.
-- **eBay ship-from address (Vitor, 2026-10-24: next PR)**: Run eBay setup
-  still creates the store's location with the placeholder address (Orlando,
-  FL, `api/_ebaySetup.js`). Next: an address form in Settings → eBay, used
-  for that location on the seller's own eBay account.
+- **eBay ship-from address (v3.28.19), Vitor's step**: open Settings → eBay
+  and read "Ships from …". If it shows the sample address (Orlando, FL 32801),
+  enter the real city, state and ZIP and press Save ship-from address, then
+  check an eBay listing's item location.
 - **Production, selling soon (Vitor, 2026-10-20)**: the app is in
   production mode and will be offered to other sellers soon. Treat every
   change as going to paying customers: no half-finished features on
@@ -714,6 +714,16 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
 
 ### Unverified in production (build-verified only)
 
+- Ship-from address (v3.28.19): Node tests of the address rules, the setup
+  with a fake eBay (a new location with the address and no street, an
+  existing one updated, no address = no location call, a refused update), the
+  real route on a fake Firebase Admin (read, sample flagged, update and read
+  back, 400 before eBay, 403 for an employee, 409 before setup, 502 on a
+  refusal) and a Chromium test of Settings → eBay on the harness. Not run: the
+  real eBay `update_location_details` and `GET location` (field names taken
+  from eBay's docs), whether live listings show the new city right away, a
+  location key that is not a warehouse (eBay may then refuse an address with
+  no street).
 - Store policies on publish, audit and import (v3.28.18): Node tests running
   the real `ebay-list.js` and `ebay-listing-tools.js` handlers on a fake
   Firebase Admin and a fake eBay, with different env ids set (offer with the
@@ -1243,6 +1253,25 @@ on any of these:
   sizing (v3.13.102-105), inspection flag icon (v3.13.114).
 
 ## Pending changelog entry (since v3.28.0)
+
+- v3.28.19: the store's own eBay ship-from address (Vitor, 2026-10-24: city,
+  state and ZIP only; only the owner changes it). `src/domain/ship-from.js`
+  (`cleanShipFrom`, the 50 states + DC, ZIP or ZIP+4, an all-lowercase city
+  capitalized; `isPlaceholderShipFrom` for the old sample address).
+  `api/_ebaySetup.js`: the location is created with the seller's address, and
+  an existing one is updated with `update_location_details`; the fixed
+  "123 Main St, Orlando, FL 32801" is gone. `api/ebay-setup.js`: setup needs
+  the address (400 with `fieldErrors` before any eBay call); new actions
+  `location` (any member: what eBay holds for the store's
+  `merchantLocationKey`, never the street) and `location_update` (owner; 409
+  before setup, 502 when eBay refuses); setup and the update answer 403 to an
+  employee. Settings → eBay → one-time setup shows "Ships from …" (or a
+  warning on the sample address), a City / State / ZIP form with errors on
+  each field, and Save ship-from address. The address lives only on the eBay
+  account, never in Firestore. Tests: `tests/domain/ship-from.test.mjs`,
+  `tests/api/ebay-setup-address.test.mjs` (9, all fail on the old route), the
+  setup tests in `ebay-policies.test.mjs`, `tests/harness/ship-from.mjs`
+  (Chromium, 10 checks).
 
 - v3.28.18: eBay publish, audit and import read the store's own policies (PR2b
   of the eBay-per-store work, Vitor 2026-10-24). `api/ebay-list.js` reads
