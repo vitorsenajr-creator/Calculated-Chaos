@@ -395,11 +395,13 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
     message), `api/_aiAllowance.js` (`requireAiAllowance()` before every
     Anthropic and Deepgram call; add it to any new AI call),
     `data/ai-allowance-store.js` (the app's copy of the server's numbers).
-    Since v3.28.8 it reserves one unit in a transaction on
+    Since v3.28.14 it reserves one unit in a transaction on
     `ai_allowance/{bizId}__{month}` (server only) and returns a hold: the
     caller must `await held.release()` when the upstream call fails or throws.
-    Reserve only after the request is validated. Fail closed (503) when
-    Firestore can't be read (`FAIL_CLOSED`). The old `aiUsageCount` /
+    Reserve only after the request is validated. When Firestore fails, only
+    stores with a limit are refused (Vitor, 2026-10-24): the call goes through
+    when the store's limit can't be read, and gets 503 when the limit is known
+    but the counter can't be reserved. The old `aiUsageCount` /
     `aiUsageLimit` in settings stay for stores without a server limit.
   - `ui/lightbox.js`: `openLightbox(photos, index)`; its state is private.
   - `ui/label-render.js`: label preview markup + canvas drawing. Item
@@ -1240,6 +1242,11 @@ on any of these:
 
 ## Pending changelog entry (since v3.28.0)
 
+- v3.28.16: two stale lines in `CLAUDE.md` corrected (Vitor, 2026-10-24): the
+  AI allowance's failure rule (only stores with a limit are refused; there is
+  no `FAIL_CLOSED`) and its version (v3.28.14), and the v3.28.13 entry's Pick
+  log retention ("kept while the store exists", not 12 months). No code change.
+
 - v3.28.15: `CLAUDE.md` gets a "CC Agent" rules section (Vitor, 2026-10-24):
   a panel task is a confirmed plan, PRs in English, one open PR at a time,
   renumber after bringing `main` in, "Console steps for Vitor". No code change.
@@ -1273,8 +1280,8 @@ on any of these:
   on `users/{uid}` and the business doc. `TERMS_VERSION` in
   `domain/new-business.js` = the date of the texts: change it with every edit
   of either page. The texts are a draft written from the facts Vitor listed
-  (the TermsFeed base text never arrived); they promise a 12-month Pick log
-  retention that nothing enforces yet. Needs a read by Vitor (or a lawyer)
+  (the TermsFeed base text never arrived); the Pick activity log is "kept
+  while the store exists" (nothing purges it yet). Needs a read by Vitor (or a lawyer)
   before real customers. Build, Node tests and a Chromium check of the
   checkbox only.
 - v3.28.12: store invitations (P0, PR 4a). A platform admin lists an email in
