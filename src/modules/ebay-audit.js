@@ -44,7 +44,7 @@ function itemNameForSku(sku){
 function renderAuditReport(data){
   const area = document.getElementById('ebayAuditResult');
   if (!area) return;
-  const { orphans, shippingMismatches, checkedCount, totalSkus, lookupErrors, invisibleListings, legacyScanError } = data;
+  const { orphans, shippingMismatches, checkedCount, totalSkus, lookupErrors, invisibleListings, legacyScanError, shippingNote } = data;
   const listingUrl = (id) => id ? `https://www.ebay.com/itm/${id}` : null;
 
   let html = `<div class="ebay-connect-box"><div class="ec-title">Audit finished — ${checkedCount} live listing${checkedCount===1?'':'s'} checked</div><div class="ec-sub">`;
@@ -59,8 +59,15 @@ function renderAuditReport(data){
     html += `</div>`;
   }
 
+  // v3.28.18: a store that hasn't run eBay setup has no policies to compare with.
+  if (shippingNote){
+    html += `<div style="margin-bottom:10px;"><b style="color:var(--amber-deep);">⚠️ Shipping policies weren't checked.</b> ${escapeHtml(shippingNote)}</div>`;
+  }
+
   if (orphans.length === 0 && shippingMismatches.length === 0){
-    html += `<div style="color:var(--sage-deep); font-weight:600;">✅ Everything matches — no orphaned listings, no shipping policy mismatches.</div>`;
+    html += shippingNote
+      ? `<div style="color:var(--sage-deep); font-weight:600;">✅ No orphaned listings.</div>`
+      : `<div style="color:var(--sage-deep); font-weight:600;">✅ Everything matches — no orphaned listings, no shipping policy mismatches.</div>`;
   }
 
   if (shippingMismatches.length){
@@ -421,6 +428,7 @@ export async function runEbayAudit(){
       merged.lookupErrors.push(...chunkData.lookupErrors);
       merged.checkedCount += chunkData.checkedCount;
       merged.checkedListingIds.push(...(chunkData.checkedListingIds || []));
+      if (chunkData.shippingNote) merged.shippingNote = chunkData.shippingNote;
     }
 
     // Second pass: find listings live on eBay that never went through the
@@ -461,10 +469,9 @@ export async function runEbayAudit(){
 // Lists every fulfillment (shipping) policy on the connected eBay account
 // with its real policy ID — added 2026-08-10 so a custom policy created
 // directly on eBay (e.g. "USPS Ground + Priority (Buyer Pays)") can be
-// found and copied into EBAY_FULFILLMENT_POLICY_ID_BUYER_PAYS on Vercel
-// without digging through Seller Hub. Read-only — doesn't change anything,
-// on eBay or in this app; switching which policy this app treats as the
-// buyer-pays default is a server env var change, done outside the app.
+// found without digging through Seller Hub. Read-only — doesn't change
+// anything, on eBay or in this app. Since v3.28.18 the policies the app uses
+// are the store's own, saved by Run eBay setup.
 export async function runListFulfillmentPolicies(){
   const area = document.getElementById('ebayPoliciesResult');
   if (!area) return;
@@ -494,7 +501,7 @@ export async function runListFulfillmentPolicies(){
           <span style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(p.name)}</span>
           <code style="flex-shrink:0; background:rgba(0,0,0,0.06); padding:3px 6px; border-radius:4px; font-size:11.5px; user-select:all;">${escapeHtml(p.id)}</code>
         </div>`).join('') +
-      `<div style="margin-top:8px; font-size:12px; opacity:0.8;">To make one of these the default for "buyer pays" imports/publishing, copy its ID above into the <code>EBAY_FULFILLMENT_POLICY_ID_BUYER_PAYS</code> server setting, then redeploy.</div></div></div>`;
+      `<div style="margin-top:8px; font-size:12px; opacity:0.8;">Listings published or imported by the app use the two shipping policies that Run eBay setup saved for your store.</div></div></div>`;
   }catch(e){
     area.innerHTML = `<div class="ebay-status-box error">❌ ${escapeHtml(String(e.message || e))}</div>`;
   }

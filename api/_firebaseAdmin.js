@@ -69,3 +69,9 @@ export function getFirebaseAdmin(){
   if (!cached) cached = load();
   return cached;
 }
+
+// Tests only: run the real handlers on a fake Firebase Admin ({ ok:true, auth,
+// db }). null puts the real loader back.
+export function setFirebaseAdminForTests(fake){
+  cached = fake || null;
+}

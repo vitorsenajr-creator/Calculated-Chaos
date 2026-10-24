@@ -13,7 +13,8 @@
 //
 // api/ebay-setup.js saves them for the caller's store; the platform action
 // `ebay_policies_copy` copies the env values onto one store, once (Vitor's).
-// Reading them in ebay-list.js / ebay-listing-tools.js comes in the next PR.
+// Since v3.28.18 ebay-list.js (publish) and ebay-listing-tools.js (audit,
+// migrate) read them here; the env vars are only read by that copy action.
 import { getFirebaseAdmin } from './_firebaseAdmin.js';
 import { ebayConnectionId } from './_ebayToken.js';
 
@@ -28,6 +29,22 @@ export const POLICY_ENV = {
   merchantLocationKey: 'EBAY_MERCHANT_LOCATION_KEY',
 };
 export const POLICY_FIELDS = Object.keys(POLICY_ENV);
+
+// What a store without a saved set is told (v3.28.18).
+export const EBAY_SETUP_NEEDED = "Your store's eBay policies aren't set up yet. Open Settings → eBay and press Run eBay setup.";
+
+// The offer's policy fields for one listing: the free-shipping fulfillment
+// policy when the seller pays shipping, else the buyer-pays one.
+export function offerPolicyFields(policies, sellerPaysShipping){
+  return {
+    listingPolicies: {
+      fulfillmentPolicyId: sellerPaysShipping ? policies.fulfillmentPolicyId : policies.fulfillmentPolicyIdBuyerPays,
+      paymentPolicyId: policies.paymentPolicyId,
+      returnPolicyId: policies.returnPolicyId,
+    },
+    merchantLocationKey: policies.merchantLocationKey,
+  };
+}
 
 // Keeps only the five known fields, each a non-empty string; null unless all
 // five are there (a half-saved set would fail at publish, so none is saved).

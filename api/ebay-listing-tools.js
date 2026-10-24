@@ -92,9 +92,9 @@
 //     -> added 2026-08-10 so Vitor can find a shipping policy's real ID
 //        (e.g. a custom policy created directly on eBay, like "USPS
 //        Ground + Priority (Buyer Pays)") from inside the app instead of
-//        digging through Seller Hub — needed to set
-//        EBAY_FULFILLMENT_POLICY_ID_BUYER_PAYS on Vercel by hand, since
-//        that's a server-side env var this app can't set for itself.
+//        digging through Seller Hub. Since v3.28.18 the policies the app
+//        uses are the store's own, saved by Run eBay setup
+//        (ebay_connections/{bizId}.policies, _ebayPolicies.js).
 //     Returns: { success, policies: [{id, name}] }
 //
 //   action: 'backfill_descriptions'  { listingIds: [...] }
@@ -111,6 +111,7 @@
 import { XMLParser, XMLBuilder } from 'fast-xml-parser';
 import { requireApprovedUser } from './_requireApprovedUser.js';
 import { getEbayAccessToken, ebayConnectionOr403 } from './_ebayToken.js';
+import { getEbayPolicies, EBAY_SETUP_NEEDED } from './_ebayPolicies.js';
 
 const EBAY_SANDBOX = process.env.EBAY_SANDBOX === 'true';
 const API_BASE = EBAY_SANDBOX
@@ -262,7 +263,9 @@ async function handleAuditListSkus(req, res, access_token){
   return res.status(200).json({ success: true, skus, totalSkus: skus.length });
 }
 
-async function handleAuditCheckSkus(req, res, access_token){
+// `policies` is the store's saved set (v3.28.18), or null before eBay setup:
+// then the shipping check is skipped and the answer says so.
+async function handleAuditCheckSkus(req, res, access_token, policies){
   const { knownItems, skus } = req.body || {};
   const known = new Map((Array.isArray(knownItems) ? knownItems : []).map(k => [String(k.sku), k]));
   const chunk = Array.isArray(skus) ? skus : [];
@@ -278,8 +281,9 @@ async function handleAuditCheckSkus(req, res, access_token){
   // listings that have NO Inventory API record at all — see "eBay SKU
   // discovery gap" in CLAUDE.md.
   const checkedListingIds = [];
-  const fulfillmentPolicyId = process.env.EBAY_FULFILLMENT_POLICY_ID || '';
-  const fulfillmentPolicyIdBuyerPays = process.env.EBAY_FULFILLMENT_POLICY_ID_BUYER_PAYS || '';
+  const fulfillmentPolicyId = policies?.fulfillmentPolicyId || '';
+  const fulfillmentPolicyIdBuyerPays = policies?.fulfillmentPolicyIdBuyerPays || '';
+  const shippingChecked = !!policies;
   let checkedCount = 0;
 
   // Fetches one SKU's offer, with one retry after a short backoff — eBay
@@ -341,7 +345,10 @@ async function handleAuditCheckSkus(req, res, access_token){
     }
   }
 
-  return res.status(200).json({ success: true, orphans, shippingMismatches, checkedCount, lookupErrors, checkedListingIds });
+  return res.status(200).json({
+    success: true, orphans, shippingMismatches, checkedCount, lookupErrors, checkedListingIds,
+    shippingChecked, ...(shippingChecked ? {} : { shippingNote: EBAY_SETUP_NEEDED }),
+  });
 }
 
 // ---------- Legacy/outside-Inventory-API listing discovery ----------
@@ -579,7 +586,7 @@ async function reviseItemSku(access_token, itemId, sku){
 // picks up whatever SKU ReviseItem set) brings it into the Inventory API.
 // The listing itself keeps running on eBay throughout (same ItemID, same
 // URL) — this only adds records, it never touches price/title/photos/etc.
-async function handleMigrateListing(req, res, access_token){
+async function handleMigrateListing(req, res, access_token, policies){
   const { listingId, sku } = req.body || {};
   if (!listingId) return res.status(400).json({ error: 'Missing listingId' });
   if (!sku) return res.status(400).json({ error: 'Missing sku' });
@@ -621,7 +628,7 @@ async function handleMigrateListing(req, res, access_token){
     offerId = lookupData?.offers?.find(o => o.status === 'PUBLISHED')?.offerId || lookupData?.offers?.[0]?.offerId || null;
   }
 
-  const shipping = offerId ? await correctOfferShipping(offerId, access_token) : { corrected: false, reason: 'no_offer_id' };
+  const shipping = offerId ? await correctOfferShipping(offerId, access_token, policies) : { corrected: false, reason: 'no_offer_id' };
   return res.status(200).json({ success: true, sku: migratedSku, listingId, photos, description, shipping });
 }
 
@@ -639,10 +646,11 @@ async function handleMigrateListing(req, res, access_token){
 // Best-effort: any failure here is reported but doesn't fail the import —
 // the item still exists in the Inventory API under the right SKU either
 // way, this only affects whether the shipping policy is provably correct.
-async function correctOfferShipping(offerId, access_token){
-  const fulfillmentPolicyIdBuyerPays = process.env.EBAY_FULFILLMENT_POLICY_ID_BUYER_PAYS || '';
+async function correctOfferShipping(offerId, access_token, policies){
+  // The store's buyer-pays policy (v3.28.18), never the env one.
+  const fulfillmentPolicyIdBuyerPays = policies?.fulfillmentPolicyIdBuyerPays || '';
   if (!fulfillmentPolicyIdBuyerPays){
-    return { corrected: false, reason: 'EBAY_FULFILLMENT_POLICY_ID_BUYER_PAYS not configured on the server' };
+    return { corrected: false, reason: `${EBAY_SETUP_NEEDED} The shipping policy was not corrected.` };
   }
   try{
     const headers = ebayAuthHeaders(access_token);
@@ -694,13 +702,22 @@ export default async (req, res) => {
     if (!ebayToken.ok) return res.status(ebayToken.status).json({ error: ebayToken.error });
     const access_token = ebayToken.token;
 
+    // The store's own policies (v3.28.18), for the two actions that compare
+    // or set a listing's shipping policy. null = eBay setup not run yet.
+    let policies = null;
+    if (action === 'audit_check_skus' || action === 'migrate_listing'){
+      const p = await getEbayPolicies(authCheck);
+      if (!p.ok) return res.status(p.status).json({ error: p.error });
+      policies = p.policies;
+    }
+
     if (action === 'condition_policies') return await handleConditionPolicies(req, res, access_token);
     if (action === 'find_eligible') return await handleFindEligible(req, res, access_token);
     if (action === 'send_offer') return await handleSendOffer(req, res, access_token);
     if (action === 'audit_list_skus') return await handleAuditListSkus(req, res, access_token);
-    if (action === 'audit_check_skus') return await handleAuditCheckSkus(req, res, access_token);
+    if (action === 'audit_check_skus') return await handleAuditCheckSkus(req, res, access_token, policies);
     if (action === 'legacy_scan') return await handleLegacyScan(req, res, access_token);
-    if (action === 'migrate_listing') return await handleMigrateListing(req, res, access_token);
+    if (action === 'migrate_listing') return await handleMigrateListing(req, res, access_token, policies);
     if (action === 'list_fulfillment_policies') return await handleListFulfillmentPolicies(req, res, access_token);
     if (action === 'backfill_descriptions') return await handleBackfillDescriptions(req, res, access_token);
 

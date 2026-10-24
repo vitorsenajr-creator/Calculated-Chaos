@@ -9,6 +9,7 @@ import { suggestEbayTypeValue, isTypeAspect } from '../src/modules/ebay-type-map
 import { requireApprovedUser } from './_requireApprovedUser.js';
 import { PLATFORM_ADMIN_UIDS } from './_firebaseAdmin.js';
 import { getEbayAccessToken, ebayConnectionOr403 } from './_ebayToken.js';
+import { getEbayPolicies, offerPolicyFields, EBAY_SETUP_NEEDED } from './_ebayPolicies.js';
 
 const EBAY_SANDBOX = process.env.EBAY_SANDBOX === 'true';
 
@@ -651,6 +652,13 @@ export default async function handler(req, res){
 
   const { item, imageUrls } = req.body || {};
 
+  // The store's own policies and ship-from location (v3.28.18), read before
+  // any eBay call, so a store that hasn't run eBay setup gets no half-made
+  // inventory item. The Vercel env ids are one seller's and are never used here.
+  const storePolicies = await getEbayPolicies(authCheck);
+  if (!storePolicies.ok) return res.status(storePolicies.status).json({ error: storePolicies.error });
+  if (!storePolicies.policies) return res.status(409).json({ error: EBAY_SETUP_NEEDED, code: 'EBAY_SETUP_NEEDED' });
+
   const ebayToken = await getEbayAccessToken(connectionId);
   if (!ebayToken.ok) return res.status(ebayToken.status).json({ error: ebayToken.error });
   const access_token = ebayToken.token;
@@ -772,18 +780,10 @@ export default async function handler(req, res){
     // (same estimateShipping() formula used for her own profit math), so the
     // number a buyer actually sees matches what she's accounting for.
     const sellerPaysShipping = item.freeShipping === true;
-    const fulfillmentPolicyId = sellerPaysShipping
-      ? (process.env.EBAY_FULFILLMENT_POLICY_ID || '')
-      : (process.env.EBAY_FULFILLMENT_POLICY_ID_BUYER_PAYS || '');
-
-    const listingPolicies = {
-      // These policy IDs must be set up in her eBay seller account
-      // They'll be configured when we do the production setup
-      // For Sandbox testing, eBay provides default policy IDs
-      fulfillmentPolicyId,
-      paymentPolicyId: process.env.EBAY_PAYMENT_POLICY_ID || '',
-      returnPolicyId: process.env.EBAY_RETURN_POLICY_ID || '',
-    };
+    const storeFields = offerPolicyFields(storePolicies.policies, sellerPaysShipping);
+    const listingPolicies = { ...storeFields.listingPolicies };
+    const { fulfillmentPolicyId } = listingPolicies;
+    const { merchantLocationKey } = storeFields;
     if (!sellerPaysShipping){
       const { options } = estimateShipping({}, item);
       const shipCost = (options.find(o => o.carrier === 'USPS Priority Mail') || options[0] || { price: 8 }).price;
@@ -808,7 +808,7 @@ export default async function handler(req, res){
         },
       },
       listingPolicies,
-      merchantLocationKey: process.env.EBAY_MERCHANT_LOCATION_KEY || 'default',
+      merchantLocationKey,
     };
 
     let offerResult;
@@ -830,9 +830,9 @@ export default async function handler(req, res){
         ...(isAdminCaller ? { debugPolicyIdsSent: {
           fulfillmentPolicyId: fulfillmentPolicyId || '(empty)',
           sellerPaysShipping,
-          paymentPolicyId: process.env.EBAY_PAYMENT_POLICY_ID || '(empty)',
-          returnPolicyId: process.env.EBAY_RETURN_POLICY_ID || '(empty)',
-          merchantLocationKey: process.env.EBAY_MERCHANT_LOCATION_KEY || '(empty)',
+          paymentPolicyId: listingPolicies.paymentPolicyId,
+          returnPolicyId: listingPolicies.returnPolicyId,
+          merchantLocationKey,
           sandboxMode: EBAY_SANDBOX,
         } } : {}),
       });
