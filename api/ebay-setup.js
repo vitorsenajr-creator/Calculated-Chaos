@@ -4,7 +4,7 @@
 // caller's store, opting the account in to the Business Policies program when
 // it isn't yet. The logic is in _ebaySetup.js.
 //
-// Since v3.28.8 the five values are saved on the store's own connection
+// Since v3.28.11 the five values are saved on the store's own connection
 // (ebay_connections/{bizId}.policies, server only, _ebayPolicies.js) instead
 // of being copied by hand into Vercel env vars.
 //
@@ -13,7 +13,7 @@
 //   paymentPolicyId, returnPolicyId, merchantLocationKey, ... }, errors?, saved, nextSteps }
 
 import { requireApprovedUser } from './_requireApprovedUser.js';
-import { getEbayAccessToken, ebayConnectionId } from './_ebayToken.js';
+import { getEbayAccessToken, ebayConnectionOr403 } from './_ebayToken.js';
 import { setupEbayAccount } from './_ebaySetup.js';
 import { saveEbayPolicies } from './_ebayPolicies.js';
 
@@ -26,7 +26,9 @@ export default async function handler(req, res){
   if (!authCheck.ok){
     return res.status(authCheck.status).json({ error: authCheck.error });
   }
-  const connectionId = ebayConnectionId(authCheck);
+  // eBay calls use the caller's store connection, never a shared one (v3.28.9).
+  const connectionId = ebayConnectionOr403(authCheck, res);
+  if (!connectionId) return;
   const ebayToken = await getEbayAccessToken(connectionId);
   if (!ebayToken.ok) return res.status(ebayToken.status).json({ error: ebayToken.error });
 

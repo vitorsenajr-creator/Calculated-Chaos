@@ -1,4 +1,4 @@
-// Per-store eBay policies (v3.28.8): setup on a seller's own account with a
+// Per-store eBay policies (v3.28.11): setup on a seller's own account with a
 // fake eBay, saving on the store's connection doc, and the one-time env copy.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

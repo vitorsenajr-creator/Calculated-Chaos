@@ -1,4 +1,4 @@
-// A store's eBay business policies and ship-from location (v3.28.8). Not a
+// A store's eBay business policies and ship-from location (v3.28.11). Not a
 // route: the leading underscore keeps Vercel from deploying it as a function.
 //
 // The five values used to come from Vercel env vars (Vitor's own policy ids,
@@ -56,8 +56,14 @@ function dbOrError(db){
 export async function getEbayPolicies(auth, db){
   const { db: d, error } = dbOrError(db);
   if (error) return error;
+  let connectionId;
   try{
-    const snap = await d.collection(CONNECTIONS).doc(ebayConnectionId(auth)).get();
+    connectionId = ebayConnectionId(auth);
+  }catch(e){
+    return { ok: false, status: e.status || 403, error: e.message };
+  }
+  try{
+    const snap = await d.collection(CONNECTIONS).doc(connectionId).get();
     const policies = snap.exists ? cleanPolicies(snap.data().policies) : null;
     return { ok: true, policies };
   }catch(e){

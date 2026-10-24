@@ -344,7 +344,7 @@ async function renderEbay(){
   el.innerHTML = `
     <div class="ad-card">
       <h3>eBay connection</h3>
-      <div class="ad-desc">One connection for the whole app today, held on the server (ebay_connections/main; the app never sees the tokens). Per-business connections come with the multi-business work.</div>
+      <div class="ad-desc">Your store's connection, held on the server (ebay_connections/{store id}; the app never sees the tokens). Each store connects its own eBay account.</div>
       <dl class="ad-kv">
         <dt>Account</dt><dd>${escapeHtml(t.sellerUsername || 'unknown')}</dd>
         <dt>Access token</dt><dd>${accessValid ? `valid until ${escapeHtml(fmtDate(expiresAt))}` : 'expired (the server refreshes it on next use)'}</dd>
@@ -587,6 +587,7 @@ function renderApp(){
         <button class="ad-btn secondary" id="adMigrationCopyBtn" disabled>Copy to business</button>
         <button class="ad-btn" id="adMigrationSwitchBtn" disabled>Switch to business data</button>
         <button class="ad-btn secondary" id="adMigrationMembersBtn" style="display:none;">Sync members</button>
+        <button class="ad-btn secondary" id="adRetireMainBtn" style="display:none;">Retire the old eBay connection</button>
         <button class="ad-btn danger" id="adMigrationBackBtn" style="display:none;">Switch back</button>
       </div>
     </div>
@@ -612,6 +613,7 @@ function renderApp(){
   document.getElementById('adMigrationCopyBtn').addEventListener('click', runMigrationCopy);
   document.getElementById('adMigrationSwitchBtn').addEventListener('click', runMigrationSwitch);
   document.getElementById('adMigrationMembersBtn').addEventListener('click', runMembersSync);
+  document.getElementById('adRetireMainBtn').addEventListener('click', runRetireMain);
   document.getElementById('adMigrationBackBtn').addEventListener('click', runMigrationSwitchBack);
   loadMigrationStatus();
 }
@@ -783,7 +785,7 @@ async function toggleSelfServe(){
   }
 }
 
-// ---------- eBay policies, one-time copy from the env (v3.28.8, api/_ebayPolicies.js) ----------
+// ---------- eBay policies, one-time copy from the env (v3.28.11, api/_ebayPolicies.js) ----------
 async function runEbayPoliciesCopy(){
   const bizId = document.getElementById('adPoliciesBiz').value.trim();
   const btn = document.getElementById('adPoliciesBtn');
@@ -847,13 +849,13 @@ async function setAppCheckMode(mode){
 // ---------- Business migration (api/_migration.js) ----------
 
 function migrationButtons(){
-  return ['adMigrationRefreshBtn', 'adMigrationCopyBtn', 'adMigrationSwitchBtn', 'adMigrationMembersBtn', 'adMigrationBackBtn']
+  return ['adMigrationRefreshBtn', 'adMigrationCopyBtn', 'adMigrationSwitchBtn', 'adMigrationMembersBtn', 'adMigrationBackBtn', 'adRetireMainBtn']
     .map(id => document.getElementById(id));
 }
 
 async function loadMigrationStatus(){
   const el = document.getElementById('adMigrationStatus');
-  const [refreshBtn, copyBtn, switchBtn, membersBtn, backBtn] = migrationButtons();
+  const [refreshBtn, copyBtn, switchBtn, membersBtn, backBtn, retireBtn] = migrationButtons();
   copyBtn.disabled = true;
   switchBtn.disabled = true;
   el.innerHTML = '<div class="ad-empty">Counting…</div>';
@@ -879,7 +881,8 @@ async function loadMigrationStatus(){
         <dt>Last copy</dt><dd>${s.lastCopiedAt ? fmtDate(s.lastCopiedAt) : 'Never'}</dd>
         <dt>App uses</dt><dd>${s.live ? '<b>Business data</b> (live)' : 'Pre-business data'}</dd>
       </dl>
-      ${s.live ? '<div class="ebay-status-box success">The app uses the business data; copying the old data again is blocked. "Sync members" adds newly approved users to the business.</div>' : ''}
+      ${s.live ? '<div class="ebay-status-box success">The app uses the business data; copying the old data again is blocked. "Sync members" adds approved accounts that have no store yet to this business; accounts that already have a store (this one or their own) are left alone.</div>' : ''}
+      ${s.mainRetiredAt ? `<div class="ad-meta">Old eBay connection retired ${escapeHtml(fmtDate(s.mainRetiredAt))} → ebay_connections/${escapeHtml(s.mainRetiredTo || '')}</div>` : ''}
       ${s.unmapped.length ? `<div class="ebay-status-box error">These docs won't be copied (no business home yet): ${s.unmapped.map(escapeHtml).join(', ')}</div>` : ''}
       ${rows}`;
     copyBtn.disabled = s.live;
@@ -888,6 +891,9 @@ async function loadMigrationStatus(){
     switchBtn.style.display = s.live ? 'none' : '';
     membersBtn.style.display = s.live ? '' : 'none';
     backBtn.style.display = s.live ? '' : 'none';
+    // Only once the app is live and the old shared doc is still there.
+    const mainConn = s.docs.find(d => d.from === 'ebay_connections/main');
+    retireBtn.style.display = s.live && mainConn && mainConn.source ? '' : 'none';
     refreshBtn.disabled = false;
   }catch(e){
     el.innerHTML = `<div class="ebay-status-box error">Could not load the migration status: ${escapeHtml(e.message || String(e))}</div>`;
@@ -969,9 +975,24 @@ async function runMembersSync(){
   const progress = document.getElementById('adMigrationProgress');
   await withMigrationBusy(async () => {
     try{
-      progress.textContent = `Members synced. ${await copyAllSteps('Syncing members')}`;
+      progress.textContent = `Members synced (accounts that already have a store are skipped). ${await copyAllSteps('Syncing members')}`;
     }catch(e){
       progress.textContent = `Could not sync members: ${e.message || e}`;
+    }
+  });
+}
+
+// v3.28.9: moves ebay_connections/main aside. Nothing reads it any more;
+// every eBay call uses the store's own connection.
+async function runRetireMain(){
+  if (!confirm('Retire the old eBay connection (ebay_connections/main)?\n\nFirst check in the Firestore Console that your store has its own doc in ebay_connections (the business id above). The old doc is moved to ebay_connections/_retired_main_<date>, not deleted.')) return;
+  const progress = document.getElementById('adMigrationProgress');
+  await withMigrationBusy(async () => {
+    try{
+      const r = await platformAction({ action: 'ebay_retire_main' });
+      progress.textContent = `Retired: moved to ebay_connections/${r.retiredTo}. Publish one item on eBay to confirm the store's connection works.`;
+    }catch(e){
+      progress.textContent = `Could not retire it: ${e.message || e}`;
     }
   });
 }

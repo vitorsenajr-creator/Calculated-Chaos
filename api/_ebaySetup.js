@@ -1,5 +1,5 @@
 // Business Policies + Merchant Location setup on a seller's own eBay account
-// (v3.28.8), the logic behind /api/ebay-setup.js. Not a route.
+// (v3.28.11), the logic behind /api/ebay-setup.js. Not a route.
 //
 // Creates the required policies (fulfillment x2, payment, return) and the
 // Merchant Location through the Account/Inventory APIs, bypassing the Seller

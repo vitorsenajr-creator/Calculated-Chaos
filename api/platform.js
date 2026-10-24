@@ -26,6 +26,11 @@
 //     -> turns the business data on for the app, server and rules
 //        (businesses/{bizId}.live), or back off.
 //
+//   action: 'ebay_retire_main' (v3.28.9)
+//     -> moves the old shared eBay connection, ebay_connections/main, to
+//        ebay_connections/_retired_main_<date> (copy and delete in one
+//        transaction). Nothing reads 'main' any more; this retires it.
+//
 //   action: 'admin_claims' | 'admin_claims_sync'
 //     -> the platform-admin custom claim (_adminClaims.js): who should be
 //        an admin and who has the claim; sync gives it to the listed
@@ -50,7 +55,7 @@
 //     -> how our functions treat the App Check token (_appCheck.js,
 //        platform/appcheck): 'off', 'monitor' or 'enforce'.
 //
-//   action: 'ebay_policies_copy', bizId (v3.28.8)
+//   action: 'ebay_policies_copy', bizId (v3.28.11)
 //     -> one-time copy of the five EBAY_*_POLICY_ID / MERCHANT_LOCATION_KEY
 //        env values onto that store's ebay_connections/{bizId}.policies
 //        (_ebayPolicies.js). Only that store; refuses if any env var is
@@ -78,7 +83,7 @@
 
 import { requireApprovedUser } from './_requireApprovedUser.js';
 import { getFirebaseAdmin, isPlatformAdminUid, FIREBASE_PROJECT_ID } from './_firebaseAdmin.js';
-import { migrationStatus, migrationCopy, migrationSwitch } from './_migration.js';
+import { migrationStatus, migrationCopy, migrationSwitch, retireMainConnection } from './_migration.js';
 import { adminClaimsStatus, adminClaimsSync } from './_adminClaims.js';
 import { usersAuthInfo, userRemove, userRestore, userDeny, employeeCreate } from './_users.js';
 import { aiUsageReport } from './_aiUsage.js';
@@ -170,6 +175,13 @@ export default async function handler(req, res){
       const result = action === 'migrate_status' ? await migrationStatus(admin.db)
         : action === 'migrate_copy' ? await migrationCopy(admin.db, auth, req.body || {})
         : await migrationSwitch(admin.db, auth, req.body || {});
+      return res.status(result.ok ? 200 : result.status).json(result.ok ? result : { error: result.error });
+    }
+    if (action === 'ebay_retire_main'){
+      const admin = getFirebaseAdmin();
+      if (!admin.ok) return res.status(503).json({ error: admin.error });
+      const result = await retireMainConnection(admin.db, auth);
+      console.log('ebay-retire-main', JSON.stringify({ by: auth.uid, ok: result.ok, to: result.retiredTo || null }));
       return res.status(result.ok ? 200 : result.status).json(result.ok ? result : { error: result.error });
     }
     if (action === 'admin_claims' || action === 'admin_claims_sync'){
