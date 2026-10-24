@@ -1540,6 +1540,10 @@
   .ebay-status-box.error{background:rgba(181,86,74,0.1); border:1px solid var(--danger); color:var(--danger);}
   .ebay-status-box.pending{background:rgba(201,163,95,0.15); border:1px solid var(--gold); color:var(--amber-deep);}
   .ebay-status-box a{color:inherit; font-weight:700;}
+  .ebay-listed-cat{margin-top:4px;}
+  .ebay-listed-specs{display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;}
+  .ebay-listed-specs span{background:var(--surface); color:var(--ink); border:1px solid var(--line); border-radius:999px; padding:3px 10px; font-size:12px; font-weight:600;}
+  .ebay-listed-specs small{color:var(--ink-2); font-weight:500; margin-right:2px;}
   .ebay-badge{
     display:inline-flex; align-items:center; gap:4px;
     background:#E53238; color:white; font-size:9.5px; font-weight:700;
