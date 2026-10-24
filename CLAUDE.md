@@ -525,7 +525,9 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
   `EBAY_CLIENT_SECRET`, `EBAY_REDIRECT_URI`, `EBAY_SANDBOX`,
   `EBAY_FULFILLMENT_POLICY_ID`, `EBAY_FULFILLMENT_POLICY_ID_BUYER_PAYS`,
   `EBAY_PAYMENT_POLICY_ID`, `EBAY_RETURN_POLICY_ID`,
-  `EBAY_MERCHANT_LOCATION_KEY`, `EBAY_DELETION_ENDPOINT_URL`,
+  `EBAY_MERCHANT_LOCATION_KEY` (since v3.28.18 these five are read only by the
+  Developer Panel's one-time copy; publishing uses the store's own set),
+  `EBAY_DELETION_ENDPOINT_URL`,
   `EBAY_DELETION_VERIFICATION_TOKEN`, `FIREBASE_SERVICE_ACCOUNT` (the
   whole service-account .json; secret, never paste it in chat or the repo).
   Optional: `FIREBASE_PROJECT_ID` (defaults to `calculated-chaos-4027a`).
@@ -646,6 +648,10 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
   Console on 2026-10-24, which covers the `trash` (v3.26.0), `pick_log`
   (v3.27.7), users create (v3.28.8), `invites` (v3.28.12) and `ai_allowance`
   (v3.28.14) rules. Optional: a TTL policy on `trash.expiresAt`.
+- **eBay ship-from address (Vitor, 2026-10-24: next PR)**: Run eBay setup
+  still creates the store's location with the placeholder address (Orlando,
+  FL, `api/_ebaySetup.js`). Next: an address form in Settings → eBay, used
+  for that location on the seller's own eBay account.
 - **Production, selling soon (Vitor, 2026-10-20)**: the app is in
   production mode and will be offered to other sellers soon. Treat every
   change as going to paying customers: no half-finished features on
@@ -708,6 +714,15 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
 
 ### Unverified in production (build-verified only)
 
+- Store policies on publish, audit and import (v3.28.18): Node tests running
+  the real `ebay-list.js` and `ebay-listing-tools.js` handlers on a fake
+  Firebase Admin and a fake eBay, with different env ids set (offer with the
+  store's buyer-pays and free policies, payment, return and location; 409 with
+  no eBay request without setup or with a half set; the audit comparing with
+  the store's policy and skipping shipping without setup; migrate correcting
+  to the store's policy or saying it didn't). Not run: a real publish after
+  the deploy (Vitor: publish one item and check its shipping, payment and
+  return policies on eBay), the real Firestore read.
 - AI allowance reservation and narration limits (v3.28.14): Node tests (11
   new) with a fake Firestore whose transactions retry on conflict: two calls
   on the last slot (one passes), ten on three slots (three pass), the first
@@ -1228,6 +1243,22 @@ on any of these:
   sizing (v3.13.102-105), inspection flag icon (v3.13.114).
 
 ## Pending changelog entry (since v3.28.0)
+
+- v3.28.18: eBay publish, audit and import read the store's own policies (PR2b
+  of the eBay-per-store work, Vitor 2026-10-24). `api/ebay-list.js` reads
+  `ebay_connections/{bizId}.policies` (`getEbayPolicies()`, `offerPolicyFields()`
+  in `api/_ebayPolicies.js`) before any eBay call; a store without a complete
+  set gets 409 `EBAY_SETUP_NEEDED` ("Your store's eBay policies aren't set up
+  yet. Open Settings → eBay and press Run eBay setup.") and nothing is sent to
+  eBay. `api/ebay-listing-tools.js`: `audit_check_skus` compares shipping with
+  the store's policies, and without them runs the rest of the audit and answers
+  `shippingChecked: false` with that sentence (shown in the report);
+  `migrate_listing` corrects to the store's buyer-pays policy, and without it
+  finishes the import and says shipping was not corrected. The
+  `EBAY_*_POLICY_ID` / `EBAY_MERCHANT_LOCATION_KEY` env vars are now read only
+  by the Developer Panel's one-time copy. `setFirebaseAdminForTests()` in
+  `api/_firebaseAdmin.js` lets the real handlers run on a fake Admin.
+  `tests/api/ebay-store-policies.test.mjs` (8, all fail on the old code).
 
 - v3.28.17: `CLAUDE.md` brought up to date after the Console steps of
   2026-10-24 (Vitor): the rules paste items folded into one line (the
