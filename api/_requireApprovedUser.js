@@ -14,7 +14,8 @@
 // Returns { ok:true, uid, email, role, bizId, via:'admin'|'rest' } or
 // { ok:false, status, error }. bizId is the user's business only once that
 // business is live (v3.17.0, docs/multi-tenant.md); before the switch, or
-// for a user without one, it's null and callers use the pre-business data.
+// for a user without one, it's null, and eBay and AI calls answer 403
+// (NO_STORE_ERROR, v3.28.9).
 //
 // Since v3.28.8 the users doc's activeBizId is only a pointer: the account
 // belongs to that business only if businesses/{bizId}/members/{uid} exists
@@ -25,6 +26,11 @@ import { getFirebaseAdmin, FIREBASE_PROJECT_ID } from './_firebaseAdmin.js';
 import { checkAppCheck } from './_appCheck.js';
 
 let warnedNoAdmin = false;
+
+// The answer when an endpoint needs the caller's store and bizId is null
+// (v3.28.9): eBay (_ebayToken.js) and AI (_aiAllowance.js) refuse with it
+// instead of falling back to shared, pre-business data.
+export const NO_STORE_ERROR = 'This account isn\'t linked to a store yet.';
 
 const UNVERIFIED = { ok: false, status: 403, error: 'Verify your email first (in the app: Settings → Account).' };
 

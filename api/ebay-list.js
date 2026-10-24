@@ -7,7 +7,7 @@ import { normalizeSizeForEbay } from '../src/modules/ebay-size.js';
 import { conformAspectsToAllowedValues } from '../src/modules/ebay-aspect-match.js';
 import { suggestEbayTypeValue, isTypeAspect } from '../src/modules/ebay-type-map.js';
 import { requireApprovedUser } from './_requireApprovedUser.js';
-import { getEbayAccessToken, ebayConnectionId } from './_ebayToken.js';
+import { getEbayAccessToken, ebayConnectionOr403 } from './_ebayToken.js';
 
 const EBAY_SANDBOX = process.env.EBAY_SANDBOX === 'true';
 
@@ -641,10 +641,13 @@ export default async function handler(req, res){
   if (!authCheck.ok){
     return res.status(authCheck.status).json({ error: authCheck.error });
   }
+  // eBay calls use the caller's store connection, never a shared one (v3.28.9).
+  const connectionId = ebayConnectionOr403(authCheck, res);
+  if (!connectionId) return;
 
   const { item, imageUrls } = req.body || {};
 
-  const ebayToken = await getEbayAccessToken(ebayConnectionId(authCheck));
+  const ebayToken = await getEbayAccessToken(connectionId);
   if (!ebayToken.ok) return res.status(ebayToken.status).json({ error: ebayToken.error });
   const access_token = ebayToken.token;
   if (!item){ return res.status(400).json({ error: 'Missing item data' }); }

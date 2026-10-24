@@ -461,7 +461,8 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
   needs Vercel Pro. Underscore files (`_requireApprovedUser.js`,
   `_firebaseAdmin.js`) don't count.
   - `platform.js`: platform-admin actions for the Developer Panel
-    (`health`, `migrate_status`, `migrate_copy`, `self_serve`, …), plus two
+    (`health`, `migrate_status`, `migrate_copy`, `self_serve`,
+    `ebay_retire_main`, …), plus two
     actions any signed-in account may call, pending included
     (`signup_status`, `business_create`, v3.28.0), handled before the
     approved-user check. New platform operations
@@ -469,7 +470,11 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
     logic in an underscore file like `_migration.js`.
   - `_ebayToken.js`: the server-only eBay connection (v3.16.0). Every eBay
     endpoint calls `getEbayAccessToken()`; never accept an eBay token from
-    the browser again.
+    the browser again. One connection per store, `ebay_connections/{bizId}`
+    (v3.28.9): `ebayConnectionOr403()` answers 403 `NO_STORE_ERROR` ("This
+    account isn't linked to a store yet.") without a live store; there is
+    no `'main'` fallback any more, and `requireAiAllowance()` refuses AI
+    the same way.
   - `_firebaseAdmin.js`: Firebase Admin from `FIREBASE_SERVICE_ACCOUNT`
     (never throws; returns `{ ok:false, error }`). `_requireApprovedUser.js`
     verifies tokens with it and falls back to the old Firestore-REST check
@@ -683,6 +688,15 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
 
 ### Unverified in production (build-verified only)
 
+- No `'main'` fallback and retire (v3.28.9): Node tests running the real
+  handlers with the REST sign-in fallback stubbed (every eBay endpoint and
+  ebay-auth action, analyze-photo, narration extract, suggest_fee and
+  explain_error answer 403 for an account with no store or a store not live,
+  with no eBay or Anthropic request), Sync members and the retire on an
+  in-memory Firestore, `ebay_retire_main` refused to a non-admin. Not run: the
+  real Firestore transaction. Vitor's steps: in the Firestore Console check
+  that `ebay_connections/{his bizId}` exists, press Developer Panel → App →
+  "Retire the old eBay connection", then publish one item on eBay.
 - Members link and users create rule (v3.28.8): Node tests of
   `checkWithAdmin`/`checkWithRest` with a fake Firebase Admin and a mocked
   fetch (a member gets the members role and bizId; a forged `activeBizId`
@@ -1183,6 +1197,22 @@ on any of these:
 
 ## Pending changelog entry (since v3.28.0)
 
+- v3.28.9: no shared eBay connection, no AI without a store (P0 PR1b).
+  `ebayConnectionId()` (`api/_ebayToken.js`) throws without a `bizId`, and
+  every eBay endpoint answers 403 "This account isn't linked to a store yet."
+  through `ebayConnectionOr403()`; the connection helpers no longer default
+  to `'main'`, and an OAuth state without a store is refused.
+  `requireAiAllowance()` answers the same 403 before any Anthropic call.
+  Developer Panel → Business migration → "Sync members" now skips accounts
+  that already have a store (`activeBizId`), and the members count leaves out
+  other stores' accounts. New admin-only `api/platform.js` action
+  `ebay_retire_main` (`retireMainConnection()` in `api/_migration.js`):
+  copies `ebay_connections/main` to `_retired_main_<date>` and deletes it in
+  one transaction, with a "Retire the old eBay connection" button; refused
+  while the store has no `ebay_connections/{bizId}` with a refresh token.
+  `tests/domain/store-required.test.mjs` (8 tests). Unverified in production:
+  the retire on the real Firestore, a publish on the store's connection after
+  it.
 - v3.28.8: account-to-store link through `members` (security, P0 PR1a,
   Vitor 2026-10-24). `firestore.rules`: a new account may create its own
   `users/{uid}` only as `pending` with no field besides `status`, `email` and
