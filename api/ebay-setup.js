@@ -14,7 +14,7 @@
 // EBAY_RETURN_POLICY_ID, EBAY_MERCHANT_LOCATION_KEY — then redeploy.
 
 import { requireApprovedUser } from './_requireApprovedUser.js';
-import { getEbayAccessToken, ebayConnectionId } from './_ebayToken.js';
+import { getEbayAccessToken, ebayConnectionOr403 } from './_ebayToken.js';
 
 const EBAY_SANDBOX = process.env.EBAY_SANDBOX === 'true';
 const API_BASE = EBAY_SANDBOX ? 'https://api.sandbox.ebay.com' : 'https://api.ebay.com';
@@ -82,7 +82,10 @@ export default async function handler(req, res){
   if (!authCheck.ok){
     return res.status(authCheck.status).json({ error: authCheck.error });
   }
-  const ebayToken = await getEbayAccessToken(ebayConnectionId(authCheck));
+  // eBay calls use the caller's store connection, never a shared one (v3.28.9).
+  const connectionId = ebayConnectionOr403(authCheck, res);
+  if (!connectionId) return;
+  const ebayToken = await getEbayAccessToken(connectionId);
   if (!ebayToken.ok) return res.status(ebayToken.status).json({ error: ebayToken.error });
   const access_token = ebayToken.token;
 
