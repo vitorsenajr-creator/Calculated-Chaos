@@ -140,7 +140,7 @@ export default async function handler(req, res) {
 
   // The store's monthly AI allowance (v3.28.1): checked after the request is
   // known to be valid, so a bad request never counts against it. The unit
-  // taken here goes back when Anthropic fails (v3.28.8).
+  // taken here goes back when Anthropic fails (v3.28.14).
   const held = await requireAiAllowance(authCheck, res);
   if (!held) return;
 
@@ -158,7 +158,7 @@ export default async function handler(req, res) {
     if (!response.ok) {
       console.error('Anthropic API error:', data);
       await held.release();
-      return res.status(response.status).json({ error: 'Upstream API error', detail: data });
+      return res.status(response.status).json({ error: 'Upstream API error' });
     }
 
     await recordAiUsage({ auth: authCheck, call: mode, model: data.model, usage: data.usage, content: data.content });

@@ -6,7 +6,7 @@
 // The call types the server records, named after the app's AI features.
 // Keys match what each endpoint sends: analyze-photo's mode, plus the
 // narration, eBay and Pick calls. narration_transcribe is Deepgram, not
-// Anthropic (v3.28.8): it has no tokens, only calls.
+// Anthropic (v3.28.14): it has no tokens, only calls.
 export const AI_CALL_LABELS = {
   full: 'Photo analysis & listing',
   listing_only: 'Listing rewrite',

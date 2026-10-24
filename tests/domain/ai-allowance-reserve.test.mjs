@@ -1,5 +1,5 @@
 // The store's AI allowance reserved in a transaction (api/_aiAllowance.js,
-// v3.28.8) and the narration limits (api/narration.js). A fake Firestore
+// v3.28.14) and the narration limits (api/narration.js). A fake Firestore
 // with optimistic transactions stands in for Firebase Admin: a transaction
 // whose reads changed before its commit runs again, as Firestore's would.
 import { test, beforeEach, afterEach } from 'node:test';
@@ -9,14 +9,15 @@ delete process.env.FIREBASE_SERVICE_ACCOUNT; // the meter write is skipped
 process.env.ANTHROPIC_API_KEY = 'test-key';
 process.env.DEEPGRAM_API_KEY = 'test-key';
 
-const { requireAiAllowance, reserveAiUnit, getAiAllowance, FAIL_CLOSED, ALLOWANCE_UNAVAILABLE } = await import('../../api/_aiAllowance.js');
+const { requireAiAllowance, reserveAiUnit, getAiAllowance, ALLOWANCE_UNAVAILABLE } = await import('../../api/_aiAllowance.js');
+const { NO_STORE_ERROR } = await import('../../api/_requireApprovedUser.js');
 const { handleTranscribe, handleExtract, MAX_AUDIO_BYTES, AUDIO_TOO_LONG } = await import('../../api/narration.js');
 
 const NOW = new Date('2026-10-15T12:00:00Z');
 const AUTH = { ok: true, uid: 'u1', bizId: 'biz1' };
 const COUNTER = 'ai_allowance/biz1__2026-10';
 
-function fakeDb(docs = {}, { failReads = false } = {}){
+function fakeDb(docs = {}, { failReads = false, failTx = false } = {}){
   const store = new Map(Object.entries(docs));
   const versions = new Map();
   const tick = () => new Promise(r => setImmediate(r));
@@ -52,7 +53,7 @@ function fakeDb(docs = {}, { failReads = false } = {}){
         const writes = [];
         const tx = {
           async get(ref){
-            if (failReads) throw new Error('unavailable');
+            if (failReads || failTx) throw new Error('unavailable');
             // Snapshot first, then yield: the other transaction reads the
             // same state before either commits.
             let out;
@@ -141,22 +142,34 @@ test('release hands the unit back once, never below zero', async () => {
   assert.equal(db.store.get(COUNTER).used, 4);
 });
 
-test('no business or no limit: passes without a counter', async () => {
-  for (const [auth, docs] of [[{ ok: true, uid: 'u1', bizId: null }, {}], [AUTH, biz(null)]]){
-    const db = fakeDb(docs);
-    const res = fakeRes();
-    const held = await requireAiAllowance(auth, res, { db, now: NOW });
-    assert.ok(held);
-    assert.equal(held.reserved, false);
-    await held.release();
-    assert.equal(res.statusCode, null);
-    assert.equal(db.store.has(COUNTER), false);
-  }
+test('no limit: passes without a counter; no store: 403 (v3.28.9)', async () => {
+  const db = fakeDb(biz(null));
+  const res = fakeRes();
+  const held = await requireAiAllowance(AUTH, res, { db, now: NOW });
+  assert.ok(held);
+  assert.equal(held.reserved, false);
+  await held.release();
+  assert.equal(res.statusCode, null);
+  assert.equal(db.store.has(COUNTER), false);
+
+  const none = fakeRes();
+  assert.equal(await requireAiAllowance({ ok: true, uid: 'u1', bizId: null }, none, { db, now: NOW }), false);
+  assert.equal(none.statusCode, 403);
+  assert.equal(none.body.error, NO_STORE_ERROR);
 });
 
-test('Firestore unreadable: fail closed with 503 and no upstream call', async () => {
-  assert.equal(FAIL_CLOSED, true);
+// Vitor, 2026-10-24: when Firestore fails, refuse only stores with a limit.
+test('the store limit unreadable: the call goes through, nothing held', async () => {
   const db = fakeDb(biz(100), { failReads: true });
+  const res = fakeRes();
+  const held = await requireAiAllowance(AUTH, res, { db, now: NOW });
+  assert.ok(held);
+  assert.equal(held.reserved, false);
+  assert.equal(res.statusCode, null);
+});
+
+test('a limited store whose counter cannot be reserved: 503 and no upstream call', async () => {
+  const db = fakeDb(biz(100), { failTx: true });
   const res = fakeRes();
   assert.equal(await requireAiAllowance(AUTH, res, { db, now: NOW }), false);
   assert.equal(res.statusCode, 503);
@@ -166,6 +179,12 @@ test('Firestore unreadable: fail closed with 503 and no upstream call', async ()
   await handleExtract({ body: { kind: 'item', transcript: 'a blue dress' } }, res2, AUTH, { db, now: NOW });
   assert.equal(res2.statusCode, 503);
   assert.equal(fetchCalls.length, 0);
+
+  // A store without a limit is never refused for this.
+  const free = fakeDb(biz(null), { failTx: true });
+  const res3 = fakeRes();
+  assert.ok(await requireAiAllowance(AUTH, res3, { db: free, now: NOW }));
+  assert.equal(res3.statusCode, null);
 });
 
 test('extract: an Anthropic error or a network failure gives the unit back', async () => {

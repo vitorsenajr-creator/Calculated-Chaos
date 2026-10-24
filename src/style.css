@@ -2056,6 +2056,8 @@
   #authOverlay button.auth-submit{ width:100%; margin-top:20px; padding:11px; border:none; border-radius:8px; background:var(--terracotta, #8C6F52); color:#fff; font-size:14px; font-weight:600; cursor:pointer; }
   #authOverlay .auth-toggle{ margin-top:14px; text-align:center; font-size:13px; color:var(--plum-soft, #6E5F4E); }
   #authOverlay .auth-toggle a{ color:var(--terracotta, #8C6F52); cursor:pointer; text-decoration:underline; }
+  #authOverlay .auth-legal{ margin:14px 0 0; text-align:center; font-size:13px; color:var(--plum-soft, #6E5F4E); }
+  #authOverlay .auth-legal a{ color:inherit; text-decoration:underline; }
   #authOverlay .auth-error{ margin-top:12px; font-size:13px; color:var(--danger, #C0392B); }
   #authOverlay .auth-pending{ text-align:center; }
   #authOverlay .auth-pending button{ margin-top:18px; background:transparent; border:1px solid var(--control-line, #7F8898); border-radius:8px; padding:9px 16px; font-size:13px; cursor:pointer; color:var(--plum, #2B241E); }
@@ -2139,6 +2141,9 @@
 #authOverlay .store-chip[aria-pressed="true"]{ background:var(--brand); border-color:var(--brand); color:var(--on-brand); }
 #authOverlay .store-chip:focus-visible, #authOverlay .store-logo-remove:focus-visible, #authOverlay .store-signout:focus-visible{ outline:3px solid var(--brand-2); outline-offset:2px; }
 #authOverlay .store-hint{ margin:8px 0 0; font-size:13px; color:var(--ink-2); line-height:1.45; }
+#authOverlay .store-terms{ display:flex; align-items:flex-start; gap:10px; margin:18px 0 0; font-size:14px; font-weight:400; line-height:1.45; color:var(--ink); cursor:pointer; }
+#authOverlay .store-terms input{ flex:none; width:20px; height:20px; margin:1px 0 0; accent-color:var(--brand-2); }
+#authOverlay .store-terms a{ color:var(--brand-2); }
 #authOverlay .auth-store button.auth-submit{ min-height:48px; font-size:16px; background:var(--brand); }
 #authOverlay .auth-store button.auth-submit:disabled{ opacity:.7; cursor:default; }
 #authOverlay .store-signout{ display:block; margin:14px auto 0; min-height:44px; background:none; border:0; color:var(--ink-2); font-size:14px; text-decoration:underline; cursor:pointer; }

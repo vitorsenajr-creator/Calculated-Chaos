@@ -465,7 +465,7 @@ export const app = (function(){
     }catch(e){
       console.error('Save draft error', e);
       const reason = (e && e.message) ? e.message : String(e);
-      alert("Couldn't save this photo batch as a draft.\n\nReason: " + reason + "\n\nMake sure the 'drafts' collection has been added to your Firestore security rules (see README).");
+      alert("Couldn't save this photo batch as a draft.\n\nReason: " + reason + "\n\nAsk the store owner to check the app's database permissions.");
       throw e;
     }
   }
@@ -3873,11 +3873,11 @@ export const app = (function(){
           return { ok:false, message: escapeHtml(String(errJson.error)) };
         }
       }catch(parseErr){ /* body wasn't JSON — leave detail blank */ }
-      return { ok:false, message: `Couldn't reach the AI (server said: HTTP ${response.status}${detail ? ' — ' + escapeHtml(String(detail)) : ''}). Try again in a moment — if it keeps happening, tell Vitor this exact message.` };
+      return { ok:false, message: `Couldn't reach the AI (server said: HTTP ${response.status}${detail ? ' — ' + escapeHtml(String(detail)) : ''}). Try again in a moment — if it keeps happening, contact support and share this message.` };
     }
     const data = await response.json();
     if (data.stop_reason === 'refusal'){
-      return { ok:false, message: `The AI declined to analyze this item. Please try again — if it keeps happening, tell Vitor.` };
+      return { ok:false, message: `The AI declined to analyze this item. Please try again — if it keeps happening, contact support.` };
     }
     if (data.stop_reason === 'max_tokens'){
       return { ok:false, message: `The AI's answer was cut off before it finished. Please try again.` };
@@ -4906,7 +4906,7 @@ export const app = (function(){
       saveBtn.disabled = false;
       saveBtn.textContent = originalBtnText;
       setSaveProgress(null);
-      alert("Couldn't upload photos right now — please try again. If this keeps happening, tell Vitor: " + (e?.message || e));
+      alert("Couldn't upload photos right now — please try again. If this keeps happening, contact support.");
       return;
     }
 
@@ -5480,6 +5480,7 @@ export const app = (function(){
       userDoc,
       emailVerified: await tokenEmailVerified(user),
       selfServe: !!(status && status.selfServe),
+      invited: !!(status && status.invited),
     });
     if (step === 'create_store'){
       onboarding.showStoreSetup({ signOut: async () => { stopLiveSync(); await window.authFns.signOut(window.auth); } });

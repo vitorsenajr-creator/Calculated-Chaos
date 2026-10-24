@@ -4,27 +4,31 @@
 //
 // The rule is in src/domain/ai-allowance.js: a business with
 // `aiMonthlyLimit` on its doc may make that many AI calls per UTC month.
-// Businesses without the field (the migrated one) and accounts without a
-// business are not limited here.
+// Businesses without the field (the migrated one) are not limited. An
+// account without a live store gets no AI at all (v3.28.9): its calls would
+// count against no store, so requireAiAllowance() answers 403 before any
+// Anthropic or Deepgram call.
 //
-// Reservation (v3.28.8): the count lives in one counter doc per store and
+// Reservation (v3.28.14): the count lives in one counter doc per store and
 // month, `ai_allowance/{bizId}__{month}` (server only, like ai_usage). A
 // transaction checks it and adds one unit before the call, so two calls on
 // the last free slot can't both pass; the caller hands the unit back with
 // release() when the upstream call fails. A month with no counter yet starts
-// from the ai_usage meter (the calls made before v3.28.8). The meter keeps
+// from the ai_usage meter (the calls made before v3.28.14). The meter keeps
 // recording every successful call for the Developer Panel.
 //
-// Fail closed (provisional decision, 2026-10-24): when the limit or the
-// counter can't be read, a limited store's call is refused with 503 rather
-// than let through unmetered. FAIL_CLOSED = false restores v3.28.1's
-// behavior (let it through and log).
+// When Firestore fails (Vitor, 2026-10-24: refuse only stores with a limit):
+// - the store's limit can't be read: the call goes through and logs
+//   `ai-allowance-error` (a store without a limit, like the migrated one,
+//   must never lose its AI to a hiccup, and here we can't tell which it is);
+// - the limit is known but the counter can't be reserved: the call is
+//   refused with 503 (ALLOWANCE_UNAVAILABLE) rather than run unmetered.
 
 import { getFirebaseAdmin } from './_firebaseAdmin.js';
+import { NO_STORE_ERROR } from './_requireApprovedUser.js';
 import { usageMonth } from '../src/domain/ai-usage.js';
 import { businessAiLimit, usedCalls, allowanceOf, limitMessage, allowanceDocId, counterUsed } from '../src/domain/ai-allowance.js';
 
-export const FAIL_CLOSED = true;
 export const ALLOWANCE_UNAVAILABLE = "Couldn't check your store's AI allowance right now. Try again in a minute.";
 
 const NOTHING_HELD = Object.freeze({ reserved: false, release: async () => {} });
@@ -61,13 +65,21 @@ export async function getAiAllowance(auth, { now = new Date(), db } = {}){
 
 // Takes one unit for the call. Returns { allowance, reserved, release }:
 // reserved is false when the store has no limit or is at it (then
-// allowance.limited says which); allowance counts the unit just taken. Throws when Firestore can't be read.
+// allowance.limited says which); allowance counts the unit just taken.
+// Throws when Firestore can't be read; the error carries limitUnknown=true
+// when even the store's limit couldn't be read.
 export async function reserveAiUnit(auth, { now = new Date(), db } = {}){
   const month = usageMonth(now);
   if (!auth || !auth.bizId) return { allowance: allowanceOf({ limit: null, used: 0, month }), ...NOTHING_HELD };
-  db = adminDb(db);
   const bizId = auth.bizId;
-  const limit = await limitOf(db, bizId);
+  let limit;
+  try{
+    db = adminDb(db);
+    limit = await limitOf(db, bizId);
+  }catch(e){
+    e.limitUnknown = true;
+    throw e;
+  }
   if (!limit) return { allowance: allowanceOf({ limit: null, used: 0, month }), ...NOTHING_HELD };
 
   const ref = db.collection('ai_allowance').doc(allowanceDocId(bizId, month));
@@ -100,16 +112,23 @@ export async function reserveAiUnit(auth, { now = new Date(), db } = {}){
   return { ...result, release };
 }
 
-// Sends 429 (at the limit) or 503 (the check failed, FAIL_CLOSED) and
-// returns false; otherwise returns the reservation, whose release() the
-// caller must await when the upstream call fails.
+// Sends 403 (no store), 429 (at the limit) or 503 (a limited store's
+// counter couldn't be reserved) and returns false; otherwise returns the
+// reservation, whose release() the caller must await when the upstream call
+// fails.
 export async function requireAiAllowance(auth, res, opts = {}){
+  if (!auth || !auth.bizId){
+    console.log('ai-allowance-no-store', JSON.stringify({ uid: auth && auth.uid || null }));
+    res.status(403).json({ error: NO_STORE_ERROR });
+    return false;
+  }
   let r;
   try{
     r = await reserveAiUnit(auth, opts);
   }catch(e){
-    console.error('ai-allowance-error', JSON.stringify({ bizId: auth && auth.bizId, failClosed: FAIL_CLOSED, error: String(e && e.message || e) }));
-    if (!FAIL_CLOSED) return NOTHING_HELD;
+    const limitUnknown = !!(e && e.limitUnknown);
+    console.error('ai-allowance-error', JSON.stringify({ bizId: auth.bizId, refused: !limitUnknown, error: String(e && e.message || e) }));
+    if (limitUnknown) return NOTHING_HELD;
     res.status(503).json({ error: ALLOWANCE_UNAVAILABLE });
     return false;
   }

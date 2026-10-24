@@ -11,7 +11,7 @@
 
 import { jsonAuthHeaders } from '../../modules/api-auth.js';
 import { shrinkImageToDataUrl } from '../../platform/images.js';
-import { validateStoreName, SELL_ON_OPTIONS, MAX_LOGO_CHARS, STORE_NAME_MAX } from '../../domain/new-business.js';
+import { validateStoreName, SELL_ON_OPTIONS, MAX_LOGO_CHARS, STORE_NAME_MAX, TERMS_VERSION, TERMS_REQUIRED_ERROR } from '../../domain/new-business.js';
 
 async function platformCall(body){
   const res = await fetch('/api/platform', { method: 'POST', headers: await jsonAuthHeaders(), body: JSON.stringify(body) });
@@ -19,12 +19,12 @@ async function platformCall(body){
   return res.ok ? { ok: true, ...data } : { ok: false, error: data.error || `The server answered ${res.status}.` };
 }
 
-// { selfServe, hasBusiness }, or null when it can't be asked (the gate then
+// { selfServe, invited, hasBusiness }, or null when it can't be asked (the gate then
 // keeps the "Awaiting approval" screen, as before v3.28.0).
 export async function fetchSignupStatus(){
   try{
     const r = await platformCall({ action: 'signup_status' });
-    return r.ok ? { selfServe: r.selfServe === true, hasBusiness: r.hasBusiness === true } : null;
+    return r.ok ? { selfServe: r.selfServe === true, invited: r.invited === true, hasBusiness: r.hasBusiness === true } : null;
   }catch(e){
     console.warn('Could not read the sign-up status:', e);
     return null;
@@ -61,6 +61,7 @@ function wire(){
   wired = true;
   $('storeNameInput').maxLength = STORE_NAME_MAX;
   $('storeNameInput').addEventListener('input', () => setError(''));
+  $('storeTermsInput').addEventListener('change', () => setError(''));
   $('storeSellsOn').addEventListener('click', (e) => {
     const chip = e.target.closest('.store-chip');
     if (!chip) return;
@@ -92,12 +93,18 @@ function wire(){
       $('storeNameInput').focus();
       return;
     }
+    // The server refuses a store without the Terms too (api/_business.js).
+    if (!$('storeTermsInput').checked){
+      setError(TERMS_REQUIRED_ERROR);
+      $('storeTermsInput').focus();
+      return;
+    }
     const btn = $('storeCreateBtn');
     btn.disabled = true;
     btn.textContent = 'Creating your store…';
     let r;
     try{
-      r = await platformCall({ action: 'business_create', name: check.name, logo, sellsOn: [...sellsOn] });
+      r = await platformCall({ action: 'business_create', name: check.name, logo, sellsOn: [...sellsOn], acceptTerms: true, termsVersion: TERMS_VERSION });
     }catch(err){
       r = { ok: false, error: 'No connection. Check your internet and try again.' };
     }

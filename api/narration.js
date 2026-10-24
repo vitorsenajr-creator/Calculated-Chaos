@@ -12,7 +12,7 @@
 //        decoded to a Buffer in memory for the one outbound request, then
 //        discarded when the function returns. Capped at MAX_AUDIO_BYTES
 //        (413 above it) and counted as one AI action against the store's
-//        monthly allowance (429 at the limit), v3.28.8.
+//        monthly allowance (429 at the limit), v3.28.14.
 //     Returns: { transcript }
 //
 //   action: 'extract'  { kind: 'item', transcript }
@@ -56,7 +56,7 @@ export async function handleTranscribe(req, res, auth, opts = {}){
   }
   const contentType = typeof mimeType === 'string' && /^audio\/[\w.+-]+(;.*)?$/i.test(mimeType) ? mimeType : 'audio/webm';
 
-  // The store's monthly AI allowance (v3.28.8): the unit goes back when
+  // The store's monthly AI allowance (v3.28.14): the unit goes back when
   // Deepgram fails.
   const held = await requireAiAllowance(auth, res, opts);
   if (!held) return;
@@ -82,7 +82,7 @@ export async function handleTranscribe(req, res, auth, opts = {}){
   if (!dgResponse.ok) {
     console.error('Deepgram API error:', data);
     await held.release();
-    return res.status(dgResponse.status).json({ error: 'Transcription failed', detail: data });
+    return res.status(dgResponse.status).json({ error: 'Transcription failed' });
   }
 
   // On the meter too, so the Developer Panel shows transcriptions next to
@@ -107,7 +107,7 @@ export async function handleExtract(req, res, auth, opts = {}){
     return res.status(400).json({ error: 'Unknown narration kind.' });
   }
   // The store's monthly AI allowance (v3.28.1); the unit goes back when
-  // Anthropic fails (v3.28.8).
+  // Anthropic fails (v3.28.14).
   const held = await requireAiAllowance(auth, res, opts);
   if (!held) return;
 
@@ -139,7 +139,7 @@ export async function handleExtract(req, res, auth, opts = {}){
   if (!anthropicResponse.ok) {
     console.error('Anthropic API error:', data);
     await held.release();
-    return res.status(anthropicResponse.status).json({ error: 'Upstream API error', detail: data });
+    return res.status(anthropicResponse.status).json({ error: 'Upstream API error' });
   }
 
   await recordAiUsage({ auth, call: 'narration_extract', model: data.model, usage: data.usage, content: data.content });

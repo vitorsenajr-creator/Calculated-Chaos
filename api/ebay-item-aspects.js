@@ -31,7 +31,7 @@
 import { requireApprovedUser } from './_requireApprovedUser.js';
 import { recordAiUsage } from './_aiUsage.js';
 import { requireAiAllowance } from './_aiAllowance.js';
-import { getEbayAccessToken, ebayConnectionId } from './_ebayToken.js';
+import { getEbayAccessToken, ebayConnectionOr403 } from './_ebayToken.js';
 
 const EBAY_SANDBOX = process.env.EBAY_SANDBOX === 'true';
 const EBAY_API_BASE = EBAY_SANDBOX ? 'https://api.sandbox.ebay.com' : 'https://api.ebay.com';
@@ -39,7 +39,9 @@ const CATEGORY_TREE_ID = '0'; // eBay's default/shared tree ID for EBAY_US
 
 async function handleAspects(req, res, authCheck) {
   const { category_id } = req.body || {};
-  const ebayToken = await getEbayAccessToken(ebayConnectionId(authCheck));
+  const connectionId = ebayConnectionOr403(authCheck, res);
+  if (!connectionId) return;
+  const ebayToken = await getEbayAccessToken(connectionId);
   if (!ebayToken.ok) return res.status(ebayToken.status).json({ error: ebayToken.error });
   const access_token = ebayToken.token;
   if (!category_id) return res.status(400).json({ error: 'Missing category_id' });
@@ -118,7 +120,7 @@ If you're not confident about this specific platform, still give your best reaso
   if (!anthropicResponse.ok) {
     console.error('Anthropic API error:', data);
     await held.release();
-    return res.status(anthropicResponse.status).json({ error: 'Upstream API error', detail: data });
+    return res.status(anthropicResponse.status).json({ error: 'Upstream API error' });
   }
   await recordAiUsage({ auth, call: 'suggest_fee', model: data.model, usage: data.usage, content: data.content });
 
@@ -202,7 +204,7 @@ Respond with ONLY a JSON object, no markdown fences, no preamble:
   if (!r.ok) {
     console.error('Anthropic API error:', data);
     await held.release();
-    return res.status(r.status).json({ error: 'Upstream API error', detail: data });
+    return res.status(r.status).json({ error: 'Upstream API error' });
   }
   await recordAiUsage({ auth, call: 'explain_error', model: data.model, usage: data.usage, content: data.content });
   const textBlock = data.content && data.content.find(b => b.type === 'text');
@@ -237,7 +239,7 @@ export default async function handler(req, res) {
   try {
     // The two AI modes count against the store's monthly AI allowance
     // (v3.28.1; reserved inside each handler once the request is valid,
-    // v3.28.8); the aspect lookup is plain eBay and doesn't.
+    // v3.28.14); the aspect lookup is plain eBay and doesn't.
     if (req.body?.mode === 'suggest_fee') {
       return await handleSuggestFee(req, res, authCheck);
     }
