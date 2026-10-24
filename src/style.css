@@ -175,6 +175,8 @@
 
   /* Bottom room so the last card can scroll clear of the "+" button. */
   main{padding:16px 16px 88px; max-width:1120px; margin:0 auto;}
+  /* App version under every screen; main's bottom room keeps the "+" clear. */
+  .app-footer{max-width:1120px; margin:-64px auto 0; padding:0 16px 16px; text-align:center; font-size:12px; color:var(--ink-2);}
   .screen-title{margin:0; font-size:22px; font-weight:700; letter-spacing:-0.015em; color:var(--ink);}
 
   @media (min-width: 900px){

@@ -105,6 +105,8 @@ import { loadAiAllowance, serverAiAllowance, noteAiLimitReached } from './data/a
 export const app = (function(){
   // APP_VERSION / APP_VERSION_DATE live in modules/version.js (shared with
   // the Developer Panel) — bump them there.
+  const appFooter = document.getElementById('appFooter');
+  if (appFooter) appFooter.textContent = `Calculated Chaos ${APP_VERSION} · ${APP_VERSION_DATE}`;
 
   // Screens the first view does not need load the first time they are used
   // (v3.26.9, ui/lazy-screen.js). Each one's hooks are built further down,
