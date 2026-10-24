@@ -1841,6 +1841,8 @@
 
   .settings-section{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:14px;}
   .settings-section h3{font-family:var(--font-ui); font-size:16px; font-weight:700; color:var(--ink); margin:0 0 4px;}
+  .settings-section h4.settings-minihead{font-family:var(--font-ui); font-size:14px; font-weight:700; color:var(--ink); margin:14px 0 4px;}
+  .field-hint.is-error{color:var(--danger);}
   .settings-section .ss-desc{font-size:13px; color:var(--ink-2); margin-bottom:12px; line-height:1.5; max-width:70ch;}
   .settings-empty-note{font-style:italic;}
   .settings-row{

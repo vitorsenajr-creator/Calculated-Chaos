@@ -7,7 +7,7 @@ import { getEbayPolicies, saveEbayPolicies, copyEnvPolicies, cleanPolicies } fro
 
 // A fake eBay account: remembers programs, policies (by name) and locations.
 function fakeEbay({ opted = false, existing = {}, listFails = false } = {}){
-  const state = { opted, calls: [], policies: { ...existing }, locations: new Set(), nextId: 1000 };
+  const state = { opted, calls: [], policies: { ...existing }, locations: new Set(), addresses: {}, nextId: 1000 };
   const kinds = {
     '/sell/account/v1/fulfillment_policy': ['fulfillmentPolicyId', 'fulfillmentPolicies'],
     '/sell/account/v1/payment_policy': ['paymentPolicyId', 'paymentPolicies'],
@@ -26,9 +26,21 @@ function fakeEbay({ opted = false, existing = {}, listFails = false } = {}){
       return { ok: true, status: 200, data: {} };
     }
     if (path.startsWith('/sell/inventory/v1/location/')){
-      const key = path.split('/').pop();
+      // v3.28.19: locations keep their address; an existing one is updated.
+      const [key, sub] = path.replace('/sell/inventory/v1/location/', '').split('/');
+      if (sub === 'update_location_details'){
+        if (!state.locations.has(key)) return { ok: false, status: 404, data: {} };
+        state.addresses[key] = body.location.address;
+        return { ok: true, status: 204, data: {} };
+      }
+      if (method === 'GET'){
+        return state.locations.has(key)
+          ? { ok: true, status: 200, data: { merchantLocationKey: key, location: { address: state.addresses[key] } } }
+          : { ok: false, status: 404, data: {} };
+      }
       if (state.locations.has(key)) return { ok: false, status: 409, data: {} };
       state.locations.add(key);
+      state.addresses[key] = body.location.address;
       return { ok: true, status: 204, data: {} };
     }
     const base = path.split('?')[0];
@@ -47,6 +59,8 @@ function fakeEbay({ opted = false, existing = {}, listFails = false } = {}){
   };
   return { state, request };
 }
+
+const ADDRESS = { city: 'Austin', stateOrProvince: 'TX', postalCode: '78701', country: 'US' };
 
 // A fake Firestore with just collection().doc().get()/set(merge).
 function fakeDb(initial = {}){
@@ -69,7 +83,7 @@ function fakeDb(initial = {}){
 
 test('setup on a new account opts in, creates all five values and saves them on the store only', async () => {
   const ebay = fakeEbay({ opted: false });
-  const { results, errors, complete } = await setupEbayAccount('tok', ebay.request);
+  const { results, errors, complete } = await setupEbayAccount('tok', ebay.request, { address: ADDRESS });
   assert.equal(complete, true);
   assert.deepEqual(errors, {});
   assert.equal(results.optInCalled, true);
@@ -92,7 +106,7 @@ test('setup on a new account opts in, creates all five values and saves them on 
 
 test('an account already in the program is not opted in again', async () => {
   const ebay = fakeEbay({ opted: true });
-  const { results, complete } = await setupEbayAccount('tok', ebay.request);
+  const { results, complete } = await setupEbayAccount('tok', ebay.request, { address: ADDRESS });
   assert.equal(complete, true);
   assert.equal(results.optedIn, true);
   assert.equal(results.optInCalled, undefined);
@@ -101,15 +115,15 @@ test('an account already in the program is not opted in again', async () => {
 
 test('when the program list cannot be read, opt-in is still tried', async () => {
   const ebay = fakeEbay({ opted: false, listFails: true });
-  const { complete } = await setupEbayAccount('tok', ebay.request);
+  const { complete } = await setupEbayAccount('tok', ebay.request, { address: ADDRESS });
   assert.ok(ebay.state.calls.includes('POST /sell/account/v1/program/opt_in'));
   assert.equal(complete, true);
 });
 
 test('a second run finds the same policies and location instead of creating new ones', async () => {
   const ebay = fakeEbay({ opted: false });
-  const first = await setupEbayAccount('tok', ebay.request);
-  const second = await setupEbayAccount('tok', ebay.request);
+  const first = await setupEbayAccount('tok', ebay.request, { address: ADDRESS });
+  const second = await setupEbayAccount('tok', ebay.request, { address: ADDRESS });
   assert.equal(second.complete, true);
   for (const f of ['fulfillmentPolicyId', 'fulfillmentPolicyIdBuyerPays', 'paymentPolicyId', 'returnPolicyId', 'merchantLocationKey']){
     assert.equal(second.results[f], first.results[f]);
@@ -121,7 +135,7 @@ test('an incomplete setup reports the error and nothing is saved', async () => {
   const ebay = fakeEbay({ opted: true });
   const base = ebay.request;
   const request = (m, p, t, b) => p.endsWith('/return_policy') ? Promise.resolve({ ok: false, status: 400, data: { errors: [{ message: 'nope' }] } }) : base(m, p, t, b);
-  const { complete, errors } = await setupEbayAccount('tok', request);
+  const { complete, errors } = await setupEbayAccount('tok', request, { address: ADDRESS });
   assert.equal(complete, false);
   assert.ok(errors.return);
   const db = fakeDb({ 'ebay_connections/biz1': { refresh_token: 'r' } });
@@ -169,4 +183,43 @@ test('cleanPolicies needs all five non-empty strings', () => {
   assert.equal(cleanPolicies({ fulfillmentPolicyId: 'a' }), null);
   assert.deepEqual(cleanPolicies({ fulfillmentPolicyId: ' a ', fulfillmentPolicyIdBuyerPays: 'b', paymentPolicyId: 'c', returnPolicyId: 'd', merchantLocationKey: 'e', extra: 1 }),
     { fulfillmentPolicyId: 'a', fulfillmentPolicyIdBuyerPays: 'b', paymentPolicyId: 'c', returnPolicyId: 'd', merchantLocationKey: 'e' });
+});
+
+// ---------- ship-from address (v3.28.19) ----------
+
+test('a new location is created with the seller address, no street and no sample address', async () => {
+  const ebay = fakeEbay({ opted: true });
+  const { complete } = await setupEbayAccount('tok', ebay.request, { address: ADDRESS });
+  assert.equal(complete, true);
+  assert.deepEqual(ebay.state.addresses.cc_main_location, ADDRESS);
+  assert.equal(ebay.state.calls.some(c => c.includes('update_location_details')), false);
+});
+
+test('an existing location (the old sample address) gets the new address', async () => {
+  const ebay = fakeEbay({ opted: true });
+  ebay.state.locations.add('cc_main_location');
+  ebay.state.addresses.cc_main_location = { addressLine1: '123 Main St', city: 'Orlando', stateOrProvince: 'FL', postalCode: '32801', country: 'US' };
+  const { complete, results } = await setupEbayAccount('tok', ebay.request, { address: ADDRESS });
+  assert.equal(complete, true);
+  assert.equal(results.merchantLocationKey, 'cc_main_location');
+  assert.ok(ebay.state.calls.includes('POST /sell/inventory/v1/location/cc_main_location/update_location_details'));
+  assert.deepEqual(ebay.state.addresses.cc_main_location, ADDRESS);
+});
+
+test('without an address the location is not touched and the setup is incomplete', async () => {
+  const ebay = fakeEbay({ opted: true });
+  const { complete, errors } = await setupEbayAccount('tok', ebay.request);
+  assert.equal(complete, false);
+  assert.ok(errors.location);
+  assert.equal(ebay.state.calls.some(c => c.includes('/location/')), false);
+});
+
+test('a refused address update leaves the setup incomplete', async () => {
+  const ebay = fakeEbay({ opted: true });
+  ebay.state.locations.add('cc_main_location');
+  const base = ebay.request;
+  const request = (m, p, t, b) => p.endsWith('/update_location_details') ? Promise.resolve({ ok: false, status: 400, data: { errors: [{ message: 'bad' }] } }) : base(m, p, t, b);
+  const { complete, errors } = await setupEbayAccount('tok', request, { address: ADDRESS });
+  assert.equal(complete, false);
+  assert.ok(errors.location);
 });

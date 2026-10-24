@@ -9,6 +9,7 @@
 // index stays on the left. Every group is still rendered and only the
 // open one is visible, so every id the handlers and ebay-api.js look up
 // (e.g. #ebayConnectionStatus) is always in the page, as before.
+import { US_STATES } from '../../domain/ship-from.js';
 import { appSettings } from '../../modules/state.js';
 import { escapeHtml } from '../../modules/format-utils.js';
 import { aiUsageRemaining, aiUsagePct } from '../../data/settings-store.js';
@@ -17,7 +18,7 @@ import { monthName } from '../../domain/ai-allowance.js';
 import { renderAuthorizeAccessPanel, renderEmployeeAccountsPanel, createEmployeeLogin } from './admin-panels.js';
 import { isPlatformAdmin } from '../../modules/admin-claim.js';
 import { sendVerificationEmail, refreshEmailVerified } from '../../modules/email-verification.js';
-import { renderEbayConnectionStatus } from './ebay-panel.js';
+import { renderEbayConnectionStatus, loadShipFromAddress } from './ebay-panel.js';
 import { renderPlatformsSettingsList } from './platforms-panel.js';
 import { getAllPlatforms } from '../../modules/platforms.js';
 import { APP_VERSION, APP_VERSION_DATE } from '../../modules/version.js';
@@ -521,8 +522,18 @@ ${page('ebay', `
       <!-- EBAY ONE-TIME SETUP -->
       <div class="settings-section">
         <h3>eBay one-time setup</h3>
-        <div class="ss-desc">Creates the required Business Policies (fulfillment, payment, return) and a merchant location on your connected eBay account via API — no need to use eBay's Seller Hub UI. Run this once per seller account (connect eBay first, then run this). If you ever reconnect to a DIFFERENT seller account, run this again — policies and location are per-account.</div>
+        <div class="ss-desc">Creates the required Business Policies (fulfillment, payment, return) and a ship-from location on your connected eBay account via API — no need to use eBay's Seller Hub UI. Run this once per seller account (connect eBay first, then run this). If you ever reconnect to a DIFFERENT seller account, run this again — policies and location are per-account.</div>
+        <!-- SHIP-FROM ADDRESS (v3.28.19): city, state and ZIP only; kept on the eBay account -->
+        <h4 class="settings-minihead">Ship-from address</h4>
+        <div class="ss-desc">Where your items ship from. Buyers see the city and state on your listings. It's saved on your eBay account only.</div>
+        <div id="shipFromCurrent" class="settings-result"></div>
+        <div class="field-row">
+          <div class="field"><label for="shipFromCity">City</label><input type="text" id="shipFromCity" autocomplete="address-level2" maxlength="60"><span class="field-hint" id="shipFromCityError" role="alert"></span></div>
+          <div class="field"><label for="shipFromState">State</label><select id="shipFromState" autocomplete="address-level1"><option value="">Choose…</option>${US_STATES.map(s => `<option value="${s}">${s}</option>`).join('')}</select><span class="field-hint" id="shipFromStateError" role="alert"></span></div>
+          <div class="field"><label for="shipFromZip">ZIP code</label><input type="text" id="shipFromZip" inputmode="numeric" autocomplete="postal-code" maxlength="10"><span class="field-hint" id="shipFromZipError" role="alert"></span></div>
+        </div>
         <button class="settings-save-btn" onclick="runEbaySetup()">Run eBay setup</button>
+        <button class="settings-save-btn secondary" id="shipFromSaveBtn" onclick="saveShipFromAddress()">Save ship-from address</button>
         <div id="ebaySetupResult" class="settings-result"></div>
       </div>
 
@@ -591,6 +602,7 @@ ${page('data', `
       </div>
     </div>`;
   renderEbayConnectionStatus();
+  loadShipFromAddress();
   renderEbaySalesPanel();
   renderPlatformsSettingsList();
   showGroup(currentGroup);
