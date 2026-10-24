@@ -26,7 +26,7 @@
 //     -> turns the business data on for the app, server and rules
 //        (businesses/{bizId}.live), or back off.
 //
-//   action: 'ebay_retire_main' (v3.28.8)
+//   action: 'ebay_retire_main' (v3.28.9)
 //     -> moves the old shared eBay connection, ebay_connections/main, to
 //        ebay_connections/_retired_main_<date> (copy and delete in one
 //        transaction). Nothing reads 'main' any more; this retires it.

@@ -7,7 +7,7 @@
 // instead of from the request body, and this module refreshes it when it
 // expires. Each store has its own connection, keyed by its business id.
 // Before businesses (docs/multi-tenant.md) there was one, 'main'; the
-// migration copied it to the business's id, and since v3.28.8 nothing falls
+// migration copied it to the business's id, and since v3.28.9 nothing falls
 // back to 'main': an account without a store gets a 403, and the Developer
 // Panel's "Retire the old eBay connection" moves the old doc aside.
 //

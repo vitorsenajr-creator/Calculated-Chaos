@@ -106,7 +106,7 @@ export default async function handler(req, res){
     return res.status(403).json({ error: 'Only the account owner can connect or disconnect eBay.' });
   }
   // Every signed-in action works on the caller's store connection; an
-  // account without a store gets a 403, never the old shared one (v3.28.8).
+  // account without a store gets a 403, never the old shared one (v3.28.9).
   let connectionId = null;
   if (authCheck){
     connectionId = ebayConnectionOr403(authCheck, res);

@@ -1,4 +1,4 @@
-// v3.28.8: no fallback to the shared 'main' eBay connection, no AI for an
+// v3.28.9: no fallback to the shared 'main' eBay connection, no AI for an
 // account without a store, Sync members leaves accounts with a store alone,
 // and the admin-only retire of ebay_connections/main.
 //
@@ -34,10 +34,18 @@ const ADMIN_UID = 'TpE1hmofirMzGSPE6C8arBl9eGi2';
 // ---------- the REST fallback's Firestore, through fetch ----------
 let users = {};
 let businesses = {};
+let members = {};
 let outside = [];
 const str = (v) => ({ stringValue: v });
 globalThis.fetch = async (url) => {
   const u = String(url);
+  // businesses/{bizId}/members/{uid} (v3.28.8): the account's link to a store.
+  const mm = u.match(/\/documents\/businesses\/([^/?]+)\/members\/([^/?]+)$/);
+  if (mm){
+    const doc = members[`${decodeURIComponent(mm[1])}/${decodeURIComponent(mm[2])}`];
+    if (!doc) return { ok: false, status: 404, json: async () => ({}) };
+    return { ok: true, status: 200, json: async () => ({ fields: { role: str(doc.role) } }) };
+  }
   const m = u.match(/\/documents\/(users|businesses)\/([^/?]+)$/);
   if (m){
     const id = decodeURIComponent(m[2]);
@@ -77,6 +85,7 @@ beforeEach(() => {
     [ADMIN_UID]: { status: 'approved', role: 'owner', activeBizId: 'bizA' },
   };
   businesses = { bizA: { live: true }, bizOff: { live: false } };
+  members = { 'bizOff/notlive': { role: 'owner' }, 'bizA/member': { role: 'owner' }, [`bizA/${ADMIN_UID}`]: { role: 'owner' } };
   outside = [];
 });
 
@@ -257,6 +266,27 @@ test('retireMainConnection moves ebay_connections/main aside in one go', async (
   const third = await retireMainConnection(db, { uid: ADMIN_UID }, { now });
   assert.equal(third.retiredTo, '_retired_main_2026-10-24_2');
   assert.equal(db.docs.get('ebay_connections/_retired_main_2026-10-24').refresh_token, 'r');
+});
+
+test('retireMainConnection is refused while the store has no connection of its own', async () => {
+  const conn = { refresh_token: 'r' };
+  const db = fakeDb({
+    'platform/migration': { bizId: 'bizA', switchedAt: 1 },
+    'ebay_connections/main': conn,
+  });
+  const r = await retireMainConnection(db, { uid: ADMIN_UID }, { now: new Date('2026-10-24T15:00:00Z') });
+  assert.equal(r.ok, false);
+  assert.equal(r.status, 409);
+  assert.match(r.error, /no eBay connection of its own/);
+  assert.deepEqual(db.docs.get('ebay_connections/main'), conn, "'main' stays where it is");
+  assert.equal(db.docs.has('ebay_connections/_retired_main_2026-10-24'), false);
+  assert.equal(db.docs.get('platform/migration').mainRetiredAt, undefined);
+
+  // A store doc without a refresh token doesn't count either.
+  db.docs.set('ebay_connections/bizA', { sellerUsername: 'shop' });
+  const r2 = await retireMainConnection(db, { uid: ADMIN_UID }, { now: new Date('2026-10-24T15:00:00Z') });
+  assert.equal(r2.ok, false);
+  assert.deepEqual(db.docs.get('ebay_connections/main'), conn);
 });
 
 test('ebay_retire_main is for platform admins only', async () => {

@@ -89,8 +89,12 @@ renaming them needs a data migration of every saved item.
   automatically on push to `main`.
 - `npm test` runs the unit tests of `src/domain/` (`tests/domain/`, Node's
   built-in runner, no extra packages): money and dates in US formats, the
-  P&L, the IRS mileage rates, the sale matching and the goals. There are no
-  UI or API tests. The standard check before a commit is
+  P&L, the IRS mileage rates, the sale matching and the goals, plus
+  `tests/api/` (v3.28.8: `requireApprovedUser` with a fake Firebase Admin
+  and a mocked REST fetch). There are no UI tests. Rules tests on the
+  Firestore emulator (`tests/rules/`, Java + packages installed outside the
+  repo; how to run them is at the top of the file) are not in `npm test`.
+  The standard check before a commit is
   `node --check` on every touched file plus a clean `npm run build`.
   Optionally, add a headless-Chromium load up to the login screen (no JS
   errors). Firebase, eBay and the AI APIs aren't reachable from the sandbox.
@@ -467,7 +471,7 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
   - `_ebayToken.js`: the server-only eBay connection (v3.16.0). Every eBay
     endpoint calls `getEbayAccessToken()`; never accept an eBay token from
     the browser again. One connection per store, `ebay_connections/{bizId}`
-    (v3.28.8): `ebayConnectionOr403()` answers 403 `NO_STORE_ERROR` ("This
+    (v3.28.9): `ebayConnectionOr403()` answers 403 `NO_STORE_ERROR` ("This
     account isn't linked to a store yet.") without a live store; there is
     no `'main'` fallback any more, and `requireAiAllowance()` refuses AI
     the same way.
@@ -610,6 +614,11 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
 
 ## Open items
 
+- **Paste `firestore.rules` into the Console** for v3.28.8 (Vitor): a new
+  `users/{uid}` may only be `pending` with `status`, `email`, `createdAt`.
+  Until then an account can still write its own `activeBizId`/`role` at
+  sign-up (the server already ignores them without a members doc, but the
+  rules' `rootOpen()` still reads `activeBizId`).
 - **Paste `firestore.rules` into the Console** for v3.27.7 (Vitor): the
   `pick_log` rule (members create entries under their own uid; read for
   members and admins; no update or delete). Until then Pick works, but the
@@ -679,7 +688,7 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
 
 ### Unverified in production (build-verified only)
 
-- No `'main'` fallback and retire (v3.28.8): Node tests running the real
+- No `'main'` fallback and retire (v3.28.9): Node tests running the real
   handlers with the REST sign-in fallback stubbed (every eBay endpoint and
   ebay-auth action, analyze-photo, narration extract, suggest_fee and
   explain_error answer 403 for an account with no store or a store not live,
@@ -688,6 +697,21 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
   real Firestore transaction. Vitor's steps: in the Firestore Console check
   that `ebay_connections/{his bizId}` exists, press Developer Panel → App →
   "Retire the old eBay connection", then publish one item on eBay.
+- Members link and users create rule (v3.28.8): Node tests of
+  `checkWithAdmin`/`checkWithRest` with a fake Firebase Admin and a mocked
+  fetch (a member gets the members role and bizId; a forged `activeBizId`
+  without a members doc gets no bizId and no role; users `employee` lowers an
+  owner, `owner` never raises an employee; a store not live keeps the role
+  without bizId; a failed REST members read = not a member; 7 of the 10 fail
+  on the old code) and 9 rules tests on the Firestore emulator (pending create
+  with the 3 fields, `email: null` or only `status` allowed; with
+  `activeBizId` or `role`, self-approved, or another uid denied; an admin's
+  approved create allowed; 2 fail on the old rules). Not run: the real
+  Console rules after the paste, a real sign-up, the REST members read
+  against the real Firestore, an employee's eBay connect refusal in
+  production. Check every approved account has its members doc (Developer
+  Panel → migration status: members source = target) before relying on it:
+  one without it now gets no business on the server.
 
 - App Check (v3.28.2): a test of the real `api/platform.js` route with a fake
   Firebase Admin and App Check verifier (off by default; an admin sets
@@ -1173,7 +1197,7 @@ on any of these:
 
 ## Pending changelog entry (since v3.28.0)
 
-- v3.28.8: no shared eBay connection, no AI without a store (P0 PR1b).
+- v3.28.9: no shared eBay connection, no AI without a store (P0 PR1b).
   `ebayConnectionId()` (`api/_ebayToken.js`) throws without a `bizId`, and
   every eBay endpoint answers 403 "This account isn't linked to a store yet."
   through `ebayConnectionOr403()`; the connection helpers no longer default
@@ -1184,10 +1208,24 @@ on any of these:
   other stores' accounts. New admin-only `api/platform.js` action
   `ebay_retire_main` (`retireMainConnection()` in `api/_migration.js`):
   copies `ebay_connections/main` to `_retired_main_<date>` and deletes it in
-  one transaction, with a "Retire the old eBay connection" button.
-  `tests/domain/store-required.test.mjs` (7 tests). Unverified in production:
+  one transaction, with a "Retire the old eBay connection" button; refused
+  while the store has no `ebay_connections/{bizId}` with a refresh token.
+  `tests/domain/store-required.test.mjs` (8 tests). Unverified in production:
   the retire on the real Firestore, a publish on the store's connection after
   it.
+- v3.28.8: account-to-store link through `members` (security, P0 PR1a,
+  Vitor 2026-10-24). `firestore.rules`: a new account may create its own
+  `users/{uid}` only as `pending` with no field besides `status`, `email` and
+  `createdAt` (before, it could write its own `activeBizId` or `role`); the
+  admin path creating `approved` docs is unchanged.
+  `api/_requireApprovedUser.js` (both the Admin and REST paths): the users
+  doc's `activeBizId` counts only when `businesses/{bizId}/members/{uid}`
+  exists, and the role comes from that members doc; the users doc's `role` can
+  only lower it to `employee` (Vitor: "members decides, users can only
+  downgrade"). No members doc = `bizId` null and no role. Tests:
+  `tests/api/require-approved-user.test.mjs` (10, in `npm test`) and
+  `tests/rules/users-create.rules.mjs` (9, emulator). **Paste
+  `firestore.rules` into the Console.**
 
 - v3.28.7: the "Listed on eBay!" box in the item form is readable (Vitor,
   2026-10-24). The category shows its last two levels by name (full path on

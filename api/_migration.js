@@ -144,7 +144,7 @@ async function runSetup(db, bizId, auth){
     const data = u.data();
     if (data.status !== 'approved') continue;
     // An account that already has a store (this one, or its own from
-    // "Create your store") is left alone (v3.28.8): this step only brings
+    // "Create your store") is left alone (v3.28.9): this step only brings
     // in approved accounts with no store yet.
     if (data.activeBizId){
       skipped++;
@@ -279,17 +279,24 @@ export async function migrationSwitch(db, auth, body){
   return { ok: true, bizId: marker.bizId, live };
 }
 
-// The old shared eBay connection (v3.28.8). Since the switch every eBay call
+// The old shared eBay connection (v3.28.9). Since the switch every eBay call
 // uses ebay_connections/{bizId} and nothing reads 'main'; this moves it
 // aside to ebay_connections/_retired_main_<date> (copy, then delete, in one
 // transaction) so it can't be picked up again but isn't lost either.
-// Server-only like every connection doc (no client rule).
+// Server-only like every connection doc (no client rule). Refused while the
+// store has no eBay connection of its own (v3.28.9), so the old one is never
+// the only copy that works.
 export async function retireMainConnection(db, auth, { now = new Date() } = {}){
+  const marker = await readMarker(db);
+  const bizId = marker && marker.bizId;
+  if (!bizId) return { ok: false, status: 409, error: 'There is no business to check the eBay connection against.' };
   const connections = db.collection('ebay_connections');
   const mainRef = connections.doc('main');
   const result = await db.runTransaction(async (tx) => {
     const main = await tx.get(mainRef);
     if (!main.exists) return null;
+    const own = await tx.get(connections.doc(bizId));
+    if (!own.exists || !own.data().refresh_token) return { noOwn: true };
     // A second retire on the same day (only if 'main' came back) gets _2, _3…
     const day = now.toISOString().slice(0, 10);
     let to = `_retired_main_${day}`;
@@ -305,6 +312,9 @@ export async function retireMainConnection(db, auth, { now = new Date() } = {}){
   });
   if (!result){
     return { ok: false, status: 409, error: 'There is no ebay_connections/main to retire (already retired?).' };
+  }
+  if (result.noOwn){
+    return { ok: false, status: 409, error: 'Your store has no eBay connection of its own yet. Connect eBay in Settings first.' };
   }
   await db.collection(MARKER[0]).doc(MARKER[1]).set({
     mainRetiredAt: now.getTime(),

@@ -953,7 +953,7 @@ async function runMembersSync(){
   });
 }
 
-// v3.28.8: moves ebay_connections/main aside. Nothing reads it any more;
+// v3.28.9: moves ebay_connections/main aside. Nothing reads it any more;
 // every eBay call uses the store's own connection.
 async function runRetireMain(){
   if (!confirm('Retire the old eBay connection (ebay_connections/main)?\n\nFirst check in the Firestore Console that your store has its own doc in ebay_connections (the business id above). The old doc is moved to ebay_connections/_retired_main_<date>, not deleted.')) return;

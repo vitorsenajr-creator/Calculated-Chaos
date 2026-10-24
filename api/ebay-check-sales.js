@@ -27,7 +27,7 @@ export default async (req, res) => {
   if (!authCheck.ok){
     return res.status(authCheck.status).json({ error: authCheck.error });
   }
-  // eBay calls use the caller's store connection, never a shared one (v3.28.8).
+  // eBay calls use the caller's store connection, never a shared one (v3.28.9).
   const connectionId = ebayConnectionOr403(authCheck, res);
   if (!connectionId) return;
 

@@ -5,7 +5,7 @@
 // `aiMonthlyLimit` on its doc may make that many AI calls per UTC month;
 // the count is the ai_usage meter (api/_aiUsage.js), summed for the
 // business and month. Businesses without the field (the migrated one) are
-// not limited. An account without a live store gets no AI at all (v3.28.8):
+// not limited. An account without a live store gets no AI at all (v3.28.9):
 // its calls would count against no store, so requireAiAllowance() answers
 // 403 before any Anthropic call.
 //
