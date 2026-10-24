@@ -1158,6 +1158,15 @@ on any of these:
 
 ## Pending changelog entry (since v3.28.0)
 
+- v3.28.6: welcome tour, eBay step (Vitor, 2026-10-24). The step picture is
+  now a listing page (the dress, its title, a green price and "List it")
+  instead of the form. The listed-on-eBay screenshot
+  (`public/welcome/tour-ebay-listed.webp`) shows the category by name and the
+  item specifics as readable chips instead of the raw category id and JSON.
+  The copy says the app lists on eBay and gets the piece ready for every
+  other marketplace (title, description and tags to copy for Poshmark,
+  Mercari, Depop and Vinted). Build and headless-Chromium render only.
+
 - v3.28.5: the tour's traveling picture now changes with the step (Vitor,
   2026-10-24): a dress with its #0412 tag at Catalog, a form being filled at
   eBay listing, a shipping parcel at Pick and a coin with a dollar sign at
