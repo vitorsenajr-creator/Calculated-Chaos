@@ -641,25 +641,11 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
 
 - **Console steps for v3.28.14 (Vitor)**: set monthly spend limits in the
   Anthropic Console (Billing → Limits) and the Deepgram Console (project →
-  Billing / usage limits); paste `firestore.rules` (the `ai_allowance`
-  rule, server only; the default already denies it, the rule makes it
-  explicit).
-- **Paste `firestore.rules` into the Console** for v3.28.12 (Vitor): the
-  `invites` rule (no client read or write; the server reads and writes it).
-  Until then Admin-SDK access still works, since it ignores the rules, so
-  invitations work either way; the rule only keeps clients out.
-- **Paste `firestore.rules` into the Console** for v3.28.8 (Vitor): a new
-  `users/{uid}` may only be `pending` with `status`, `email`, `createdAt`.
-  Until then an account can still write its own `activeBizId`/`role` at
-  sign-up (the server already ignores them without a members doc, but the
-  rules' `rootOpen()` still reads `activeBizId`).
-- **Paste `firestore.rules` into the Console** for v3.27.7 (Vitor): the
-  `pick_log` rule (members create entries under their own uid; read for
-  members and admins; no update or delete). Until then Pick works, but the
-  log writes fail quietly and the Activity log says it can't load.
-- **Paste `firestore.rules` into the Console** for v3.26.0 (Vitor): `trash`
-  is added to the member collections. Until then the trash can't be read or
-  written. Optional: a TTL policy on `trash.expiresAt` in the Console.
+  Billing / usage limits).
+- `firestore.rules` on `main` is the live copy: Vitor published it in the
+  Console on 2026-10-24, which covers the `trash` (v3.26.0), `pick_log`
+  (v3.27.7), users create (v3.28.8), `invites` (v3.28.12) and `ai_allowance`
+  (v3.28.14) rules. Optional: a TTL policy on `trash.expiresAt`.
 - **Production, selling soon (Vitor, 2026-10-20)**: the app is in
   production mode and will be offered to other sellers soon. Treat every
   change as going to paying customers: no half-finished features on
@@ -739,9 +725,10 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
   explain_error answer 403 for an account with no store or a store not live,
   with no eBay or Anthropic request), Sync members and the retire on an
   in-memory Firestore, `ebay_retire_main` refused to a non-admin. Not run: the
-  real Firestore transaction. Vitor's steps: in the Firestore Console check
-  that `ebay_connections/{his bizId}` exists, press Developer Panel → App →
-  "Retire the old eBay connection", then publish one item on eBay.
+  real Firestore transaction. Done in production on 2026-10-24 (Vitor): Test
+  connection OK as `savytrendsetters` on the store's own connection, the old
+  one retired to `ebay_connections/_retired_main_2026-10-24`, and a test item
+  published on eBay afterwards.
 - Members link and users create rule (v3.28.8): Node tests of
   `checkWithAdmin`/`checkWithRest` with a fake Firebase Admin and a mocked
   fetch (a member gets the members role and bizId; a forged `activeBizId`
@@ -1242,6 +1229,11 @@ on any of these:
 
 ## Pending changelog entry (since v3.28.0)
 
+- v3.28.17: `CLAUDE.md` brought up to date after the Console steps of
+  2026-10-24 (Vitor): the rules paste items folded into one line (the
+  Console now matches `firestore.rules`), the eBay policies copy, the retire
+  of `ebay_connections/main` and a test publish recorded. No code change.
+
 - v3.28.16: two stale lines in `CLAUDE.md` corrected (Vitor, 2026-10-24): the
   AI allowance's failure rule (only stores with a limit are refused; there is
   no `FAIL_CLOSED`) and its version (v3.28.14), and the v3.28.13 entry's Pick
@@ -1318,9 +1310,9 @@ on any of these:
   `ebay-listing-tools.js` still use the env vars (next PR), so nothing changes
   for publishing yet. The setup's ship-from address is still the fixed
   placeholder (Orlando, FL). Tests: `tests/domain/ebay-policies.test.mjs` (fake
-  eBay and Firestore; the route handlers themselves are not run). Console step:
-  after deploy, Developer Panel → App → "eBay policies: copy from Vercel" with
-  Vitor's business id.
+  eBay and Firestore; the route handlers themselves are not run). Console step
+  done on 2026-10-24: Developer Panel → App → "eBay policies: copy from Vercel"
+  copied the five values to Vitor's store.
 - v3.28.10: developer wording out of seller-visible text (P0 PR5). "Tell
   Vitor", "see README", "CLAUDE.md", "Vercel", the Developer Panel, and the
   printer names Y43BT / FlashLabel Pro are gone from what sellers see. The
