@@ -110,7 +110,7 @@
 
 import { XMLParser, XMLBuilder } from 'fast-xml-parser';
 import { requireApprovedUser } from './_requireApprovedUser.js';
-import { getEbayAccessToken, ebayConnectionId } from './_ebayToken.js';
+import { getEbayAccessToken, ebayConnectionOr403 } from './_ebayToken.js';
 
 const EBAY_SANDBOX = process.env.EBAY_SANDBOX === 'true';
 const API_BASE = EBAY_SANDBOX
@@ -684,10 +684,13 @@ export default async (req, res) => {
   if (!authCheck.ok){
     return res.status(authCheck.status).json({ error: authCheck.error });
   }
+  // eBay calls use the caller's store connection, never a shared one (v3.28.8).
+  const connectionId = ebayConnectionOr403(authCheck, res);
+  if (!connectionId) return;
 
   try{
     const { action } = req.body || {};
-    const ebayToken = await getEbayAccessToken(ebayConnectionId(authCheck));
+    const ebayToken = await getEbayAccessToken(connectionId);
     if (!ebayToken.ok) return res.status(ebayToken.status).json({ error: ebayToken.error });
     const access_token = ebayToken.token;
 

@@ -88,7 +88,12 @@ export async function migrationStatus(db){
   }
 
   const usersSnap = await db.collection('users').get();
-  const approved = usersSnap.docs.filter(d => d.data().status === 'approved');
+  // Approved accounts of this business, or with no store yet (the ones the
+  // setup step adds); owners of other stores don't count here.
+  const approved = usersSnap.docs.filter(d => {
+    const u = d.data();
+    return u.status === 'approved' && (!u.activeBizId || u.activeBizId === bizId);
+  });
   const members = biz ? await count(biz.collection('members')) : 0;
 
   return {
@@ -98,6 +103,8 @@ export async function migrationStatus(db){
     switchedAt: (marker && marker.switchedAt) || null,
     live: biz ? ((await biz.get()).data() || {}).live === true : false,
     lastCopiedAt: (marker && marker.lastCopiedAt) || null,
+    mainRetiredAt: (marker && marker.mainRetiredAt) || null,
+    mainRetiredTo: (marker && marker.mainRetiredTo) || null,
     collections,
     docs,
     unmapped,
@@ -132,9 +139,17 @@ async function runSetup(db, bizId, auth){
   }
   const usersSnap = await db.collection('users').get();
   let members = 0;
+  let skipped = 0;
   for (const u of usersSnap.docs){
     const data = u.data();
     if (data.status !== 'approved') continue;
+    // An account that already has a store (this one, or its own from
+    // "Create your store") is left alone (v3.28.8): this step only brings
+    // in approved accounts with no store yet.
+    if (data.activeBizId){
+      skipped++;
+      continue;
+    }
     // Employee logins stay employees; every other approved account owned
     // the shared catalog, so it's an owner of this business.
     batch.set(biz.collection('members').doc(u.id), {
@@ -146,7 +161,7 @@ async function runSetup(db, bizId, auth){
     members++;
   }
   await batch.commit();
-  return { copied: members };
+  return { copied: members, skipped };
 }
 
 async function copyCollectionPage(db, bizId, name, cursor){
@@ -238,6 +253,7 @@ export async function migrationCopy(db, auth, body){
     bizId,
     step: name,
     copied: result.copied,
+    skipped: result.skipped || 0,
     removed: result.removed || 0,
     next: finished ? null : { step: nextStep, cursor: nextCursor },
   };
@@ -261,4 +277,39 @@ export async function migrationSwitch(db, auth, body){
     ? { switchedAt: Date.now(), switchedBy: who }
     : { switchedAt: null, switchedBackAt: Date.now(), switchedBackBy: who }, { merge: true });
   return { ok: true, bizId: marker.bizId, live };
+}
+
+// The old shared eBay connection (v3.28.8). Since the switch every eBay call
+// uses ebay_connections/{bizId} and nothing reads 'main'; this moves it
+// aside to ebay_connections/_retired_main_<date> (copy, then delete, in one
+// transaction) so it can't be picked up again but isn't lost either.
+// Server-only like every connection doc (no client rule).
+export async function retireMainConnection(db, auth, { now = new Date() } = {}){
+  const connections = db.collection('ebay_connections');
+  const mainRef = connections.doc('main');
+  const result = await db.runTransaction(async (tx) => {
+    const main = await tx.get(mainRef);
+    if (!main.exists) return null;
+    // A second retire on the same day (only if 'main' came back) gets _2, _3…
+    const day = now.toISOString().slice(0, 10);
+    let to = `_retired_main_${day}`;
+    for (let n = 2; (await tx.get(connections.doc(to))).exists; n++) to = `_retired_main_${day}_${n}`;
+    tx.set(connections.doc(to), {
+      ...main.data(),
+      retiredFrom: 'main',
+      retiredAt: now.getTime(),
+      retiredBy: auth.email || auth.uid,
+    });
+    tx.delete(mainRef);
+    return { to };
+  });
+  if (!result){
+    return { ok: false, status: 409, error: 'There is no ebay_connections/main to retire (already retired?).' };
+  }
+  await db.collection(MARKER[0]).doc(MARKER[1]).set({
+    mainRetiredAt: now.getTime(),
+    mainRetiredTo: result.to,
+    mainRetiredBy: auth.email || auth.uid,
+  }, { merge: true });
+  return { ok: true, retiredTo: result.to };
 }
