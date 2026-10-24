@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { invitesList, inviteAdd, inviteRemove } from '../../api/_invites.js';
 import { signupStatus, businessCreate } from '../../api/_business.js';
+import { TERMS_VERSION } from '../../src/domain/new-business.js';
 
 // Just enough of Firestore: collection().doc().get/set/delete, collection().get,
 // runTransaction with tx.get/tx.set (merge supported), auto ids.
@@ -44,7 +45,8 @@ function fakeAdmin(initial = {}){
 
 const pending = { status: 'pending', email: 'maya@example.com' };
 const caller = (over = {}) => ({ ok: true, uid: 'u1', email: 'Maya@Example.com', emailVerified: true, ...over });
-const body = { name: 'Second Spin', sellsOn: ['ebay'] };
+// The store screen sends the Terms checkbox too (v3.28.13).
+const body = { name: 'Second Spin', sellsOn: ['ebay'], acceptTerms: true, termsVersion: TERMS_VERSION };
 
 test('an admin adds, lists and removes invitations', async () => {
   const { admin, store } = fakeAdmin();

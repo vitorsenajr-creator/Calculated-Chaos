@@ -3,7 +3,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   validateStoreName, normalizeStoreName, normalizeSellsOn, cleanLogo,
-  buildNewBusinessDocs, signupNextStep, STORE_NAME_MAX, MAX_LOGO_CHARS, NEW_BUSINESS_AI_LIMIT,
+  buildNewBusinessDocs, signupNextStep, checkTermsAcceptance, STORE_NAME_MAX, MAX_LOGO_CHARS, NEW_BUSINESS_AI_LIMIT,
+  TERMS_VERSION, TERMS_REQUIRED_ERROR, TERMS_STALE_ERROR,
 } from '../../src/domain/new-business.js';
 
 test('store names are trimmed, folded and bounded', () => {
@@ -33,17 +34,30 @@ test('only a small base64 png, jpeg or webp logo is kept', () => {
   assert.equal(cleanLogo(42), '');
 });
 
+const AGREED = { acceptTerms: true, termsVersion: TERMS_VERSION };
+
 test('the new store documents', () => {
-  const d = buildNewBusinessDocs({ uid: 'u1', email: 'a@b.co', name: '  Second Spin ', logo: 'nope', sellsOn: ['poshmark', 'ebay'], now: 1000 });
-  assert.deepEqual(d.business, { name: 'Second Spin', ownerUid: 'u1', createdAt: 1000, createdVia: 'self-serve', live: true, aiMonthlyLimit: NEW_BUSINESS_AI_LIMIT });
+  const d = buildNewBusinessDocs({ uid: 'u1', email: 'a@b.co', name: '  Second Spin ', logo: 'nope', sellsOn: ['poshmark', 'ebay'], ...AGREED, now: 1000 });
+  assert.deepEqual(d.business, { name: 'Second Spin', ownerUid: 'u1', createdAt: 1000, createdVia: 'self-serve', live: true, aiMonthlyLimit: NEW_BUSINESS_AI_LIMIT, termsVersion: TERMS_VERSION, termsAcceptedAt: 1000 });
   assert.deepEqual(d.member, { role: 'owner', email: 'a@b.co', addedAt: 1000 });
   assert.deepEqual(d.settings, { storeName: 'Second Spin', sellsOn: ['ebay', 'poshmark'] });
-  assert.deepEqual(d.userPatch, { status: 'approved', role: 'owner', approvedVia: 'self-serve', approvedAt: 1000 });
-  const withLogo = buildNewBusinessDocs({ uid: 'u1', name: 'Shop', logo: 'data:image/png;base64,AAAA', now: 1 });
+  assert.deepEqual(d.userPatch, { status: 'approved', role: 'owner', approvedVia: 'self-serve', approvedAt: 1000, termsVersion: TERMS_VERSION, termsAcceptedAt: 1000 });
+  const withLogo = buildNewBusinessDocs({ uid: 'u1', name: 'Shop', logo: 'data:image/png;base64,AAAA', ...AGREED, now: 1 });
   assert.equal(withLogo.settings.storeLogo, 'data:image/png;base64,AAAA');
   assert.equal(withLogo.member.email, null);
-  assert.throws(() => buildNewBusinessDocs({ uid: 'u1', name: ' ', now: 1 }), /Enter a name/);
-  assert.throws(() => buildNewBusinessDocs({ name: 'Shop', now: 1 }), /Missing user/);
+  assert.throws(() => buildNewBusinessDocs({ uid: 'u1', name: ' ', ...AGREED, now: 1 }), /Enter a name/);
+  assert.throws(() => buildNewBusinessDocs({ name: 'Shop', ...AGREED, now: 1 }), /Missing user/);
+  assert.throws(() => buildNewBusinessDocs({ uid: 'u1', name: 'Shop', now: 1 }), { message: TERMS_REQUIRED_ERROR });
+});
+
+test('the Terms must be accepted, in their current version', () => {
+  assert.deepEqual(checkTermsAcceptance(AGREED), { ok: true, termsVersion: TERMS_VERSION });
+  assert.deepEqual(checkTermsAcceptance({}), { ok: false, error: TERMS_REQUIRED_ERROR });
+  assert.deepEqual(checkTermsAcceptance(), { ok: false, error: TERMS_REQUIRED_ERROR });
+  assert.equal(checkTermsAcceptance({ acceptTerms: 'true', termsVersion: TERMS_VERSION }).ok, false);
+  assert.equal(checkTermsAcceptance({ acceptTerms: false, termsVersion: TERMS_VERSION }).ok, false);
+  assert.deepEqual(checkTermsAcceptance({ acceptTerms: true, termsVersion: '2020-01-01' }), { ok: false, error: TERMS_STALE_ERROR });
+  assert.deepEqual(checkTermsAcceptance({ acceptTerms: true }), { ok: false, error: TERMS_STALE_ERROR });
 });
 
 test('with self-serve off the gate is the v3.27 gate', () => {

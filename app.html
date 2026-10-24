@@ -48,6 +48,7 @@
         <span id="authToggleText">Don't have an account? <a id="authToggleLink">Create one</a></span>
       </div>
       <div class="auth-error" id="authError" style="display:none;"></div>
+      <p class="auth-legal"><a href="/terms" target="_blank" rel="noopener">Terms</a> · <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a></p>
     </div>
     <div id="authPendingState" class="auth-pending" style="display:none;">
       <h2 id="authPendingTitle">Awaiting approval</h2>
@@ -80,6 +81,10 @@
           <div id="storeSellsOn" class="store-chips"></div>
           <p class="store-hint">Pick any that apply. You can connect eBay and set your fees later.</p>
         </fieldset>
+        <label class="store-terms" for="storeTermsInput">
+          <input type="checkbox" id="storeTermsInput">
+          <span>I agree to the <a href="/terms" target="_blank" rel="noopener">Terms</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a></span>
+        </label>
         <button type="submit" class="auth-submit" id="storeCreateBtn">Create my store</button>
       </form>
       <div class="auth-error" id="storeError" role="alert" style="display:none;"></div>

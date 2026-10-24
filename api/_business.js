@@ -62,12 +62,15 @@ export async function signupStatus(admin, caller){
   };
 }
 
-// body: { name, logo?, sellsOn? }. Creates businesses/{bizId}, its owner
-// member, its config/settings, and approves the account with activeBizId,
-// all in one transaction. Asking again after it worked returns the same
-// store instead of a second one. Allowed while the switch is on or the
-// email has an open invite (v3.28.12); the invite is marked used in the
-// same transaction.
+// body: { name, logo?, sellsOn?, acceptTerms, termsVersion }. Creates
+// businesses/{bizId}, its owner member, its config/settings, and approves
+// the account with activeBizId, all in one transaction. Asking again after
+// it worked returns the same store instead of a second one. Allowed while
+// the switch is on or the email has an open invite (v3.28.12); the invite
+// is marked used in the same transaction. Without the Terms checkbox (or
+// with an old termsVersion) nothing is written and the answer is 400; with
+// it, termsVersion and termsAcceptedAt go on the business doc and on
+// users/{uid} (v3.28.13).
 export async function businessCreate(admin, caller, body){
   if (!caller.emailVerified) return err(403, 'Verify your email first.');
 
@@ -82,6 +85,8 @@ export async function businessCreate(admin, caller, body){
       name: body && body.name,
       logo: body && body.logo,
       sellsOn: body && body.sellsOn,
+      acceptTerms: body && body.acceptTerms,
+      termsVersion: body && body.termsVersion,
       now: Date.now(),
     });
   }catch(e){

@@ -1,0 +1,31 @@
+/* Shared by /privacy and /terms. Parcel tokens copied from src/style.css. */
+:root{
+  --font-ui:'Archivo', system-ui, -apple-system, sans-serif;
+  --ground:#F4F6F9; --surface:#FFFFFF; --line:#DCE1E8; --ink:#0E1A2E;
+  --ink-2:#4A5568; --brand:#12285A; --brand-2:#1E3A7B;
+}
+*{ box-sizing:border-box; }
+html{ -webkit-text-size-adjust:100%; }
+body{ margin:0; background:var(--ground); color:var(--ink); font-family:var(--font-ui); font-size:17px; line-height:1.6; }
+:focus-visible{ outline:3px solid var(--brand-2); outline-offset:3px; border-radius:4px; }
+a{ color:var(--brand); text-underline-offset:0.2em; }
+.bar{ background:var(--brand); color:#fff; }
+.bar .in{ max-width:760px; margin:0 auto; padding:14px 16px; display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+.bar a{ color:#fff; font-weight:600; text-decoration:none; }
+.bar a:hover{ text-decoration:underline; }
+main{ max-width:760px; margin:0 auto; padding:28px 16px 56px; }
+article{ background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:24px 20px; }
+h1{ margin:0 0 4px; font-size:32px; line-height:1.15; }
+h2{ margin:32px 0 8px; font-size:21px; line-height:1.25; }
+h3{ margin:20px 0 6px; font-size:17px; }
+p, ul{ margin:0 0 12px; }
+ul{ padding-left:22px; }
+li{ margin-bottom:6px; }
+.meta{ color:var(--ink-2); font-size:15px; margin-bottom:20px; }
+.note{ border-left:4px solid var(--brand-2); background:var(--ground); padding:10px 14px; border-radius:0 6px 6px 0; }
+table{ width:100%; border-collapse:collapse; margin:8px 0 16px; font-size:15px; }
+th, td{ text-align:left; vertical-align:top; padding:8px 10px; border:1px solid var(--line); }
+th{ background:var(--ground); }
+.tablewrap{ overflow-x:auto; }
+footer{ max-width:760px; margin:0 auto; padding:0 16px 40px; color:var(--ink-2); font-size:14px; }
+@media (min-width:700px){ article{ padding:36px 40px; } }

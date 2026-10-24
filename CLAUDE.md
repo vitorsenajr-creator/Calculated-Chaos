@@ -1201,6 +1201,20 @@ on any of these:
 
 ## Pending changelog entry (since v3.28.0)
 
+- v3.28.13: Terms and Privacy Policy (P0 PR4b, Vitor). Static pages `/privacy`
+  and `/terms` (`privacy.html`, `terms.html`, shared `public/legal.css`;
+  rewrites in `vercel.json`, the same in `vite.config.js` for dev/preview),
+  linked from the welcome page footer, the sign-in card and the "Create your
+  store" checkbox. "Create my store" needs "I agree to the Terms and Privacy
+  Policy"; the server (`api/_business.js`, `domain/new-business.js`) refuses
+  a request without it (400) and writes `termsVersion` and `termsAcceptedAt`
+  on `users/{uid}` and the business doc. `TERMS_VERSION` in
+  `domain/new-business.js` = the date of the texts: change it with every edit
+  of either page. The texts are a draft written from the facts Vitor listed
+  (the TermsFeed base text never arrived); they promise a 12-month Pick log
+  retention that nothing enforces yet. Needs a read by Vitor (or a lawyer)
+  before real customers. Build, Node tests and a Chromium check of the
+  checkbox only.
 - v3.28.12: store invitations (P0, PR 4a). A platform admin lists an email in
   the server-only `invites/{normalized email}` collection (Developer Panel →
   App → "Store invitations", `api/platform.js` actions `invites`,
