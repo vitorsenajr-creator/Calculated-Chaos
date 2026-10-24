@@ -1197,6 +1197,26 @@ on any of these:
 
 ## Pending changelog entry (since v3.28.0)
 
+- v3.28.11: eBay policies and location saved per store (PR2a of the eBay-per-store
+  work). The five values (`fulfillmentPolicyId`, `fulfillmentPolicyIdBuyerPays`,
+  `paymentPolicyId`, `returnPolicyId`, `merchantLocationKey`) are kept in
+  `ebay_connections/{bizId}.policies`, server only (`api/_ebayPolicies.js`:
+  `getEbayPolicies(auth)`, `saveEbayPolicies`, `copyEnvPolicies`; no env fallback
+  in the helper, the env ids are one seller's). `api/ebay-setup.js` (logic in
+  `api/_ebaySetup.js`) creates or finds the policies and location on the
+  caller's own eBay account, opts it in to SELLING_POLICY_MANAGEMENT only when
+  `get_opted_in_programs` doesn't list it, and saves a complete set on the
+  store (a partial set is never saved). Settings → eBay no longer asks to
+  paste env vars. New `api/platform.js` action `ebay_policies_copy` (`bizId`,
+  platform admins only) copies the env values onto one store's connection,
+  with a card in the Developer Panel. A reconnect to the same eBay seller keeps
+  the saved policies (`saveEbayConnection`). **Not yet read:** `ebay-list.js` and
+  `ebay-listing-tools.js` still use the env vars (next PR), so nothing changes
+  for publishing yet. The setup's ship-from address is still the fixed
+  placeholder (Orlando, FL). Tests: `tests/domain/ebay-policies.test.mjs` (fake
+  eBay and Firestore; the route handlers themselves are not run). Console step:
+  after deploy, Developer Panel → App → "eBay policies: copy from Vercel" with
+  Vitor's business id.
 - v3.28.10: developer wording out of seller-visible text (P0 PR5). "Tell
   Vitor", "see README", "CLAUDE.md", "Vercel", the Developer Panel, and the
   printer names Y43BT / FlashLabel Pro are gone from what sellers see. The

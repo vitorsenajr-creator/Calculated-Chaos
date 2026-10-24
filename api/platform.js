@@ -55,6 +55,12 @@
 //     -> how our functions treat the App Check token (_appCheck.js,
 //        platform/appcheck): 'off', 'monitor' or 'enforce'.
 //
+//   action: 'ebay_policies_copy', bizId (v3.28.11)
+//     -> one-time copy of the five EBAY_*_POLICY_ID / MERCHANT_LOCATION_KEY
+//        env values onto that store's ebay_connections/{bizId}.policies
+//        (_ebayPolicies.js). Only that store; refuses if any env var is
+//        missing or the store has no eBay connection.
+//
 //   action: 'self_serve' | 'self_serve_set', on (v3.28.0)
 //     -> the self-serve sign-up switch (_business.js, platform/signup):
 //        read it, or turn it on or off.
@@ -82,6 +88,7 @@ import { adminClaimsStatus, adminClaimsSync } from './_adminClaims.js';
 import { usersAuthInfo, userRemove, userRestore, userDeny, employeeCreate } from './_users.js';
 import { aiUsageReport } from './_aiUsage.js';
 import { verifySignedInUser, signupStatus, businessCreate, readSelfServe, selfServeSet } from './_business.js';
+import { copyEnvPolicies } from './_ebayPolicies.js';
 import { getAiAllowance } from './_aiAllowance.js';
 import { readAppCheckMode, setAppCheckMode } from './_appCheck.js';
 import { usageMonth } from '../src/domain/ai-usage.js';
@@ -190,6 +197,13 @@ export default async function handler(req, res){
       if (action === 'app_check') return res.status(200).json({ ok: true, mode: await readAppCheckMode(admin.db, { fresh: true }) });
       const result = await setAppCheckMode(admin.db, auth, req.body || {});
       console.log('app-check-set', JSON.stringify({ by: auth.uid, mode: result.mode || null }));
+      return res.status(result.ok ? 200 : result.status).json(result.ok ? result : { error: result.error });
+    }
+    if (action === 'ebay_policies_copy'){
+      const admin = getFirebaseAdmin();
+      if (!admin.ok) return res.status(503).json({ error: admin.error });
+      const result = await copyEnvPolicies(admin.db, auth, req.body || {});
+      console.log('ebay-policies-copy', JSON.stringify({ by: auth.uid, bizId: (req.body || {}).bizId || null, ok: result.ok }));
       return res.status(result.ok ? 200 : result.status).json(result.ok ? result : { error: result.error });
     }
     if (action === 'self_serve' || action === 'self_serve_set'){

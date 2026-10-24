@@ -155,11 +155,22 @@ async function getEbayConnectionStatusUnsafe(connectionId){
   };
 }
 
-// Saves a brand-new connection (replaces whatever was there).
+// Saves a brand-new connection (replaces whatever was there). The store's
+// saved eBay policies (v3.28.11, `policies`) belong to the eBay account, so
+// they survive a reconnect to the same seller and are dropped for another.
 async function saveEbayConnectionUnsafe(tokens, connectionId){
   const { admin, error } = connectionAdminOrError(connectionId);
   if (error) return error;
-  await admin.db.collection(CONNECTIONS).doc(connectionId).set(tokens);
+  const ref = admin.db.collection(CONNECTIONS).doc(connectionId);
+  const prev = await ref.get();
+  const old = prev.exists ? prev.data() : null;
+  const doc = { ...tokens };
+  if (old && old.policies && old.sellerUsername && old.sellerUsername === tokens.sellerUsername){
+    doc.policies = old.policies;
+    if (old.policiesSavedAt) doc.policiesSavedAt = old.policiesSavedAt;
+    if (old.policiesSource) doc.policiesSource = old.policiesSource;
+  }
+  await ref.set(doc);
   return { ok: true };
 }
 
