@@ -131,5 +131,10 @@ service cloud.firestore {
     // Store invitations (v3.28.12): one doc per invited email, read and
     // written only by the server (api/_invites.js). No client access at all.
     match /invites/{docId} { allow read, write: if false; }
+
+    // AI allowance counter (v3.28.14): one doc per store and month
+    // ({bizId}__{YYYY-MM}), reserved and released in transactions by the
+    // server (api/_aiAllowance.js). No client access at all.
+    match /ai_allowance/{docId} { allow read, write: if false; }
   }
 }

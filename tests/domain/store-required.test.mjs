@@ -145,8 +145,8 @@ test('AI calls answer 403 without a store, before any Anthropic call', async () 
   const aiCalls = [
     ['analyze-photo', handlers.analyzePhoto, { mode: 'listing_only', input: { name: 'Dress' } }],
     ['narration extract', handlers.narration, { action: 'extract', kind: 'item', transcript: 'a blue dress' }],
-    ['suggest_fee', handlers.ebayItemAspects, { mode: 'suggest_fee', platform: 'Poshmark' }],
-    ['explain_error', handlers.ebayItemAspects, { mode: 'explain_error', error: {} }],
+    ['suggest_fee', handlers.ebayItemAspects, { mode: 'suggest_fee', platformName: 'Poshmark' }],
+    ['explain_error', handlers.ebayItemAspects, { mode: 'explain_error', errors: [{ errorId: 25002 }] }],
   ];
   for (const uid of ['nostore', 'notlive']){
     for (const [name, handler, body] of aiCalls){

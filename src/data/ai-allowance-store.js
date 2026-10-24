@@ -1,6 +1,7 @@
 // The store's monthly AI allowance as the server sees it (v3.28.1).
-// api/platform.js action ai_allowance answers from the ai_usage meter
-// (api/_aiAllowance.js), which is also what the server enforces. Here the
+// api/platform.js action ai_allowance answers from the store's monthly
+// counter (api/_aiAllowance.js, v3.28.14), which is also what the server
+// enforces. Here the
 // app keeps the last answer so Settings → AI usage and the checks before
 // an AI call (aiUsageRemaining in settings-store.js) show the same numbers.
 //
