@@ -494,7 +494,7 @@ export async function runListFulfillmentPolicies(){
           <span style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(p.name)}</span>
           <code style="flex-shrink:0; background:rgba(0,0,0,0.06); padding:3px 6px; border-radius:4px; font-size:11.5px; user-select:all;">${escapeHtml(p.id)}</code>
         </div>`).join('') +
-      `<div style="margin-top:8px; font-size:12px; opacity:0.8;">To make one of these the default for "buyer pays" imports/publishing, copy its ID above into the <code>EBAY_FULFILLMENT_POLICY_ID_BUYER_PAYS</code> environment variable in Vercel, then redeploy.</div></div></div>`;
+      `<div style="margin-top:8px; font-size:12px; opacity:0.8;">To make one of these the default for "buyer pays" imports/publishing, copy its ID above into the <code>EBAY_FULFILLMENT_POLICY_ID_BUYER_PAYS</code> server setting, then redeploy.</div></div></div>`;
   }catch(e){
     area.innerHTML = `<div class="ebay-status-box error">❌ ${escapeHtml(String(e.message || e))}</div>`;
   }

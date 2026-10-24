@@ -7,6 +7,7 @@ import { normalizeSizeForEbay } from '../src/modules/ebay-size.js';
 import { conformAspectsToAllowedValues } from '../src/modules/ebay-aspect-match.js';
 import { suggestEbayTypeValue, isTypeAspect } from '../src/modules/ebay-type-map.js';
 import { requireApprovedUser } from './_requireApprovedUser.js';
+import { PLATFORM_ADMIN_UIDS } from './_firebaseAdmin.js';
 import { getEbayAccessToken, ebayConnectionId } from './_ebayToken.js';
 
 const EBAY_SANDBOX = process.env.EBAY_SANDBOX === 'true';
@@ -642,6 +643,9 @@ export default async function handler(req, res){
     return res.status(authCheck.status).json({ error: authCheck.error });
   }
 
+  // The debug blocks in error answers (v3.28.8) go to platform admins only.
+  const isAdminCaller = PLATFORM_ADMIN_UIDS.includes(authCheck.uid);
+
   const { item, imageUrls } = req.body || {};
 
   const ebayToken = await getEbayAccessToken(ebayConnectionId(authCheck));
@@ -737,11 +741,13 @@ export default async function handler(req, res){
         detail: invResult.data,
         step: 'inventory',
         aspectAllowedValues: allowedValuesForFailedAspects(invResult.data, categoryAspects),
-        debugConditionSent: inventoryBody.condition,
-        debugItemConditionRaw: item.condition,
-        debugValidConditionsForCategory: validConditions,
-        debugFullInventoryBody: inventoryBody,
-        debugCategoryChosen: { id: leafCategoryId, path: leafCategory.path },
+        ...(isAdminCaller ? {
+          debugConditionSent: inventoryBody.condition,
+          debugItemConditionRaw: item.condition,
+          debugValidConditionsForCategory: validConditions,
+          debugFullInventoryBody: inventoryBody,
+          debugCategoryChosen: { id: leafCategoryId, path: leafCategory.path },
+        } : {}),
       });
     }
 
@@ -818,14 +824,14 @@ export default async function handler(req, res){
         error: 'Failed to create eBay offer',
         detail: offerResult.data,
         step: 'offer',
-        debugPolicyIdsSent: {
+        ...(isAdminCaller ? { debugPolicyIdsSent: {
           fulfillmentPolicyId: fulfillmentPolicyId || '(empty)',
           sellerPaysShipping,
           paymentPolicyId: process.env.EBAY_PAYMENT_POLICY_ID || '(empty)',
           returnPolicyId: process.env.EBAY_RETURN_POLICY_ID || '(empty)',
           merchantLocationKey: process.env.EBAY_MERCHANT_LOCATION_KEY || '(empty)',
           sandboxMode: EBAY_SANDBOX,
-        },
+        } } : {}),
       });
     }
 

@@ -1158,6 +1158,17 @@ on any of these:
 
 ## Pending changelog entry (since v3.28.0)
 
+- v3.28.8: developer wording out of seller-visible text (P0 PR5). "Tell
+  Vitor", "see README", "CLAUDE.md", "Vercel", the Developer Panel, and the
+  printer names Y43BT / FlashLabel Pro are gone from what sellers see. The
+  eBay publish error's DEBUG blocks show only to platform admins, and
+  `api/ebay-list.js` sends the `debug*` fields only to them
+  (`PLATFORM_ADMIN_UIDS`). `analyze-photo.js` and `narration.js` no longer
+  return the provider's raw error body (`detail`); it is logged on the
+  server. `tests/domain/ai-error-bodies.test.mjs`. Left on purpose: the
+  eBay setup panel's "Vercel Environment Variables" text (admin-only
+  screen) and code comments.
+
 - v3.28.7: the "Listed on eBay!" box in the item form is readable (Vitor,
   2026-10-24). The category shows its last two levels by name (full path on
   hover) instead of "Category used: <id> — <path>", the server's "(fallback

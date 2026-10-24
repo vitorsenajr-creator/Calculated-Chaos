@@ -155,7 +155,7 @@ export default async function handler(req, res) {
 
     if (!response.ok) {
       console.error('Anthropic API error:', data);
-      return res.status(response.status).json({ error: 'Upstream API error', detail: data });
+      return res.status(response.status).json({ error: 'Upstream API error' });
     }
 
     await recordAiUsage({ auth: authCheck, call: mode, model: data.model, usage: data.usage, content: data.content });
