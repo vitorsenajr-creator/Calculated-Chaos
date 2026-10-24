@@ -5,14 +5,18 @@
 // which the browser can't read (no rule allows it; only Firebase Admin on
 // the server can). Every eBay endpoint gets its access token from here
 // instead of from the request body, and this module refreshes it when it
-// expires. Until businesses exist (docs/multi-tenant.md) there is one
-// connection, 'main'; the migration renames it to the business's id.
+// expires. Each store has its own connection, keyed by its business id.
+// Before businesses (docs/multi-tenant.md) there was one, 'main'; the
+// migration copied it to the business's id, and since v3.28.9 nothing falls
+// back to 'main': an account without a store gets a 403, and the Developer
+// Panel's "Retire the old eBay connection" moves the old doc aside.
 //
 // Before v3.16.0 the tokens sat in ebay_tokens/main, readable by the
 // browser. v3.16.0 copied them here on first use; v3.16.1 dropped that
 // copy step and the doc's Firestore rule once production was confirmed.
 import crypto from 'node:crypto';
 import { getFirebaseAdmin } from './_firebaseAdmin.js';
+import { NO_STORE_ERROR } from './_requireApprovedUser.js';
 
 const EBAY_SANDBOX = process.env.EBAY_SANDBOX === 'true';
 export const EBAY_TOKEN_URL = EBAY_SANDBOX
@@ -34,7 +38,6 @@ export const EBAY_SCOPES = [
 ].join(' ');
 
 const CONNECTIONS = 'ebay_connections';
-export const DEFAULT_CONNECTION_ID = 'main';
 
 // One-time codes for the connect flow (v3.16.2), server only like the
 // connections. Each one remembers who started the flow and which
@@ -42,10 +45,25 @@ export const DEFAULT_CONNECTION_ID = 'main';
 const OAUTH_STATES = 'ebay_oauth_states';
 const STATE_TTL_MS = 10 * 60 * 1000;
 
-// Which connection a request uses: the caller's live business, or 'main'
-// before the switch (auth comes from requireApprovedUser).
+// Which connection a request uses: the caller's live business (auth comes
+// from requireApprovedUser). Throws a 403 error without one; there is no
+// shared fallback connection any more.
 export function ebayConnectionId(auth){
-  return (auth && auth.bizId) || DEFAULT_CONNECTION_ID;
+  const bizId = auth && auth.bizId;
+  if (typeof bizId === 'string' && bizId) return bizId;
+  const err = new Error(NO_STORE_ERROR);
+  err.status = 403;
+  throw err;
+}
+
+// For endpoints: the connection id, or null after answering 403.
+export function ebayConnectionOr403(auth, res){
+  try{
+    return ebayConnectionId(auth);
+  }catch(e){
+    res.status(e.status || 403).json({ error: e.message });
+    return null;
+  }
 }
 
 // Refresh a minute early so a token can't expire mid-request.
@@ -61,6 +79,15 @@ function adminOrError(){
     return { error: { ok: false, status: 503, error: `The server can't reach its eBay connection: ${admin.error}` } };
   }
   return { admin };
+}
+
+// The same, for a function that touches one connection: a missing id is
+// refused rather than read as some default connection.
+function connectionAdminOrError(connectionId){
+  if (!(typeof connectionId === 'string' && connectionId)){
+    return { error: { ok: false, status: 403, error: NO_STORE_ERROR } };
+  }
+  return adminOrError();
 }
 
 // Reads the connection doc. Returns the data or null when eBay isn't
@@ -86,8 +113,8 @@ async function refreshAccessToken(refreshToken){
 
 // The access token every eBay endpoint uses. Returns { ok:true, token } or
 // { ok:false, status, error } ready to send back to the browser.
-async function getEbayAccessTokenUnsafe(connectionId = DEFAULT_CONNECTION_ID){
-  const { admin, error } = adminOrError();
+async function getEbayAccessTokenUnsafe(connectionId){
+  const { admin, error } = connectionAdminOrError(connectionId);
   if (error) return error;
   const conn = await readConnection(admin, connectionId);
   if (!conn || !conn.refresh_token){
@@ -111,8 +138,8 @@ async function getEbayAccessTokenUnsafe(connectionId = DEFAULT_CONNECTION_ID){
 }
 
 // What the app may see: never the tokens.
-async function getEbayConnectionStatusUnsafe(connectionId = DEFAULT_CONNECTION_ID){
-  const { admin, error } = adminOrError();
+async function getEbayConnectionStatusUnsafe(connectionId){
+  const { admin, error } = connectionAdminOrError(connectionId);
   if (error) return error;
   const conn = await readConnection(admin, connectionId);
   if (!conn || !conn.refresh_token) return { ok: true, connected: false };
@@ -128,25 +155,36 @@ async function getEbayConnectionStatusUnsafe(connectionId = DEFAULT_CONNECTION_I
   };
 }
 
-// Saves a brand-new connection (replaces whatever was there).
-async function saveEbayConnectionUnsafe(tokens, connectionId = DEFAULT_CONNECTION_ID){
-  const { admin, error } = adminOrError();
+// Saves a brand-new connection (replaces whatever was there). The store's
+// saved eBay policies (v3.28.11, `policies`) belong to the eBay account, so
+// they survive a reconnect to the same seller and are dropped for another.
+async function saveEbayConnectionUnsafe(tokens, connectionId){
+  const { admin, error } = connectionAdminOrError(connectionId);
   if (error) return error;
-  await admin.db.collection(CONNECTIONS).doc(connectionId).set(tokens);
+  const ref = admin.db.collection(CONNECTIONS).doc(connectionId);
+  const prev = await ref.get();
+  const old = prev.exists ? prev.data() : null;
+  const doc = { ...tokens };
+  if (old && old.policies && old.sellerUsername && old.sellerUsername === tokens.sellerUsername){
+    doc.policies = old.policies;
+    if (old.policiesSavedAt) doc.policiesSavedAt = old.policiesSavedAt;
+    if (old.policiesSource) doc.policiesSource = old.policiesSource;
+  }
+  await ref.set(doc);
   return { ok: true };
 }
 
 // Merges non-secret fields (sellerUsername, lastTestedAt).
-async function updateEbayConnectionUnsafe(fields, connectionId = DEFAULT_CONNECTION_ID){
-  const { admin, error } = adminOrError();
+async function updateEbayConnectionUnsafe(fields, connectionId){
+  const { admin, error } = connectionAdminOrError(connectionId);
   if (error) return error;
   await admin.db.collection(CONNECTIONS).doc(connectionId).set(fields, { merge: true });
   return { ok: true };
 }
 
 // Disconnect: removes the connection.
-async function deleteEbayConnectionUnsafe(connectionId = DEFAULT_CONNECTION_ID){
-  const { admin, error } = adminOrError();
+async function deleteEbayConnectionUnsafe(connectionId){
+  const { admin, error } = connectionAdminOrError(connectionId);
   if (error) return error;
   await admin.db.collection(CONNECTIONS).doc(connectionId).delete();
   return { ok: true };
@@ -154,8 +192,8 @@ async function deleteEbayConnectionUnsafe(connectionId = DEFAULT_CONNECTION_ID){
 
 // Starts a connect flow: stores a random one-time code that eBay hands back
 // to the callback as ?state=. Also clears out codes from abandoned flows.
-async function createOAuthStateUnsafe(user, connectionId = DEFAULT_CONNECTION_ID){
-  const { admin, error } = adminOrError();
+async function createOAuthStateUnsafe(user, connectionId){
+  const { admin, error } = connectionAdminOrError(connectionId);
   if (error) return error;
   const now = Date.now();
   const stale = await admin.db.collection(OAUTH_STATES).where('expiresAt', '<', now).limit(20).get();
@@ -198,7 +236,10 @@ async function consumeOAuthStateUnsafe(state){
     return { ok: false, status: 400, error: 'This eBay sign-in took longer than 10 minutes. Start again from Settings → eBay.' };
   }
   if (data.usedAt) return { ok: true, repeat: true };
-  return { ok: true, uid: data.uid, email: data.email || null, connectionId: data.connectionId || DEFAULT_CONNECTION_ID };
+  if (!data.connectionId){
+    return { ok: false, status: 400, error: 'This eBay sign-in isn\'t tied to a store. Start again from Settings → eBay.' };
+  }
+  return { ok: true, uid: data.uid, email: data.email || null, connectionId: data.connectionId };
 }
 
 // Records how the first load of a callback ended, for a repeat load to show.

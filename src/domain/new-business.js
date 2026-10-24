@@ -79,7 +79,7 @@ export function buildNewBusinessDocs({ uid, email, name, logo, sellsOn, now }){
   return { business, member, settings, userPatch };
 }
 
-// Invitations (v3.28.8): a platform admin lists an email in the server-only
+// Invitations (v3.28.12): a platform admin lists an email in the server-only
 // `invites` collection (doc id = the normalized email); that account may
 // create a store while self-serve is off. Used by api/_invites.js and
 // api/_business.js.
@@ -110,7 +110,7 @@ export function canCreateStore({ selfServe, invite, emailVerified }){
 // What the sign-in gate shows next.
 //   userDoc: the users/{uid} data (or null); emailVerified: the token's
 //   email_verified; selfServe: the server's switch (false when unknown);
-//   invited: the server says this email has an open invite (v3.28.8).
+//   invited: the server says this email has an open invite (v3.28.12).
 // Returns 'removed' | 'verify' | 'app' | 'create_store' | 'awaiting_approval'.
 // With selfServe off the answers are exactly the v3.27 gate's.
 export function signupNextStep({ userDoc, emailVerified, selfServe, invited }){

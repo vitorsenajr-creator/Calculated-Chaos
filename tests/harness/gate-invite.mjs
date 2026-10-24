@@ -1,5 +1,5 @@
 // The sign-in gate for a pending account, with /api/platform mocked
-// (v3.28.8): an invited, verified account sees "Create your store"; a
+// (v3.28.12): an invited, verified account sees "Create your store"; a
 // stranger sees "Awaiting approval"; an invited, unverified account is asked
 // to verify first. Needs `npm run harness` running on port 5180.
 // Browser: CHROME_PATH, else /usr/bin/chromium.

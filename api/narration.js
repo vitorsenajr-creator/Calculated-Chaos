@@ -52,7 +52,7 @@ async function handleTranscribe(req, res){
   const data = await dgResponse.json();
   if (!dgResponse.ok) {
     console.error('Deepgram API error:', data);
-    return res.status(dgResponse.status).json({ error: 'Transcription failed', detail: data });
+    return res.status(dgResponse.status).json({ error: 'Transcription failed' });
   }
 
   const transcript = data.results?.channels?.[0]?.alternatives?.[0]?.transcript || '';
@@ -98,7 +98,7 @@ async function handleExtract(req, res, auth){
   const data = await anthropicResponse.json();
   if (!anthropicResponse.ok) {
     console.error('Anthropic API error:', data);
-    return res.status(anthropicResponse.status).json({ error: 'Upstream API error', detail: data });
+    return res.status(anthropicResponse.status).json({ error: 'Upstream API error' });
   }
 
   await recordAiUsage({ auth, call: 'narration_extract', model: data.model, usage: data.usage, content: data.content });

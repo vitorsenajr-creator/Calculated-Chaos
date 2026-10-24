@@ -1,4 +1,4 @@
-// Store invitations (docs/multi-tenant.md step 5, v3.28.8). Not a route:
+// Store invitations (docs/multi-tenant.md step 5, v3.28.12). Not a route:
 // api/platform.js calls these for the Developer Panel (list, add, remove),
 // and api/_business.js reads an invite to let a verified, invited account
 // create its store while self-serve sign-up is off.

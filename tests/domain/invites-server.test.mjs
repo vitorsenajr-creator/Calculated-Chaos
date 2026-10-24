@@ -1,4 +1,4 @@
-// Store invitations on the server (api/_invites.js, api/_business.js, v3.28.8)
+// Store invitations on the server (api/_invites.js, api/_business.js, v3.28.12)
 // against a small fake Firestore.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

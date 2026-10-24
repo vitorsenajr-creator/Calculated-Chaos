@@ -44,7 +44,7 @@ export async function readSelfServe(db){
 }
 
 // What the sign-in gate needs to know: the switch, whether the account's
-// email has an open invite (v3.28.8), and whether it may create a store now
+// email has an open invite (v3.28.12), and whether it may create a store now
 // (`canCreate`: verified email plus the switch or the invite).
 export async function signupStatus(admin, caller){
   const [selfServe, invite, userSnap] = await Promise.all([
@@ -66,7 +66,7 @@ export async function signupStatus(admin, caller){
 // member, its config/settings, and approves the account with activeBizId,
 // all in one transaction. Asking again after it worked returns the same
 // store instead of a second one. Allowed while the switch is on or the
-// email has an open invite (v3.28.8); the invite is marked used in the
+// email has an open invite (v3.28.12); the invite is marked used in the
 // same transaction.
 export async function businessCreate(admin, caller, body){
   if (!caller.emailVerified) return err(403, 'Verify your email first.');
