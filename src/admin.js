@@ -557,6 +557,15 @@ function renderApp(){
       </div>
     </div>
     <div class="ad-card">
+      <h3>eBay policies: copy from Vercel</h3>
+      <div class="ad-desc">One-time copy of the five <code>EBAY_*_POLICY_ID</code> / <code>EBAY_MERCHANT_LOCATION_KEY</code> values from Vercel onto one store's eBay connection (where each store now keeps its own). Enter the store's business id (the one in Firestore → businesses). Only that store changes; safe to run again.</div>
+      <input id="adPoliciesBiz" aria-label="Business id" type="text" placeholder="Business id" autocomplete="off" style="max-width:320px;">
+      <div id="adPoliciesProgress" class="ad-meta" style="margin-top:8px;"></div>
+      <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="ad-btn" id="adPoliciesBtn">Copy to this store</button>
+      </div>
+    </div>
+    <div class="ad-card">
       <h3>App Check on the server</h3>
       <div class="ad-desc">How our functions treat the App Check token the app sends (reCAPTCHA Enterprise). <b>Off:</b> not checked. <b>Monitor:</b> calls go on, and calls without a valid token are logged as <code>app-check-monitor</code> in Vercel. <b>Enforce:</b> those calls are refused. Firestore, Auth and Storage are enforced separately, in Firebase Console → App Check. Move to Enforce only after the Console metrics show nearly every request verified.</div>
       <div id="adAppCheckStatus" class="ad-empty">Loading…</div>
@@ -596,6 +605,7 @@ function renderApp(){
   loadAdminClaims();
   document.getElementById('adSelfServeBtn').addEventListener('click', toggleSelfServe);
   loadSelfServe();
+  document.getElementById('adPoliciesBtn').addEventListener('click', runEbayPoliciesCopy);
   document.querySelectorAll('[data-appcheck-mode]').forEach(btn => btn.addEventListener('click', () => setAppCheckMode(btn.dataset.appcheckMode)));
   loadAppCheckMode();
   document.getElementById('adMigrationRefreshBtn').addEventListener('click', loadMigrationStatus);
@@ -769,6 +779,25 @@ async function toggleSelfServe(){
     drawSelfServe();
   }catch(e){
     progress.textContent = `Could not change it: ${e.message || e}`;
+    btn.disabled = false;
+  }
+}
+
+// ---------- eBay policies, one-time copy from the env (v3.28.8, api/_ebayPolicies.js) ----------
+async function runEbayPoliciesCopy(){
+  const bizId = document.getElementById('adPoliciesBiz').value.trim();
+  const btn = document.getElementById('adPoliciesBtn');
+  const progress = document.getElementById('adPoliciesProgress');
+  if (!bizId){ progress.textContent = 'Enter the business id first.'; return; }
+  if (!confirm(`Copy the eBay policy values from Vercel onto store "${bizId}"?`)) return;
+  btn.disabled = true;
+  progress.textContent = 'Copying…';
+  try{
+    await platformAction({ action: 'ebay_policies_copy', bizId });
+    progress.textContent = `Copied the five values to store ${bizId}.`;
+  }catch(e){
+    progress.textContent = `Could not copy: ${e.message || e}`;
+  }finally{
     btn.disabled = false;
   }
 }
