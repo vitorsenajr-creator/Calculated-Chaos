@@ -31,8 +31,25 @@ function versionFile(){
   };
 }
 
+// Vercel serves /privacy and /terms through rewrites (vercel.json); this does
+// the same for `vite dev` and `vite preview`, which would otherwise answer
+// with index.html.
+const LEGAL_PAGES = { '/privacy': '/privacy.html', '/terms': '/terms.html' };
+function legalPages(){
+  const rewrite = (req, res, next) => {
+    const path = (req.url || '').split('?')[0].replace(/\/$/, '');
+    if (LEGAL_PAGES[path]) req.url = LEGAL_PAGES[path];
+    next();
+  };
+  return {
+    name: 'legal-pages',
+    configureServer(server){ server.middlewares.use(rewrite); },
+    configurePreviewServer(server){ server.middlewares.use(rewrite); },
+  };
+}
+
 export default defineConfig({
-  plugins: [versionFile()],
+  plugins: [versionFile(), legalPages()],
   define: {
     __BUILD_ID__: JSON.stringify(BUILD_ID),
   },
@@ -42,6 +59,8 @@ export default defineConfig({
         index: resolve(__dirname, 'index.html'),
         app: resolve(__dirname, 'app.html'),
         admin: resolve(__dirname, 'admin.html'),
+        privacy: resolve(__dirname, 'privacy.html'),
+        terms: resolve(__dirname, 'terms.html'),
       },
     },
   },
