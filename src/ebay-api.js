@@ -870,9 +870,9 @@ ${esc(JSON.stringify(result.debugPolicyIdsSent, null, 2))}</div>`;
         app.renderAll();
         area.innerHTML = `<div class="ebay-status-box success">
           🎉 Listed on eBay! · <a href="${result.listingUrl}" target="_blank">View listing ↗</a>
-          ${result.categoryIdUsed ? `<br><small>Category used: ${app.escapeHtml(String(result.categoryIdUsed))}${result.categoryPathUsed ? ' — ' + app.escapeHtml(result.categoryPathUsed) : ''}</small>` : ''}
+          ${listedCategoryHtml(result.categoryPathUsed)}
+          ${listedSpecificsHtml(result.aspectsUsed)}
           ${(result.aspectAdjustments || []).map(a => `<br><small>ℹ️ ${app.escapeHtml(a.aspect)} sent as eBay's standard "${app.escapeHtml(a.to)}" (you had "${app.escapeHtml(a.from)}")</small>`).join('')}
-          ${result.aspectsUsed ? `<br><small>Item specifics sent: ${app.escapeHtml(JSON.stringify(result.aspectsUsed))}</small>` : ''}
         </div>`;
       }else if (result.skipped){
         const reasonText = result.reason === 'missing_fields'
@@ -886,6 +886,30 @@ ${esc(JSON.stringify(result.debugPolicyIdsSent, null, 2))}</div>`;
           await publishAndRenderResult(updated, forceRelist || !!updated.ebayListingId, area);
         });
       }
+  }
+
+  // The success box after a publish: the category by name (its last two
+  // levels, the full path on hover) and the item specifics as small chips,
+  // instead of the raw category id and the JSON the API returned (v3.28.7).
+  // The server's fallback paths start with "(" and say nothing useful to
+  // her, so they are left out.
+  function listedCategoryHtml(path){
+    const text = String(path || '');
+    if (!text || text.startsWith('(')) return '';
+    const parts = text.split('>').map(s => s.trim()).filter(Boolean);
+    if (!parts.length) return '';
+    return `<div class="ebay-listed-cat" title="${app.escapeHtml(parts.join(' › '))}">${app.escapeHtml(parts.slice(-2).join(' › '))}</div>`;
+  }
+
+  function listedSpecificsHtml(aspects){
+    if (!aspects || typeof aspects !== 'object') return '';
+    const chips = Object.entries(aspects).map(([name, value]) => {
+      const text = (Array.isArray(value) ? value : [value])
+        .filter(v => v != null && String(v).trim() !== '')
+        .join(', ');
+      return text ? `<span><small>${app.escapeHtml(name)}</small> ${app.escapeHtml(text)}</span>` : '';
+    }).join('');
+    return chips ? `<div class="ebay-listed-specs">${chips}</div>` : '';
   }
 
   export function buildEbayTitle(item){
