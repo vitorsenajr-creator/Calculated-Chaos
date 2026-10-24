@@ -47,6 +47,21 @@ options and the tool's free-text field ("Other") for his own answer. The
 discussion and the plan themselves stay in plain text; only what needs his
 answer goes in the form.
 
+### CC Agent (2026-10-24)
+
+CC Agent (`vitorsenajr-creator/cc-agent`, panel at agent.calculatedchaos.app)
+also works on this repo, unattended in CI:
+- A task Vitor creates or approves in the panel counts as his confirmed plan
+  (step 3 of *Change order*). Its questions go through the panel's form.
+- PR titles, PR descriptions and commit messages are in US English; the
+  panel, questions and summaries are in Portuguese.
+- Builds run one open PR at a time. When `main` moved, bring it in, resolve
+  the conflicts and renumber: the PR's `APP_VERSION` must be above `main`'s,
+  and both pending changelog entries stay.
+- Every PR ends with "Console steps for Vitor" (or "None").
+- A new list of tasks goes through the panel's plan mode, so dependencies are
+  recorded (`dependsOn`).
+
 ### Git workflow
 
 - Work on the session's named branch and open a PR per change. Whether a
@@ -1224,6 +1239,10 @@ on any of these:
   sizing (v3.13.102-105), inspection flag icon (v3.13.114).
 
 ## Pending changelog entry (since v3.28.0)
+
+- v3.28.15: `CLAUDE.md` gets a "CC Agent" rules section (Vitor, 2026-10-24):
+  a panel task is a confirmed plan, PRs in English, one open PR at a time,
+  renumber after bringing `main` in, "Console steps for Vitor". No code change.
 
 - v3.28.14: AI allowance reserved in a transaction, and a limit on Deepgram.
   `api/_aiAllowance.js` keeps one counter per store and month
