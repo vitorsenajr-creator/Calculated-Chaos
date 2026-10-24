@@ -24,6 +24,7 @@
   import { explainEbayErrorWithAi } from './modules/ebay-error-ai.js';
   import { normalizeSizeForEbay } from './modules/ebay-size.js';
   import { jsonAuthHeaders } from './modules/api-auth.js';
+  import { isPlatformAdmin } from './modules/admin-claim.js';
   import { saleKey, matchSaleItem, planSale, saleEntry } from './domain/ebay-sales.js';
   import { loadEbaySales, cachedEbaySales, logEbaySale } from './data/ebay-sales-store.js';
   import { renderEbaySalesPanel } from './ui/settings/ebay-sales-panel.js';
@@ -587,15 +588,15 @@
       const errorsList = result.detail.errors || (Array.isArray(result.detail) ? result.detail : [result.detail]);
       rawHtml += `<div style="margin-top:6px; padding:8px; background:rgba(0,0,0,0.04); border-radius:6px; font-family:monospace; font-size:11px; white-space:pre-wrap;">${esc(JSON.stringify(errorsList, null, 2))}</div>`;
     }
-    if (result.debugConditionSent !== undefined){
+    if (isPlatformAdmin() && result.debugConditionSent !== undefined){
       rawHtml += `<div style="margin-top:8px; padding:8px; background:rgba(194,112,95,0.08); border-radius:6px; font-family:monospace; font-size:11px; white-space:pre-wrap;">DEBUG — condition sent to eBay: ${esc(String(result.debugConditionSent))}
 DEBUG — item.condition (raw form value): ${esc(String(result.debugItemConditionRaw))}
 DEBUG — category chosen: ${result.debugCategoryChosen ? esc(result.debugCategoryChosen.id + ' — ' + result.debugCategoryChosen.path) : 'n/a'}
 DEBUG — full inventory body sent:
 ${esc(JSON.stringify(result.debugFullInventoryBody, null, 2))}</div>`;
     }
-    if (result.debugPolicyIdsSent){
-      rawHtml += `<div style="margin-top:8px; padding:8px; background:rgba(194,112,95,0.08); border-radius:6px; font-family:monospace; font-size:11px; white-space:pre-wrap;">DEBUG — policy IDs actually sent by the server (compare with Vercel dashboard values):
+    if (isPlatformAdmin() && result.debugPolicyIdsSent){
+      rawHtml += `<div style="margin-top:8px; padding:8px; background:rgba(194,112,95,0.08); border-radius:6px; font-family:monospace; font-size:11px; white-space:pre-wrap;">DEBUG — policy IDs actually sent by the server (compare with the configured values):
 ${esc(JSON.stringify(result.debugPolicyIdsSent, null, 2))}</div>`;
     }
     const detailsHtml = rawHtml

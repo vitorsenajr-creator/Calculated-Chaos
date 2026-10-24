@@ -89,8 +89,12 @@ renaming them needs a data migration of every saved item.
   automatically on push to `main`.
 - `npm test` runs the unit tests of `src/domain/` (`tests/domain/`, Node's
   built-in runner, no extra packages): money and dates in US formats, the
-  P&L, the IRS mileage rates, the sale matching and the goals. There are no
-  UI or API tests. The standard check before a commit is
+  P&L, the IRS mileage rates, the sale matching and the goals, plus
+  `tests/api/` (v3.28.8: `requireApprovedUser` with a fake Firebase Admin
+  and a mocked REST fetch). There are no UI tests. Rules tests on the
+  Firestore emulator (`tests/rules/`, Java + packages installed outside the
+  repo; how to run them is at the top of the file) are not in `npm test`.
+  The standard check before a commit is
   `node --check` on every touched file plus a clean `npm run build`.
   Optionally, add a headless-Chromium load up to the login screen (no JS
   errors). Firebase, eBay and the AI APIs aren't reachable from the sandbox.
@@ -457,7 +461,8 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
   needs Vercel Pro. Underscore files (`_requireApprovedUser.js`,
   `_firebaseAdmin.js`) don't count.
   - `platform.js`: platform-admin actions for the Developer Panel
-    (`health`, `migrate_status`, `migrate_copy`, `self_serve`, …), plus two
+    (`health`, `migrate_status`, `migrate_copy`, `self_serve`,
+    `ebay_retire_main`, …), plus two
     actions any signed-in account may call, pending included
     (`signup_status`, `business_create`, v3.28.0), handled before the
     approved-user check. New platform operations
@@ -465,7 +470,11 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
     logic in an underscore file like `_migration.js`.
   - `_ebayToken.js`: the server-only eBay connection (v3.16.0). Every eBay
     endpoint calls `getEbayAccessToken()`; never accept an eBay token from
-    the browser again.
+    the browser again. One connection per store, `ebay_connections/{bizId}`
+    (v3.28.9): `ebayConnectionOr403()` answers 403 `NO_STORE_ERROR` ("This
+    account isn't linked to a store yet.") without a live store; there is
+    no `'main'` fallback any more, and `requireAiAllowance()` refuses AI
+    the same way.
   - `_firebaseAdmin.js`: Firebase Admin from `FIREBASE_SERVICE_ACCOUNT`
     (never throws; returns `{ ok:false, error }`). `_requireApprovedUser.js`
     verifies tokens with it and falls back to the old Firestore-REST check
@@ -605,6 +614,15 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
 
 ## Open items
 
+- **Paste `firestore.rules` into the Console** for v3.28.12 (Vitor): the
+  `invites` rule (no client read or write; the server reads and writes it).
+  Until then Admin-SDK access still works, since it ignores the rules, so
+  invitations work either way; the rule only keeps clients out.
+- **Paste `firestore.rules` into the Console** for v3.28.8 (Vitor): a new
+  `users/{uid}` may only be `pending` with `status`, `email`, `createdAt`.
+  Until then an account can still write its own `activeBizId`/`role` at
+  sign-up (the server already ignores them without a members doc, but the
+  rules' `rootOpen()` still reads `activeBizId`).
 - **Paste `firestore.rules` into the Console** for v3.27.7 (Vitor): the
   `pick_log` rule (members create entries under their own uid; read for
   members and admins; no update or delete). Until then Pick works, but the
@@ -673,6 +691,31 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
   Revisit if the catalog grows.
 
 ### Unverified in production (build-verified only)
+
+- No `'main'` fallback and retire (v3.28.9): Node tests running the real
+  handlers with the REST sign-in fallback stubbed (every eBay endpoint and
+  ebay-auth action, analyze-photo, narration extract, suggest_fee and
+  explain_error answer 403 for an account with no store or a store not live,
+  with no eBay or Anthropic request), Sync members and the retire on an
+  in-memory Firestore, `ebay_retire_main` refused to a non-admin. Not run: the
+  real Firestore transaction. Vitor's steps: in the Firestore Console check
+  that `ebay_connections/{his bizId}` exists, press Developer Panel → App →
+  "Retire the old eBay connection", then publish one item on eBay.
+- Members link and users create rule (v3.28.8): Node tests of
+  `checkWithAdmin`/`checkWithRest` with a fake Firebase Admin and a mocked
+  fetch (a member gets the members role and bizId; a forged `activeBizId`
+  without a members doc gets no bizId and no role; users `employee` lowers an
+  owner, `owner` never raises an employee; a store not live keeps the role
+  without bizId; a failed REST members read = not a member; 7 of the 10 fail
+  on the old code) and 9 rules tests on the Firestore emulator (pending create
+  with the 3 fields, `email: null` or only `status` allowed; with
+  `activeBizId` or `role`, self-approved, or another uid denied; an admin's
+  approved create allowed; 2 fail on the old rules). Not run: the real
+  Console rules after the paste, a real sign-up, the REST members read
+  against the real Firestore, an employee's eBay connect refusal in
+  production. Check every approved account has its members doc (Developer
+  Panel → migration status: members source = target) before relying on it:
+  one without it now gets no business on the server.
 
 - App Check (v3.28.2): a test of the real `api/platform.js` route with a fake
   Firebase Admin and App Check verifier (off by default; an admin sets
@@ -1158,7 +1201,7 @@ on any of these:
 
 ## Pending changelog entry (since v3.28.0)
 
-- v3.28.8: Terms and Privacy Policy (P0 PR4b, Vitor). Static pages `/privacy`
+- v3.28.13: Terms and Privacy Policy (P0 PR4b, Vitor). Static pages `/privacy`
   and `/terms` (`privacy.html`, `terms.html`, shared `public/legal.css`;
   rewrites in `vercel.json`, the same in `vite.config.js` for dev/preview),
   linked from the welcome page footer, the sign-in card and the "Create your
@@ -1172,6 +1215,82 @@ on any of these:
   retention that nothing enforces yet. Needs a read by Vitor (or a lawyer)
   before real customers. Build, Node tests and a Chromium check of the
   checkbox only.
+- v3.28.12: store invitations (P0, PR 4a). A platform admin lists an email in
+  the server-only `invites/{normalized email}` collection (Developer Panel →
+  App → "Store invitations", `api/platform.js` actions `invites`,
+  `invite_add`, `invite_remove`, logic in `api/_invites.js`). An invited,
+  verified account may create its store while self-serve is off: the rule is
+  `canCreateStore()` in `domain/new-business.js`; `signup_status` now also
+  returns `invited` and `canCreate`, and the gate (`signupNextStep`) sends an
+  invited pending account to Verify your email, then "Create your store".
+  `business_create` accepts the same condition and marks the invite used
+  (`usedAt`, `usedBy`, `bizId`) in the same transaction; a used invite never
+  opens a second store. Everyone else still sees "Awaiting approval".
+  `firestore.rules`: `invites` has no client access (paste into the Console).
+  Tests: `tests/domain/new-business.test.mjs` (eligibility),
+  `tests/domain/invites-server.test.mjs` (fake Firestore),
+  `tests/harness/gate-invite.mjs` (Chromium gate with `/api/platform` mocked).
+  Not run: the real Firestore transaction and rule, the Developer Panel card
+  with a real admin sign-in, a real invited sign-up.
+- v3.28.11: eBay policies and location saved per store (PR2a of the eBay-per-store
+  work). The five values (`fulfillmentPolicyId`, `fulfillmentPolicyIdBuyerPays`,
+  `paymentPolicyId`, `returnPolicyId`, `merchantLocationKey`) are kept in
+  `ebay_connections/{bizId}.policies`, server only (`api/_ebayPolicies.js`:
+  `getEbayPolicies(auth)`, `saveEbayPolicies`, `copyEnvPolicies`; no env fallback
+  in the helper, the env ids are one seller's). `api/ebay-setup.js` (logic in
+  `api/_ebaySetup.js`) creates or finds the policies and location on the
+  caller's own eBay account, opts it in to SELLING_POLICY_MANAGEMENT only when
+  `get_opted_in_programs` doesn't list it, and saves a complete set on the
+  store (a partial set is never saved). Settings → eBay no longer asks to
+  paste env vars. New `api/platform.js` action `ebay_policies_copy` (`bizId`,
+  platform admins only) copies the env values onto one store's connection,
+  with a card in the Developer Panel. A reconnect to the same eBay seller keeps
+  the saved policies (`saveEbayConnection`). **Not yet read:** `ebay-list.js` and
+  `ebay-listing-tools.js` still use the env vars (next PR), so nothing changes
+  for publishing yet. The setup's ship-from address is still the fixed
+  placeholder (Orlando, FL). Tests: `tests/domain/ebay-policies.test.mjs` (fake
+  eBay and Firestore; the route handlers themselves are not run). Console step:
+  after deploy, Developer Panel → App → "eBay policies: copy from Vercel" with
+  Vitor's business id.
+- v3.28.10: developer wording out of seller-visible text (P0 PR5). "Tell
+  Vitor", "see README", "CLAUDE.md", "Vercel", the Developer Panel, and the
+  printer names Y43BT / FlashLabel Pro are gone from what sellers see. The
+  eBay publish error's DEBUG blocks show only to platform admins, and
+  `api/ebay-list.js` sends the `debug*` fields only to them
+  (`PLATFORM_ADMIN_UIDS`). `analyze-photo.js` and `narration.js` no longer
+  return the provider's raw error body (`detail`); it is logged on the
+  server. `tests/domain/ai-error-bodies.test.mjs`. Left on purpose: the
+  eBay setup panel's "Vercel Environment Variables" text (admin-only
+  screen) and code comments.
+- v3.28.9: no shared eBay connection, no AI without a store (P0 PR1b).
+  `ebayConnectionId()` (`api/_ebayToken.js`) throws without a `bizId`, and
+  every eBay endpoint answers 403 "This account isn't linked to a store yet."
+  through `ebayConnectionOr403()`; the connection helpers no longer default
+  to `'main'`, and an OAuth state without a store is refused.
+  `requireAiAllowance()` answers the same 403 before any Anthropic call.
+  Developer Panel → Business migration → "Sync members" now skips accounts
+  that already have a store (`activeBizId`), and the members count leaves out
+  other stores' accounts. New admin-only `api/platform.js` action
+  `ebay_retire_main` (`retireMainConnection()` in `api/_migration.js`):
+  copies `ebay_connections/main` to `_retired_main_<date>` and deletes it in
+  one transaction, with a "Retire the old eBay connection" button; refused
+  while the store has no `ebay_connections/{bizId}` with a refresh token.
+  `tests/domain/store-required.test.mjs` (8 tests). Unverified in production:
+  the retire on the real Firestore, a publish on the store's connection after
+  it.
+- v3.28.8: account-to-store link through `members` (security, P0 PR1a,
+  Vitor 2026-10-24). `firestore.rules`: a new account may create its own
+  `users/{uid}` only as `pending` with no field besides `status`, `email` and
+  `createdAt` (before, it could write its own `activeBizId` or `role`); the
+  admin path creating `approved` docs is unchanged.
+  `api/_requireApprovedUser.js` (both the Admin and REST paths): the users
+  doc's `activeBizId` counts only when `businesses/{bizId}/members/{uid}`
+  exists, and the role comes from that members doc; the users doc's `role` can
+  only lower it to `employee` (Vitor: "members decides, users can only
+  downgrade"). No members doc = `bizId` null and no role. Tests:
+  `tests/api/require-approved-user.test.mjs` (10, in `npm test`) and
+  `tests/rules/users-create.rules.mjs` (9, emulator). **Paste
+  `firestore.rules` into the Console.**
 
 - v3.28.7: the "Listed on eBay!" box in the item form is readable (Vitor,
   2026-10-24). The category shows its last two levels by name (full path on

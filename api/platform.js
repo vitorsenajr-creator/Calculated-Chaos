@@ -26,6 +26,11 @@
 //     -> turns the business data on for the app, server and rules
 //        (businesses/{bizId}.live), or back off.
 //
+//   action: 'ebay_retire_main' (v3.28.9)
+//     -> moves the old shared eBay connection, ebay_connections/main, to
+//        ebay_connections/_retired_main_<date> (copy and delete in one
+//        transaction). Nothing reads 'main' any more; this retires it.
+//
 //   action: 'admin_claims' | 'admin_claims_sync'
 //     -> the platform-admin custom claim (_adminClaims.js): who should be
 //        an admin and who has the claim; sync gives it to the listed
@@ -46,9 +51,20 @@
 //     -> the AI usage meter (_aiUsage.js): totals, per call type, per user
 //        (e-mail, role, business) and tools, for the month.
 //
+//   action: 'invites' | 'invite_add' | 'invite_remove', email (v3.28.12)
+//     -> the store invitations (_invites.js, invites/{email}): list them, add
+//        one, remove one. An invited, verified account may create its store
+//        while self-serve is off.
+//
 //   action: 'app_check' | 'app_check_set', mode (v3.28.2)
 //     -> how our functions treat the App Check token (_appCheck.js,
 //        platform/appcheck): 'off', 'monitor' or 'enforce'.
+//
+//   action: 'ebay_policies_copy', bizId (v3.28.11)
+//     -> one-time copy of the five EBAY_*_POLICY_ID / MERCHANT_LOCATION_KEY
+//        env values onto that store's ebay_connections/{bizId}.policies
+//        (_ebayPolicies.js). Only that store; refuses if any env var is
+//        missing or the store has no eBay connection.
 //
 //   action: 'self_serve' | 'self_serve_set', on (v3.28.0)
 //     -> the self-serve sign-up switch (_business.js, platform/signup):
@@ -59,8 +75,9 @@
 // account may call, pending ones included:
 //
 //   action: 'signup_status'
-//     -> { selfServe, hasBusiness }: whether a verified pending account
-//        sees "Create your store" or "Awaiting approval".
+//     -> { selfServe, invited, canCreate, hasBusiness }: whether a pending
+//        account sees "Create your store" or "Awaiting approval" (the switch
+//        on, or its email has an open invite).
 //
 //   action: 'ai_allowance' (v3.28.1, any approved account)
 //     -> { limited, limit, used, remaining, allowed, month, resetsOn } for
@@ -68,17 +85,20 @@
 //
 //   action: 'business_create', name, logo?, sellsOn?, acceptTerms, termsVersion
 //     -> creates the caller's store and approves the account, only while
-//        the switch is on and the email is verified, and only with the
-//        Terms accepted (400 otherwise). Returns { bizId }.
+//        the switch is on or the email has an open invite (marked used), the
+//        email is verified and the Terms are accepted (400 otherwise).
+//        Returns { bizId }.
 
 import { requireApprovedUser } from './_requireApprovedUser.js';
 import { getFirebaseAdmin, isPlatformAdminUid, FIREBASE_PROJECT_ID } from './_firebaseAdmin.js';
-import { migrationStatus, migrationCopy, migrationSwitch } from './_migration.js';
+import { migrationStatus, migrationCopy, migrationSwitch, retireMainConnection } from './_migration.js';
 import { adminClaimsStatus, adminClaimsSync } from './_adminClaims.js';
 import { usersAuthInfo, userRemove, userRestore, userDeny, employeeCreate } from './_users.js';
 import { aiUsageReport } from './_aiUsage.js';
 import { verifySignedInUser, signupStatus, businessCreate, readSelfServe, selfServeSet } from './_business.js';
+import { copyEnvPolicies } from './_ebayPolicies.js';
 import { getAiAllowance } from './_aiAllowance.js';
+import { invitesList, inviteAdd, inviteRemove } from './_invites.js';
 import { readAppCheckMode, setAppCheckMode } from './_appCheck.js';
 import { usageMonth } from '../src/domain/ai-usage.js';
 
@@ -166,6 +186,13 @@ export default async function handler(req, res){
         : await migrationSwitch(admin.db, auth, req.body || {});
       return res.status(result.ok ? 200 : result.status).json(result.ok ? result : { error: result.error });
     }
+    if (action === 'ebay_retire_main'){
+      const admin = getFirebaseAdmin();
+      if (!admin.ok) return res.status(503).json({ error: admin.error });
+      const result = await retireMainConnection(admin.db, auth);
+      console.log('ebay-retire-main', JSON.stringify({ by: auth.uid, ok: result.ok, to: result.retiredTo || null }));
+      return res.status(result.ok ? 200 : result.status).json(result.ok ? result : { error: result.error });
+    }
     if (action === 'admin_claims' || action === 'admin_claims_sync'){
       const admin = getFirebaseAdmin();
       if (!admin.ok) return res.status(503).json({ error: admin.error });
@@ -181,12 +208,28 @@ export default async function handler(req, res){
       console.log('app-check-set', JSON.stringify({ by: auth.uid, mode: result.mode || null }));
       return res.status(result.ok ? 200 : result.status).json(result.ok ? result : { error: result.error });
     }
+    if (action === 'ebay_policies_copy'){
+      const admin = getFirebaseAdmin();
+      if (!admin.ok) return res.status(503).json({ error: admin.error });
+      const result = await copyEnvPolicies(admin.db, auth, req.body || {});
+      console.log('ebay-policies-copy', JSON.stringify({ by: auth.uid, bizId: (req.body || {}).bizId || null, ok: result.ok }));
+      return res.status(result.ok ? 200 : result.status).json(result.ok ? result : { error: result.error });
+    }
     if (action === 'self_serve' || action === 'self_serve_set'){
       const admin = getFirebaseAdmin();
       if (!admin.ok) return res.status(503).json({ error: admin.error });
       if (action === 'self_serve') return res.status(200).json({ ok: true, selfServe: await readSelfServe(admin.db) });
       const result = await selfServeSet(admin.db, auth, req.body || {});
       console.log('self-serve-set', JSON.stringify({ by: auth.uid, on: result.selfServe ?? null }));
+      return res.status(result.ok ? 200 : result.status).json(result.ok ? result : { error: result.error });
+    }
+    if (action === 'invites' || action === 'invite_add' || action === 'invite_remove'){
+      const admin = getFirebaseAdmin();
+      if (!admin.ok) return res.status(503).json({ error: admin.error });
+      const result = action === 'invites' ? await invitesList(admin.db)
+        : action === 'invite_add' ? await inviteAdd(admin.db, auth, req.body || {})
+        : await inviteRemove(admin.db, auth, req.body || {});
+      if (action !== 'invites') console.log(action.replace('_', '-'), JSON.stringify({ by: auth.uid, email: result.ok ? (result.invite ? result.invite.email : result.email) : null, ok: result.ok }));
       return res.status(result.ok ? 200 : result.status).json(result.ok ? result : { error: result.error });
     }
     if (action === 'ai_usage'){

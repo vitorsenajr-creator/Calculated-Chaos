@@ -12,7 +12,8 @@
 //
 // Firebase Admin ignores the security rules, so every check is done here.
 
-import { buildNewBusinessDocs } from '../src/domain/new-business.js';
+import { buildNewBusinessDocs, canCreateStore, inviteState, normalizeInviteEmail } from '../src/domain/new-business.js';
+import { readInvite, inviteRef } from './_invites.js';
 import { checkAppCheck } from './_appCheck.js';
 
 const SWITCH = ['platform', 'signup'];
@@ -42,28 +43,40 @@ export async function readSelfServe(db){
   return snap.exists && snap.data().selfServe === true;
 }
 
-// What the sign-in gate needs to know about the switch.
+// What the sign-in gate needs to know: the switch, whether the account's
+// email has an open invite (v3.28.12), and whether it may create a store now
+// (`canCreate`: verified email plus the switch or the invite).
 export async function signupStatus(admin, caller){
-  const [selfServe, userSnap] = await Promise.all([
+  const [selfServe, invite, userSnap] = await Promise.all([
     readSelfServe(admin.db),
+    readInvite(admin.db, caller.email),
     admin.db.collection('users').doc(caller.uid).get(),
   ]);
   const user = userSnap.exists ? userSnap.data() : null;
-  return { ok: true, selfServe, hasBusiness: !!(user && user.activeBizId) };
+  return {
+    ok: true,
+    selfServe,
+    invited: inviteState(invite) === 'open',
+    canCreate: canCreateStore({ selfServe, invite, emailVerified: caller.emailVerified }),
+    hasBusiness: !!(user && user.activeBizId),
+  };
 }
 
 // body: { name, logo?, sellsOn?, acceptTerms, termsVersion }. Creates
 // businesses/{bizId}, its owner member, its config/settings, and approves
 // the account with activeBizId, all in one transaction. Asking again after
-// it worked returns the same store instead of a second one. Without the
-// Terms checkbox (or with an old termsVersion) nothing is written and the
-// answer is 400; with it, termsVersion and termsAcceptedAt go on the
-// business doc and on users/{uid}.
+// it worked returns the same store instead of a second one. Allowed while
+// the switch is on or the email has an open invite (v3.28.12); the invite
+// is marked used in the same transaction. Without the Terms checkbox (or
+// with an old termsVersion) nothing is written and the answer is 400; with
+// it, termsVersion and termsAcceptedAt go on the business doc and on
+// users/{uid} (v3.28.13).
 export async function businessCreate(admin, caller, body){
   if (!caller.emailVerified) return err(403, 'Verify your email first.');
-  if (!(await readSelfServe(admin.db))) return err(403, 'New stores are not open yet. Your account is waiting for approval.');
 
   const db = admin.db;
+  const selfServe = await readSelfServe(db);
+  const inviteKey = normalizeInviteEmail(caller.email);
   let docs;
   try{
     docs = buildNewBusinessDocs({
@@ -83,16 +96,24 @@ export async function businessCreate(admin, caller, body){
   const userRef = db.collection('users').doc(caller.uid);
   return db.runTransaction(async (tx) => {
     const userSnap = await tx.get(userRef);
+    const invSnap = inviteKey ? await tx.get(inviteRef(db, inviteKey)) : null;
     if (!userSnap.exists) return err(403, 'Your account was not found. Sign out and sign in again.');
     const user = userSnap.data();
     if (user.activeBizId) return { ok: true, bizId: user.activeBizId, existing: true };
     if (user.status !== 'pending') return err(403, 'This account cannot create a store.');
+    const invite = invSnap && invSnap.exists ? invSnap.data() : null;
+    if (!canCreateStore({ selfServe, invite, emailVerified: caller.emailVerified })){
+      return err(403, 'New stores are not open yet. Your account is waiting for approval.');
+    }
 
     const bizRef = db.collection('businesses').doc();
     tx.set(bizRef, docs.business);
     tx.set(bizRef.collection('members').doc(caller.uid), docs.member);
     tx.set(bizRef.collection('config').doc('settings'), docs.settings);
     tx.set(userRef, { ...docs.userPatch, activeBizId: bizRef.id }, { merge: true });
+    if (inviteState(invite) === 'open'){
+      tx.set(inviteRef(db, inviteKey), { usedAt: Date.now(), usedBy: caller.uid, bizId: bizRef.id }, { merge: true });
+    }
     return { ok: true, bizId: bizRef.id, existing: false };
   });
 }

@@ -65,13 +65,16 @@ service cloud.firestore {
         get(/databases/$(database)/documents/businesses/$(bizId)).data.get('live', false) != true;
     }
 
-    // A new account can only create its own doc as 'pending' (admins may
-    // create 'approved' ones, e.g. employee logins). Only admins approve,
-    // change roles or delete.
+    // A new account can only create its own doc as 'pending', with only its
+    // email and creation time (v3.28.8: before, any field was accepted, so an
+    // account could write its own activeBizId or role). Admins may create
+    // 'approved' ones, e.g. employee logins. Only admins approve, change
+    // roles or delete.
     match /users/{userId} {
       allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
       allow create: if isSignedIn() && request.auth.uid == userId &&
-        (request.resource.data.status == 'pending' ||
+        ((request.resource.data.status == 'pending' &&
+          request.resource.data.keys().hasOnly(['status', 'email', 'createdAt'])) ||
          (request.resource.data.status == 'approved' && isAdmin()));
       allow update, delete: if isAdmin();
     }
@@ -124,5 +127,9 @@ service cloud.firestore {
     // written and summed by the server (api/_aiUsage.js) for the Developer
     // Panel's AI usage tab. No client access at all.
     match /ai_usage/{docId} { allow read, write: if false; }
+
+    // Store invitations (v3.28.12): one doc per invited email, read and
+    // written only by the server (api/_invites.js). No client access at all.
+    match /invites/{docId} { allow read, write: if false; }
   }
 }
