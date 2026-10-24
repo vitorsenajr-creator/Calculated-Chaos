@@ -1254,6 +1254,17 @@ on any of these:
 
 ## Pending changelog entry (since v3.28.0)
 
+- v3.28.20: Developer Panel → Business migration no longer shows "Pending" for
+  a live store that has more docs than the frozen old collection. The rule is
+  the pure `migrationRowState()` in `src/domain/migration-row.js`: not live =
+  OK only when the counts match, else Pending (as before); live and business
+  >= old = OK with "Live on business data (old collection frozen)"; live and
+  business < old = a "Fewer on business" warning ("The business has N fewer
+  docs than the old collection"). Members and docs rows, `api/_migration.js`
+  and every button are unchanged; no new Firestore write. Test:
+  `tests/domain/migration-row.test.mjs` (3). Build and Node tests only; the
+  panel with a real admin sign-in was not opened.
+
 - v3.28.19: the store's own eBay ship-from address (Vitor, 2026-10-24: city,
   state and ZIP only; only the owner changes it). `src/domain/ship-from.js`
   (`cleanShipFrom`, the 50 states + DC, ZIP or ZIP+4, an all-lowercase city

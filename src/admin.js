@@ -9,6 +9,7 @@
 // shared eBay connection and the eBay error library. The Businesses and
 // Credits & cost sections arrive with the multi-business work
 // (docs/multi-tenant.md).
+import { migrationRowState } from './domain/migration-row.js';
 import './config/firebase.js';
 import { escapeHtml } from './modules/format-utils.js';
 import { EBAY_ERROR_LIBRARY } from './modules/ebay-error-hints.js';
@@ -937,11 +938,15 @@ async function loadMigrationStatus(){
   try{
     const s = await platformAction({ action: 'migrate_status' });
     const mark = (ok) => ok ? '<span class="ad-pill approved">OK</span>' : '<span class="ad-pill pending">Pending</span>';
-    const rows = s.collections.map(c => `
+    const rows = s.collections.map(c => {
+      const r = migrationRowState(c, s.live);
+      const pill = r.state === 'warning' ? `<span class="ad-pill warning">${escapeHtml(r.pill)}</span>` : mark(r.state === 'ok');
+      return `
       <div class="ad-row" style="display:block;">
-        <div class="ad-main-text">${escapeHtml(c.name)} ${mark(c.target === c.source)}</div>
-        <div class="ad-meta">Current: ${c.source} · Copied: ${c.target}</div>
-      </div>`).join('') + s.docs.map(d => `
+        <div class="ad-main-text">${escapeHtml(c.name)} ${pill}</div>
+        <div class="ad-meta">${escapeHtml(r.detail)}${r.note ? ` · ${escapeHtml(r.note)}` : ''}</div>
+      </div>`;
+    }).join('') + s.docs.map(d => `
       <div class="ad-row" style="display:block;">
         <div class="ad-main-text">${escapeHtml(d.from)} → ${escapeHtml(d.to)} ${d.source ? mark(d.target) : '—'}</div>
         <div class="ad-meta">${d.source ? (d.target ? 'Copied' : 'Not copied yet') : 'Doesn\'t exist (nothing to copy)'}</div>
