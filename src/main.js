@@ -5480,6 +5480,7 @@ export const app = (function(){
       userDoc,
       emailVerified: await tokenEmailVerified(user),
       selfServe: !!(status && status.selfServe),
+      invited: !!(status && status.invited),
     });
     if (step === 'create_store'){
       onboarding.showStoreSetup({ signOut: async () => { stopLiveSync(); await window.authFns.signOut(window.auth); } });

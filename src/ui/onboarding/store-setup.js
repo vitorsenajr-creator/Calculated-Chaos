@@ -19,12 +19,12 @@ async function platformCall(body){
   return res.ok ? { ok: true, ...data } : { ok: false, error: data.error || `The server answered ${res.status}.` };
 }
 
-// { selfServe, hasBusiness }, or null when it can't be asked (the gate then
+// { selfServe, invited, hasBusiness }, or null when it can't be asked (the gate then
 // keeps the "Awaiting approval" screen, as before v3.28.0).
 export async function fetchSignupStatus(){
   try{
     const r = await platformCall({ action: 'signup_status' });
-    return r.ok ? { selfServe: r.selfServe === true, hasBusiness: r.hasBusiness === true } : null;
+    return r.ok ? { selfServe: r.selfServe === true, invited: r.invited === true, hasBusiness: r.hasBusiness === true } : null;
   }catch(e){
     console.warn('Could not read the sign-up status:', e);
     return null;

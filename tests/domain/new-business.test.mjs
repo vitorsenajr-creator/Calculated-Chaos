@@ -66,3 +66,39 @@ test('with self-serve on a pending account verifies, then creates its store', ()
   // A pending account already tied to a business waits for its admin.
   assert.equal(on({ status: 'pending', activeBizId: 'b1' }, true), 'awaiting_approval');
 });
+
+test('invite emails are normalized to a plain lowercase address', async () => {
+  const { normalizeInviteEmail } = await import('../../src/domain/new-business.js');
+  assert.equal(normalizeInviteEmail('  Maya.K@Example.COM '), 'maya.k@example.com');
+  for (const bad of ['', null, undefined, 'maya', 'a@b', 'a b@c.co', 'a/b@c.co', '@c.co', 'a@@c.co', 'x'.repeat(250) + '@c.co']){
+    assert.equal(normalizeInviteEmail(bad), '', String(bad));
+  }
+});
+
+test('who may create a store: verified, and the switch or an open invite', async () => {
+  const { canCreateStore, inviteState } = await import('../../src/domain/new-business.js');
+  const open = { email: 'a@b.co', createdAt: 1 };
+  const used = { ...open, usedAt: 2, bizId: 'b1' };
+  assert.equal(inviteState(null), 'none');
+  assert.equal(inviteState(open), 'open');
+  assert.equal(inviteState(used), 'used');
+  // An invited, verified account: yes, with the switch off.
+  assert.equal(canCreateStore({ selfServe: false, invite: open, emailVerified: true }), true);
+  // Not invited: no.
+  assert.equal(canCreateStore({ selfServe: false, invite: null, emailVerified: true }), false);
+  // Invited but not verified: no.
+  assert.equal(canCreateStore({ selfServe: false, invite: open, emailVerified: false }), false);
+  // A used invite never opens a second store.
+  assert.equal(canCreateStore({ selfServe: false, invite: used, emailVerified: true }), false);
+  // The switch on still needs a verified email, and an invite is not needed.
+  assert.equal(canCreateStore({ selfServe: true, invite: null, emailVerified: true }), true);
+  assert.equal(canCreateStore({ selfServe: true, invite: null, emailVerified: false }), false);
+});
+
+test('the gate sends an invited pending account to verify, then the store screen', () => {
+  const gate = (emailVerified, invited) => signupNextStep({ userDoc: { status: 'pending' }, emailVerified, selfServe: false, invited });
+  assert.equal(gate(false, true), 'verify');
+  assert.equal(gate(true, true), 'create_store');
+  assert.equal(gate(true, false), 'awaiting_approval');
+  assert.equal(gate(false, false), 'awaiting_approval');
+});

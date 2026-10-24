@@ -557,6 +557,16 @@ function renderApp(){
       </div>
     </div>
     <div class="ad-card">
+      <h3>Store invitations</h3>
+      <div class="ad-desc">An invited email can create its own store after verifying it, even while self-serve sign-up is off. Everyone else keeps waiting for approval. An invite works once: it is marked used when the store is created.</div>
+      <form id="adInviteForm" style="display:flex; gap:8px; flex-wrap:wrap;">
+        <input type="email" id="adInviteEmail" placeholder="email@example.com" autocomplete="off" required style="flex:1 1 220px; min-height:40px; font:inherit;" aria-label="Email to invite">
+        <button class="ad-btn" id="adInviteAddBtn" type="submit">Invite</button>
+      </form>
+      <div id="adInviteProgress" class="ad-meta" style="margin:8px 0;"></div>
+      <div id="adInviteList" class="ad-empty">Loading…</div>
+    </div>
+    <div class="ad-card">
       <h3>eBay policies: copy from Vercel</h3>
       <div class="ad-desc">One-time copy of the five <code>EBAY_*_POLICY_ID</code> / <code>EBAY_MERCHANT_LOCATION_KEY</code> values from Vercel onto one store's eBay connection (where each store now keeps its own). Enter the store's business id (the one in Firestore → businesses). Only that store changes; safe to run again.</div>
       <input id="adPoliciesBiz" aria-label="Business id" type="text" placeholder="Business id" autocomplete="off" style="max-width:320px;">
@@ -606,6 +616,8 @@ function renderApp(){
   loadAdminClaims();
   document.getElementById('adSelfServeBtn').addEventListener('click', toggleSelfServe);
   loadSelfServe();
+  document.getElementById('adInviteForm').addEventListener('submit', (e) => { e.preventDefault(); addInvite(); });
+  loadInvites();
   document.getElementById('adPoliciesBtn').addEventListener('click', runEbayPoliciesCopy);
   document.querySelectorAll('[data-appcheck-mode]').forEach(btn => btn.addEventListener('click', () => setAppCheckMode(btn.dataset.appcheckMode)));
   loadAppCheckMode();
@@ -781,6 +793,69 @@ async function toggleSelfServe(){
     drawSelfServe();
   }catch(e){
     progress.textContent = `Could not change it: ${e.message || e}`;
+    btn.disabled = false;
+  }
+}
+
+// ---------- Store invitations (v3.28.12, api/_invites.js) ----------
+function inviteDay(ms){
+  return ms ? new Date(ms).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+}
+
+function drawInvites(list){
+  const el = document.getElementById('adInviteList');
+  if (!list.length){ el.className = 'ad-empty'; el.textContent = 'No invitations yet.'; return; }
+  el.className = '';
+  el.innerHTML = list.map(i => `
+    <div class="ad-row">
+      <div>
+        <div class="ad-main-text">${escapeHtml(i.email)}</div>
+        <div class="ad-meta">${i.state === 'used' ? `Used ${escapeHtml(inviteDay(i.usedAt))}: store created` : `Invited ${escapeHtml(inviteDay(i.createdAt))}: waiting`}</div>
+      </div>
+      <div class="ad-actions"><button class="ad-btn danger" type="button" data-invite-remove="${escapeHtml(i.email)}">Remove</button></div>
+    </div>`).join('');
+  el.querySelectorAll('[data-invite-remove]').forEach(btn => btn.addEventListener('click', () => removeInvite(btn.dataset.inviteRemove, btn)));
+}
+
+async function loadInvites(){
+  try{
+    const r = await platformAction({ action: 'invites' });
+    drawInvites(r.invites || []);
+  }catch(e){
+    const el = document.getElementById('adInviteList');
+    el.className = '';
+    el.innerHTML = `<div class="ebay-status-box error">Could not load the invitations: ${escapeHtml(e.message || String(e))}</div>`;
+  }
+}
+
+async function addInvite(){
+  const input = document.getElementById('adInviteEmail');
+  const btn = document.getElementById('adInviteAddBtn');
+  const progress = document.getElementById('adInviteProgress');
+  btn.disabled = true;
+  progress.textContent = 'Inviting…';
+  try{
+    const r = await platformAction({ action: 'invite_add', email: input.value });
+    progress.textContent = r.existing ? `${r.invite.email} was already invited.` : `Invited ${r.invite.email}. Tell them to sign up with this email.`;
+    input.value = '';
+    await loadInvites();
+  }catch(e){
+    progress.textContent = `Could not invite: ${e.message || e}`;
+  }finally{
+    btn.disabled = false;
+  }
+}
+
+async function removeInvite(email, btn){
+  if (!confirm(`Remove the invitation for ${email}? A store they already created stays.`)) return;
+  const progress = document.getElementById('adInviteProgress');
+  btn.disabled = true;
+  try{
+    await platformAction({ action: 'invite_remove', email });
+    progress.textContent = `Removed the invitation for ${email}.`;
+    await loadInvites();
+  }catch(e){
+    progress.textContent = `Could not remove it: ${e.message || e}`;
     btn.disabled = false;
   }
 }

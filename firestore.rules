@@ -127,5 +127,9 @@ service cloud.firestore {
     // written and summed by the server (api/_aiUsage.js) for the Developer
     // Panel's AI usage tab. No client access at all.
     match /ai_usage/{docId} { allow read, write: if false; }
+
+    // Store invitations (v3.28.12): one doc per invited email, read and
+    // written only by the server (api/_invites.js). No client access at all.
+    match /invites/{docId} { allow read, write: if false; }
   }
 }
