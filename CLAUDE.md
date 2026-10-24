@@ -1158,6 +1158,13 @@ on any of these:
 
 ## Pending changelog entry (since v3.28.0)
 
+- v3.28.5: the tour's traveling picture now changes with the step (Vitor,
+  2026-10-24): a dress with its #0412 tag at Catalog, a form being filled at
+  eBay listing, a shipping parcel at Pick and a coin with a dollar sign at
+  Profit, in the same navy line style as the old box. `index.html` only
+  (`.t-arts`); the stamps and the script are unchanged. Build and
+  headless-Chromium render only.
+
 - v3.28.4: welcome page (`index.html`) refresh, asked for and approved by
   Vitor (2026-10-24). Hero: a 3D phone with the Home screen and a "Sold on
   Poshmark" card, the path Photo, Label, List, Sold, a drawn underline under
