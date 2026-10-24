@@ -605,6 +605,10 @@ the text from the previous commit (`git show <sha>^:firestore.rules`).
 
 ## Open items
 
+- **Paste `firestore.rules` into the Console** for v3.28.8 (Vitor): the
+  `invites` rule (no client read or write; the server reads and writes it).
+  Until then Admin-SDK access still works, since it ignores the rules, so
+  invitations work either way; the rule only keeps clients out.
 - **Paste `firestore.rules` into the Console** for v3.27.7 (Vitor): the
   `pick_log` rule (members create entries under their own uid; read for
   members and admins; no update or delete). Until then Pick works, but the
@@ -1157,6 +1161,24 @@ on any of these:
   sizing (v3.13.102-105), inspection flag icon (v3.13.114).
 
 ## Pending changelog entry (since v3.28.0)
+
+- v3.28.8: store invitations (P0, PR 4a). A platform admin lists an email in
+  the server-only `invites/{normalized email}` collection (Developer Panel →
+  App → "Store invitations", `api/platform.js` actions `invites`,
+  `invite_add`, `invite_remove`, logic in `api/_invites.js`). An invited,
+  verified account may create its store while self-serve is off: the rule is
+  `canCreateStore()` in `domain/new-business.js`; `signup_status` now also
+  returns `invited` and `canCreate`, and the gate (`signupNextStep`) sends an
+  invited pending account to Verify your email, then "Create your store".
+  `business_create` accepts the same condition and marks the invite used
+  (`usedAt`, `usedBy`, `bizId`) in the same transaction; a used invite never
+  opens a second store. Everyone else still sees "Awaiting approval".
+  `firestore.rules`: `invites` has no client access (paste into the Console).
+  Tests: `tests/domain/new-business.test.mjs` (eligibility),
+  `tests/domain/invites-server.test.mjs` (fake Firestore),
+  `tests/harness/gate-invite.mjs` (Chromium gate with `/api/platform` mocked).
+  Not run: the real Firestore transaction and rule, the Developer Panel card
+  with a real admin sign-in, a real invited sign-up.
 
 - v3.28.7: the "Listed on eBay!" box in the item form is readable (Vitor,
   2026-10-24). The category shows its last two levels by name (full path on

@@ -79,17 +79,46 @@ export function buildNewBusinessDocs({ uid, email, name, logo, sellsOn, now }){
   return { business, member, settings, userPatch };
 }
 
+// Invitations (v3.28.8): a platform admin lists an email in the server-only
+// `invites` collection (doc id = the normalized email); that account may
+// create a store while self-serve is off. Used by api/_invites.js and
+// api/_business.js.
+
+// The doc id / key of an invite: trimmed, lowercase, one plain address.
+// '' when it can't be an email (no "/" either: a Firestore doc id).
+export function normalizeInviteEmail(raw){
+  const email = String(raw == null ? '' : raw).trim().toLowerCase();
+  if (email.length > 254 || !/^[^\s@/]+@[^\s@/]+\.[^\s@/]+$/.test(email)) return '';
+  return email;
+}
+
+// 'none' (no invite), 'open' (not used yet) or 'used'.
+export function inviteState(invite){
+  if (!invite) return 'none';
+  return invite.usedAt ? 'used' : 'open';
+}
+
+// May this account create a store now? `invite` is the invites doc data for
+// its email (or null). A verified email is always required; then either the
+// self-serve switch is on or the email has an open invite. A used invite
+// never opens a second store.
+export function canCreateStore({ selfServe, invite, emailVerified }){
+  if (!emailVerified) return false;
+  return selfServe === true || inviteState(invite) === 'open';
+}
+
 // What the sign-in gate shows next.
 //   userDoc: the users/{uid} data (or null); emailVerified: the token's
-//   email_verified; selfServe: the server's switch (false when unknown).
+//   email_verified; selfServe: the server's switch (false when unknown);
+//   invited: the server says this email has an open invite (v3.28.8).
 // Returns 'removed' | 'verify' | 'app' | 'create_store' | 'awaiting_approval'.
 // With selfServe off the answers are exactly the v3.27 gate's.
-export function signupNextStep({ userDoc, emailVerified, selfServe }){
+export function signupNextStep({ userDoc, emailVerified, selfServe, invited }){
   const status = userDoc && userDoc.status;
   if (status === 'removed') return 'removed';
   if (status === 'approved') return emailVerified ? 'app' : 'verify';
-  if (!selfServe) return 'awaiting_approval';
-  // A pending account with self-serve on: verify first, then the store.
+  if (!selfServe && !invited) return 'awaiting_approval';
+  // A pending account with self-serve on, or invited: verify first, then the store.
   if (userDoc && userDoc.activeBizId) return 'awaiting_approval';
   return emailVerified ? 'create_store' : 'verify';
 }
