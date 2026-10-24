@@ -1158,6 +1158,14 @@ on any of these:
 
 ## Pending changelog entry (since v3.28.0)
 
+- v3.28.7: the "Listed on eBay!" box in the item form is readable (Vitor,
+  2026-10-24). The category shows its last two levels by name (full path on
+  hover) instead of "Category used: <id> — <path>", the server's "(fallback
+  …)" paths are hidden, and the item specifics are chips ("Brand H&M")
+  instead of raw JSON. `src/ebay-api.js` (`listedCategoryHtml`,
+  `listedSpecificsHtml`) and `.ebay-listed-*` in `src/style.css`. Build and
+  tests only; unconfirmed on a real eBay publish.
+
 - v3.28.6: welcome tour, eBay step (Vitor, 2026-10-24). The step picture is
   now a listing page (the dress, its title, a green price and "List it")
   instead of the form. The listed-on-eBay screenshot
